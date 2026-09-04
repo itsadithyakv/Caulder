@@ -1,0 +1,297 @@
+/* ---------------------------------------------------------------------------
+ * The pipeline board, and the stage editor in settings.
+ *
+ * The columns are sunken wells and the cards are the raised things inside
+ * them — the one place in the app where a lift is the right signal, because a
+ * card really is an object you pick up and put down.
+ *
+ * Layout only. Colour, radius, spacing and type come from tokens.
+ * ------------------------------------------------------------------------- */
+
+.pipeline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.board {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  overflow-x: auto;
+  padding-bottom: var(--space-3);
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  flex: 0 0 264px;
+  /* Tall enough to show a card or two whatever the window does, and no taller
+   * than the space below the header. Without the floor a short window shrinks
+   * the columns to a sliver and every one of them grows its own scrollbar. */
+  min-height: 240px;
+  max-height: calc(100vh - 260px);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  box-shadow: var(--shadow-inset-sm);
+  transition: box-shadow var(--dur-fast) var(--ease);
+}
+
+/* The drop target is announced by an accent ring, not by a colour wash: the
+ * cards inside have to stay readable while a card is in flight. */
+.column--over {
+  box-shadow:
+    var(--shadow-inset-sm),
+    0 0 0 2px var(--accent);
+}
+
+.column__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.column__name {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.column__count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Won and lost say what they are with a top edge. Semantic colour, never
+ * derived from the company accent, so it reads the same in every workspace. */
+.column--won  .column__head { border-top: 2px solid var(--ok); padding-top: var(--space-2); }
+.column--lost .column__head { border-top: 2px solid var(--danger); padding-top: var(--space-2); }
+
+.column__value {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.column__cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.column__empty,
+.column__more {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-style: italic;
+}
+
+/* ---- Cards ------------------------------------------------------------- */
+
+.boardcard {
+  position: relative;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+  transition:
+    box-shadow var(--dur-fast) var(--ease),
+    opacity var(--dur-fast) var(--ease);
+}
+
+.boardcard:hover {
+  box-shadow: var(--shadow-sm);
+}
+
+.boardcard__drag {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  cursor: grab;
+}
+
+.boardcard__drag:active {
+  cursor: grabbing;
+}
+
+.boardcard__open {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0;
+  padding-right: 22px;
+  border: none;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.boardcard__open:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: var(--radius-xs);
+}
+
+.boardcard__name {
+  color: var(--ink);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.boardcard__sub {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+}
+
+.boardcard__foot {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.boardcard__value {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.boardcard__flag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--warn);
+  font-size: var(--text-xs);
+}
+
+.boardcard__flag--ok {
+  color: var(--ok);
+}
+
+.boardcard__when {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+}
+
+.boardcard__move {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: var(--radius-xs);
+  background: none;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.boardcard__move:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+
+.boardcard__move:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.boardmenu {
+  position: absolute;
+  top: 28px;
+  right: var(--space-2);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.boardmenu__item {
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-radius: var(--radius-xs);
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.boardmenu__item:hover {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+
+.boardmenu__item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* ---- Stage editor ------------------------------------------------------ */
+
+.stages {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+
+.stagerow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 130px auto;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+@media (max-width: 760px) {
+  .stagerow {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .stagerow__kind {
+    grid-column: 2 / -1;
+  }
+}
+
+.stagerow__order {
+  display: flex;
+  flex-direction: column;
+}
+
+.stagerow__kind {
+  width: 100%;
+}
+
+.stageadd {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.stages__add {
+  align-self: flex-start;
+}

@@ -1,0 +1,172 @@
+/* ---------------------------------------------------------------------------
+ * Email: the queue, templates, sequences and the bridge.
+ *
+ * Layout only. Colour, radius, spacing and type come from tokens.
+ * ------------------------------------------------------------------------- */
+
+.email {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* The tab panel wrapper. It exists to be keyed and animated, so it must not
+ * also become a layout box: it inherits the column and the gap it replaced. */
+.email__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.ingest {
+  margin-top: var(--space-3);
+}
+
+/* ---- Messages ---------------------------------------------------------- */
+
+.messages {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.messagerow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  box-shadow: var(--shadow-inset-sm);
+}
+
+.messagerow__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.messagerow__subject {
+  color: var(--ink);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.messagerow__meta {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.messagerow__failure {
+  color: var(--danger);
+  font-size: var(--text-sm);
+}
+
+.messagerow__side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  flex: none;
+}
+
+.messagerow__when {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+/* ---- Templates --------------------------------------------------------- */
+
+.templates,
+.sequences {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.templaterow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  box-shadow: var(--shadow-inset-sm);
+}
+
+.templaterow__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.templaterow__name {
+  display: block;
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.templaterow__subject {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.tpl__body {
+  min-height: 160px;
+  font-family: inherit;
+}
+
+/* ---- Sequences --------------------------------------------------------- */
+
+.sequence {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  box-shadow: var(--shadow-inset-sm);
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-xs);
+  background: var(--surface);
+}
+
+.step__when {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
+.step__template {
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}

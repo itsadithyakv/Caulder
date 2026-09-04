@@ -1,0 +1,568 @@
+/* ---------------------------------------------------------------------------
+ * Leads: the table, the detail view and the timeline.
+ *
+ * This is where neumorphism deliberately stops. The table lives in ONE sunken
+ * well; rows are flat, separated by a hairline, and tint on hover rather than
+ * lifting. Two hundred soft extruded rows is the case the style handles worst,
+ * and reading the list is the whole job.
+ *
+ * Layout only. Colour, radius, spacing and type come from tokens.
+ * ------------------------------------------------------------------------- */
+
+.leads {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* ---- Toolbar ---------------------------------------------------------- */
+
+.leads__toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.leads__search {
+  position: relative;
+  flex: 1;
+  min-width: 240px;
+}
+
+.leads__searchIcon {
+  position: absolute;
+  top: 50%;
+  left: var(--space-3);
+  transform: translateY(-50%);
+  color: var(--ink-3);
+  pointer-events: none;
+}
+
+.leads__searchInput {
+  padding-left: calc(var(--space-3) * 2 + 15px);
+}
+
+/* Chrome draws its own clear button on a search input; it lands on the
+ * sunken field looking like a stray artefact. */
+.leads__searchInput::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+.leads__filter {
+  width: auto;
+  min-width: 150px;
+}
+
+.leads__count {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.leads__formCard {
+  max-width: 720px;
+}
+
+.empty__actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* ---- Table ------------------------------------------------------------- */
+
+.leadtable__well {
+  /* The well is the only raised-or-sunken thing here; the rows inside it are
+   * flat so the text stays readable at any length. */
+  overflow-x: auto;
+}
+
+.leadtable {
+  width: 100%;
+  /* Below this the columns start crushing school names and clipping the
+   * value. Scrolling the well sideways is the honest failure: the page itself
+   * never scrolls horizontally. */
+  min-width: 940px;
+  border-collapse: collapse;
+  /* Fixed, so the columns do not resize as you type in the search box. An
+   * auto table re-measures on every keystroke and the whole grid twitches. */
+  table-layout: fixed;
+  font-size: var(--text-base);
+}
+
+.leadtable col,
+.leadtable th {
+  /* Name and contact carry the most text, so they get the room. Next step and
+   * last touched are short, fixed phrases. */
+  overflow: hidden;
+}
+
+.leadtable th:nth-child(1) { width: 42px; }  /* the tick */
+.leadtable th:nth-child(2) { width: 27%; }   /* name and city */
+.leadtable th:nth-child(3) { width: 21%; }   /* contact */
+.leadtable th:nth-child(4) { width: 13%; }   /* stage */
+.leadtable th:nth-child(5) { width: 17%; }   /* next step */
+.leadtable th:nth-child(6) { width: 10%; }   /* value */
+.leadtable th:nth-child(7) { width: 12%; }   /* last touched */
+
+.leadtable thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 0 var(--space-3);
+  height: 38px;
+  background: var(--surface-sunken);
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-align: left;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ---- Sorting -----------------------------------------------------------
+ * The heading is the control. The arrow is always present so the column does
+ * not change width on click, but it only carries colour once the column is
+ * the one actually sorting.
+ * ---------------------------------------------------------------------- */
+
+.sortcol {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  width: 100%;
+  padding: 0;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease);
+}
+
+.leadtable__num .sortcol { justify-content: flex-end; }
+
+.sortcol:hover { color: var(--ink); }
+
+.sortcol--active { color: var(--accent-strong); }
+
+.sortcol__arrow {
+  flex: none;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+
+.sortcol:hover .sortcol__arrow { opacity: 0.5; }
+.sortcol--active .sortcol__arrow { opacity: 1; }
+
+/* ---- The tick column ---------------------------------------------------- */
+
+.leadtable__pick {
+  width: 42px;
+  padding-right: 0 !important;
+  text-align: center;
+}
+
+.tickbox {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.leadtable__num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.leadrow {
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+/* One line, always.
+ *
+ * The height is fixed and every cell truncates rather than wrapping. Letting
+ * cells grow made a lead with a contact, an email and a phone three lines tall
+ * and one with none a single line, so nothing lined up across rows - and a
+ * table whose rows are different heights stops reading as a table at all. What
+ * is cut off is in the title attribute and on the lead itself. */
+.leadrow > td {
+  height: var(--row-h);
+  padding: 0 var(--space-3);
+  border-bottom: 1px solid var(--soft-line);
+  vertical-align: middle;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.leadrow:last-child > td {
+  border-bottom: none;
+}
+
+/* A tint, not a lift. Elevation is not allowed to mean anything here. */
+.leadrow:hover {
+  background: var(--surface-hover);
+}
+
+.leadrow:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* Ticked. A wash rather than a border, so a run of selected rows reads as one
+ * block instead of a stack of outlined ones. */
+.leadrow--picked,
+.leadrow--picked:hover {
+  background: var(--accent-soft);
+}
+
+/* The name and its city share one line, and the name is the half that gives
+ * up space when there is not enough. */
+.leadrow__title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.leadrow__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* On the same line as the name, not under it. The city is context for the
+ * name rather than a fact of its own, and a second line here is what made
+ * every row a different height. */
+.leadrow__city {
+  flex: none;
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+  font-weight: 400;
+}
+
+.leadrow__sub {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+.leadrow__contact {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-2);
+}
+
+.leadrow__contactIcon {
+  flex: none;
+  color: var(--ink-3);
+}
+
+/* text-overflow applies to a block box, not to the loose text of a flex
+ * container, so anything that has to clip inside one needs its own element. */
+.leadrow__ellipsis {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* What happens next. The kind is a quiet prefix; the date is the part being
+ * scanned, so it carries the weight. */
+.leadrow__next {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-2);
+}
+
+.leadrow__nextKind {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+/* Already slipped. Colour AND the word the date gives it, never colour alone. */
+.leadrow__next--late {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.leadrow__next--late .leadrow__nextKind {
+  color: var(--danger);
+}
+
+.leadrow__missing {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+  font-style: italic;
+}
+
+/* ---- Acting on a selection ---------------------------------------------
+ * Takes the toolbar's place while rows are ticked, so "Add lead" is never
+ * sitting next to "Delete 12 leads".
+ * ---------------------------------------------------------------------- */
+
+.bulkbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
+  box-shadow: var(--shadow-xs);
+}
+
+.bulkbar__count {
+  margin-right: var(--space-2);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.bulkbar__move {
+  width: auto;
+  min-width: 160px;
+}
+
+.bulkbar__ask {
+  color: var(--ink-2);
+}
+
+.bulkbar__clear {
+  margin-left: auto;
+}
+
+/* ---- Lead form --------------------------------------------------------- */
+
+.leadform {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+.leadform__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+@media (max-width: 720px) {
+  .leadform__row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.leadform__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+/* ---- Detail ------------------------------------------------------------ */
+
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.detail__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.detail__barActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.detail__confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.detail__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+/* The timeline is the reason to open a lead, so below this width it goes
+ * under the facts rather than being squeezed beside them. */
+@media (max-width: 980px) {
+  .detail__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.detail__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.detail__name {
+  color: var(--ink);
+  font-size: var(--text-lg);
+  font-weight: 900;
+}
+
+.facts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.facts__row {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: baseline;
+}
+
+.facts__label {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+.facts__value {
+  margin: 0;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.facts__value a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.detail__notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--soft-line);
+}
+
+.detail__notesBody {
+  color: var(--ink-2);
+  white-space: pre-wrap;
+}
+
+.detail__historyTitle {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--soft-line);
+}
+
+/* ---- Timeline ---------------------------------------------------------- */
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  margin-top: var(--space-4);
+}
+
+.timeline__compose {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.timeline__input {
+  min-height: 76px;
+}
+
+.timeline__composeFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.timeline__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.entry {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.entry__icon {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--surface-sunken);
+  color: var(--ink-3);
+}
+
+.entry__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.entry__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.entry__kind {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.entry__when {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.entry__text {
+  color: var(--ink-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

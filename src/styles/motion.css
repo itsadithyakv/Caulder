@@ -1,0 +1,149 @@
+/* ---------------------------------------------------------------------------
+ * Motion: entrances and exits.
+ *
+ * Hover and press states are NOT here - those belong with the component they
+ * describe. This file is only about things arriving and leaving.
+ *
+ * RULES:
+ *
+ *   1. Motion explains, it does not decorate. A menu grows from the control
+ *      that opened it. A completed task leaves sideways. If a movement does
+ *      not say where something came from or went, it should not move.
+ *   2. Nothing travels more than 10px. Neumorphic relief is shallow, and a
+ *      long slide reads as a flatter, more Material design language.
+ *   3. Duration comes from the tokens, never a literal. The reduced-motion
+ *      block in tokens.css zeroes them; a hardcoded 300ms would not hear it.
+ *   4. Data does not animate as it settles. A container may fade in. Two
+ *      hundred table rows may not arrive one at a time - by the time the last
+ *      one lands the user has been waiting on an animation, not on data.
+ *   5. Nothing animates on a value CHANGING, only on it arriving. A number
+ *      that pulses every time it recounts is a distraction on every screen.
+ *      The one exception is the overdue badge, which is the app's alarm.
+ * ------------------------------------------------------------------------- */
+
+/* Arriving from just below: the default for a screen or a card. */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Menus grow from their top edge, which is the edge nearest the control that
+ * opened them, so the movement points back at what was clicked. */
+@keyframes menu-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Something opening INSIDE a screen: a tab's panel, a form that unfolds where
+ * a button was, the bar that appears when rows are ticked.
+ *
+ * Half the travel of a screen arriving, and quicker. That difference is the
+ * point rather than a detail - how far a thing moves says how far you went to
+ * get it, so a tab panel that arrived like a whole screen would keep implying
+ * you had left the one you are on. */
+@keyframes unfold {
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* A dialog is the one thing allowed to arrive over the top of everything, so
+ * it gets the longest travel in the file. */
+@keyframes float-up {
+  from { opacity: 0; transform: translateY(10px) scale(0.985); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* The mark. Slower and from further back than anything else, because it is
+ * the app introducing itself rather than a control appearing. */
+@keyframes mark-in {
+  from { opacity: 0; transform: scale(0.86); }
+  60%  { opacity: 1; }
+  to   { opacity: 1; transform: none; }
+}
+
+/* A count that has just become worse. Overshoots, because the point is to be
+ * noticed. */
+@keyframes pop {
+  from { transform: scale(0.6); }
+  55%  { transform: scale(1.12); }
+  to   { transform: none; }
+}
+
+/* Boot. Loops, so it must never run under reduced motion. */
+@keyframes breathe {
+  0%, 100% { opacity: 0.35; transform: scale(0.97); }
+  50%      { opacity: 1;    transform: scale(1); }
+}
+
+/* Done. Leaves to the right, the direction the tick is on. */
+@keyframes leave {
+  from { opacity: 1; transform: none; }
+  to   { opacity: 0; transform: translateX(14px) scale(0.98); }
+}
+
+.anim-page  { animation: rise      var(--dur)      var(--ease) both; }
+.anim-in    { animation: fade      var(--dur-fast) var(--ease) both; }
+.anim-menu  { animation: menu-in   var(--dur-fast) var(--ease) both; }
+.anim-modal { animation: float-up  var(--dur)      var(--ease) both; }
+.anim-panel { animation: unfold    var(--dur-fast) var(--ease) both; }
+.anim-mark  { animation: mark-in   var(--dur-slow) var(--ease) both; }
+.anim-pop   { animation: pop       var(--dur)      var(--ease) both; }
+.anim-leave { animation: leave     var(--dur)      var(--ease) both; }
+
+/* Sections arriving in order. Used where the ORDER carries meaning - Today's
+ * sections are ranked by how much they need attention, and the board's columns
+ * are the funnel left to right - so revealing them in sequence says something
+ * a simultaneous fade does not.
+ *
+ * Capped at eight. Past that the delay is longer than anyone waits to read the
+ * top of the screen, so the rest arrive together. */
+.anim-stagger {
+  --stagger: 45ms;
+}
+
+.anim-stagger > * {
+  animation: rise var(--dur) var(--ease) both;
+}
+
+.anim-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.anim-stagger > *:nth-child(2) { animation-delay: calc(var(--stagger) * 1); }
+.anim-stagger > *:nth-child(3) { animation-delay: calc(var(--stagger) * 2); }
+.anim-stagger > *:nth-child(4) { animation-delay: calc(var(--stagger) * 3); }
+.anim-stagger > *:nth-child(5) { animation-delay: calc(var(--stagger) * 4); }
+.anim-stagger > *:nth-child(6) { animation-delay: calc(var(--stagger) * 5); }
+.anim-stagger > *:nth-child(7) { animation-delay: calc(var(--stagger) * 6); }
+.anim-stagger > *:nth-child(n + 8) { animation-delay: calc(var(--stagger) * 7); }
+
+/* Boot, and any wait long enough to need saying. The mark rather than a
+ * spinner: this is the app starting, not a request in flight. */
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.loading__mark {
+  width: 46px;
+  height: 56px;
+  animation: breathe 1.6s var(--ease) infinite;
+}
+
+/* ---- Reduced motion ----------------------------------------------------
+ * Off, not merely faster. The duration tokens are already zero here, but a
+ * transform that completes in 0ms is a jump rather than a stillness, and a
+ * looping animation would never stop at all.
+ * ---------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  [class*="anim-"],
+  .anim-stagger > *,
+  .loading__mark {
+    animation: none !important;
+  }
+}

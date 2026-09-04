@@ -1,0 +1,422 @@
+/* ---------------------------------------------------------------------------
+ * Primitives: the reusable neumorphic surfaces and controls.
+ *
+ * THE GOVERNING RULE, from the plan: neumorphism is for CHROME, not CONTENT.
+ * Buttons, inputs, cards, tabs, the sidebar and section containers get the
+ * paired-shadow treatment. Table rows, lead names, numbers and status text
+ * stay flat and high-contrast, because a soft low-contrast surface cannot
+ * carry two hundred rows of data.
+ *
+ * Corollary: elevation NEVER encodes meaning. Status is carried by colour and
+ * label. A raised card and a flat one differ in depth, not in what they mean.
+ *
+ * A feature stylesheet may POSITION these; it may not restyle them.
+ * ------------------------------------------------------------------------- */
+
+/* ---- Surfaces --------------------------------------------------------- */
+
+.nm-raised {
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.nm-sunken {
+  background: var(--surface-sunken);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-inset-sm);
+}
+
+/* The well a data table sits in: ONE sunken container, not N raised rows. */
+.nm-well {
+  background: var(--surface-sunken);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-inset-md);
+  overflow: hidden;
+}
+
+.nm-flat {
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--soft-line);
+}
+
+/* Floating surfaces break neumorphism on purpose - relief cannot separate a
+ * menu from the page behind it. */
+.nm-float {
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-float);
+}
+
+/* ---- Card ------------------------------------------------------------- */
+
+.card {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-5);
+}
+
+.card--tight { padding: var(--space-4); }
+
+.card__title {
+  margin: 0 0 var(--space-1);
+  color: var(--ink);
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+
+.card__hint {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+/* ---- Button ------------------------------------------------------------
+ * Rest = raised. Hover = lifted. Active = pressed (inset). That press is the
+ * whole point of a neumorphic control; it must feel like a physical key.
+ * ---------------------------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 36px;
+  padding: 0 var(--space-4);
+  background: var(--surface);
+  color: var(--ink-2);
+  border: none;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-xs);
+  font-size: var(--text-base);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    box-shadow var(--dur) var(--ease),
+    color var(--dur) var(--ease),
+    transform var(--dur-fast) var(--ease);
+}
+
+.btn:hover:not(:disabled) {
+  box-shadow: var(--shadow-sm);
+  color: var(--ink);
+}
+
+.btn:active:not(:disabled) {
+  box-shadow: var(--shadow-inset-sm);
+  transform: translateY(1px);
+}
+
+/* Disabled must be distinguishable WITHOUT relying on shadow alone, so it
+ * loses its relief and drops to the tertiary ink at the same time. */
+.btn:disabled {
+  box-shadow: none;
+  background: var(--surface-sunken);
+  color: var(--ink-3);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.btn--primary {
+  background: var(--accent);
+  color: var(--ink-on-accent);
+  font-weight: 700;
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--ink-on-accent);
+  box-shadow: var(--shadow-sm);
+  filter: brightness(1.06);
+}
+
+.btn--danger {
+  color: var(--danger);
+}
+
+.btn--ghost {
+  background: transparent;
+  box-shadow: none;
+}
+
+.btn--ghost:hover:not(:disabled) {
+  background: var(--surface-hover);
+  box-shadow: var(--shadow-xs);
+}
+
+.btn--icon {
+  min-width: 36px;
+  padding: 0;
+}
+
+.btn--sm {
+  min-height: 30px;
+  padding: 0 var(--space-3);
+  font-size: var(--text-sm);
+}
+
+/* ---- Input -------------------------------------------------------------
+ * Inputs are SUNKEN. A raised input reads as a button and invites a click
+ * rather than typing; the inset is the affordance that says "type here".
+ * ---------------------------------------------------------------------- */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.field__label {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.input,
+.textarea,
+.select {
+  width: 100%;
+  min-height: 38px;
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-sunken);
+  color: var(--ink);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-inset-sm);
+  font-size: var(--text-base);
+  transition:
+    box-shadow var(--dur) var(--ease),
+    border-color var(--dur) var(--ease);
+}
+
+.input::placeholder,
+.textarea::placeholder {
+  color: var(--ink-3);
+}
+
+.input:focus-visible,
+.textarea:focus-visible,
+.select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.textarea {
+  min-height: 96px;
+  resize: vertical;
+  line-height: var(--leading);
+}
+
+/* Validation gets a SOLID border and text, never a soft glow. */
+.input--invalid,
+.textarea--invalid {
+  border-color: var(--danger);
+}
+
+.field__error {
+  color: var(--danger);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+/* ---- Badge -------------------------------------------------------------
+ * Status. Colour plus label, always both - colour alone fails for anyone who
+ * cannot separate these hues, and elevation is not allowed to carry meaning.
+ * ---------------------------------------------------------------------- */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px var(--space-3);
+  border-radius: var(--radius-pill);
+  /* Transparent by default so a variant can add a border without the pill
+   * changing size against its neighbours. */
+  border: 1px solid transparent;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* A neutral badge has to read on a raised card AND inside the sunken table
+ * well, and a fill alone cannot do both: whichever surface colour it takes,
+ * it disappears against the other. The hairline is what makes it a pill
+ * everywhere. */
+.badge--neutral {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--ink-2);
+}
+.badge--ok      { background: var(--ok-soft);     color: var(--ok); }
+.badge--warn    { background: var(--warn-soft);   color: var(--warn); }
+.badge--danger  { background: var(--danger-soft); color: var(--danger); }
+.badge--info    { background: var(--info-soft);   color: var(--info); }
+.badge--accent  { background: var(--accent-soft); color: var(--accent-strong); }
+
+/* ---- Tabs ------------------------------------------------------------- */
+
+.tabs {
+  display: inline-flex;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  background: var(--surface-sunken);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-inset-sm);
+}
+
+.tab {
+  padding: var(--space-2) var(--space-4);
+  background: transparent;
+  color: var(--ink-3);
+  border: none;
+  border-radius: var(--radius-xs);
+  font-size: var(--text-base);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--dur) var(--ease);
+}
+
+.tab:hover { color: var(--ink-2); }
+
+.tab[aria-selected="true"] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-xs);
+}
+
+/* ---- Toggle ----------------------------------------------------------- */
+
+.toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 44px;
+  height: 26px;
+  padding: 0;
+  background: var(--surface-sunken);
+  border: none;
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-inset-sm);
+  cursor: pointer;
+  transition: background var(--dur) var(--ease);
+}
+
+.toggle[aria-checked="true"] {
+  background: var(--accent);
+}
+
+.toggle__thumb {
+  position: absolute;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  background: var(--surface);
+  border-radius: 50%;
+  box-shadow: var(--shadow-xs);
+  transition: transform var(--dur) var(--ease);
+}
+
+.toggle[aria-checked="true"] .toggle__thumb {
+  transform: translateX(18px);
+}
+
+/* ---- Empty state -------------------------------------------------------
+ * States the fact, then the next action. No exclamation marks, no emoji.
+ * ---------------------------------------------------------------------- */
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  /* Was --space-8 top and bottom, which made every empty state a screenful of
+   * nothing wrapped around two lines of text. An empty state should state the
+   * fact and offer the next action, not occupy the page while doing it. */
+  padding: var(--space-6) var(--space-5);
+  text-align: center;
+}
+
+/* A line of guidance above real content, rather than a card standing in for
+ * it. Used where the screen can still show its own shape while empty. */
+.hintbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  box-shadow: var(--shadow-inset-sm);
+}
+
+.hintbar__icon { flex: none; color: var(--ink-3); }
+
+.hintbar__text {
+  flex: 1;
+  min-width: 0;
+  color: var(--ink-2);
+  font-size: var(--text-base);
+}
+
+.empty__icon { color: var(--ink-3); }
+
+.empty__title {
+  color: var(--ink);
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+
+.empty__body {
+  max-width: 44ch;
+  color: var(--ink-3);
+  font-size: var(--text-base);
+}
+
+/* ---- Section heading ---------------------------------------------------
+ * A heading stands alone: no kicker, eyebrow or breadcrumb label above it.
+ * ---------------------------------------------------------------------- */
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.section-head__count {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Modal scrim ------------------------------------------------------- */
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: var(--space-5);
+  /* Darkens both themes rather than tinting: a scrim is not a surface, and
+   * deriving it from a token would make it disappear in one of them. */
+  background: rgba(0, 0, 0, 0.45);
+  overflow-y: auto;
+}
+
+.kbd {
+  display: inline-block;
+  min-width: 22px;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-xs);
+  background: var(--surface-sunken);
+  box-shadow: var(--shadow-inset-sm);
+  color: var(--ink-2);
+  font-family: inherit;
+  font-size: var(--text-xs);
+  text-align: center;
+}

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "electron/main/index.ts",
+    "electron/preload/index.ts",
+    "src/main.tsx",
+    "src/theme-boot.ts",
+    "electron.vite.config.ts",
+    "e2e/**/*.spec.ts"
+  ],
+  "project": ["electron/**/*.ts", "src/**/*.{ts,tsx}", "shared/**/*.ts", "e2e/**/*.ts"],
+  "ignore": ["src/global.d.ts"]
+}

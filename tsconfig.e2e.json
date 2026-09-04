@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.base.json",
+  "include": ["e2e/**/*.ts", "shared/**/*.ts", "playwright.config.ts"],
+  "compilerOptions": {
+    "composite": true,
+    "types": ["node"],
+    // Playwright tests run in Node, but the bodies passed to page.evaluate run
+    // in the browser and legitimately touch the DOM. Its own project, so the
+    // main process cannot quietly acquire DOM types it has no business with.
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "baseUrl": ".",
+    "paths": {
+      "@shared/*": ["shared/*"]
+    }
+  }
+}

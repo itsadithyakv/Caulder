@@ -1,0 +1,237 @@
+/* ---------------------------------------------------------------------------
+ * The import wizard.
+ *
+ * Same rule as the leads table: the wells and cards are neumorphic, the data
+ * inside them is flat. A preview is read before it is admired.
+ *
+ * Layout only. Colour, radius, spacing and type come from tokens.
+ * ------------------------------------------------------------------------- */
+
+.import,
+.import__preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.import__start {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-top: var(--space-4);
+}
+
+/* ---- Column mapping ---------------------------------------------------- */
+
+.mapping__well {
+  margin-top: var(--space-4);
+  overflow-x: auto;
+}
+
+.mapping {
+  width: 100%;
+  min-width: 620px;
+  border-collapse: collapse;
+}
+
+.mapping thead th {
+  padding: var(--space-3) var(--space-4);
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.mapping tbody td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--soft-line);
+  vertical-align: middle;
+}
+
+.mapping tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.mapping__header {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.mapping__sample {
+  max-width: 34ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+/* ---- Tally ------------------------------------------------------------- */
+
+.tally {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-top: var(--space-4);
+}
+
+.tally__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 104px;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  box-shadow: var(--shadow-inset-sm);
+}
+
+.tally__value {
+  font-size: var(--text-lg);
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.tally__value--ok      { color: var(--ok); }
+.tally__value--info    { color: var(--info); }
+.tally__value--danger  { color: var(--danger); }
+.tally__value--neutral { color: var(--ink-2); }
+
+.tally__label {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+/* ---- Duplicates -------------------------------------------------------- */
+
+.dupes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dupe {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  box-shadow: var(--shadow-inset-sm);
+}
+
+.dupe__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.dupe__row {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.dupe__name {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.dupe__why {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+.conflicts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.conflicts__row {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: baseline;
+}
+
+.conflicts__pair {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+  flex-wrap: wrap;
+  overflow-wrap: anywhere;
+}
+
+/* The existing value is struck only when it would actually be replaced; here
+ * both are shown plainly, because which one wins is the choice below. */
+.conflicts__existing { color: var(--ink-2); }
+.conflicts__arrow    { color: var(--ink-3); }
+.conflicts__incoming { color: var(--ink); font-weight: 500; }
+
+.dupe__choice {
+  align-self: flex-start;
+}
+
+/* ---- Batches ----------------------------------------------------------- */
+
+.batches {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.batch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  box-shadow: var(--shadow-inset-sm);
+}
+
+.batch__what {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.batch__name {
+  color: var(--ink);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.batch__meta {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+/* ---- Pasting a list ----------------------------------------------------
+ * Monospaced, because what goes in here is a table whose columns only line up
+ * in a fixed-width face, and a misaligned paste is the first thing you would
+ * want to notice.
+ * ---------------------------------------------------------------------- */
+
+.import__paste {
+  min-height: 132px;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow-x: auto;
+}

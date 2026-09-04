@@ -1,0 +1,19 @@
+/* Ordered import list. The order IS the contract:
+ * tokens -> base -> motion -> primitives -> shell -> features.
+ * Later layers may adjust layout. They may not redefine colour, radius,
+ * spacing or type.
+ *
+ * Motion sits with the foundations rather than the features because a screen
+ * that invents its own entrance is how an app ends up with five of them. */
+
+@import "./tokens.css";
+@import "./base.css";
+@import "./motion.css";
+@import "./primitives.css";
+@import "./shell.css";
+@import "./workspace.css";
+@import "./leads.css";
+@import "./import.css";
+@import "./today.css";
+@import "./pipeline.css";
+@import "./email.css";
