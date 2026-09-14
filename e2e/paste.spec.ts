@@ -66,7 +66,7 @@ test("a pasted chat reply becomes leads", async () => {
   const page = await app.firstWindow();
   await openImport(page);
 
-  await page.getByLabel("Paste a list of leads").fill(REPLY);
+  await page.getByLabel("Paste a list of contacts").fill(REPLY);
   await page.getByRole("button", { name: "Read this list" }).click();
 
   // Straight into the mapping step, with the columns already matched from the
@@ -105,12 +105,12 @@ test("pasting something that is not a table says so", async () => {
   const page = await app.firstWindow();
   await openImport(page);
 
-  await page.getByLabel("Paste a list of leads").fill("I could not find any schools.");
+  await page.getByLabel("Paste a list of contacts").fill("I could not find any schools.");
   await page.getByRole("button", { name: "Read this list" }).click();
 
   await expect(page.getByRole("alert")).toContainText("does not look like a table");
   // And it stays put rather than throwing away what was pasted.
-  await expect(page.getByLabel("Paste a list of leads")).toHaveValue(
+  await expect(page.getByLabel("Paste a list of contacts")).toHaveValue(
     "I could not find any schools.",
   );
 });
@@ -121,7 +121,7 @@ test("the button is dead until there is something to read", async () => {
   await openImport(page);
 
   await expect(page.getByRole("button", { name: "Read this list" })).toBeDisabled();
-  await page.getByLabel("Paste a list of leads").fill("| Name |\n| --- |\n| A |");
+  await page.getByLabel("Paste a list of contacts").fill("| Name |\n| --- |\n| A |");
   await expect(page.getByRole("button", { name: "Read this list" })).toBeEnabled();
 });
 

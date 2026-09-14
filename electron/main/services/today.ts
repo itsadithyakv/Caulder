@@ -1,6 +1,6 @@
 import type { Db } from "../db/connection";
-import type { ColdLead, DayLoad, FunnelSlice, StageKind, Today } from "@shared/domain";
-import { daysBetween, dayOf, shiftDay, today as todayIn } from "@shared/dates";
+import type { ColdLead, Today } from "@shared/domain";
+import { daysBetween, dayOf, today as todayIn } from "@shared/dates";
 import { getSetting } from "../repositories/settings";
 import { listDueOn, listOverdue, listUpcoming } from "../repositories/tasks";
 import { listBlocks } from "../repositories/blocks";
@@ -10,12 +10,9 @@ import { listOverdueInvoices } from "../repositories/money";
 /**
  * The Today engine.
  *
- * Assembles the answer to "what do I do this morning" from three questions the
- * database can answer, in the order they need attention: what is late, what is
- * due, and what is quietly going nowhere.
- *
- * All five sections the plan asked for are here: what is late, what is due,
- * what is queued to send, who has replied and is waiting, and what is quietly
+ * Assembles the answer to "what do I do this morning" from the questions the
+ * database can answer, in the order they need attention: what money is late,
+ * what work is late, what is due, what is in the hours, and what is quietly
  * going nowhere.
  */
 
@@ -54,92 +51,7 @@ export function buildToday(db: Db, companyId: string, now: Date = new Date()): T
     cold: listCold(db, companyId, day, timezone, coldAfterDays),
     coldAfterDays,
     unpaid: listOverdueInvoices(db, companyId, day),
-    funnel: buildFunnel(db, companyId),
-    ahead: buildAhead(db, companyId, day),
   };
-}
-
-/**
- * Counts and value per stage, in funnel order.
- *
- * Never sorted by size: the order is the funnel, and re-ordering it by count
- * would turn a picture of a process into a leaderboard. An empty stage stays
- * in the picture too - a gap in the middle of a funnel is the most useful
- * thing this chart can show.
- */
-function buildFunnel(db: Db, companyId: string): FunnelSlice[] {
-  const rows = db
-    .prepare(
-      `SELECT s.id, s.name, s.kind, s.position,
-              COUNT(l.id) AS n,
-              COALESCE(SUM(l.value), 0) AS total
-         FROM pipeline_stages s
-         LEFT JOIN leads l ON l.stage_id = s.id AND l.company_id = s.company_id
-        WHERE s.company_id = ?
-        GROUP BY s.id
-        ORDER BY s.position`,
-    )
-    .all(companyId) as { id: string; name: string; kind: StageKind; n: number; total: number }[];
-
-  const slices: FunnelSlice[] = rows.map((row) => ({
-    stageId: row.id,
-    name: row.name,
-    kind: row.kind,
-    count: row.n,
-    value: row.total,
-  }));
-
-  // Leads left behind by a deleted stage are still leads, and a funnel that
-  // does not add up to the number in the sidebar is a funnel nobody trusts.
-  const unstaged = db
-    .prepare(
-      `SELECT COUNT(*) AS n, COALESCE(SUM(value), 0) AS total
-         FROM leads WHERE company_id = ? AND stage_id IS NULL`,
-    )
-    .get(companyId) as { n: number; total: number };
-
-  if (unstaged.n > 0) {
-    slices.push({
-      stageId: null,
-      name: "Unstaged",
-      kind: "open",
-      count: unstaged.n,
-      value: unstaged.total,
-    });
-  }
-
-  return slices;
-}
-
-/** How many days of work the chart looks ahead. Two weeks of planning. */
-const AHEAD_DAYS = 14;
-
-/**
- * Open tasks per day for the fortnight, zero-filled.
- *
- * Zero-filled because the useful reading is "Thursday is heavy and Friday is
- * empty" - and a bar chart that simply omits the quiet days says the opposite
- * of that by putting the busy ones next to each other.
- */
-function buildAhead(db: Db, companyId: string, day: string): DayLoad[] {
-  const last = shiftDay(day, AHEAD_DAYS - 1);
-
-  const rows = db
-    .prepare(
-      `SELECT due_on AS day, COUNT(*) AS n
-         FROM tasks
-        WHERE company_id = ? AND status = 'open'
-          AND due_on >= ? AND due_on <= ?
-        GROUP BY due_on`,
-    )
-    .all(companyId, day, last) as { day: string; n: number }[];
-
-  const counts = new Map(rows.map((row) => [row.day, row.n]));
-
-  return Array.from({ length: AHEAD_DAYS }, (_, index) => {
-    const on = shiftDay(day, index);
-    return { day: on, count: counts.get(on) ?? 0 };
-  });
 }
 
 function companyTimezone(db: Db, companyId: string): string {

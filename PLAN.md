@@ -194,9 +194,8 @@ Shipped as planned, with three notes. **`campaigns` stays** as a label table,
 because `leads.campaign_id` and `spend.campaign_id` point at it and dropping
 it would mean rebuilding both; nothing creates one any more. **The Apps
 Script file stays**, cut to its Google half, because the Calendar and Tasks
-sync runs from it. **Today still computes the funnel and the fortnight** that
-nothing draws since the charts went; two functions and two fields, worth
-removing with their tests next time the Today service is open.
+sync runs from it. **Today computed the funnel and the fortnight** for a
+while after the charts went; both went in the UI pass that followed.
 
 - Remove the screens, services, repositories, tables, IPC channels, e2e
   suites and reference sections for Focus, Review, Forecast, Marketing

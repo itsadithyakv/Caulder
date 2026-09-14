@@ -84,7 +84,7 @@ export function GoogleCard() {
             runs inside your own Google account. Caulder never signs in to Google.
           </p>
 
-          <div className="empty__actions">
+          <div className="actions">
             <button
               type="button"
               className="btn"
@@ -128,7 +128,7 @@ export function GoogleCard() {
             </label>
           </div>
 
-          <div className="empty__actions">
+          <div className="actions">
             <button
               type="button"
               className="btn btn--primary"
@@ -226,7 +226,7 @@ export function GoogleCard() {
             </span>
           </div>
 
-          <div className="empty__actions">
+          <div className="actions">
             <button
               type="button"
               className="btn btn--primary"

@@ -176,7 +176,9 @@ export function TodayScreen({
                         today.upcoming[0]?.dueOn ?? today.day,
                         today.day,
                       ).toLowerCase()}.`
-                    : "Add a task, or pick someone up from the list beside this."
+                    : today.cold.length > 0
+                      ? "Add a task, or pick someone up from Going quiet."
+                      : "Type one into the line above, the way you would say it."
                 }
               />
             </Card>

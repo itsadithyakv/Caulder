@@ -177,7 +177,7 @@ export function FirstRun({
           gets its own, and the sidebar switches between them.
         </p>
 
-        <div className="field">
+        <div className="field firstrun__wide">
           <label className="field__label" htmlFor="company-name">
             Company name
           </label>
@@ -186,7 +186,7 @@ export function FirstRun({
             className={`input${error ? " input--invalid" : ""}`}
             value={name}
             onChange={(event) => setName(event.target.value)}
-            placeholder="Unifloe"
+            placeholder="Northwind Studio"
             autoFocus
             autoComplete="off"
             maxLength={80}

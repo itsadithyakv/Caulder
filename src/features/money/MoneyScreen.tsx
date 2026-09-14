@@ -13,7 +13,7 @@ import {
 import { today as todayIn } from "@shared/dates";
 import { useWorkspace } from "@/lib/workspace";
 import { useResource } from "@/lib/resource";
-import { formatValue, relativeDay } from "@/lib/format";
+import { formatDay, formatValue, relativeDay } from "@/lib/format";
 import { Card } from "@/components/Card";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorLine } from "@/components/ErrorLine";
@@ -316,7 +316,7 @@ function InvoiceRow({
         <span className="money__number">{documentNumber("invoice", invoice.number)}</span>
         <span className="money__who">{invoice.leadName}</span>
         <span className="money__when">
-          {overdue ? `Due ${relativeDay(invoice.dueOn)}` : `Due ${invoice.dueOn}`}
+          {overdue ? `Due ${relativeDay(invoice.dueOn)}` : `Due ${formatDay(invoice.dueOn)}`}
         </span>
       </button>
       <span className="money__amount">
@@ -410,7 +410,7 @@ function QuoteRow({
       <button type="button" className="money__main" onClick={onEdit} disabled={busy}>
         <span className="money__number">{documentNumber("quote", quote.number)}</span>
         <span className="money__who">{quote.leadName}</span>
-        <span className="money__when">{quote.issuedOn}</span>
+        <span className="money__when">{formatDay(quote.issuedOn)}</span>
       </button>
       <span className="money__amount">{money(quote.total)}</span>
       <span className={`badge badge--${tone}`}>{QUOTE_STATUS_LABEL[quote.status]}</span>
@@ -477,7 +477,7 @@ function SpendRow({
       <span className="money__main money__main--flat">
         <span className="money__who">{entry.what}</span>
         <span className="money__when">
-          {entry.spentOn}
+          {formatDay(entry.spentOn)}
           {entry.campaignName ? ` · ${entry.campaignName}` : ""}
         </span>
       </span>

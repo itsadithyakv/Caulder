@@ -61,15 +61,15 @@ One workspace per company, and nothing else: the personal kind was removed in
 phase 1 of PLAN.md. A workspace created as personal before that is shown as a
 company with no contacts; its blocks and tasks are untouched.
 
-A company is a **workspace**: its own leads, funnel, templates, sequences and
-email queue. Nothing is shared between them.
+A company is a **workspace**: its own contacts, funnel, templates, calendar
+and money. Nothing is shared between them.
 
 - Switch with the sidebar header or **Ctrl+K**.
 - The active company is remembered across restarts.
 - Rename, re-accent, archive or delete from Settings. The last company cannot
   be archived or deleted.
-- **Archiving hides a workspace. Deleting ends it** — every lead, every logged
-  call, the tasks, the funnel, the templates and the email queue, with no undo
+- **Archiving hides a workspace. Deleting ends it** — every contact, every logged
+  call, the tasks, the calendar, the funnel, the templates and the money, with no undo
   short of restoring a backup. So it is confirmed by typing the company's name,
   not by a second button.
 - Names are unique, case-insensitively; a duplicate is refused with a message
@@ -669,15 +669,14 @@ A WhatsApp message **is** contact, so it moves `last_contacted_at` — the same
 reason a call does and a note does not.
 
 Templates carry a channel. A WhatsApp template is plain text with no subject
-line, and it is kept out of the email composer and out of sequence steps, which
-go through the bridge.
+line, and it is offered here and never in the email composer.
 
 ## Do not contact
 
-One flag on a lead, enforced where the reaching-out happens rather than by
-hiding a button: the email queue (the single funnel every outbound message goes
-through), sequence enrolment, the running cadence, and WhatsApp. A flag only
-the screen respects is not a flag.
+One flag on a contact, enforced where the reaching-out happens rather than by
+hiding a button: opening an email and opening WhatsApp both refuse it in the
+main process, whatever the screen shows. A flag only the screen respects is
+not a flag.
 
 Marked on the lead and on the board card, in the danger colour and bold —
 acting on that card by mistake is the one error here that reaches a real
@@ -830,8 +829,8 @@ pressing the next-day arrow six times is not looking.
 - Every heading opens that day on its own, and carries what is planned on it,
   so a heavy Thursday is visible before you go looking.
 
-The payload is deliberately thinner than seven days: no tasks, notes,
-breakdown or focus session. Those are answers to questions you ask about one
+The payload is deliberately thinner than seven days: no tasks, notes
+or breakdown. Those are answers to questions you ask about one
 day.
 
 Blocks carry their kind in the fill and nothing else. There is no coloured rule
@@ -880,7 +879,7 @@ apps do: the icon, the key and the reminders are all useless once the process
 has gone. The first time, the icon says where it went. Opening Caulder again —
 from the Start menu, say — brings the window back, and so does clicking a
 reminder. A switch in the same Settings card turns this off, and then closing
-the window quits Caulder outright — the quick window and the widget included,
+the window quits Caulder outright — the quick window included,
 rather than leaving the process running with nothing on screen.
 
 **A second launch leaves at once.** It hands over to the running copy and

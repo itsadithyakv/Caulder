@@ -173,7 +173,7 @@ test("a lead with nothing planned turns up under Going quiet", async () => {
   await ensureCompany(page);
 
   await page.getByRole("button", { name: "Today" }).click();
-  await expect(page.getByText("Going quiet")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Going quiet" })).toBeVisible();
   await expect(page.getByRole("button", { name: /Bengaluru Public School/ })).toBeVisible();
 
   // Clicking through opens that lead.
@@ -186,7 +186,7 @@ test("planning a next step takes the lead out of Going quiet", async () => {
   const page = await app.firstWindow();
   await ensureCompany(page);
 
-  await expect(page.getByText("Going quiet")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Going quiet" })).toBeVisible();
 
   await page.getByRole("button", { name: /Bengaluru Public School/ }).click();
   await page.getByRole("button", { name: "Add a task" }).click();
@@ -197,7 +197,7 @@ test("planning a next step takes the lead out of Going quiet", async () => {
   await page.getByRole("button", { name: "Today" }).click();
   // Nothing is falling through once a next step exists, so it drops off the
   // list even though the lead is still quiet.
-  await expect(page.getByText("Going quiet")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Going quiet" })).toHaveCount(0);
 });
 
 test("everything survives a restart", async () => {

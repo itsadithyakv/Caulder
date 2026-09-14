@@ -115,13 +115,13 @@ test("a CSV walks the whole wizard and lands in the leads table", async () => {
 
   await page.getByRole("button", { name: /Preview 2 rows/ }).click();
   await expect(page.getByText("What this will do")).toBeVisible();
-  await expect(page.getByText("2 new leads")).toBeVisible();
+  await expect(page.getByText("2 new contacts")).toBeVisible();
 
-  await page.getByRole("button", { name: /Import 2 leads/ }).click();
+  await page.getByRole("button", { name: /Import 2 contacts/ }).click();
   await expect(page.getByText("Import finished")).toBeVisible();
   await expect(page.getByText("2 added.")).toBeVisible();
 
-  await page.getByRole("button", { name: "See the leads" }).click();
+  await page.getByRole("button", { name: "See the contacts" }).click();
   await expect(page.locator(".leads__count")).toHaveText("2 contacts");
 
   // The two-number cell was split rather than dropped, and the sentinels
@@ -143,7 +143,7 @@ test("a second import of the same file is caught as duplicates", async () => {
 
   await expect(page.getByText("2 already look familiar")).toBeVisible();
   // Skip is the default, so committing changes nothing.
-  await expect(page.getByRole("button", { name: /^Import 0 leads$/ })).toBeDisabled();
+  await expect(page.getByRole("button", { name: /^Import 0 contacts$/ })).toBeDisabled();
 });
 
 test("choosing Fill merges the row into the lead it matched", async () => {
@@ -167,7 +167,7 @@ test("choosing Fill merges the row into the lead it matched", async () => {
   await page.getByRole("button", { name: /merge 1/ }).click();
 
   await expect(page.getByText("Import finished")).toBeVisible();
-  await page.getByRole("button", { name: "See the leads" }).click();
+  await page.getByRole("button", { name: "See the contacts" }).click();
 
   // Beta had no email before this import.
   await page.locator(".leadrow__name", { hasText: /Beta Academy/ }).click();
@@ -214,12 +214,12 @@ test.describe(() => {
 
     // Three of the twenty rows repeat a school already in the file.
     await expect(page.getByText("3 already look familiar")).toBeVisible();
-    await expect(page.getByText("17 new leads")).toBeVisible();
+    await expect(page.getByText("17 new contacts")).toBeVisible();
 
-    await page.getByRole("button", { name: /Import 17 leads/ }).click();
+    await page.getByRole("button", { name: /Import 17 contacts/ }).click();
     await expect(page.getByText("17 added, 3 skipped.")).toBeVisible();
 
-    await page.getByRole("button", { name: "See the leads" }).click();
+    await page.getByRole("button", { name: "See the contacts" }).click();
     await expect(page.locator(".leads__count")).toHaveText("17 contacts");
 
     await goTo(page, "Import");

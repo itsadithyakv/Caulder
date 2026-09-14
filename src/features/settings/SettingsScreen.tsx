@@ -284,7 +284,7 @@ function CompanyRow({ company, canArchive }: { company: Company; canArchive: boo
       {confirming && (
         <div className="company-row__confirm">
           <span className="company-row__meta">
-            Hides it and frees the name. Leads are kept.
+            Hides it and frees the name. Contacts are kept.
           </span>
           <button
             type="button"
@@ -307,8 +307,8 @@ function CompanyRow({ company, canArchive }: { company: Company; canArchive: boo
         <div className="company-row__confirm company-row__confirm--wide">
           <span className="company-row__meta">
             This deletes <strong>{company.name}</strong> and everything in it: every
-            lead, every note and call you have logged, the tasks, the funnel, the
-            templates and the email queue. It cannot be undone from inside Caulder
+            contact, every note and call you have logged, the tasks, the calendar,
+            the funnel, the templates and the money. It cannot be undone from inside Caulder
             &mdash; only by restoring a backup. Type the name to confirm.
           </span>
           <input

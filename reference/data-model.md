@@ -1,12 +1,12 @@
 # Data model
 
-One SQLite file, WAL mode, foreign keys on. Twenty-nine tables across sixteen
+One SQLite file, WAL mode, foreign keys on. Twenty-five tables across eighteen
 forward-only migrations.
 
 Every table that holds a workspace's data reaches `companies` by cascade, so a
 workspace is a clean partition and deleting a company deletes its world. Most
-carry `company_id` themselves; the two join tables, `sequence_steps` and
-`custom_values`, reach it through the rows they join. Two tables are app-wide
+carry `company_id` themselves; `custom_values`, `quote_lines` and
+`invoice_lines` reach it through the rows they belong to. Two tables are app-wide
 on purpose and carry no company at all: `settings` and `area_words`.
 
 IDs are UUID text. Timestamps are ISO-8601 UTC strings; due dates are
@@ -103,7 +103,7 @@ carrying nothing else, and refusing those would mean refusing most of the file.
 - Blank form fields are stored as `NULL`, never `''`, so "unset" has exactly
   one representation.
 - **`closed_at`** is written when a lead enters a won or lost stage and cleared
-  when it leaves one. It is the forecast's close date. It was added in
+  when it leaves one. It says when a deal closed. It was added in
   migration 7 and nothing wrote it until 9, which backfilled it from the last
   move into a closed stage — `updated_at` had been standing in, and any call
   logged on a won deal bumps that, so every time-to-close read long.
@@ -176,16 +176,15 @@ unrecoverable, so the prior values of every updated lead are stored here.
 Bodies use `{{lead.name}}`-style tokens — see [features.md](features.md#templates).
 
 `channel` is `email` or `whatsapp`. A WhatsApp template has no subject line,
-and is kept out of the email composer and out of sequence steps, which go
-through the bridge.
+and is offered by the WhatsApp button, never the email one.
 
 ## settings
 
 A tiny key-value table, app-wide rather than per-company. Keys are constrained
 in `SETTING_KEYS` in `shared/domain.ts`, so a typo becomes a type error rather
-than a silently orphaned row: `activeCompanyId`, `syncFolder`, `coldAfterDays`,
-`mailProvider`, `widgetLevel`, `widgetOpen`, `notify`, `captureShortcut`,
-`keepInTray`, `trayNoticed`, `googleConnection`, `googleAuto`.
+than a silently orphaned row: `activeCompanyId`, `coldAfterDays`, `followUpDays`,
+`notify`, `defaulted`, `captureShortcut`, `keepInTray`, `trayNoticed`,
+`googleConnection`, `googleAuto`.
 
 **`googleConnection` is ciphertext.** The Google web-app URL and its key are a
 bearer capability — anyone holding both can read and write that calendar — so
@@ -253,18 +252,14 @@ accountant would recognise. See PLAN.md, phase 3.
   the paperwork.
 - **`spend.campaign_id` is optional**, because most of what a founder spends
   is not a campaign. Migration 17 copies `campaign_spend` across so the
-  ledger is complete; the old table stays until phase 4.
+  ledger is complete, and migration 18 drops the old table.
 
 ## leads.do_not_contact
 
 One flag, enforced where the reaching-out happens rather than hidden in the UI:
-`queueMessage` (the single funnel every outbound email goes through), `enroll`,
-the running cadence's `queueStep`, and the WhatsApp button. A flag only the
-screen respects is not a flag.
-
-`enroll` throws and `queueStep` returns silently, on purpose: enrolment happens
-while somebody is looking at the screen that asked, and a scheduled step does
-not.
+`openMail` and `openWhatsApp` in `services/outreach.ts` both refuse a contact
+marked with it, whatever the screen shows. A flag only the screen respects is
+not a flag.
 
 ## attachments, custom_fields, custom_values
 

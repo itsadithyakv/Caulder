@@ -65,7 +65,7 @@ export function StageEditor({ companyId }: { companyId: string }) {
       <h2 className="card__title">Pipeline stages</h2>
       <p className="card__hint">
         The columns on the board, in order. Won and Lost are treated as closed:
-        leads in them are left out of the going-quiet list.
+        contacts in them are left out of the going-quiet list.
       </p>
 
       {error && (
@@ -130,7 +130,7 @@ export function StageEditor({ companyId }: { companyId: string }) {
 
             {confirming === stage.id ? (
               <span className="detail__confirm">
-                <span className="card__hint">Leads here keep their place in the list.</span>
+                <span className="card__hint">Contacts here keep their place in the list.</span>
                 <button
                   type="button"
                   className="btn btn--sm btn--danger"

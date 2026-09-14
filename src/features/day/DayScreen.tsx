@@ -305,6 +305,8 @@ export function DayScreen() {
                 <div
                   key={block.id}
                   className={`block block--${block.kind ?? "unsorted"}${
+                    minutes * PER_MINUTE < 44 ? " block--short" : ""
+                  }${
                     live ? " block--dragging" : ""
                   }${(clashes.get(block.id)?.losesTo.length ?? 0) > 0 ? " block--yields" : ""}${
                     (clashes.get(block.id)?.tiesWith.length ?? 0) > 0 ? " block--ties" : ""

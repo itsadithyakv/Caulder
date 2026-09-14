@@ -238,7 +238,7 @@ export function Timetable({
             ))}
           </ul>
 
-          <div className="empty__actions">
+          <div className="actions">
             <button
               type="button"
               className="btn btn--sm"

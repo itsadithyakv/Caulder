@@ -105,7 +105,7 @@ export function LeadTasks({
 
       {open.length === 0 && !adding && (
         <p className="card__hint">
-          Nothing planned. A lead with no next step is how one goes quiet.
+          Nothing planned. A contact with no next step is how one goes quiet.
         </p>
       )}
 

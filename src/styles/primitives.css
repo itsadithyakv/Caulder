@@ -221,6 +221,10 @@
   box-shadow: none;
 }
 
+/* A ghost that cannot be pressed stays a ghost. The sunken fill other disabled
+ * buttons take reads, on a pair of arrows, as the one that is selected. */
+.btn--ghost:disabled { background: transparent; }
+
 .btn--ghost:hover:not(:disabled) {
   background: var(--surface-hover);
   box-shadow: var(--shadow-xs);

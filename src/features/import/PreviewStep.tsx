@@ -138,7 +138,7 @@ export function PreviewStep({
       {groups.valid.length > 0 && (
         <section className="card">
           <h2 className="card__title">
-            <Check size={15} aria-hidden /> {groups.valid.length} new leads
+            <Check size={15} aria-hidden /> {groups.valid.length} new contacts
           </h2>
           <div className="nm-well leadtable__well">
             <table className="leadtable mapping">
@@ -192,7 +192,7 @@ export function PreviewStep({
           onClick={() => onCommit(resolutions, null)}
           disabled={busy || (willAdd === 0 && willMerge === 0)}
         >
-          Import {willAdd} {willAdd === 1 ? "lead" : "leads"}
+          Import {willAdd} {willAdd === 1 ? "contact" : "contacts"}
           {willMerge > 0 ? `, merge ${willMerge}` : ""}
         </button>
       </div>

@@ -168,7 +168,7 @@ test("moving a selection to a stage moves all of it", async () => {
   await openLeads(page);
 
   await page.locator("thead .tickbox").check();
-  await choose(page, "Move the selected leads to a stage", "Contacted");
+  await choose(page, "Move the selected contacts to a stage", "Contacted");
 
   // The bar goes when the action lands, and the rows show where they now are.
   await expect(page.locator(".bulkbar")).toHaveCount(0);

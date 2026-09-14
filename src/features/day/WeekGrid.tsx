@@ -238,6 +238,8 @@ function Piece({
   return (
     <div
       className={`block block--week block--${block.kind ?? "unsorted"}${
+        block.minutes * PER_MINUTE < 34 ? " block--short" : ""
+      }${
         dragging ? " block--dragging" : ""
       }${block.outcome === "skipped" ? " block--skipped" : ""}`}
       style={{

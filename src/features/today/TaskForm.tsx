@@ -202,7 +202,7 @@ export function TaskForm({
               value={chosenLead}
               onChange={setChosenLead}
               options={[
-                { value: "", label: "Not about a lead" },
+                { value: "", label: "Not about a contact" },
                 ...leads.map((lead) => ({ value: lead.id, label: lead.name })),
               ]}
               disabled={busy}

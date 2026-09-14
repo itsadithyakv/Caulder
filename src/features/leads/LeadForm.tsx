@@ -125,7 +125,7 @@ export function LeadForm({ lead, stages, busy, onSubmit, onCancel }: Props) {
           className={`input${error ? " input--invalid" : ""}`}
           value={draft.name}
           onChange={(event) => set("name", event.target.value)}
-          placeholder="Bengaluru Public School"
+          placeholder="A company, or a person"
           autoFocus={!lead}
           autoComplete="off"
           maxLength={160}
@@ -190,17 +190,18 @@ export function LeadForm({ lead, stages, busy, onSubmit, onCancel }: Props) {
         <span className="checkline__text">
           <span className="checkline__title">Do not contact</span>
           <span className="card__hint">
-            Refused everywhere the reaching-out happens &mdash; the email queue,
-            a sequence, and WhatsApp &mdash; rather than by hiding a button.
+            Email and WhatsApp refuse this contact, rather than the buttons
+            quietly going missing.
           </span>
         </span>
       </label>
 
-      <Text id="lead-location" label="Location" value={draft.location}
-        onChange={(v) => set("location", v)} busy={busy} />
-
-      <Text id="lead-website" label="Website" value={draft.website}
-        onChange={(v) => set("website", v)} busy={busy} />
+      <div className="leadform__row">
+        <Text id="lead-location" label="Location" value={draft.location}
+          onChange={(v) => set("location", v)} busy={busy} />
+        <Text id="lead-website" label="Website" value={draft.website}
+          onChange={(v) => set("website", v)} busy={busy} />
+      </div>
 
       <div className="field">
         <label className="field__label" htmlFor="lead-notes">

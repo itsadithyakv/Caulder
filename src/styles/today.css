@@ -320,6 +320,8 @@
 
 /* ---- Shortcut help and data safety ------------------------------------- */
 
+.shortcuts .card__hint { margin-bottom: var(--space-4); }
+
 .shortcuts {
   width: min(520px, 100%);
   max-height: 100%;

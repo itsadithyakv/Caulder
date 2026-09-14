@@ -69,7 +69,7 @@ export function PipelineScreen({
           const card = board?.columns
             .flatMap((column) => column.cards)
             .find((candidate) => candidate.id === leadId);
-          setAsking({ leadId, name: card?.name ?? "this lead" });
+          setAsking({ leadId, name: card?.name ?? "this contact" });
         }
 
         load();
@@ -112,7 +112,7 @@ export function PipelineScreen({
         <div className="hintbar">
           <Columns3 size={16} className="hintbar__icon" aria-hidden />
           <p className="hintbar__text">
-            This is your funnel. Leads land in the first column and you drag them
+            This is your funnel. New contacts land in the first column and you drag them
             along it, or use the menu on a card.
           </p>
           <button type="button" className="btn btn--sm" onClick={onGoToSettings}>
@@ -227,7 +227,7 @@ function Column({
     <section
       className={`column${active ? " column--over" : ""} column--${tone}`}
       role="listitem"
-      aria-label={`${column.name}, ${column.total} leads`}
+      aria-label={`${column.name}, ${column.total} contacts`}
       onDragOver={(event) => {
         if (!dragging) return;
         // Without this the drop never fires: the default is to refuse.

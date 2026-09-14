@@ -61,7 +61,7 @@ export function LeadWhatsApp({
     ? "Marked do not contact."
     : lead.phone
       ? null
-      : "No phone number on this lead.";
+      : "No phone number on this contact.";
 
   async function open() {
     setError(null);

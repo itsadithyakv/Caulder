@@ -71,7 +71,7 @@ export function NotesScreen() {
           rows={3}
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
-          placeholder="Anything. It does not have to be about a lead."
+          placeholder="Anything. It does not have to be about a contact."
           onKeyDown={(event) => {
             // Ctrl+Enter saves, the same as the capture window, so the habit
             // learned in one works in the other.

@@ -23,10 +23,10 @@
 
 .firstrun {
   width: 100%;
-  /* Wide enough for two columns of fields. At 460 the form had grown to a
-   * tall narrow ribbon that scrolled on a maximised window, which is the
-   * shape of a phone form on a desk monitor. */
-  max-width: 900px;
+  /* Sized for what shows before the disclosure opens: the name and two
+   * buttons. At 900 the one field sat in half a card beside nothing; at 460
+   * the opened disclosure became a tall ribbon. 680 lets its fields pair up. */
+  max-width: 680px;
 }
 
 .firstrun__card {
@@ -155,6 +155,7 @@
  * itself. Adding a second company is a form, not a welcome. */
 .firstrun__mark {
   align-self: center;
+  justify-self: center;
   width: 58px;
   height: 70px;
   margin-bottom: calc(var(--space-2) * -1);
@@ -393,6 +394,7 @@
  * ---------------------------------------------------------------------- */
 
 .checkline {
+  display: flex;
   flex-direction: row;
   align-items: flex-start;
   gap: var(--space-3);
@@ -400,6 +402,8 @@
 }
 
 .checkline .tickbox { margin-top: 3px; flex: none; }
+.checkline .toggle { flex: none; }
+.card__hint + .checkline { margin-top: var(--space-3); }
 
 .checkline__text {
   display: flex;
@@ -413,6 +417,10 @@
   font-size: var(--text-base);
   font-weight: 700;
 }
+
+/* Settings stacked one after another in a card, rather than run together. */
+.checkline + .checkline,
+.remindlead { margin-top: var(--space-4); }
 
 /* Deleting a company takes a paragraph and a field, so its confirmation gets
  * a column of its own rather than sharing the row with Archive's one line. */

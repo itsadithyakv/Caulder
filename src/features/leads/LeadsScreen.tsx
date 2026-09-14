@@ -440,7 +440,7 @@ function BulkBar({
     <div
       className="bulkbar anim-panel"
       role="region"
-      aria-label="Actions for the selected leads"
+      aria-label="Actions for the selected contacts"
     >
       <span className="bulkbar__count">
         {count} {noun} selected
@@ -451,7 +451,7 @@ function BulkBar({
       <Select
         compact
         className="bulkbar__move"
-        aria-label="Move the selected leads to a stage"
+        aria-label="Move the selected contacts to a stage"
         value=""
         disabled={busy}
         onChange={(raw) => {

@@ -709,29 +709,7 @@ export type Today = {
   /** Sent invoices past their due date. Above overdue tasks: late money is later than a late call. */
   unpaid: Invoice[];
 
-  /**
-   * The shape of the funnel, for the chart. Counts and value per stage in
-   * funnel order - the order IS the data, so it is never sorted by size.
-   */
-  funnel: FunnelSlice[];
-
-  /**
-   * Open tasks per day for the fortnight ahead, starting today. Zero-filled,
-   * because a quiet Thursday is a fact and a gap in a bar chart is a lie.
-   */
-  ahead: DayLoad[];
 };
-
-export type FunnelSlice = {
-  stageId: string | null;
-  name: string;
-  kind: StageKind;
-  count: number;
-  /** Leads with no value contribute nothing rather than counting as zero. */
-  value: number;
-};
-
-export type DayLoad = { day: string; count: number };
 
 /* ---- Settings -----------------------------------------------------------
  * A tiny key-value table. Only keys listed here are accepted, so a typo in a

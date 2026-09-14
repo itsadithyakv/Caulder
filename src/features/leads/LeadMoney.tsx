@@ -10,7 +10,7 @@ import {
 import { today as todayIn } from "@shared/dates";
 import { useWorkspace } from "@/lib/workspace";
 import { useResource } from "@/lib/resource";
-import { formatValue } from "@/lib/format";
+import { formatDay, formatValue } from "@/lib/format";
 
 /**
  * What this contact has been quoted and invoiced.
@@ -63,7 +63,7 @@ export function LeadMoney({ leadId, onOpenMoney }: { leadId: string; onOpenMoney
             <li key={doc.id} className="money__row">
               <span className="money__main money__main--flat">
                 <span className="money__number">{doc.number}</span>
-                <span className="money__when">{doc.when}</span>
+                <span className="money__when">{formatDay(doc.when)}</span>
               </span>
               <span className="money__amount">{formatValue(doc.total, currency)}</span>
               <span className={`badge ${doc.danger ? "badge--danger" : "badge--neutral"}`}>{doc.status}</span>

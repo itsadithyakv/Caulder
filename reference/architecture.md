@@ -16,17 +16,11 @@
 | Dead code | knip | 5 |
 | Packaging | electron-builder, NSIS | 26 |
 
-Runtime dependencies are four: `better-sqlite3`, `exceljs`, `zod`, and
-`koffi`. Everything else is a build or test tool.
+Runtime dependencies are three: `better-sqlite3`, `exceljs` and `zod`.
+Everything else is a build or test tool.
 
-`koffi` is the odd one out and is meant to be. It exists for exactly one
-feature &mdash; putting the desk widget into the desktop wallpaper, which is a
-Win32 `SetParent` call Electron has no API for. It is Windows-only, loaded
-lazily, and every path through it fails soft: on a machine where it will not
-load, the option is not offered and nothing else notices. It is N-API based, so
-the prebuilt binary works under Electron without a rebuild, but it is still a
-native module and has to be unpacked from the asar &mdash; see
-`electron-builder.yml`.
+`better-sqlite3` is the one native module. It has to be unpacked from the
+asar &mdash; see `electron-builder.yml`.
 
 ### What is deliberately absent
 
@@ -63,9 +57,9 @@ obvious. The cost is a ~100 MB install, which is irrelevant for a personal tool.
 │                  migrations, backup│        │  components/  primitives    │
 │  repositories/   one per aggregate │  IPC   │  lib/         hooks, format │
 │  services/       import, today,    │ ◄────► │  styles/      tokens first  │
-│                  pipeline, sync,   │        │                             │
-│                  sequences, export │        │  window.caulder is the ONLY │
-│  ipc/            65 typed channels │        │  way out. No Node here.     │
+│                  pipeline, gsync,  │        │                             │
+│                  outreach, export  │        │  window.caulder is the ONLY │
+│  ipc/           128 typed channels │        │  way out. No Node here.     │
 └────────────────────────────────────┘        └─────────────────────────────┘
                     ▲
                     │  preload/index.ts — contextBridge, nothing else
@@ -87,8 +81,8 @@ drift apart.
 | File | Holds |
 | --- | --- |
 | `shared/ipc.ts` | Channel names and the full `CaulderApi` type |
-| `shared/domain.ts` | Every record type and input schema: companies, leads, tasks, blocks, notes, focus, campaigns, settings keys |
-| `shared/email.ts` | Templates, messages, the status ladder, sequences, the bridge file formats |
+| `shared/domain.ts` | Every record type and input schema: companies, leads, tasks, blocks, notes, money, settings keys |
+| `shared/email.ts` | Email and WhatsApp templates, and the tokens they may contain |
 | `shared/import.ts` | The import column contract and preview result types |
 | `shared/data.ts` | Backup and export result types |
 | `shared/errors.ts` | What a failure looks like after crossing the bridge — see below (pure) |
@@ -100,13 +94,8 @@ drift apart.
 | `shared/repeat.ts` | Which days a repeating block falls on (pure) |
 | `shared/priority.ts` | The three priority levels, the clash rule, and what to be at now (pure) |
 | `shared/remind.ts` | When a reminder is due, and what it says (pure) |
-| `shared/review.ts` | Streaks by occurrence and the weekly arithmetic (pure) |
-| `shared/focus.ts` | Focus statistics (pure) |
 | `shared/quickadd.ts` | The one-line task parser and the questions it asks (pure) |
 | `shared/gsync.ts` | The Google sync's decisions — what to push, pull, adopt or drop — with no network (pure) |
-| `shared/stats.ts` | The maths behind the forecast, in no domain language (pure) |
-| `shared/predict.ts` | What those numbers mean for a lead (pure) |
-| `shared/marketing.ts` | Campaign ratios, maturity, verdicts and ranking (pure) |
 
 `shared/` may not import from `electron/` or `src/`. Everything in it is either
 a type, a Zod schema, or a pure function.
@@ -116,7 +105,7 @@ a type, a Zod schema, or a pure function.
 ```
 ipc/         parses renderer input, then delegates. No business logic.
 services/    anything spanning more than one aggregate: import, today,
-             pipeline, sync, sequences, export.
+             pipeline, Google sync, outreach, invoices, export.
 repositories/ one module per aggregate. Plain functions over a Db handle.
 db/          connection, migrations, backup.
 ```
@@ -132,11 +121,11 @@ and a bad value reaching SQLite is far harder to diagnose than a rejected call.
 
 Not arbitrary — each fits how the caller uses the result.
 
-- **Return the whole collection**: companies, stages, templates, sequences.
+- **Return the whole collection**: companies, stages, templates.
   These are short lists where a mutation can reorder or renumber several rows.
   Replacing the list outright removes a class of bug where positions drift out
   of step with the screen.
-- **Return the one record**: leads, tasks, messages. These lists run to
+- **Return the one record**: leads, tasks, blocks. These lists run to
   thousands of rows and are filtered server-side; re-sending them on every edit
   would be wasteful. The caller patches the row it holds.
 
@@ -221,22 +210,18 @@ settles a conflict, not recency**; and **absence means deletion only inside the
 window that was actually asked about**, which is why `google_sync` records that
 window and why a sync of this week cannot touch a plan for next March.
 
-## Workspace kinds
+## One kind of workspace
 
-A workspace is `solo` (leads, pipeline, email, forecast) or `personal` (a day
-of blocks, notes, focus). `team` is named in the domain and built nowhere: it
+Every workspace is a company. `companies.kind` still accepts `personal`,
+because personal workspaces made before PLAN.md's first phase are still in
+people's files: one opens as a company with no contacts, and its blocks and
+tasks are untouched. Nothing creates one any more. `team` was never built: it
 needs sync, accounts and conflict resolution, and a value the app cannot
-produce has no business in a CHECK constraint or a picker.
+produce has no business in a picker.
 
-The kind is settled at creation and never changed. A workspace with two hundred
-leads in it cannot meaningfully become a day planner, and offering the switch
-would mostly be offering a way to hide your own work.
-
-Three things follow from the kind, and all three are consequences rather than
-cosmetics: a personal workspace is seeded **no pipeline stages** (there is no
-board to show them on), it is offered **no sample data** (the sample is eight
-schools in a funnel), and it is offered **no tour** (every stop after the first
-is about a screen it does not have).
+The sample company is a workspace of its own for the same reason a real one
+is: it can be looked around and then removed whole, by the cascade, without
+touching anything else.
 
 ## Migrations
 
@@ -253,7 +238,7 @@ There is no down-migration. Restoring a backup is the way back.
   database, with the clock injected so assertions do not change meaning at
   18:30 IST.
 - **Playwright** drives the real Electron window: first run, restart
-  persistence, the import wizard, the board, the bridge round-trip, restore.
+  persistence, the import wizard, the board, money, the Google link, restore.
   Native file dialogs are stubbed in the main process; everything after the
   dialog is the real path.
 - **`scripts/smoke-packaged.mjs`** drives the *packaged binary* on a clean

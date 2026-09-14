@@ -73,7 +73,7 @@ export function FieldsCard() {
   }
 
   return (
-    <Card title="Your own fields" hint="Extra details on every lead, under the ones Caulder already knows about.">
+    <Card title="Your own fields" hint="Extra details on every contact, under the ones Caulder already knows about.">
       <ErrorLine>{error}</ErrorLine>
 
       {fields.length > 0 && (

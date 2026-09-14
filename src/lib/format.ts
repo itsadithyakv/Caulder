@@ -85,6 +85,16 @@ export function formatDate(iso: string): string {
   return dateFormat.format(new Date(iso));
 }
 
+/**
+ * A calendar day ("2026-09-26") as a date. Built from its parts, because
+ * `new Date("2026-09-26")` is midnight UTC and shows the day before anywhere
+ * west of Greenwich.
+ */
+export function formatDay(day: string): string {
+  const [year, month, date] = day.split("-").map(Number);
+  return dateFormat.format(new Date(year ?? 1970, (month ?? 1) - 1, date ?? 1));
+}
+
 export function formatDateTime(iso: string): string {
   const date = new Date(iso);
   return `${dateFormat.format(date)} at ${timeFormat.format(date)}`;

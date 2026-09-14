@@ -215,7 +215,7 @@ export function ImportScreen({ onGoToLeads }: { onGoToLeads: () => void }) {
               value={pasted}
               onChange={(event) => setPasted(event.target.value)}
               placeholder={PASTE_EXAMPLE}
-              aria-label="Paste a list of leads"
+              aria-label="Paste a list of contacts"
               spellCheck={false}
               disabled={busy}
             />
@@ -278,7 +278,7 @@ export function ImportScreen({ onGoToLeads }: { onGoToLeads: () => void }) {
           </p>
           <div className="import__start">
             <button type="button" className="btn btn--primary" onClick={onGoToLeads}>
-              See the leads
+              See the contacts
             </button>
             <button
               type="button"
@@ -297,7 +297,7 @@ export function ImportScreen({ onGoToLeads }: { onGoToLeads: () => void }) {
         <section className="card">
           <h2 className="card__title">Earlier imports</h2>
           <p className="card__hint">
-            Undo removes the leads an import added and puts back anything it
+            Undo removes the contacts an import added and puts back anything it
             merged over.
           </p>
           <ul className="batches">

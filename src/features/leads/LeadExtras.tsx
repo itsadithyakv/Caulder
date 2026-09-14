@@ -81,7 +81,7 @@ export function Attachments({ leadId }: { leadId: string }) {
         </ul>
       )}
 
-      <div className="empty__actions">
+      <div className="actions">
         <button type="button" className="btn" onClick={() => void attach()} disabled={busy}>
           <Paperclip size={15} aria-hidden />
           {files.length === 0 ? "Attach a file" : "Attach another"}

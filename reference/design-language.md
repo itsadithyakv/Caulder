@@ -242,9 +242,9 @@ The rules that came out of it:
 
 - **The sidebar is grouped, and short.** *Plan* and *Sell*, with Settings on
   its own at the foot. A screen that is a reading of another screen is a tab
-  inside it (Forecast, Marketing on the board; Review on the day), and a
-  thing done to a list a handful of times is a button on that list (Import).
-  Eight rows, not twelve. A row is a claim about frequency.
+  inside it (Day and Week on the calendar; Invoices, Quotes and Spend on
+  Money), and a thing done to a list a handful of times is a button on that
+  list (Import). Six rows, not twelve. A row is a claim about frequency.
 - **Nothing lives in the sidebar's foot.** The one-line forecast that used to
   fill the empty column followed the reader onto Notes and Focus. Empty space
   under a navigation is not a bug to fill.

@@ -110,11 +110,11 @@ export function LeadDetail({
       <section className="card">
         <div className="empty">
           <p className="empty__title">
-            {error ? "That lead could not be opened" : "Loading"}
+            {error ? "That contact could not be opened" : "Loading"}
           </p>
           {error && <p className="empty__body">{error}</p>}
           <button type="button" className="btn" onClick={onBack}>
-            All leads
+            All contacts
           </button>
         </div>
       </section>
@@ -152,7 +152,7 @@ export function LeadDetail({
             </button>
           ) : (
             <span className="detail__confirm">
-              <span className="card__hint">Deletes the lead and its history.</span>
+              <span className="card__hint">Deletes the contact and its history.</span>
               <button
                 type="button"
                 className="btn btn--sm btn--danger"
@@ -234,7 +234,7 @@ export function LeadDetail({
 
         <section className="card detail__timeline">
           {/* What happens next, then the ways to make it happen, then what
-              already did. The history is the reason to open a lead at all,
+              already did. The history is the reason to open a contact at all,
               and it used to sit under four other cards. */}
           <LeadTasks leadId={leadId} onTimelineChanged={load} />
 

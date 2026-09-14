@@ -283,7 +283,7 @@ export function archiveCompany(db: Db, id: string): void {
  *
  * Archiving hides a workspace; this ends it. Every table carries company_id
  * with ON DELETE CASCADE, so one statement takes the leads, their timelines,
- * the tasks, the funnel, the templates, the sequences and the email queue -
+ * the tasks, the funnel, the templates, the calendar and the money -
  * which is exactly why it needs confirming by name in the UI rather than by
  * a button somebody can be halfway through pressing.
  *
