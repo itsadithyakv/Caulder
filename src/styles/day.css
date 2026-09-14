@@ -1,0 +1,528 @@
+/* ---------------------------------------------------------------------------
+ * The day: a grid of hours with blocks laid on it.
+ *
+ * The one screen in Caulder where position carries meaning. Everywhere else a
+ * card can move without changing what it says; here, where a block sits IS
+ * what it says, so the geometry is set in the component and this file only
+ * dresses it. Anything that would change a top or a height belongs there.
+ *
+ * Layout only. Colour, radius, spacing and type come from tokens.
+ * ------------------------------------------------------------------------- */
+
+.day {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-height: calc(100vh - 190px);
+}
+
+/* ---- The head ---------------------------------------------------------- */
+
+.day__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.day__when {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.day__date {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--ink);
+  /* Fixed so stepping through days does not shuffle the arrows either side of
+   * it. "Wednesday 3 September" and "Friday 5 September" are different widths
+   * and the buttons must not move between them. */
+  min-width: 15ch;
+}
+
+.day__totals {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.day__total {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.day__total--muted {
+  color: var(--ink-3);
+}
+
+/* ---- The body ---------------------------------------------------------- */
+
+.day__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: var(--space-4);
+  align-items: start;
+  flex: 1;
+  min-height: 0;
+}
+
+@media (max-width: 1100px) {
+  .day__body { grid-template-columns: minmax(0, 1fr); }
+}
+
+.day__side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* ---- The week -----------------------------------------------------------
+ * Seven lanes on the same hour rail the day uses, so an hour is the same
+ * height in both. The heading row is a strip of buttons rather than labels:
+ * every one of them opens that day on its own, which is the ordinary way out
+ * of this view.
+ * ---------------------------------------------------------------------- */
+
+.week {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+  flex: 1;
+  min-height: 0;
+}
+
+/* The same two tracks the body has, so a heading sits over the lane it names.
+   The scrollbar gutter is reserved on both for the same reason: a scrollbar
+   appearing under only one of them would shift the columns apart. */
+.week__head {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4) var(--space-2) var(--space-2);
+  border-bottom: 1px solid var(--soft-line);
+  scrollbar-gutter: stable;
+}
+
+.week__days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.week__corner {
+  display: block;
+}
+
+.week__day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--space-2) 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: background var(--dur) var(--ease);
+}
+
+.week__day:hover {
+  background: var(--surface-sunken);
+}
+
+.week__day:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.week__name {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.week__date {
+  color: var(--ink);
+  font-size: var(--text-base);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.week__planned {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+}
+
+/* Today is marked once, on the heading. Marking the lane as well would tint a
+ * seventh of the screen and make every block in it read as a different kind. */
+.week__day--now .week__date {
+  color: var(--accent);
+}
+
+.week__body {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-4) var(--space-4) var(--space-2);
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  max-height: calc(100vh - 300px);
+}
+
+.week__lanes {
+  position: relative;
+  border-left: 1px solid var(--soft-line);
+}
+
+.week__lane {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-right: 1px solid var(--soft-line);
+}
+
+.week__lane:last-child {
+  border-right: 0;
+}
+
+/* Narrow enough that the time and the title have to share two lines rather
+ * than sit side by side. Anything more is a truncated word. */
+.block--week {
+  padding: 2px var(--space-2);
+  gap: 0;
+}
+
+.block--week .block__time {
+  font-size: var(--text-xs);
+}
+
+.block--week .block__title {
+  font-size: var(--text-xs);
+}
+
+/* ---- The grid ---------------------------------------------------------- */
+
+.grid {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-4) var(--space-4) var(--space-2);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  overflow-y: auto;
+  max-height: calc(100vh - 260px);
+}
+
+.grid__hours {
+  position: relative;
+}
+
+.grid__hour {
+  position: relative;
+}
+
+.grid__label {
+  position: absolute;
+  /* Sat on the line rather than under it, so the label and the rule it names
+   * read as one thing. */
+  top: -0.6em;
+  right: var(--space-2);
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.grid__lanes {
+  position: relative;
+  border-left: 1px solid var(--soft-line);
+}
+
+.grid__line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--soft-line);
+}
+
+/* Now, on today only. The one line on this screen allowed to be the accent:
+ * it is the only thing here that is not a plan. */
+.grid__now {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--danger);
+  z-index: 3;
+}
+
+.grid__now::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
+}
+
+.grid__empty {
+  position: absolute;
+  top: var(--space-6);
+  left: 0;
+  right: 0;
+  text-align: center;
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+/* ---- A block ----------------------------------------------------------- */
+
+.block {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow: hidden;
+  padding: 4px var(--space-2);
+  border-radius: var(--radius-sm);
+  /* No coloured rule down the left edge.
+   *
+   * It was there to say what kind of work the block is, and against a soft
+   * surface a flat 3px bar reads as a stray line rather than as a marker -
+   * the same reason it was taken off the sidebar and the alert cards. The
+   * fill already carries the kind, and the legend on the header line names
+   * the colours, so the bar was saying a second time what was already said. */
+  background: var(--block-unsorted);
+  cursor: grab;
+  user-select: none;
+  z-index: 2;
+}
+
+.block--focus    { background: var(--block-focus); }
+.block--meeting  { background: var(--block-meeting); }
+.block--admin    { background: var(--block-admin); }
+.block--break    { background: var(--block-break); }
+.block--personal { background: var(--block-personal); }
+
+/* Outranked by something happening at the same time. Dimmed rather than
+ * hidden: it is still on your day, it is just not the answer. */
+.block--yields {
+  opacity: 0.55;
+}
+
+/* Equally important as something it overlaps. Marked, never ranked. */
+.block--ties {
+  outline: 2px dashed var(--warn);
+  outline-offset: -3px;
+}
+
+.block--skipped {
+  opacity: 0.45;
+}
+
+.block--skipped .block__title {
+  text-decoration: line-through;
+}
+
+.block__note {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-style: italic;
+}
+
+.block--dragging {
+  cursor: grabbing;
+  box-shadow: var(--shadow-md);
+  /* Above its neighbours while it moves, or a block dragged across a busy
+   * morning disappears behind the things it is passing. */
+  z-index: 4;
+}
+
+.block__time {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.block__title {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.block__task {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The resize handle. A strip rather than a dot, because a four-pixel target
+ * is a target nobody hits. */
+.block__grip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: ns-resize;
+}
+
+/* ---- The side ---------------------------------------------------------- */
+
+.daytasks,
+.daynotes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.daytask {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  box-shadow: var(--shadow-inset-sm);
+}
+
+.daytask__title {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.daynote {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  box-shadow: var(--shadow-inset-sm);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+/* ---- The breakdown ----------------------------------------------------- */
+
+.spent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.spent__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.spent__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--block-unsorted-edge);
+  flex: none;
+}
+
+.spent__dot--focus    { background: var(--block-focus-edge); }
+.spent__dot--meeting  { background: var(--block-meeting-edge); }
+.spent__dot--admin    { background: var(--block-admin-edge); }
+.spent__dot--break    { background: var(--block-break-edge); }
+.spent__dot--personal { background: var(--block-personal-edge); }
+
+.spent__label {
+  flex: 1;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.spent__value {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- The block form ---------------------------------------------------- */
+
+.blockform__row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+@media (max-width: 520px) {
+  .blockform__row { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* The repeat, on the same form as the block. Most of a student's week is the
+ * same week again, and putting this behind a second step is how the second
+ * step gets skipped. */
+.repeat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  box-shadow: var(--shadow-inset-sm);
+}
+
+.repeat__days {
+  display: flex;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}
+
+/* The week, as rows. Wider than an ordinary dialog because the whole point is
+ * seeing every class at once rather than one form at a time. */
+.modal__panel--wide { max-width: 1040px; }
+
+.timetable {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+  padding: 0;
+  list-style: none;
+}
+
+.timetable__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.timetable__title { flex: 1; min-width: 180px; }
+.timetable__time  { width: 120px; }
+.timetable__len   { width: 90px; }
+.timetable__kind  { width: 130px; }
+

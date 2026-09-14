@@ -2,6 +2,7 @@ import { test, expect, _electron as electron, type ElectronApplication, type Pag
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { goTo } from "./nav";
 
 /**
  * Hardening: shortcuts, backup, restore, export, and the empty states.
@@ -35,17 +36,21 @@ async function ensureCompany(page: Page) {
   await page.waitForSelector(".firstrun, .sidebar");
   if (await page.locator(".firstrun").isVisible()) {
     await page.getByLabel("Company name").fill("Unifloe");
-    await page.getByLabel("Start with sample data").uncheck();
     await page.getByRole("button", { name: "Create company" }).click();
     await expect(page.getByRole("button", { name: /Company: Unifloe/ })).toBeVisible();
+
+  // A first run now offers the tour, which sits over everything. Dismissing
+  // it is exactly what somebody starting the app does.
+  await page.waitForTimeout(700);
+  if (await page.locator(".tour").count()) await page.keyboard.press("Escape");
   }
 }
 
 async function addLead(page: Page, name: string) {
-  await page.getByRole("button", { name: "Leads" }).click();
-  await page.getByRole("button", { name: /^Add a? ?lead$/ }).first().click();
+  await page.getByRole("button", { name: "Contacts", exact: true }).click();
+  await page.getByRole("button", { name: /^Add a? ?contact$/ }).first().click();
   await page.getByLabel("Name").fill(name);
-  await page.getByRole("button", { name: "Add lead" }).click();
+  await page.getByRole("button", { name: "Add contact" }).click();
   await expect(page.getByRole("heading", { name })).toBeVisible();
 }
 
@@ -72,17 +77,15 @@ test("every screen says something useful when it is empty", async () => {
   // show a blank panel.
   await expect(page.getByText("Nothing is due today")).toBeVisible();
 
-  await page.getByRole("button", { name: "Leads" }).click();
-  await expect(page.getByText("No leads yet")).toBeVisible();
+  await page.getByRole("button", { name: "Contacts", exact: true }).click();
+  await expect(page.getByText("No contacts yet")).toBeVisible();
 
-  await page.getByRole("button", { name: "Pipeline" }).click();
+  await page.getByRole("button", { name: "Deals" }).click();
   await expect(page.locator(".hintbar")).toContainText("This is your funnel");
 
-  await page.getByRole("button", { name: "Import" }).click();
+  await goTo(page, "Import");
   await expect(page.getByText("Bring in a spreadsheet")).toBeVisible();
 
-  await page.getByRole("button", { name: "Email" }).click();
-  await expect(page.getByText("No emails yet")).toBeVisible();
 });
 
 test("the shortcuts move between screens", async () => {
@@ -91,13 +94,10 @@ test("the shortcuts move between screens", async () => {
   await ensureCompany(page);
 
   await page.keyboard.press("l");
-  await expect(page.getByRole("heading", { name: "Leads", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Contacts", level: 1 })).toBeVisible();
 
   await page.keyboard.press("p");
-  await expect(page.getByRole("heading", { name: "Pipeline", level: 1 })).toBeVisible();
-
-  await page.keyboard.press("e");
-  await expect(page.getByRole("heading", { name: "Email", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Deals", level: 1 })).toBeVisible();
 
   await page.keyboard.press("t");
   await expect(page.getByRole("heading", { name: "Today", level: 1 })).toBeVisible();
@@ -111,14 +111,14 @@ test("a shortcut never fires while you are typing", async () => {
   await ensureCompany(page);
   await addLead(page, "Bengaluru Public School");
 
-  await page.getByRole("button", { name: "All leads" }).click();
-  const search = page.getByLabel("Search leads");
+  await page.getByRole("button", { name: "All contacts" }).click();
+  const search = page.getByLabel("Search contacts");
   await search.click();
   await search.type("planets");
 
   await expect(search).toHaveValue("planets");
   // Still on Leads: the p, l, e and t did not navigate anywhere.
-  await expect(page.getByRole("heading", { name: "Leads", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Contacts", level: 1 })).toBeVisible();
 });
 
 test("? opens the shortcut list and Escape closes it", async () => {
@@ -139,11 +139,11 @@ test("/ jumps to the search box and N opens the new-lead form", async () => {
   await ensureCompany(page);
 
   await page.keyboard.press("/");
-  await expect(page.getByLabel("Search leads")).toBeFocused();
+  await expect(page.getByLabel("Search contacts")).toBeFocused();
 
-  await page.getByRole("heading", { name: "Leads", level: 1 }).click();
+  await page.getByRole("heading", { name: "Contacts", level: 1 }).click();
   await page.keyboard.press("n");
-  await expect(page.getByText("Add a lead")).toBeVisible();
+  await expect(page.getByText("Add a contact")).toBeVisible();
 });
 
 test("export everything writes files anybody can open", async () => {
@@ -188,8 +188,8 @@ test("restoring puts back what the backup held, and is itself undoable", async (
 
   // The backup taken in the previous test does not know about this lead.
   await addLead(page, "Added after the backup");
-  await page.getByRole("button", { name: "All leads" }).click();
-  await expect(page.locator(".leads__count")).toHaveText("2 leads");
+  await page.getByRole("button", { name: "All contacts" }).click();
+  await expect(page.locator(".leads__count")).toHaveText("2 contacts");
 
   await page.getByRole("button", { name: "Settings" }).click();
   await page.getByRole("button", { name: "Restore" }).first().click();
@@ -206,9 +206,9 @@ test("restoring puts back what the backup held, and is itself undoable", async (
   // into that gap is swallowed by the render that replaces it.
   await expect(page.getByRole("heading", { name: "Today" })).toBeVisible();
 
-  await page.getByRole("button", { name: "Leads", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Leads" })).toBeVisible();
-  await expect(page.locator(".leads__count")).toHaveText("1 lead");
+  await page.getByRole("button", { name: "Contacts", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Contacts" })).toBeVisible();
+  await expect(page.locator(".leads__count")).toHaveText("1 contact");
 
   // And the state that was replaced was saved aside first.
   const saved = readdirSync(join(userDataDir, "backups"));
@@ -224,4 +224,40 @@ test("settings says where the data actually lives", async () => {
   // No cloud behind this, so the location is stated rather than hidden.
   await expect(page.getByText(/The database is at/)).toBeVisible();
   await expect(page.getByText(/with Caulder closed/)).toBeVisible();
+});
+
+test("a refusal from main arrives as its sentence, not as Electron's wrapper", async () => {
+  app = await launch();
+  const page = await app.firstWindow();
+  await ensureCompany(page);
+
+  // Read the way most of the window reads an error: `error.message`, as is.
+  const messages = await page.evaluate(async () => {
+    const read = async (call: () => Promise<unknown>) => {
+      try {
+        await call();
+        return "resolved";
+      } catch (error) {
+        return (error as Error).message;
+      }
+    };
+    const { activeCompanyId } = await window.caulder.companies.list();
+    await window.caulder.words.add({ word: "Oakridge", area: "company" }).catch(() => undefined);
+    return {
+      // An Error a repository throws.
+      plain: await read(() => window.caulder.words.add({ word: "OAKRIDGE", area: "college" })),
+      // A ZodError from a schema in main - the one that came back as JSON.
+      schema: await read(() =>
+        window.caulder.tasks.quick(activeCompanyId ?? "", { title: "x".repeat(250), day: "2026-09-10" }),
+      ),
+      // A handler's own check at the boundary.
+      boundary: await read(() => window.caulder.tasks.quick("", { title: "x", day: "2026-09-10" })),
+    };
+  });
+
+  expect(messages).toEqual({
+    plain: '"OAKRIDGE" is already a word for Company. Remove it first to move it.',
+    schema: "Keep the title under 200 characters.",
+    boundary: "Missing company id.",
+  });
 });

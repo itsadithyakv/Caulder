@@ -103,6 +103,86 @@
   --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--surface));
   --accent-ring: color-mix(in srgb, var(--accent) 45%, transparent);
 
+  /* The funnel, as a ramp.
+   *
+   * Progress through a pipeline is an ordered thing, so the tint deepens with
+   * it rather than assigning each stage an unrelated hue - six unrelated
+   * colours would say the stages are six different KINDS of thing, which is
+   * the opposite of what a funnel is. Mixed from the accent, so a company that
+   * picks rose gets a rose funnel.
+   *
+   * Won and lost are the exception and use the semantic colours, because they
+   * are not further along the funnel - they are out of it, in two different
+   * directions. */
+  --stage-1: color-mix(in srgb, var(--accent) 7%, var(--surface));
+  --stage-2: color-mix(in srgb, var(--accent) 13%, var(--surface));
+  --stage-3: color-mix(in srgb, var(--accent) 19%, var(--surface));
+  --stage-4: color-mix(in srgb, var(--accent) 25%, var(--surface));
+  --stage-5: color-mix(in srgb, var(--accent) 31%, var(--surface));
+  --stage-6: color-mix(in srgb, var(--accent) 37%, var(--surface));
+  --stage-won: color-mix(in srgb, var(--ok) 16%, var(--surface));
+  --stage-lost: color-mix(in srgb, var(--danger) 14%, var(--surface));
+
+  /* The line along the top of a column, which is what carries the colour at a
+   * glance. Stronger than the wash, because a 7% tint is not a signal. */
+  --stage-1-edge: color-mix(in srgb, var(--accent) 35%, var(--surface));
+  --stage-2-edge: color-mix(in srgb, var(--accent) 50%, var(--surface));
+  --stage-3-edge: color-mix(in srgb, var(--accent) 65%, var(--surface));
+  --stage-4-edge: color-mix(in srgb, var(--accent) 80%, var(--surface));
+  --stage-5-edge: color-mix(in srgb, var(--accent) 90%, var(--surface));
+  --stage-6-edge: var(--accent);
+  --stage-won-edge: var(--ok);
+  --stage-lost-edge: var(--danger);
+
+  /* ---- Blocks of a day ------------------------------------------------
+   * What kind of work an hour is. Mixed from the semantic scale rather than
+   * picked, so a company's accent cannot make deep work and a break the same
+   * colour, and so the set stays legible in both themes.
+   *
+   * Deliberately quiet. A day with eight blocks in it is eight coloured
+   * shapes, and a saturated palette turns a plan into a chart nobody can read
+   * a title off. The fill carries the kind on its own - there is no rule down
+   * the edge, because a flat coloured bar against a soft surface reads as a
+   * stray line rather than as a marker. The -edge values are for the legend
+   * dots, where a small solid shape needs the stronger colour. */
+  --block-focus: color-mix(in srgb, var(--accent) 20%, var(--surface));
+  --block-meeting: color-mix(in srgb, var(--info) 22%, var(--surface));
+  --block-admin: color-mix(in srgb, var(--ink) 11%, var(--surface));
+  --block-break: color-mix(in srgb, var(--ok) 20%, var(--surface));
+  --block-personal: color-mix(in srgb, var(--warn) 20%, var(--surface));
+  --block-unsorted: color-mix(in srgb, var(--ink) 8%, var(--surface));
+
+  --block-focus-edge: var(--accent);
+  --block-meeting-edge: var(--info);
+  --block-admin-edge: var(--ink-3);
+  --block-break-edge: var(--ok);
+  --block-personal-edge: var(--warn);
+
+  /* Areas of life, on a task: a dot beside a plain label, so four in a list
+   * stay quiet.
+   *
+   * Picked by search and checked with the dataviz validator, all pairs, on
+   * BOTH faces' surfaces - any two areas can sit next to each other, so every
+   * pair has to separate, not just neighbours. The first version failed it
+   * badly: company followed the accent, which on the personal face is coffee,
+   * and sat 5.6 from a caramel personal (the floor is 15); health and
+   * personal were 2.2 apart under protanopia. Company is a fixed hue now - a
+   * dot that changes with the workspace could never be checked against the
+   * other three.
+   *
+   *   light  worst normal-vision 21.1, worst colour-blind 8.0, all >= 3:1
+   *   dark   worst normal-vision 22.7, worst colour-blind 7.6, all >= 3:1
+   *
+   * The colour-blind figures sit in the 6-8 band that is legal only with a
+   * second channel. The word beside every dot is that channel, and it is not
+   * optional: never show an area dot without its label. */
+  --area-college: #166fd0;
+  --area-company: #d44724;
+  --area-personal: #90338b;
+  --area-health: #32874b;
+  --block-unsorted-edge: var(--ink-3);
+
+
   /* Semantic. Never derived from --accent. Each is darkened enough to clear
    * 4.5:1 on the off-white canvas above, not just on white. */
   --ok: #0d6d46;         /* 5.4:1  won, done, sent */
@@ -142,6 +222,10 @@
   --radius-xl: 28px;
   --radius-pill: 999px;
 
+  /* Overridden per face; see the two faces at the foot of this file. */
+  --face-edge: transparent;
+  --face-wash: transparent;
+
   /* Spacing, 4pt based. */
   --space-1: 4px;
   --space-2: 8px;
@@ -155,13 +239,19 @@
   /* Type. */
   --font: "Gilroy", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
   --font-mono: "Cascadia Code", "Consolas", ui-monospace, monospace;
-  --text-xs: 11px;
-  --text-sm: 12px;
-  --text-base: 14px;
-  --text-md: 16px;
-  --text-lg: 20px;
-  --text-xl: 26px;
-  --text-2xl: 34px;
+  /* One step up across the board.
+   *
+   * These were sized for a 1280px window. Maximised on a real monitor the app
+   * reads as a web page shrunk into a corner rather than a desktop tool -
+   * every number smaller than the thing next to it in the taskbar. The ratios
+   * between the steps are unchanged; the whole scale simply starts higher. */
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 15px;
+  --text-md: 17px;
+  --text-lg: 22px;
+  --text-xl: 29px;
+  --text-2xl: 38px;
   --leading-tight: 1.25;
   --leading: 1.5;
 
@@ -172,9 +262,9 @@
   --dur-slow: 320ms;
 
   /* Density and layout. */
-  --row-h: 44px;
-  --titlebar-h: 38px;
-  --sidebar-w: 236px;
+  --row-h: 48px;
+  --titlebar-h: 40px;
+  --sidebar-w: 248px;
 }
 
 /* ---- Dark, copy 1 of 2: the system setting ---------------------------- */
@@ -202,6 +292,45 @@
 
     --ok: #3fbf85;
     --ok-soft: rgba(63, 191, 133, 0.16);
+    --stage-1: color-mix(in srgb, var(--accent) 10%, var(--surface));
+    --stage-2: color-mix(in srgb, var(--accent) 16%, var(--surface));
+    --stage-3: color-mix(in srgb, var(--accent) 22%, var(--surface));
+    --stage-4: color-mix(in srgb, var(--accent) 28%, var(--surface));
+    --stage-5: color-mix(in srgb, var(--accent) 34%, var(--surface));
+    --stage-6: color-mix(in srgb, var(--accent) 40%, var(--surface));
+    --stage-won: color-mix(in srgb, var(--ok) 20%, var(--surface));
+    --stage-lost: color-mix(in srgb, var(--danger) 18%, var(--surface));
+
+    --stage-1-edge: color-mix(in srgb, var(--accent) 35%, var(--surface));
+    --stage-2-edge: color-mix(in srgb, var(--accent) 50%, var(--surface));
+    --stage-3-edge: color-mix(in srgb, var(--accent) 65%, var(--surface));
+    --stage-4-edge: color-mix(in srgb, var(--accent) 80%, var(--surface));
+    --stage-5-edge: color-mix(in srgb, var(--accent) 90%, var(--surface));
+    --stage-6-edge: var(--accent);
+    --stage-won-edge: var(--ok);
+    --stage-lost-edge: var(--danger);
+
+    /* ---- Blocks of a day ---- */
+    --block-focus: color-mix(in srgb, var(--accent) 26%, var(--surface));
+    --block-meeting: color-mix(in srgb, var(--info) 28%, var(--surface));
+    --block-admin: color-mix(in srgb, var(--ink) 15%, var(--surface));
+    --block-break: color-mix(in srgb, var(--ok) 26%, var(--surface));
+    --block-personal: color-mix(in srgb, var(--warn) 26%, var(--surface));
+    --block-unsorted: color-mix(in srgb, var(--ink) 11%, var(--surface));
+
+    --block-focus-edge: var(--accent);
+    --block-meeting-edge: var(--info);
+    --block-admin-edge: var(--ink-3);
+    --block-break-edge: var(--ok);
+    --block-personal-edge: var(--warn);
+
+    --area-college: #027bee;
+    --area-company: #ae5f1f;
+    --area-personal: #c656bf;
+    --area-health: #0bae51;
+    --block-unsorted-edge: var(--ink-3);
+
+
     --warn: #e0a64a;
     --warn-soft: rgba(224, 166, 74, 0.16);
     --danger: #f0645a;     /* 5.3:1 */
@@ -251,6 +380,45 @@
 
   --ok: #3fbf85;
   --ok-soft: rgba(63, 191, 133, 0.16);
+  --stage-1: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  --stage-2: color-mix(in srgb, var(--accent) 16%, var(--surface));
+  --stage-3: color-mix(in srgb, var(--accent) 22%, var(--surface));
+  --stage-4: color-mix(in srgb, var(--accent) 28%, var(--surface));
+  --stage-5: color-mix(in srgb, var(--accent) 34%, var(--surface));
+  --stage-6: color-mix(in srgb, var(--accent) 40%, var(--surface));
+  --stage-won: color-mix(in srgb, var(--ok) 20%, var(--surface));
+  --stage-lost: color-mix(in srgb, var(--danger) 18%, var(--surface));
+
+  --stage-1-edge: color-mix(in srgb, var(--accent) 35%, var(--surface));
+  --stage-2-edge: color-mix(in srgb, var(--accent) 50%, var(--surface));
+  --stage-3-edge: color-mix(in srgb, var(--accent) 65%, var(--surface));
+  --stage-4-edge: color-mix(in srgb, var(--accent) 80%, var(--surface));
+  --stage-5-edge: color-mix(in srgb, var(--accent) 90%, var(--surface));
+  --stage-6-edge: var(--accent);
+  --stage-won-edge: var(--ok);
+  --stage-lost-edge: var(--danger);
+
+  /* ---- Blocks of a day ---- */
+  --block-focus: color-mix(in srgb, var(--accent) 26%, var(--surface));
+  --block-meeting: color-mix(in srgb, var(--info) 28%, var(--surface));
+  --block-admin: color-mix(in srgb, var(--ink) 15%, var(--surface));
+  --block-break: color-mix(in srgb, var(--ok) 26%, var(--surface));
+  --block-personal: color-mix(in srgb, var(--warn) 26%, var(--surface));
+  --block-unsorted: color-mix(in srgb, var(--ink) 11%, var(--surface));
+
+  --block-focus-edge: var(--accent);
+  --block-meeting-edge: var(--info);
+  --block-admin-edge: var(--ink-3);
+  --block-break-edge: var(--ok);
+  --block-personal-edge: var(--warn);
+
+  --area-college: #027bee;
+  --area-company: #ae5f1f;
+  --area-personal: #c656bf;
+  --area-health: #0bae51;
+  --block-unsorted-edge: var(--ink-3);
+
+
   --warn: #e0a64a;
   --warn-soft: rgba(224, 166, 74, 0.16);
   --danger: #f0645a;
@@ -300,6 +468,10 @@
 [data-accent="violet"] { --accent: #6d28d9; --accent-strong: #5b21b6; }
 [data-accent="amber"] { --accent: #b45309; --accent-strong: #92400e; }
 [data-accent="rose"] { --accent: #be123c; --accent-strong: #9f1239; }
+/* Coffee: the personal face's own accent. White on it 5.9:1; the strong form
+   is 4.9:1 on the coffee ground and 7.0:1 on the work one, so a company can
+   pick it too. */
+[data-accent="coffee"] { --accent: #8a5a2b; --accent-strong: #6e4520; }
 
 /* @accents:dark-system */
 @media (prefers-color-scheme: dark) {
@@ -313,6 +485,8 @@
   :root:not([data-theme="light"]) [data-accent="amber"] { --accent: #e0a64a; --accent-strong: #f0c780; }
   :root:not([data-theme="light"])[data-accent="rose"],
   :root:not([data-theme="light"]) [data-accent="rose"] { --accent: #fb7185; --accent-strong: #fda4af; }
+  :root:not([data-theme="light"])[data-accent="coffee"],
+  :root:not([data-theme="light"]) [data-accent="coffee"] { --accent: #d19a5e; --accent-strong: #e6b889; }
 }
 
 /* Must match the dark-system region above, value for value. */
@@ -327,6 +501,8 @@
 :root[data-theme="dark"] [data-accent="amber"] { --accent: #e0a64a; --accent-strong: #f0c780; }
 :root[data-theme="dark"][data-accent="rose"],
 :root[data-theme="dark"] [data-accent="rose"] { --accent: #fb7185; --accent-strong: #fda4af; }
+:root[data-theme="dark"][data-accent="coffee"],
+:root[data-theme="dark"] [data-accent="coffee"] { --accent: #d19a5e; --accent-strong: #e6b889; }
 
 /* @accents:end */
 
@@ -338,4 +514,142 @@
     --dur: 0ms;
     --dur-slow: 0ms;
   }
+}
+
+/* ---------------------------------------------------------------------------
+ * Two faces
+ *
+ * The app is two things to one person: the company they are building, and the
+ * life they are building it inside. Those want different manners. Work should
+ * look like something you would show a school; a personal day should look like
+ * somewhere you want to spend a Sunday evening.
+ *
+ * Done here rather than in the feature stylesheets so it is one attribute and
+ * every card, button, input and panel follows automatically - the same
+ * mechanism as data-accent and data-theme. A feature sheet may not redefine
+ * radius or colour, and this is why it does not have to.
+ *
+ * The personal face is coffee: a cafe-au-lait ground and espresso ink in
+ * light, an espresso ground and cream ink in dark.
+ *
+ * It used to be a warm WASH over the work palette, mixed from --warn. Two
+ * things were wrong with that, and together they are why it looked muddy. It
+ * borrowed a semantic colour - the amber that means "going cold" - as
+ * decoration, which is the exact thing this file says never to do. And it
+ * warmed the ground while leaving the ink navy and the accent sky blue: a
+ * warm room with cold furniture in it. A face has to change the whole set of
+ * neutrals together or it does not read as a choice.
+ *
+ * So these are real values, declared in all three places like every other
+ * colour in this file - base, the prefers-color-scheme block, and the explicit
+ * attribute - with every ink checked against every surface it sits on:
+ *
+ *   light  ink 12.8:1  ink-2 8.7:1  ink-3 5.8:1 on --surface; ink-3 4.7:1 on
+ *          --surface-sunken, the tightest pairing and where placeholders live
+ *   dark   ink 14.2:1  ink-2 9.3:1  ink-3 5.5:1 on --surface
+ * ------------------------------------------------------------------------- */
+
+:root[data-face="personal"] {
+  /* Rounder throughout. The single change that reads as "friendly" before any
+   * colour does, and it costs nothing because every surface already uses the
+   * scale rather than a literal. */
+  --radius-xs: 14px;
+  --radius-sm: 20px;
+  --radius-md: 26px;
+  --radius-lg: 32px;
+  --radius-xl: 40px;
+
+  --bg: #d6c5b0;
+  --surface: #e8dccd;
+  --surface-sunken: #cbb89f;
+  --surface-hover: #efe5d8;
+
+  --ink: #26170e;
+  --ink-2: #4a3325;
+  --ink-3: #5e4230;
+
+  --border: rgba(38, 23, 14, 0.13);
+  --soft-line: rgba(38, 23, 14, 0.08);
+
+  /* A hairline in the same brown as the ink, rather than a tan borrowed from
+   * a status colour. The wash is gone: the ground itself is coffee now. */
+  --face-edge: rgba(38, 23, 14, 0.1);
+  --face-wash: transparent;
+
+  /* Relief in brown and cream rather than navy and white. A white highlight on
+   * a coffee surface reads as chalk; a cream one reads as light on it. */
+  --shadow-xs: 2px 2px 5px rgba(60, 36, 18, 0.14), -2px -2px 5px rgba(255, 246, 234, 0.6);
+  --shadow-sm: 6px 6px 18px rgba(60, 36, 18, 0.18), -6px -6px 18px rgba(255, 246, 234, 0.62);
+  --shadow-md: 11px 11px 30px rgba(60, 36, 18, 0.2), -11px -11px 30px rgba(255, 246, 234, 0.58);
+  --shadow-lg: 20px 20px 52px rgba(60, 36, 18, 0.24), -20px -20px 52px rgba(255, 246, 234, 0.54);
+  --shadow-inset-sm:
+    inset 3px 3px 7px rgba(60, 36, 18, 0.16), inset -3px -3px 7px rgba(255, 246, 234, 0.5);
+  --shadow-inset-md:
+    inset 4px 4px 10px rgba(60, 36, 18, 0.2), inset -4px -4px 10px rgba(255, 246, 234, 0.46);
+  --shadow-float: 0 24px 56px rgba(60, 36, 18, 0.24);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-face="personal"]:not([data-theme="light"]) {
+    --bg: #1b130e;
+    --surface: #261b14;
+    --surface-sunken: #130d09;
+    --surface-hover: #30231a;
+
+    --ink: #f4eadf;
+    --ink-2: #d2bda8;
+    --ink-3: #a88f78;
+
+    --border: rgba(244, 234, 223, 0.1);
+    --soft-line: rgba(244, 234, 223, 0.07);
+    --face-edge: rgba(244, 234, 223, 0.07);
+
+    --shadow-xs: 2px 2px 5px rgba(0, 0, 0, 0.5), -2px -2px 5px rgba(255, 236, 214, 0.03);
+    --shadow-sm: 6px 6px 18px rgba(0, 0, 0, 0.58), -6px -6px 18px rgba(255, 236, 214, 0.045);
+    --shadow-md: 11px 11px 30px rgba(0, 0, 0, 0.62), -11px -11px 30px rgba(255, 236, 214, 0.05);
+    --shadow-lg: 20px 20px 52px rgba(0, 0, 0, 0.68), -20px -20px 52px rgba(255, 236, 214, 0.05);
+    --shadow-inset-sm:
+      inset 3px 3px 7px rgba(0, 0, 0, 0.55), inset -3px -3px 7px rgba(255, 236, 214, 0.03);
+    --shadow-inset-md:
+      inset 4px 4px 10px rgba(0, 0, 0, 0.66), inset -4px -4px 10px rgba(255, 236, 214, 0.04);
+    --shadow-float: 0 24px 56px rgba(0, 0, 0, 0.62);
+  }
+}
+
+:root[data-face="personal"][data-theme="dark"] {
+  --bg: #1b130e;
+  --surface: #261b14;
+  --surface-sunken: #130d09;
+  --surface-hover: #30231a;
+
+  --ink: #f4eadf;
+  --ink-2: #d2bda8;
+  --ink-3: #a88f78;
+
+  --border: rgba(244, 234, 223, 0.1);
+  --soft-line: rgba(244, 234, 223, 0.07);
+  --face-edge: rgba(244, 234, 223, 0.07);
+
+  --shadow-xs: 2px 2px 5px rgba(0, 0, 0, 0.5), -2px -2px 5px rgba(255, 236, 214, 0.03);
+  --shadow-sm: 6px 6px 18px rgba(0, 0, 0, 0.58), -6px -6px 18px rgba(255, 236, 214, 0.045);
+  --shadow-md: 11px 11px 30px rgba(0, 0, 0, 0.62), -11px -11px 30px rgba(255, 236, 214, 0.05);
+  --shadow-lg: 20px 20px 52px rgba(0, 0, 0, 0.68), -20px -20px 52px rgba(255, 236, 214, 0.05);
+  --shadow-inset-sm:
+    inset 3px 3px 7px rgba(0, 0, 0, 0.55), inset -3px -3px 7px rgba(255, 236, 214, 0.03);
+  --shadow-inset-md:
+    inset 4px 4px 10px rgba(0, 0, 0, 0.66), inset -4px -4px 10px rgba(255, 236, 214, 0.04);
+  --shadow-float: 0 24px 56px rgba(0, 0, 0, 0.62);
+}
+
+/* The work face is the app as it was: squarer, cooler, and quiet. Stated
+ * rather than left implicit so the pair reads as a deliberate choice in the
+ * file rather than as one theme and one exception. */
+:root[data-face="work"] {
+  --face-edge: transparent;
+  --face-wash: transparent;
+  --radius-xs: 8px;
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 20px;
+  --radius-xl: 26px;
 }

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Db } from "../db/connection";
 import type { Task, TaskInput, TaskKind, TaskStatus } from "@shared/domain";
+import { rememberDeleted } from "./google";
 import { writeActivity } from "./leads";
 
 /**
@@ -14,6 +15,8 @@ type TaskRow = {
   lead_name: string | null;
   title: string;
   kind: string;
+  area: string | null;
+  priority: string | null;
   status: string;
   due_on: string;
   notes: string | null;
@@ -30,6 +33,8 @@ function toTask(row: TaskRow): Task {
     leadName: row.lead_name,
     title: row.title,
     kind: row.kind as TaskKind,
+    area: row.area,
+    priority: row.priority,
     status: row.status as TaskStatus,
     dueOn: row.due_on,
     notes: row.notes,
@@ -79,11 +84,21 @@ export function createTask(db: Db, companyId: string, input: TaskInput): Task {
   db.transaction(() => {
     db.prepare(
       `INSERT INTO tasks (
-         id, company_id, lead_id, title, kind, status, due_on, notes,
+         id, company_id, lead_id, title, kind, area, priority, status, due_on, notes,
          completed_at, created_at, updated_at
-       ) VALUES (@id, @companyId, @leadId, @title, @kind, 'open', @dueOn, @notes,
-                 NULL, @now, @now)`,
-    ).run({ ...input, id, companyId, now });
+       ) VALUES (@id, @companyId, @leadId, @title, @kind, @area, @priority, 'open', @dueOn,
+                 @notes, NULL, @now, @now)`,
+    ).run({
+      ...input,
+      area: input.area ?? null,
+      // Accepted by the schema since migration 12 and never written until
+      // now, so every task anybody marked as having to happen was saved as
+      // though nobody had said.
+      priority: input.priority ?? null,
+      id,
+      companyId,
+      now,
+    });
   })();
 
   const created = findTask(db, id);
@@ -96,10 +111,16 @@ export function updateTask(db: Db, id: string, input: TaskInput): Task {
   if (!before) throw new Error("That task no longer exists.");
 
   db.prepare(
-    `UPDATE tasks SET lead_id = @leadId, title = @title, kind = @kind,
-       due_on = @dueOn, notes = @notes, updated_at = @now
+    `UPDATE tasks SET is_dirty = 1, lead_id = @leadId, title = @title, kind = @kind,
+       area = @area, priority = @priority, due_on = @dueOn, notes = @notes, updated_at = @now
      WHERE id = @id`,
-  ).run({ ...input, id, now: new Date().toISOString() });
+  ).run({
+    ...input,
+    area: input.area ?? null,
+    priority: input.priority ?? null,
+    id,
+    now: new Date().toISOString(),
+  });
 
   const updated = findTask(db, id);
   if (!updated) throw new Error("That task no longer exists.");
@@ -123,7 +144,7 @@ export function completeTask(db: Db, id: string): Task {
 
   db.transaction(() => {
     db.prepare(
-      `UPDATE tasks SET status = 'done', completed_at = ?, updated_at = ? WHERE id = ?`,
+      `UPDATE tasks SET is_dirty = 1, status = 'done', completed_at = ?, updated_at = ? WHERE id = ?`,
     ).run(now, now, id);
 
     if (task.leadId) {
@@ -147,7 +168,7 @@ export function reopenTask(db: Db, id: string): Task {
   const now = new Date().toISOString();
   const result = db
     .prepare(
-      `UPDATE tasks SET status = 'open', completed_at = NULL, updated_at = ? WHERE id = ?`,
+      `UPDATE tasks SET is_dirty = 1, status = 'open', completed_at = NULL, updated_at = ? WHERE id = ?`,
     )
     .run(now, id);
   if (result.changes === 0) throw new Error("That task no longer exists.");
@@ -160,7 +181,7 @@ export function reopenTask(db: Db, id: string): Task {
 /** Moves a task to another day. The whole point of a follow-up list. */
 export function rescheduleTask(db: Db, id: string, dueOn: string): Task {
   const result = db
-    .prepare(`UPDATE tasks SET due_on = ?, updated_at = ? WHERE id = ?`)
+    .prepare(`UPDATE tasks SET is_dirty = 1, due_on = ?, updated_at = ? WHERE id = ?`)
     .run(dueOn, new Date().toISOString(), id);
   if (result.changes === 0) throw new Error("That task no longer exists.");
 
@@ -169,9 +190,22 @@ export function rescheduleTask(db: Db, id: string, dueOn: string): Task {
   return task;
 }
 
+/**
+ * Deleting one, and remembering that it went.
+ *
+ * Same reasoning as a block: once the row is gone nothing is left to say the
+ * copy in Google Tasks should go too, so the deletion has to outlive it.
+ */
 export function deleteTask(db: Db, id: string): void {
-  const result = db.prepare(`DELETE FROM tasks WHERE id = ?`).run(id);
-  if (result.changes === 0) throw new Error("That task no longer exists.");
+  const row = db
+    .prepare(`SELECT company_id, external_id FROM tasks WHERE id = ?`)
+    .get(id) as { company_id: string; external_id: string | null } | undefined;
+  if (!row) throw new Error("That task no longer exists.");
+
+  db.transaction(() => {
+    if (row.external_id) rememberDeleted(db, row.company_id, "task", row.external_id);
+    db.prepare(`DELETE FROM tasks WHERE id = ?`).run(id);
+  })();
 }
 
 /* ---- The Today queries -------------------------------------------------- */

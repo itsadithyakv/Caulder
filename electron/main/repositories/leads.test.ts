@@ -15,6 +15,7 @@ import {
   updateLead,
 } from "./leads";
 import { completeTask, createTask } from "./tasks";
+import { shiftDay, today as todayIn } from "@shared/dates";
 import {
   leadInput,
   taskInput,
@@ -22,6 +23,9 @@ import {
   type LeadInput,
   type PipelineStage,
 } from "@shared/domain";
+
+/** Today in the fixture company's zone, for the tasks these tests schedule. */
+const TODAY = todayIn("Asia/Kolkata", new Date("2026-09-04T06:00:00Z"));
 
 let db: Database.Database;
 let company: Company;
@@ -553,5 +557,87 @@ describe("acting on a selection", () => {
   it("does nothing at all for an empty selection", () => {
     expect(setStageForMany(db, company.id, [], null)).toBe(0);
     expect(deleteMany(db, company.id, [])).toBe(0);
+  });
+});
+
+describe("sorting the leads table both ways", () => {
+  beforeEach(() => {
+    const stages = listStages(db, company.id);
+    createLead(db, company.id, leadInput.parse({ name: "Bravo", value: 200, stageId: stages[1]?.id }));
+    createLead(db, company.id, leadInput.parse({ name: "alpha", value: 100, stageId: stages[0]?.id }));
+    createLead(db, company.id, leadInput.parse({ name: "Charlie", stageId: stages[2]?.id }));
+  });
+
+  const names = (sort: "name" | "value" | "next", direction: "asc" | "desc") =>
+    listLeads(db, { companyId: company.id, sort, direction }).map((lead) => lead.name);
+
+  it("sorts by name regardless of case, both ways", () => {
+    expect(names("name", "asc")).toEqual(["alpha", "Bravo", "Charlie"]);
+    expect(names("name", "desc")).toEqual(["Charlie", "Bravo", "alpha"]);
+  });
+
+  it("keeps an unvalued lead last whichever way the arrow points", () => {
+    // Unknown is not the same as worthless, so it never leads an ascending
+    // sort by value - which is the reading that would put it first.
+    expect(names("value", "desc")).toEqual(["Bravo", "alpha", "Charlie"]);
+    expect(names("value", "asc")).toEqual(["alpha", "Bravo", "Charlie"]);
+  });
+
+  it("keeps a lead with nothing planned last, whichever way", () => {
+    const [first] = listLeads(db, { companyId: company.id, sort: "name", direction: "asc" });
+    if (!first) throw new Error("no leads");
+    createTask(
+      db,
+      company.id,
+      taskInput.parse({ leadId: first.id, title: "Call", dueOn: TODAY }),
+    );
+
+    expect(names("next", "asc")[0]).toBe(first.name);
+    expect(names("next", "desc")[0]).toBe(first.name);
+  });
+});
+
+describe("the next step on a row", () => {
+  it("is the soonest open task, not just any of them", () => {
+    const lead = createLead(db, company.id, leadInput.parse({ name: "A" }));
+    createTask(
+      db,
+      company.id,
+      taskInput.parse({ leadId: lead.id, title: "Later", dueOn: shiftDay(TODAY, 9) }),
+    );
+    createTask(
+      db,
+      company.id,
+      taskInput.parse({ leadId: lead.id, title: "Sooner", dueOn: shiftDay(TODAY, 2), kind: "call" }),
+    );
+
+    const [row] = listLeads(db, { companyId: company.id });
+    expect(row?.nextTaskTitle).toBe("Sooner");
+    expect(row?.nextTaskDue).toBe(shiftDay(TODAY, 2));
+    expect(row?.nextTaskKind).toBe("call");
+  });
+
+  it("goes back to nothing once the task is done", () => {
+    const lead = createLead(db, company.id, leadInput.parse({ name: "A" }));
+    const task = createTask(
+      db,
+      company.id,
+      taskInput.parse({ leadId: lead.id, title: "Call", dueOn: TODAY }),
+    );
+    completeTask(db, task.id);
+
+    const [row] = listLeads(db, { companyId: company.id });
+    expect(row?.nextTaskDue).toBeNull();
+    expect(row?.nextTaskTitle).toBeNull();
+  });
+
+  it("never shows another lead's task", () => {
+    const a = createLead(db, company.id, leadInput.parse({ name: "A" }));
+    createLead(db, company.id, leadInput.parse({ name: "B" }));
+    createTask(db, company.id, taskInput.parse({ leadId: a.id, title: "Call A", dueOn: TODAY }));
+
+    const rows = listLeads(db, { companyId: company.id, sort: "name", direction: "asc" });
+    expect(rows[0]?.nextTaskTitle).toBe("Call A");
+    expect(rows[1]?.nextTaskTitle).toBeNull();
   });
 });

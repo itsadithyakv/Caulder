@@ -7,6 +7,7 @@ import {
   MailOpen,
   MailWarning,
   MailX,
+  MessageCircle,
   MoveRight,
   Pencil,
   Phone,
@@ -30,6 +31,7 @@ const ICON: Record<ActivityKind, LucideIcon> = {
   note: FileText,
   call: Phone,
   meeting: CalendarClock,
+  whatsapp: MessageCircle,
   stage_change: MoveRight,
   field_change: Pencil,
   email_queued: Mail,
@@ -47,6 +49,7 @@ const LOG_LABEL: Record<LoggableKind, string> = {
   note: "Note",
   call: "Call",
   meeting: "Meeting",
+  whatsapp: "WhatsApp",
 };
 
 /**

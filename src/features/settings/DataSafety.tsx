@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Download, FolderOpen, RotateCcw, Save } from "lucide-react";
 import type { BackupFile } from "@shared/data";
 import { formatDateTime } from "@/lib/format";
+import { messageOf } from "@/lib/errors";
 
 /**
  * Backup, restore and getting everything out.
@@ -32,7 +33,7 @@ export function DataSafety({
         setPaths(where);
       })
       .catch((cause: unknown) =>
-        setError(cause instanceof Error ? cause.message : String(cause)),
+        setError(messageOf(cause)),
       );
   }, []);
 
@@ -44,7 +45,7 @@ export function DataSafety({
     try {
       await work();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(messageOf(cause));
     } finally {
       setBusy(false);
     }

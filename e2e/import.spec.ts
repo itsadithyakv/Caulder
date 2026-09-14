@@ -2,6 +2,7 @@ import { test, expect, _electron as electron, type ElectronApplication, type Pag
 import { mkdtempSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { goTo } from "./nav";
 
 /**
  * The import wizard through the real window.
@@ -46,15 +47,19 @@ async function ensureCompany(page: Page) {
   await page.waitForSelector(".firstrun, .sidebar");
   if (await page.locator(".firstrun").isVisible()) {
     await page.getByLabel("Company name").fill("Unifloe");
-    await page.getByLabel("Start with sample data").uncheck();
     await page.getByRole("button", { name: "Create company" }).click();
     await expect(page.getByRole("button", { name: /Company: Unifloe/ })).toBeVisible();
+
+  // A first run now offers the tour, which sits over everything. Dismissing
+  // it is exactly what somebody starting the app does.
+  await page.waitForTimeout(700);
+  if (await page.locator(".tour").count()) await page.keyboard.press("Escape");
   }
 }
 
 async function openImport(page: Page) {
   await ensureCompany(page);
-  await page.getByRole("button", { name: "Import" }).click();
+  await goTo(page, "Import");
   await expect(page.getByText("Bring in a spreadsheet")).toBeVisible();
 }
 
@@ -104,8 +109,9 @@ test("a CSV walks the whole wizard and lands in the leads table", async () => {
 
   // Caulder guesses the mapping from headers that match none of its own names.
   await expect(page.getByText("Match the columns")).toBeVisible();
-  await expect(page.getByLabel("Import School name as")).toHaveValue("Name");
-  await expect(page.getByLabel("Import Phone number as")).toHaveValue("Phone");
+  // The app's own picker is a button showing the chosen label, not an input.
+  await expect(page.getByLabel("Import School name as")).toContainText("Name");
+  await expect(page.getByLabel("Import Phone number as")).toContainText("Phone");
 
   await page.getByRole("button", { name: /Preview 2 rows/ }).click();
   await expect(page.getByText("What this will do")).toBeVisible();
@@ -116,7 +122,7 @@ test("a CSV walks the whole wizard and lands in the leads table", async () => {
   await expect(page.getByText("2 added.")).toBeVisible();
 
   await page.getByRole("button", { name: "See the leads" }).click();
-  await expect(page.locator(".leads__count")).toHaveText("2 leads");
+  await expect(page.locator(".leads__count")).toHaveText("2 contacts");
 
   // The two-number cell was split rather than dropped, and the sentinels
   // became nothing rather than text reading "Not mentioned".
@@ -179,17 +185,17 @@ test("undo removes what an import added and puts back what it merged", async () 
   const undoButtons = page.getByRole("button", { name: "Undo", exact: true });
   await undoButtons.first().click();
 
-  await page.getByRole("button", { name: "Leads" }).click();
+  await page.getByRole("button", { name: "Contacts", exact: true }).click();
   await page.locator(".leadrow__name", { hasText: /Beta Academy/ }).click();
   // The merged email is gone; the lead itself stays, because the merge did not
   // create it.
   await expect(page.getByText("beta@example.com")).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Import" }).click();
+  await goTo(page, "Import");
   await page.getByRole("button", { name: "Undo", exact: true }).first().click();
 
-  await page.getByRole("button", { name: "Leads" }).click();
-  await expect(page.getByText("No leads yet")).toBeVisible();
+  await page.getByRole("button", { name: "Contacts", exact: true }).click();
+  await expect(page.getByText("No contacts yet")).toBeVisible();
 });
 
 test.describe(() => {
@@ -203,7 +209,7 @@ test.describe(() => {
     await openImport(page);
     await page.getByRole("button", { name: "Choose a file" }).click();
 
-    await expect(page.getByLabel("Import School name as")).toHaveValue("Name");
+    await expect(page.getByLabel("Import School name as")).toContainText("Name");
     await page.getByRole("button", { name: /Preview 20 rows/ }).click();
 
     // Three of the twenty rows repeat a school already in the file.
@@ -214,12 +220,12 @@ test.describe(() => {
     await expect(page.getByText("17 added, 3 skipped.")).toBeVisible();
 
     await page.getByRole("button", { name: "See the leads" }).click();
-    await expect(page.locator(".leads__count")).toHaveText("17 leads");
+    await expect(page.locator(".leads__count")).toHaveText("17 contacts");
 
-    await page.getByRole("button", { name: "Import" }).click();
+    await goTo(page, "Import");
     await page.getByRole("button", { name: "Undo", exact: true }).first().click();
 
-    await page.getByRole("button", { name: "Leads" }).click();
-    await expect(page.getByText("No leads yet")).toBeVisible();
+    await page.getByRole("button", { name: "Contacts", exact: true }).click();
+    await expect(page.getByText("No contacts yet")).toBeVisible();
   });
 });

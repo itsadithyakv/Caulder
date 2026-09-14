@@ -16,15 +16,25 @@
 | Dead code | knip | 5 |
 | Packaging | electron-builder, NSIS | 26 |
 
-Runtime dependencies are exactly three: `better-sqlite3`, `exceljs`, `zod`.
-Everything else is a build or test tool.
+Runtime dependencies are four: `better-sqlite3`, `exceljs`, `zod`, and
+`koffi`. Everything else is a build or test tool.
+
+`koffi` is the odd one out and is meant to be. It exists for exactly one
+feature &mdash; putting the desk widget into the desktop wallpaper, which is a
+Win32 `SetParent` call Electron has no API for. It is Windows-only, loaded
+lazily, and every path through it fails soft: on a machine where it will not
+load, the option is not offered and nothing else notices. It is N-API based, so
+the prebuilt binary works under Electron without a rebuild, but it is still a
+native module and has to be unpacked from the asar &mdash; see
+`electron-builder.yml`.
 
 ### What is deliberately absent
 
 - **No Tailwind, no CSS-in-JS.** One token file, plain stylesheets. This
   matches the sibling projects and keeps colour in one place.
-- **No router.** Six screens and no deep linking, so navigation is a union type
-  and `useState` in `App.tsx`.
+- **No router.** Ten screens and no deep linking, so navigation is a union type
+  and `useState` in `App.tsx`. Which of the ten a workspace has is a property
+  of the route (`in: WorkspaceKind[]`), not a condition in the sidebar.
 - **No data-fetching library.** Each screen owns a small hook over the IPC
   bridge. Against a local SQLite file there is nothing to cache.
 - **No date library.** `shared/dates.ts` is fifty lines of `Intl` plus day
@@ -77,13 +87,26 @@ drift apart.
 | File | Holds |
 | --- | --- |
 | `shared/ipc.ts` | Channel names and the full `CaulderApi` type |
-| `shared/domain.ts` | Companies, stages, leads, activities, tasks, the board, Today |
+| `shared/domain.ts` | Every record type and input schema: companies, leads, tasks, blocks, notes, focus, campaigns, settings keys |
 | `shared/email.ts` | Templates, messages, the status ladder, sequences, the bridge file formats |
 | `shared/import.ts` | The import column contract and preview result types |
-| `shared/normalise.ts` | Spreadsheet-cell normalisation (pure) |
-| `shared/render.ts` | Template token substitution (pure) |
-| `shared/dates.ts` | Calendar-day helpers (pure) |
 | `shared/data.ts` | Backup and export result types |
+| `shared/errors.ts` | What a failure looks like after crossing the bridge — see below (pure) |
+| `shared/normalise.ts` | Spreadsheet-cell normalisation (pure) |
+| `shared/paste.ts` | Finding the table inside a pasted chat reply (pure) |
+| `shared/render.ts` | Template token substitution (pure) |
+| `shared/dates.ts` | Calendar-day and `HH:MM` helpers (pure) |
+| `shared/day.ts` | Laying out a day: overlapping blocks packed side by side (pure) |
+| `shared/repeat.ts` | Which days a repeating block falls on (pure) |
+| `shared/priority.ts` | The three priority levels, the clash rule, and what to be at now (pure) |
+| `shared/remind.ts` | When a reminder is due, and what it says (pure) |
+| `shared/review.ts` | Streaks by occurrence and the weekly arithmetic (pure) |
+| `shared/focus.ts` | Focus statistics (pure) |
+| `shared/quickadd.ts` | The one-line task parser and the questions it asks (pure) |
+| `shared/gsync.ts` | The Google sync's decisions — what to push, pull, adopt or drop — with no network (pure) |
+| `shared/stats.ts` | The maths behind the forecast, in no domain language (pure) |
+| `shared/predict.ts` | What those numbers mean for a lead (pure) |
+| `shared/marketing.ts` | Campaign ratios, maturity, verdicts and ranking (pure) |
 
 `shared/` may not import from `electron/` or `src/`. Everything in it is either
 a type, a Zod schema, or a pure function.
@@ -121,6 +144,31 @@ Not arbitrary — each fits how the caller uses the result.
 empties one list and can add its lead to another. Recomputing is both simpler
 and always right.
 
+## Errors across the bridge
+
+Whatever a handler throws reaches the window as a string Electron builds
+itself: `Error invoking remote method 'words:add': ` followed by the thrown
+value's `toString()`. For a plain `Error` that put bookkeeping in front of
+every sentence the app could show. For a `ZodError` it was worse — its
+message is the whole issue list as JSON — so a schema refusing a long title
+arrived as a screenful of braces.
+
+Fixed once on each side, in `shared/errors.ts`, so no screen has to know:
+
+- **Main** registers every handler through `handle()` in `ipc/index.ts`, never
+  `ipcMain.handle` directly. It passes anything thrown through
+  `readableError`, which turns a `ZodError` into its first issue's message.
+  This is why every schema states its own sentence for each way input goes
+  wrong: that sentence is what the person reads.
+- **The preload** routes every call through `invoke()`, which takes the
+  wrapper and the error's name back off with `ipcMessage`. A `catch` in the
+  window therefore gets the sentence main threw, as `error.message`.
+
+`src/lib/errors.ts`'s `messageOf` strips again anyway; on a message with no
+wrapper it changes nothing. `e2e/hardening.spec.ts` reads all three kinds —
+a repository's `Error`, a schema's `ZodError`, a boundary check — straight off
+`error.message` in a real window.
+
 ## Dates and timezones
 
 A due date is a **calendar day** (`YYYY-MM-DD`), not an instant, and "today" is
@@ -135,6 +183,60 @@ on the wrong date twice a year, because one day is not always 24 hours.
 
 Event timestamps (`occurred_at`, `sent_at`) *are* instants, stored as ISO-8601
 UTC strings.
+
+A **time of day** is the same argument one level down: `HH:MM`, a string, never
+an instant. Nine o'clock is nine o'clock, and a block stored as a timestamp
+would move because the machine's timezone did. All of it clamps to the day
+rather than wrapping — a meeting dragged past midnight stops at midnight
+instead of reappearing at the top of the same morning.
+
+## The one outbound request
+
+Caulder makes no network calls of its own. Email goes out through files you
+move by hand, and everything else is a local SQLite file.
+
+The Google link is the single exception, and it is still not Caulder calling
+Google: it calls **a script running in the user's own Google account**, which
+then does the work there. That is not a workaround, it is the only shape that
+works. Calendar and Tasks are sensitive scopes, so a desktop client signing in
+directly would need Google's review, and until it had one its refresh tokens
+would expire every seven days — a sign-in that breaks weekly, forever.
+
+Consequences, all of them load-bearing:
+
+- **Off until set up**, and everything works with it off.
+- **The URL and key are a bearer capability**, so they live in the OS
+  credential store (`safeStorage`), never in the settings table as text. If the
+  OS will not encrypt, Caulder refuses to store rather than keeping them
+  readable — see `services/credentials.ts`.
+- **The renderer never receives them.** It sends them once and afterwards can
+  only ask whether a connection exists. Same rule as `attachments.open`.
+- **Requests have a deadline** and a sync is always something asked for, never
+  something a screen waits on to draw.
+
+The reconciling lives in `shared/gsync.ts` with no network in it, so the cases
+that can destroy work are testable. Three rules govern it: **nothing is matched
+on a title or a time** (the join is an id, as with `message_id`); **ownership
+settles a conflict, not recency**; and **absence means deletion only inside the
+window that was actually asked about**, which is why `google_sync` records that
+window and why a sync of this week cannot touch a plan for next March.
+
+## Workspace kinds
+
+A workspace is `solo` (leads, pipeline, email, forecast) or `personal` (a day
+of blocks, notes, focus). `team` is named in the domain and built nowhere: it
+needs sync, accounts and conflict resolution, and a value the app cannot
+produce has no business in a CHECK constraint or a picker.
+
+The kind is settled at creation and never changed. A workspace with two hundred
+leads in it cannot meaningfully become a day planner, and offering the switch
+would mostly be offering a way to hide your own work.
+
+Three things follow from the kind, and all three are consequences rather than
+cosmetics: a personal workspace is seeded **no pipeline stages** (there is no
+board to show them on), it is offered **no sample data** (the sample is eight
+schools in a funnel), and it is offered **no tour** (every stop after the first
+is about a screen it does not have).
 
 ## Migrations
 

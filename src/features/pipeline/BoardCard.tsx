@@ -76,6 +76,15 @@ export function BoardCardView({
         </button>
 
         <div className="boardcard__foot">
+          {/* Louder than the next-step mark, because acting on this card by
+              mistake is the one error here that reaches a real person. */}
+          {card.doNotContact && (
+            <span className="boardcard__flag boardcard__flag--stop">
+              <CircleDot size={11} aria-hidden />
+              Do not contact
+            </span>
+          )}
+
           {card.value !== null && (
             <span className="boardcard__value">{formatValue(card.value)}</span>
           )}

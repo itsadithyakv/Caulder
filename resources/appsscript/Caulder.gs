@@ -1,457 +1,390 @@
 /**
- * Caulder — the sending half of the bridge.
+ * Caulder — the Google Calendar and Tasks bridge.
  *
- * Caulder runs offline on a PC and cannot call Google; Apps Script runs in
- * Google's cloud and cannot call the PC. So the two talk through files:
- * Caulder writes an outbox, this script sends it and writes a log, and Caulder
- * reads the log back.
- *
- * ---------------------------------------------------------------------------
- * SETTING IT UP
- * ---------------------------------------------------------------------------
- *
- * 1.  Create a Google Sheet. Add three tabs, named exactly:
- *         Outbox      Log      Sent
- *
- * 2.  Open Extensions > Apps Script and paste this file in, replacing
- *     whatever is there.
- *
- * 3.  Set SENDER below to the address you send from. Leave it blank to use the
- *     Google account running the script. To send through Zoho instead, see
- *     sendOne() at the bottom.
- *
- * 4.  Run `processOutbox` once by hand and grant the permissions it asks for.
- *
- * 5.  Triggers > Add trigger > processOutbox, time-driven, every hour.
- *
- * Then, in Caulder: Export the outbox, paste its rows under the Outbox tab's
- * header, and after the script has run, download the Log tab as CSV and import
- * it back.
- *
- * ---------------------------------------------------------------------------
- * THE ONE RULE
- * ---------------------------------------------------------------------------
- *
- * `message_id` is the join key. Echo it back into the Log EXACTLY as it
- * arrived. Never edit it, never regenerate it, never let a spreadsheet reformat
- * it. Every status Caulder records is matched on it, and nothing is matched on
- * an address, a subject or a time, because all three are ambiguous and all
- * three can be edited by hand.
+ * Paste this whole file into a Google Apps Script project and follow the
+ * steps below. It runs inside your own Google account and Caulder talks to it
+ * over HTTPS; Caulder itself never signs in to Google.
  */
 
-/** The address to send from. Blank uses the account running this script. */
-var SENDER = "";
+/* ===========================================================================
+ * The calendar and task bridge
+ * ===========================================================================
+ *
+ * Caulder calls this script directly over HTTPS.
+ *
+ * It works that way because the alternative does not. Google Calendar and
+ * Tasks are "sensitive" scopes, so a desktop app signing in directly would
+ * either need Google's review, or would make you sign in again every seven
+ * days forever. This script already runs AS YOU, inside your own account, so
+ * it can simply do the work and hand back the answer. Nothing about your
+ * Google account leaves it, and Caulder never sees a Google password.
+ *
+ * ---------------------------------------------------------------------------
+ * SETTING IT UP — about five minutes, once
+ * ---------------------------------------------------------------------------
+ *
+ * 1.  In the Apps Script editor, click the + beside **Services** in the left
+ *     sidebar and add BOTH of these:
+ *         Google Calendar API
+ *         Tasks API
+ *     Leave the identifiers as the defaults, "Calendar" and "Tasks".
+ *
+ * 2.  Choose `setUp` in the function dropdown at the top and press **Run**.
+ *     Google will ask you to allow it; that is the script asking for
+ *     permission to your own calendar. Accept.
+ *
+ *     Look at the Execution log underneath. It prints a line like:
+ *         Your Caulder key: 7f3a...
+ *     Copy that. It is generated here and shown once.
+ *
+ * 3.  Click **Deploy > New deployment**. Choose type **Web app**, then set:
+ *         Execute as:      Me
+ *         Who has access:  Anyone
+ *     Press Deploy and copy the **Web app URL** (it ends in `/exec`).
+ *
+ *     "Anyone" sounds alarming and is not: the URL is unguessable, and
+ *     nothing happens without the key from step 2. It has to be set this way
+ *     because Caulder is not signed in to Google, which is the entire point.
+ *
+ * 4.  In Caulder, open Settings > Google Calendar and Tasks, paste the URL and
+ *     the key, and press Connect.
+ *
+ * If you ever change this file, press **Deploy > Manage deployments**, edit
+ * the existing deployment and pick "New version" — a brand new deployment
+ * would give you a different URL to paste in again.
+ *
+ * To cut Caulder off at any time, run `revoke` below or delete the
+ * deployment. Either takes effect immediately.
+ * ========================================================================= */
 
-/** A display name for the sender, or blank for the account default. */
-var SENDER_NAME = "";
+/** Run once, by hand. Grants permission and prints the key. */
+function setUp() {
+  var props = PropertiesService.getScriptProperties();
+  var key = props.getProperty("CAULDER_SECRET");
 
-/** Stop after this many in one run. Gmail's own daily quota still applies. */
-var MAX_PER_RUN = 50;
+  if (!key) {
+    key = Utilities.getUuid().replace(/-/g, "") + Utilities.getUuid().replace(/-/g, "");
+    props.setProperty("CAULDER_SECRET", key);
+  }
+
+  // Touching both services here is what makes Google ask for permission now,
+  // during a run you are watching, rather than on the first request from
+  // Caulder - where the failure would arrive as an unexplained error.
+  CalendarApp.getDefaultCalendar().getName();
+  Tasks.Tasklists.list();
+
+  Logger.log("Your Caulder key: " + key);
+  Logger.log("Now deploy this as a web app and paste both into Caulder.");
+}
+
+/** Run by hand to cut Caulder off. The old key stops working immediately. */
+function revoke() {
+  PropertiesService.getScriptProperties().deleteProperty("CAULDER_SECRET");
+  Logger.log("Done. Run setUp again to issue a new key.");
+}
 
 /**
- * Which service actually sends: "gmail", "zoho" or "smtp".
+ * The single entry point.
  *
- * Only this line changes to switch. Everything Caulder depends on - the two
- * CSV files and the message_id echoed back - is the same whichever you pick.
- *
- * Note that reply and bounce detection reads Gmail threads, so on "zoho" or
- * "smtp" the sent status still arrives but replies and bounces do not.
+ * POST rather than GET on purpose: a GET puts its parameters in the URL, and
+ * URLs end up in server logs and browser history. A key belongs in a body.
  */
-var PROVIDER = "gmail";
+function doPost(e) {
+  var request;
+  try {
+    request = JSON.parse(e.postData.contents);
+  } catch (error) {
+    return reply({ ok: false, error: "That was not readable JSON." });
+  }
 
-var OUTBOX_SHEET = "Outbox";
-var LOG_SHEET = "Log";
-var SENT_SHEET = "Sent";
+  var expected = PropertiesService.getScriptProperties().getProperty("CAULDER_SECRET");
+  if (!expected) {
+    return reply({ ok: false, error: "This script has no key yet. Run setUp in the editor." });
+  }
+  if (!request.secret || request.secret !== expected) {
+    return reply({ ok: false, error: "That key is not right." });
+  }
 
-var LOG_HEADER = [
-  "message_id",
-  "status",
-  "sent_at",
-  "provider_message_id",
-  "thread_id",
-  "opened_at",
-  "replied_at",
-  "bounced_at",
-  "error",
-];
+  try {
+    return reply({ ok: true, data: handle(request) });
+  } catch (error) {
+    return reply({ ok: false, error: String((error && error.message) || error) });
+  }
+}
+
+function handle(request) {
+  switch (request.action) {
+    case "hello":
+      return hello();
+    case "pullEvents":
+      return pullEvents(request);
+    case "pushEvents":
+      return pushEvents(request);
+    case "pullTasks":
+      return pullTasks(request);
+    case "pushTasks":
+      return pushTasks(request);
+    default:
+      throw new Error("Caulder asked for something this script does not do: " + request.action);
+  }
+}
+
+function reply(payload) {
+  return ContentService.createTextOutput(JSON.stringify(payload)).setMimeType(
+    ContentService.MimeType.JSON,
+  );
+}
+
+/** What Caulder can choose between. Also the connection test. */
+function hello() {
+  var calendars = [];
+  var all = CalendarApp.getAllOwnedCalendars();
+  for (var i = 0; i < all.length; i += 1) {
+    calendars.push({ id: all[i].getId(), name: all[i].getName() });
+  }
+
+  var lists = [];
+  var items = Tasks.Tasklists.list().items || [];
+  for (var j = 0; j < items.length; j += 1) {
+    lists.push({ id: items[j].id, name: items[j].title });
+  }
+
+  return { email: Session.getActiveUser().getEmail(), calendars: calendars, taskLists: lists };
+}
+
+/* ---- The calendar ------------------------------------------------------- */
 
 /**
- * The entry point. Put this on an hourly time-driven trigger.
+ * Events between two days, in Caulder's own shape.
+ *
+ * All-day events are skipped. A Caulder block occupies hours; an all-day event
+ * has no hours to occupy, and turning one into a midnight-to-midnight block
+ * would fill the grid with something nobody put there.
  */
-function processOutbox() {
-  var book = SpreadsheetApp.getActiveSpreadsheet();
-  var outbox = book.getSheetByName(OUTBOX_SHEET);
-  if (!outbox) throw new Error("No sheet named " + OUTBOX_SHEET);
+function pullEvents(request) {
+  var zone = request.timeZone || Session.getScriptTimeZone();
 
-  var log = ensureSheet(book, LOG_SHEET, LOG_HEADER);
-  var sent = ensureSheet(book, SENT_SHEET, ["message_id", "processed_at"]);
-
-  var rows = outbox.getDataRange().getValues();
-  if (rows.length < 2) return;
-
-  var header = rows[0].map(function (value) {
-    return String(value).trim().toLowerCase();
+  var response = Calendar.Events.list(request.calendarId, {
+    timeMin: request.from + "T00:00:00Z",
+    timeMax: request.to + "T23:59:59Z",
+    singleEvents: true,
+    maxResults: 2500,
+    showDeleted: false,
   });
 
-  var at = {};
-  for (var c = 0; c < header.length; c += 1) at[header[c]] = c;
+  var out = [];
+  var items = response.items || [];
 
-  if (at["message_id"] === undefined || at["to_email"] === undefined) {
-    throw new Error("The Outbox needs message_id and to_email columns.");
-  }
+  for (var i = 0; i < items.length; i += 1) {
+    var item = items[i];
+    if (!item.start || !item.start.dateTime) continue;
 
-  // Which ids this script has already handled.
-  //
-  // This is what makes a re-exported outbox safe. Caulder will not normally
-  // send you the same message twice, but a file pasted in twice by hand is an
-  // ordinary mistake, and sending a lead the same email twice is not.
-  var already = {};
-  var sentRows = sent.getDataRange().getValues();
-  for (var s = 1; s < sentRows.length; s += 1) {
-    already[String(sentRows[s][0]).trim()] = true;
-  }
+    var start = new Date(item.start.dateTime);
+    var end = new Date(item.end.dateTime);
+    var minutes = Math.round((end.getTime() - start.getTime()) / 60000);
+    if (minutes <= 0) continue;
 
-  var results = [];
-  var processed = [];
-  var count = 0;
-
-  for (var r = 1; r < rows.length && count < MAX_PER_RUN; r += 1) {
-    var messageId = String(rows[r][at["message_id"]] || "").trim();
-    if (!messageId) continue;
-    if (already[messageId]) continue;
-
-    var to = String(rows[r][at["to_email"]] || "").trim();
-    var subject = String(rows[r][at["subject"]] || "").trim();
-    var body = String(rows[r][at["body_html"]] || "");
-
-    var now = new Date().toISOString();
-
-    if (!to) {
-      // Reported rather than dropped, so Caulder can show why nothing went.
-      results.push([messageId, "skipped", "", "", "", "", "", "", "No address"]);
-      processed.push([messageId, now]);
-      already[messageId] = true;
-      count += 1;
-      continue;
+    var caulderId = null;
+    if (item.extendedProperties && item.extendedProperties["private"]) {
+      caulderId = item.extendedProperties["private"].caulderId || null;
     }
 
+    out.push({
+      id: item.id,
+      etag: item.etag || null,
+      caulderId: caulderId,
+      title: item.summary || "(no title)",
+      day: Utilities.formatDate(start, zone, "yyyy-MM-dd"),
+      startsAt: Utilities.formatDate(start, zone, "HH:mm"),
+      minutes: minutes,
+    });
+  }
+
+  return { events: out };
+}
+
+/** Builds the Calendar resource for one block. */
+function eventFrom(block, zone) {
+  var endMinutes = minutesOf(block.startsAt) + block.minutes;
+  // Clamped: Calendar will happily accept an end past midnight and then draw
+  // the block across two days.
+  if (endMinutes > 24 * 60 - 1) endMinutes = 24 * 60 - 1;
+
+  var resource = {
+    summary: block.title,
+    description: block.notes || "",
+    start: { dateTime: block.day + "T" + block.startsAt + ":00", timeZone: zone },
+    end: { dateTime: block.day + "T" + timeOf(endMinutes) + ":00", timeZone: zone },
+    extendedProperties: { "private": { caulderId: block.id } },
+  };
+
+  return resource;
+}
+
+function minutesOf(time) {
+  var parts = String(time).split(":");
+  return Number(parts[0]) * 60 + Number(parts[1]);
+}
+
+function timeOf(minutes) {
+  var hour = Math.floor(minutes / 60);
+  var minute = minutes % 60;
+  return (hour < 10 ? "0" : "") + hour + ":" + (minute < 10 ? "0" : "") + minute;
+}
+
+/**
+ * Applies one plan: creates, updates and deletions in a single round trip.
+ *
+ * Every arm is wrapped on its own. One event whose id has gone stale must not
+ * stop the other forty being written - a half-applied sync that reports
+ * failure is worse than one that reports exactly what it managed.
+ */
+function pushEvents(request) {
+  var zone = request.timeZone || Session.getScriptTimeZone();
+  var created = [];
+  var updated = [];
+  var failures = [];
+
+  var toCreate = request.create || [];
+  for (var i = 0; i < toCreate.length; i += 1) {
     try {
-      var outcome = sendOne(to, subject, body);
-      results.push([
-        messageId,
-        "sent",
-        now,
-        outcome.providerMessageId || "",
-        outcome.threadId || "",
-        "",
-        "",
-        "",
-        "",
-      ]);
+      var made = Calendar.Events.insert(eventFrom(toCreate[i], zone), request.calendarId);
+      created.push({ blockId: toCreate[i].id, eventId: made.id, etag: made.etag || null });
     } catch (error) {
-      // A failure is reported, never swallowed. Caulder retries it five times
-      // with a growing wait; silence would mean it never went and nobody knew.
-      results.push([
-        messageId,
-        "failed",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        String((error && error.message) || error),
-      ]);
+      failures.push({ blockId: toCreate[i].id, error: String(error) });
     }
-
-    processed.push([messageId, now]);
-    already[messageId] = true;
-    count += 1;
   }
 
-  if (results.length > 0) {
-    log.getRange(log.getLastRow() + 1, 1, results.length, LOG_HEADER.length).setValues(results);
-    sent.getRange(sent.getLastRow() + 1, 1, processed.length, 2).setValues(processed);
-  }
-}
-
-/**
- * Records replies, so Caulder can stop chasing somebody who has answered.
- *
- * Put this on its own hourly trigger. It looks at the threads this script
- * started and appends a `replied` row for any that now has an answer.
- */
-function checkReplies() {
-  var book = SpreadsheetApp.getActiveSpreadsheet();
-  var log = ensureSheet(book, LOG_SHEET, LOG_HEADER);
-  var rows = log.getDataRange().getValues();
-  if (rows.length < 2) return;
-
-  var threadOf = {};
-  var settled = {};
-
-  for (var r = 1; r < rows.length; r += 1) {
-    var messageId = String(rows[r][0] || "").trim();
-    var status = String(rows[r][1] || "").trim();
-    var threadId = String(rows[r][4] || "").trim();
-    // Both are terminal answers about this message, so neither needs looking
-    // at again on the next run.
-    if (status === "replied" || status === "bounced") settled[messageId] = true;
-    if (status === "sent" && threadId) threadOf[messageId] = threadId;
-  }
-
-  var found = [];
-
-  for (var id in threadOf) {
-    if (settled[id]) continue;
+  var toUpdate = request.update || [];
+  for (var j = 0; j < toUpdate.length; j += 1) {
     try {
-      var thread = GmailApp.getThreadById(threadOf[id]);
-      if (!thread) continue;
-
-      var messages = thread.getMessages();
-      var mine = Session.getActiveUser().getEmail();
-      var answer = null;
-
-      for (var m = 0; m < messages.length; m += 1) {
-        var from = messages[m].getFrom();
-        // Anything in the thread not from us is an answer of some kind.
-        if (from.indexOf(mine) === -1) {
-          answer = messages[m];
-          break;
-        }
-      }
-
-      if (!answer) continue;
-
-      var when = answer.getDate().toISOString();
-
-      // A bounce and a reply arrive the same way - a message in the thread
-      // that is not from us. Telling them apart matters because they need
-      // opposite answers: a reply means stop chasing and go and talk to them,
-      // a bounce means the address is wrong and chasing it will never work.
-      if (isBounce(answer.getFrom(), answer.getSubject())) {
-        found.push([
-          id,
-          "bounced",
-          "",
-          "",
-          threadOf[id],
-          "",
-          "",
-          when,
-          bounceReason(answer),
-        ]);
-      } else {
-        found.push([id, "replied", "", "", threadOf[id], "", when, "", ""]);
-      }
+      var patched = Calendar.Events.patch(
+        eventFrom(toUpdate[j], zone),
+        request.calendarId,
+        toUpdate[j].externalId,
+      );
+      updated.push({ blockId: toUpdate[j].id, eventId: patched.id, etag: patched.etag || null });
     } catch (error) {
-      // A thread that has been deleted is not worth failing the whole run for.
+      // Usually the event was deleted in Calendar while Caulder still held its
+      // id. For a block Caulder owns, making it again is the right answer.
+      try {
+        var again = Calendar.Events.insert(eventFrom(toUpdate[j], zone), request.calendarId);
+        created.push({ blockId: toUpdate[j].id, eventId: again.id, etag: again.etag || null });
+      } catch (second) {
+        failures.push({ blockId: toUpdate[j].id, error: String(second) });
+      }
     }
   }
 
-  if (found.length > 0) {
-    log.getRange(log.getLastRow() + 1, 1, found.length, LOG_HEADER.length).setValues(found);
-  }
-}
-
-/**
- * Whether a message that came back is a delivery failure rather than a person.
- *
- * Checked on the sender first, because that is the part a mail system controls
- * and a human cannot accidentally imitate. The subject line is a second look
- * for systems that answer from a normal-looking address.
- */
-function isBounce(from, subject) {
-  var sender = String(from || "").toLowerCase();
-  var line = String(subject || "").toLowerCase();
-
-  if (
-    sender.indexOf("mailer-daemon") !== -1 ||
-    sender.indexOf("postmaster@") !== -1 ||
-    sender.indexOf("no-reply@dns") !== -1
-  ) {
-    return true;
-  }
-
-  return (
-    line.indexOf("delivery status notification") !== -1 ||
-    line.indexOf("undelivered mail") !== -1 ||
-    line.indexOf("delivery has failed") !== -1 ||
-    line.indexOf("returned mail") !== -1 ||
-    line.indexOf("address not found") !== -1
-  );
-}
-
-/**
- * A short reason out of a bounce notice, for the queue to show.
- *
- * The whole notice is pages of headers nobody reads, so this takes the first
- * line that looks like an explanation and truncates it. Getting nothing back
- * is fine - the status alone already says what happened.
- */
-function bounceReason(message) {
-  var body = "";
-  try {
-    body = String(message.getPlainBody() || "");
-  } catch (error) {
-    return "";
-  }
-
-  var lines = body.split(/\r?\n/);
-  for (var i = 0; i < lines.length; i += 1) {
-    var line = lines[i].trim();
-    if (line.length < 12) continue;
-    if (
-      /address not found|does not exist|couldn't be found|user unknown|mailbox (is )?full|blocked|rejected|550|5\.1\.1/i.test(
-        line,
-      )
-    ) {
-      return line.substring(0, 180);
+  var toRemove = request.remove || [];
+  for (var k = 0; k < toRemove.length; k += 1) {
+    try {
+      Calendar.Events.remove(request.calendarId, toRemove[k]);
+    } catch (error) {
+      // Already gone is the outcome we wanted, not a failure.
     }
   }
-  return "";
+
+  return { created: created, updated: updated, failures: failures };
 }
+
+/* ---- Tasks -------------------------------------------------------------- */
 
 /**
- * Sends one message.
+ * The whole list, followed to the end.
  *
- * This is the only part to change if you send through something other than
- * Gmail. For Zoho, replace the body of this function with a UrlFetchApp call
- * to the Zoho Mail API and return the ids it gives back — everything else in
- * this file, and everything in Caulder, stays the same.
+ * Google hands back a page at a time. Reading only the first one and telling
+ * Caulder it was everything is how the hundred and first task gets deleted,
+ * so this follows nextPageToken and says plainly whether it finished.
  */
-function sendOne(to, subject, body) {
-  if (PROVIDER === "zoho") return sendViaZoho(to, subject, body);
-  if (PROVIDER === "smtp") return sendViaSmtpRelay(to, subject, body);
-  return sendViaGmail(to, subject, body);
+function pullTasks(request) {
+  var out = [];
+  var token = null;
+  var pages = 0;
+  var complete = true;
+
+  do {
+    var options = { showCompleted: true, showHidden: true, maxResults: 100 };
+    if (token) options.pageToken = token;
+
+    var response = Tasks.Tasks.list(request.taskListId, options);
+    collectTasks(response.items || [], out);
+
+    token = response.nextPageToken || null;
+    pages += 1;
+
+    // A guard against a list so long it would run the script out of time.
+    // Stopping is fine; claiming to have finished would not be.
+    if (pages >= 20 && token) {
+      complete = false;
+      break;
+    }
+  } while (token);
+
+  return { tasks: out, complete: complete };
 }
 
-/** Gmail, through the account this script runs as. */
-function sendViaGmail(to, subject, body) {
-  var options = { htmlBody: body };
-  if (SENDER) options.from = SENDER;
-  if (SENDER_NAME) options.name = SENDER_NAME;
-
-  GmailApp.sendEmail(to, subject, stripHtml(body), options);
-
-  // The most recently sent thread to this address is the one just created.
-  var threads = GmailApp.search("to:" + to, 0, 1);
-  if (threads.length === 0) return { providerMessageId: "", threadId: "" };
-
-  var messages = threads[0].getMessages();
-  var last = messages[messages.length - 1];
-
-  return { providerMessageId: last.getId(), threadId: threads[0].getId() };
+function collectTasks(items, out) {
+  for (var i = 0; i < items.length; i += 1) {
+    var item = items[i];
+    out.push({
+      id: item.id,
+      title: item.title || "(no title)",
+      // Google stores a date with a midnight UTC time attached. Only the date
+      // half means anything - reading the time would move the task a day for
+      // anybody east of London.
+      due: item.due ? String(item.due).slice(0, 10) : null,
+      notes: item.notes || null,
+      done: item.status === "completed",
+    });
+  }
 }
 
-/**
- * Zoho Mail, through its REST API.
- *
- * Set PROVIDER to "zoho" above and fill in the three constants. The token is
- * an OAuth access token for the ZohoMail.messages.CREATE scope; Zoho's own
- * documentation covers getting one, and it belongs in Script Properties
- * rather than typed in here where it would be shared with the sheet.
- *
- * Everything else in this file is unchanged, because the contract Caulder
- * cares about is the two CSV files and the message_id - not the provider.
- */
-function sendViaZoho(to, subject, body) {
-  var token = PropertiesService.getScriptProperties().getProperty("ZOHO_TOKEN");
-  var accountId = PropertiesService.getScriptProperties().getProperty("ZOHO_ACCOUNT_ID");
-
-  if (!token || !accountId) {
-    throw new Error(
-      "Zoho is selected but ZOHO_TOKEN or ZOHO_ACCOUNT_ID is not set in Script Properties.",
-    );
-  }
-
-  var response = UrlFetchApp.fetch(
-    "https://mail.zoho.com/api/accounts/" + accountId + "/messages",
-    {
-      method: "post",
-      contentType: "application/json",
-      headers: { Authorization: "Zoho-oauthtoken " + token },
-      muteHttpExceptions: true,
-      payload: JSON.stringify({
-        fromAddress: SENDER,
-        toAddress: to,
-        subject: subject,
-        content: body,
-        mailFormat: "html",
-      }),
-    },
-  );
-
-  var code = response.getResponseCode();
-  if (code < 200 || code >= 300) {
-    // Thrown, not swallowed: processOutbox turns it into a `failed` row with
-    // this text, which is how it reaches the queue in Caulder.
-    throw new Error("Zoho returned " + code + ": " + response.getContentText().slice(0, 200));
-  }
-
-  var parsed = JSON.parse(response.getContentText());
-  var data = parsed && parsed.data ? parsed.data : {};
-
+function taskFrom(task) {
   return {
-    providerMessageId: String(data.messageId || ""),
-    // Zoho has no thread id in this response. checkReplies only works against
-    // Gmail threads, so on Zoho the reply and bounce statuses come from
-    // whatever you set up on that side instead.
-    threadId: "",
+    title: task.title,
+    notes: task.notes || "",
+    due: task.dueOn + "T00:00:00.000Z",
+    status: task.done ? "completed" : "needsAction",
   };
 }
 
-/**
- * Anything else with an HTTP send API - Postmark, SendGrid, Brevo, Mailgun.
- *
- * The shape is always the same, so only the URL, the auth header and the two
- * field names change. Fill those in and set PROVIDER to "smtp".
- */
-function sendViaSmtpRelay(to, subject, body) {
-  var props = PropertiesService.getScriptProperties();
-  var url = props.getProperty("RELAY_URL");
-  var key = props.getProperty("RELAY_KEY");
+function pushTasks(request) {
+  var created = [];
+  var failures = [];
 
-  if (!url || !key) {
-    throw new Error("PROVIDER is 'smtp' but RELAY_URL or RELAY_KEY is not set.");
+  var toCreate = request.create || [];
+  for (var i = 0; i < toCreate.length; i += 1) {
+    try {
+      var made = Tasks.Tasks.insert(taskFrom(toCreate[i]), request.taskListId);
+      created.push({ taskId: toCreate[i].id, externalId: made.id });
+    } catch (error) {
+      failures.push({ taskId: toCreate[i].id, error: String(error) });
+    }
   }
 
-  var response = UrlFetchApp.fetch(url, {
-    method: "post",
-    contentType: "application/json",
-    headers: { Authorization: "Bearer " + key },
-    muteHttpExceptions: true,
-    payload: JSON.stringify({ from: SENDER, to: to, subject: subject, html: body }),
-  });
-
-  var status = response.getResponseCode();
-  if (status < 200 || status >= 300) {
-    throw new Error("Relay returned " + status + ": " + response.getContentText().slice(0, 200));
+  var toUpdate = request.update || [];
+  for (var j = 0; j < toUpdate.length; j += 1) {
+    try {
+      Tasks.Tasks.patch(taskFrom(toUpdate[j]), request.taskListId, toUpdate[j].externalId);
+    } catch (error) {
+      try {
+        var again = Tasks.Tasks.insert(taskFrom(toUpdate[j]), request.taskListId);
+        created.push({ taskId: toUpdate[j].id, externalId: again.id });
+      } catch (second) {
+        failures.push({ taskId: toUpdate[j].id, error: String(second) });
+      }
+    }
   }
 
-  return { providerMessageId: "", threadId: "" };
-}
-
-/** A plain-text fallback, for clients that will not show HTML. */
-function stripHtml(html) {
-  return String(html)
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/p>/gi, "\n\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .trim();
-}
-
-function ensureSheet(book, name, header) {
-  var sheet = book.getSheetByName(name);
-  if (!sheet) {
-    sheet = book.insertSheet(name);
-    sheet.getRange(1, 1, 1, header.length).setValues([header]);
-    return sheet;
+  var toRemove = request.remove || [];
+  for (var k = 0; k < toRemove.length; k += 1) {
+    try {
+      Tasks.Tasks.remove(request.taskListId, toRemove[k]);
+    } catch (error) {
+      // Already gone.
+    }
   }
-  if (sheet.getLastRow() === 0) {
-    sheet.getRange(1, 1, 1, header.length).setValues([header]);
-  }
-  return sheet;
+
+  return { created: created, failures: failures };
 }

@@ -40,7 +40,7 @@ browser and need DOM types that the main process has no business with.
 npm run package
 ```
 
-Produces `release/Caulder Setup 0.1.0.exe` — a per-user NSIS installer, around
+Produces `release/Caulder Setup <version>.exe` — a per-user NSIS installer, around
 100 MB, that lets the user choose the install directory. `release/win-unpacked/`
 holds the same app unpacked, which is what the smoke test drives.
 

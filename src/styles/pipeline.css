@@ -15,29 +15,99 @@
 }
 
 .board {
-  display: flex;
+  /* Grid rather than a scrolling row: the working stages share the width and
+   * fit. A fixed 264 per column meant seven columns needed 1900px, so the two
+   * nobody drags cards into were the reason the five you do had to be
+   * scrolled to. Below the minimum it falls back to scrolling, which is the
+   * honest failure - crushing eight columns is worse than moving them. */
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(190px, 1fr);
   gap: var(--space-3);
-  align-items: flex-start;
+  align-items: start;
   overflow-x: auto;
   padding-bottom: var(--space-3);
 }
+
+/* Won and lost, side by side under the board. Out of the funnel rather than
+ * further along it, and they grow without limit while the working columns do
+ * not. */
+.closed {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-3);
+  align-items: start;
+}
+
+/* Won and lost size to what is in them. They are a record rather than a place
+ * you work, so a pair of half-height panels of nothing under the board is
+ * space taken for no reason. */
+.closed .column {
+  min-height: 0;
+  max-height: 340px;
+}
+
+/* Closed deals lie across their band rather than stacking down it. A won
+ * column is as wide as half the window, so one card stretched to fill it read
+ * as a different kind of object from the same card on the board above. This
+ * keeps every card the width it is everywhere else and uses the row. */
+.closed .column__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  align-content: start;
+}
+
+/* A board with nothing on it does not need full-height columns. Tall is right
+ * when there are cards to hold and a target to drop onto; with nothing in
+ * them it is five columns of blank taking the whole window. */
+.board--empty .column { min-height: 200px; }
 
 .column {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  flex: 0 0 264px;
-  /* Tall enough to show a card or two whatever the window does, and no taller
-   * than the space below the header. Without the floor a short window shrinks
-   * the columns to a sliver and every one of them grows its own scrollbar. */
-  min-height: 240px;
+  min-width: 0;
+  /* Fills the height it has rather than sitting at a fixed 240px above a
+   * screen of nothing. A column is a drop target, and a taller one is a
+   * bigger, more forgiving target as well as a better use of the window. The
+   * cap stops a short window shrinking them to a sliver. */
+  min-height: min(560px, calc(100vh - 320px));
   max-height: calc(100vh - 260px);
   padding: var(--space-3);
   border-radius: var(--radius-md);
-  background: var(--surface-sunken);
+  /* The wash says where in the funnel this is; the line along the top says it
+   * loudly enough to read at a glance, because a 7% tint is not a signal.
+   * Both come from tokens - the ramp is mixed from the company's own accent,
+   * so a rose company gets a rose funnel. */
+  background: var(--column-wash, var(--surface-sunken));
   box-shadow: var(--shadow-inset-sm);
   transition: box-shadow var(--dur-fast) var(--ease);
 }
+
+/* The colour is carried by the wash and by a dot beside the name.
+ *
+ * There was a 3px band across the top of every column, and it looked like a
+ * mistake wherever it was strong enough to see: a full-width rule pinned to
+ * the top edge reads as a stray line against a rounded corner, whether it is
+ * drawn as a border outside the radius or as an inset shadow inside it. A dot
+ * is a deliberate mark. It cannot be mistaken for an artifact, and it sits
+ * next to the word it is describing. */
+.column__dot {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  border-radius: var(--radius-pill);
+  background: var(--column-edge, var(--ink-3));
+}
+
+.column--s1 { --column-wash: var(--stage-1); --column-edge: var(--stage-1-edge); }
+.column--s2 { --column-wash: var(--stage-2); --column-edge: var(--stage-2-edge); }
+.column--s3 { --column-wash: var(--stage-3); --column-edge: var(--stage-3-edge); }
+.column--s4 { --column-wash: var(--stage-4); --column-edge: var(--stage-4-edge); }
+.column--s5 { --column-wash: var(--stage-5); --column-edge: var(--stage-5-edge); }
+.column--s6 { --column-wash: var(--stage-6); --column-edge: var(--stage-6-edge); }
+.column--won { --column-wash: var(--stage-won); --column-edge: var(--stage-won-edge); }
+.column--lost { --column-wash: var(--stage-lost); --column-edge: var(--stage-lost-edge); }
 
 /* The drop target is announced by an accent ring, not by a colour wash: the
  * cards inside have to stay readable while a card is in flight. */
@@ -52,6 +122,13 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
+}
+
+.column__head--named {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
 }
 
 .column__name {
@@ -75,8 +152,10 @@
 
 /* Won and lost say what they are with a top edge. Semantic colour, never
  * derived from the company accent, so it reads the same in every workspace. */
-.column--won  .column__head { border-top: 2px solid var(--ok); padding-top: var(--space-2); }
-.column--lost .column__head { border-top: 2px solid var(--danger); padding-top: var(--space-2); }
+/* Won and lost used to carry a rule across the header. It is gone: a
+ * full-width line inside a rounded card reads as a stray mark whatever it is
+ * drawn with, and the dot beside the name says the same thing without ever
+ * looking like a rendering fault. */
 
 .column__value {
   color: var(--ink-3);
@@ -184,6 +263,13 @@
   color: var(--ok);
 }
 
+/* Do not contact. Louder than the rest of the foot, and bold, because acting
+   on this card by mistake is the one error here that reaches a real person. */
+.boardcard__flag--stop {
+  color: var(--danger);
+  font-weight: 700;
+}
+
 .boardcard__when {
   color: var(--ink-3);
   font-size: var(--text-xs);
@@ -251,6 +337,9 @@
 
 /* ---- Stage editor ------------------------------------------------------ */
 
+/* The stage list does not need the width of the card it sits in. A text box
+ * holding the word "New" stretched across 1300px is as poor a use of the
+ * space as leaving it empty - it just wastes it sideways instead. */
 .stages {
   display: flex;
   flex-direction: column;
@@ -294,4 +383,22 @@
 
 .stages__add {
   align-self: flex-start;
+}
+
+/* ---- Why was this lost? ------------------------------------------------
+ * Offered after the move, never before it. The move has to land whether or
+ * not anybody stops to answer.
+ * ---------------------------------------------------------------------- */
+
+.lossask {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: min(480px, 100%);
+}
+
+.lossask__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }

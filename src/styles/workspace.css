@@ -23,13 +23,132 @@
 
 .firstrun {
   width: 100%;
-  max-width: 460px;
+  /* Wide enough for two columns of fields. At 460 the form had grown to a
+   * tall narrow ribbon that scrolled on a maximised window, which is the
+   * shape of a phone form on a desk monitor. */
+  max-width: 900px;
 }
 
 .firstrun__card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+/* The heading, the funnel picker and the sample line run the full width; the
+ * short fields pair up beside each other. */
+.firstrun__card > .firstrun__mark,
+.firstrun__card > .firstrun__title,
+.firstrun__card > .firstrun__body,
+.firstrun__card > .firstrun__actions,
+.firstrun__wide {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 760px) {
+  .firstrun__card { grid-template-columns: 1fr; }
+}
+
+/* ---- The funnel picker -------------------------------------------------- */
+
+.modes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-2);
+}
+
+.mode {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: 2px;
+  padding: var(--space-3);
+  background: var(--surface);
+  border: none;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-xs);
+  text-align: left;
+  cursor: pointer;
+  transition: box-shadow var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+
+.mode:hover { background: var(--surface-hover); }
+
+/* Chosen is said twice: the accent ring and the accent title. A ring alone
+ * disappears for anyone who cannot see the accent against the surface. */
+.mode[aria-checked="true"] {
+  background: var(--accent-soft);
+  box-shadow: var(--shadow-inset-sm), 0 0 0 2px var(--accent);
+}
+
+.mode[aria-checked="true"] .mode__name { color: var(--accent-strong); }
+
+.mode__name {
+  color: var(--ink);
+  font-size: var(--text-base);
+  font-weight: 700;
+}
+
+.mode__hint {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+/* The actual stages, so the choice is concrete rather than a name and a
+ * promise. It is the whole difference between the four options. */
+.mode__stages {
+  margin-top: var(--space-1);
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+/* ---- The logo picker ---------------------------------------------------- */
+
+.logopick {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.logopick__preview {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  flex: none;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--ink-on-accent);
+  box-shadow: var(--shadow-xs);
+}
+
+.logopick__img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: var(--surface);
+}
+
+.logopick__initials {
+  font-size: var(--text-md);
+  font-weight: 900;
+}
+
+.logopick__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* A label styled as a button, wrapping a hidden file input - the only way to
+ * style a file picker without replacing it. */
+.logopick__choose {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
 }
 
 /* Only on the genuine first run, where this screen is the app introducing
@@ -68,6 +187,17 @@
   box-shadow: var(--shadow-inset-sm);
   color: var(--ink-2);
   font-size: var(--text-base);
+}
+
+/* The looks, folded away. Name and kind are the two answers a first run
+ * needs; a logo, an accent and a timezone it already knows are not. */
+.firstrun__more { grid-column: 1 / -1; margin-top: 0; }
+
+.firstrun__moreBody {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-4);
+  max-width: none;
 }
 
 .firstrun__actions {
@@ -296,4 +426,87 @@
 .company-row__confirmActions {
   display: flex;
   gap: var(--space-2);
+}
+
+/* ---- Settings ----------------------------------------------------------
+ * Two columns on a wide window. As one column these cards ran to 2400px of
+ * scrolling on a screen with 1400px of unused width beside them - a phone
+ * layout on a desk monitor.
+ *
+ * The two that hold a table or a list of paths span both, because squeezing
+ * them into half the width is how a table starts scrolling sideways.
+ * ------------------------------------------------------------------------- */
+
+/* Four groups and a rail.
+ *
+ * Inside a group the cards still pour into columns, because they differ in
+ * height by a lot - Companies is four lines and the stage editor is nine rows
+ * - and a grid would leave a hole under the short one. Multicol packs each
+ * column on its own. The column width is a minimum, so a narrow window falls
+ * back to one column without a media query. Multicol does not apply to a
+ * flex container, so `.settings__cards` is a block. */
+.settings {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.settings__rail {
+  position: sticky;
+  top: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.settings__jump {
+  padding: var(--space-2) var(--space-3);
+  background: transparent;
+  color: var(--ink-3);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+
+.settings__jump:hover {
+  color: var(--ink);
+  background: var(--surface-hover);
+}
+
+.settings__groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.settings__group { scroll-margin-top: var(--space-4); }
+
+.settings__groupTitle {
+  margin: 0 0 var(--space-3);
+  color: var(--ink);
+  font-size: var(--text-lg);
+  font-weight: 900;
+}
+
+.settings__cards {
+  display: block;
+  column-width: 420px;
+  column-gap: var(--space-4);
+}
+
+.settings__cards > .card {
+  /* A card split across a column break would be unreadable. */
+  break-inside: avoid;
+  margin: 0 0 var(--space-4);
+}
+
+@media (max-width: 900px) {
+  .settings { grid-template-columns: minmax(0, 1fr); }
+  .settings__rail { display: none; }
 }

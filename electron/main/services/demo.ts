@@ -2,8 +2,10 @@ import { randomUUID } from "node:crypto";
 import type { Db } from "../db/connection";
 import { createLead, setLeadStage, writeActivity } from "../repositories/leads";
 import { createTask, completeTask } from "../repositories/tasks";
+import { createBlock } from "../repositories/blocks";
+import { addPayment, saveInvoice, saveQuote, setInvoiceStatus, setQuoteStatus } from "../repositories/money";
 import { listStages } from "../repositories/companies";
-import { leadInput, taskInput } from "@shared/domain";
+import { leadInput, taskInput, type PipelineStage } from "@shared/domain";
 import { shiftDay, today as todayIn } from "@shared/dates";
 
 /**
@@ -34,8 +36,14 @@ type Seed = {
   phone?: string;
   city?: string;
   value?: number;
-  /** Index into the company's stages. */
-  stage: number;
+  /**
+   * Where in the funnel. A number is an index into the seeded stages; "won"
+   * and "lost" are looked up by what the stage MEANS, because those two are
+   * the ones whose position moves as soon as anybody edits their funnel - and
+   * a sample where the signed lead sits under "Proposal sent" teaches the
+   * wrong thing about the app.
+   */
+  stage: number | "won" | "lost";
   /** Days ago the last contact was, if there was one. */
   spokeDaysAgo?: number;
   note?: string;
@@ -111,7 +119,7 @@ const SEEDS: Seed[] = [
     phone: "9480040338",
     city: "Bengaluru",
     value: 60000,
-    stage: 4,
+    stage: "won",
     spokeDaysAgo: 9,
     note: "Signed. Rollout starts after the term break.",
   },
@@ -120,7 +128,7 @@ const SEEDS: Seed[] = [
     contactPerson: "P Sharma",
     email: "p.sharma@sunrise.example.in",
     city: "Mysuru",
-    stage: 5,
+    stage: "lost",
     spokeDaysAgo: 15,
     note: "Went with a competitor on price. Worth another look next year.",
   },
@@ -130,6 +138,37 @@ const SEEDS: Seed[] = [
  * Seeds the sample and returns the batch id, which is how it is removed again.
  * One transaction: a half-seeded sample is worse than none.
  */
+/**
+ * The stages a sample lead is walked through on its way to where it ends up.
+ *
+ * Won and Lost are parallel ends of the funnel, not steps in it, so a lost
+ * deal must not be dragged through Won to reach Lost - which is what a plain
+ * slice of the stage list does, and which made every stage in the sample
+ * report exactly the same conversion rate.
+ *
+ * A lost deal also stops partway rather than reaching the last open stage. A
+ * funnel where every deal gets a proposal has no shape to show.
+ */
+/** One student founder's Tuesday, on whichever day the sample is looked at. */
+const SAMPLE_BLOCKS: { startsAt: string; minutes: number; title: string; kind: string }[] = [
+  { startsAt: "09:00", minutes: 120, title: "Data structures lecture", kind: "class" },
+  { startsAt: "11:30", minutes: 60, title: "Reading for Friday", kind: "study" },
+  { startsAt: "14:00", minutes: 30, title: "Call with Bengaluru Public School", kind: "meeting" },
+  { startsAt: "15:00", minutes: 90, title: "Proposal for Oakridge", kind: "focus" },
+  { startsAt: "18:00", minutes: 60, title: "Gym", kind: "personal" },
+];
+
+function walkTo(stages: PipelineStage[], target: PipelineStage): PipelineStage[] {
+  const open = stages.filter((stage) => stage.kind === "open");
+
+  if (target.kind === "open") {
+    return open.slice(0, open.indexOf(target) + 1);
+  }
+
+  const depth = target.kind === "won" ? open.length : Math.ceil(open.length / 2);
+  return [...open.slice(0, depth), target];
+}
+
 export function seedDemo(db: Db, companyId: string, now: Date = new Date()): string {
   const stages = listStages(db, companyId);
   const timezone = companyTimezone(db, companyId);
@@ -146,7 +185,11 @@ export function seedDemo(db: Db, companyId: string, now: Date = new Date()): str
     ).run(batchId, companyId, DEMO_FILENAME, SEEDS.length, SEEDS.length, now.toISOString());
 
     for (const seed of SEEDS) {
-      const stage = stages[Math.min(seed.stage, stages.length - 1)];
+      const stage =
+        typeof seed.stage === "number"
+          ? stages[Math.min(seed.stage, stages.length - 1)]
+          : (stages.find((candidate) => candidate.kind === seed.stage) ??
+            stages[stages.length - 1]);
       const lead = createLead(
         db,
         companyId,
@@ -164,9 +207,22 @@ export function seedDemo(db: Db, companyId: string, now: Date = new Date()): str
 
       db.prepare(`UPDATE leads SET import_batch_id = ? WHERE id = ?`).run(batchId, lead.id);
 
-      // Stage changes are written as history, so the timeline reads like a
-      // lead somebody has actually worked rather than one that appeared.
-      if (stage && seed.stage > 0) setLeadStage(db, lead.id, stage.id);
+      // Walked through the funnel rather than dropped at the end of it.
+      //
+      // createLead already puts the lead in its target stage, so a single
+      // setLeadStage to that same stage returns early and writes nothing -
+      // the sample data had a Won deal with no record of ever having been
+      // anywhere, and the forecast, which learns from what stages a deal
+      // passed through, had nothing at all to count.
+      if (stage) {
+        const path = walkTo(stages, stage);
+        db.prepare(`UPDATE leads SET stage_id = ? WHERE id = ?`).run(
+          path[0]?.id ?? null,
+          lead.id,
+        );
+        // Written, not moved: the built-in follow-up must not fire on history.
+        for (const step of path.slice(1)) setLeadStage(db, lead.id, step.id, { followUp: false });
+      }
 
       if (seed.note) {
         const at = new Date(now.getTime() - (seed.spokeDaysAgo ?? 1) * 86_400_000);
@@ -236,6 +292,60 @@ export function seedDemo(db: Db, companyId: string, now: Date = new Date()): str
         }),
       );
       completeTask(db, done.id);
+    }
+
+    // A day with hours in it, so the calendar half has something to show as
+    // well: a lecture, a client call in the afternoon and the gym after. Not
+    // part of the import batch, because blocks are not leads - the sample
+    // company goes as a whole when the real one is created.
+    for (const block of SAMPLE_BLOCKS) {
+      createBlock(db, companyId, { day, ...block });
+    }
+
+    // And some money, so the Money screen has a shape: one invoice paid, one
+    // sent and due soon, one quote out. Cheap to seed, and the whole point of
+    // looking around is seeing every screen with something on it.
+    const leadNamed = (name: string) =>
+      (
+        db.prepare(`SELECT id FROM leads WHERE import_batch_id = ? AND name = ?`).get(batchId, name) as
+          | { id: string }
+          | undefined
+      )?.id;
+    const won = leadNamed("Prajna Vahini School");
+    const meeting = leadNamed("Oakridge International School");
+    const contacted = leadNamed("GIG International School");
+    if (won) {
+      const paid = saveInvoice(db, companyId, null, {
+        leadId: won,
+        issuedOn: shiftDay(day, -12),
+        dueOn: shiftDay(day, 2),
+        notes: null,
+        lines: [{ description: "Attendance module, annual", quantity: 1, unitPrice: 60000 }],
+      });
+      setInvoiceStatus(db, companyId, paid.id, "sent");
+      addPayment(db, companyId, paid.id, { amount: 60000, paidOn: shiftDay(day, -3), note: null });
+    }
+    if (meeting) {
+      const open = saveInvoice(db, companyId, null, {
+        leadId: meeting,
+        issuedOn: shiftDay(day, -2),
+        dueOn: shiftDay(day, 12),
+        notes: "Half up front, half on go-live.",
+        lines: [{ description: "Pilot, one term", quantity: 1, unitPrice: 125000 }],
+      });
+      setInvoiceStatus(db, companyId, open.id, "sent");
+    }
+    if (contacted) {
+      const quote = saveQuote(db, companyId, null, {
+        leadId: contacted,
+        issuedOn: shiftDay(day, -1),
+        notes: null,
+        lines: [
+          { description: "Attendance module, annual", quantity: 1, unitPrice: 60000 },
+          { description: "Onboarding day", quantity: 1, unitPrice: 20000 },
+        ],
+      });
+      setQuoteStatus(db, companyId, quote.id, "sent");
     }
 
     return batchId;

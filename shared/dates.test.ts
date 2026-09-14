@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { dayOf, daysBetween, describeDue, isDay, shiftDay, today } from "./dates";
+import {
+  dayOf,
+  daysBetween,
+  describeDue,
+  isDay,
+  periodStart,
+  shiftDay,
+  startOfWeek,
+  today,
+} from "./dates";
 
 describe("today", () => {
   it("gives the day where the company is, not where the machine is", () => {
@@ -99,5 +108,50 @@ describe("isDay", () => {
     expect(isDay("2026-09-03T00:00:00Z")).toBe(false);
     expect(isDay(20260903)).toBe(false);
     expect(isDay(null)).toBe(false);
+  });
+});
+
+describe("the Monday of a week", () => {
+  it("stays put when the day already is one", () => {
+    // 2026-09-07 is a Monday.
+    expect(startOfWeek("2026-09-07")).toBe("2026-09-07");
+  });
+
+  it("reaches back six days from a Sunday, not forward one", () => {
+    // The off-by-one that a Sunday-first week produces: 2026-09-13 is a
+    // Sunday, and treating it as the start would put the week's own Monday in
+    // the week before.
+    expect(startOfWeek("2026-09-13")).toBe("2026-09-07");
+  });
+
+  it("crosses a month boundary", () => {
+    // 2026-10-01 is a Thursday.
+    expect(startOfWeek("2026-10-01")).toBe("2026-09-28");
+  });
+
+  it("crosses a year boundary", () => {
+    // 2027-01-01 is a Friday.
+    expect(startOfWeek("2027-01-01")).toBe("2026-12-28");
+  });
+});
+
+describe("the start of a period", () => {
+  it("finds the first of the month", () => {
+    expect(periodStart("2026-09-08", "month")).toBe("2026-09-01");
+    expect(periodStart("2026-09-01", "month")).toBe("2026-09-01");
+  });
+
+  it("finds the first of the quarter, which is not the first of the month", () => {
+    // The one worth checking: every month in a quarter has to answer the same
+    // day, and the boundaries are the months that look wrong.
+    expect(periodStart("2026-01-05", "quarter")).toBe("2026-01-01");
+    expect(periodStart("2026-03-31", "quarter")).toBe("2026-01-01");
+    expect(periodStart("2026-04-01", "quarter")).toBe("2026-04-01");
+    expect(periodStart("2026-09-08", "quarter")).toBe("2026-07-01");
+    expect(periodStart("2026-12-31", "quarter")).toBe("2026-10-01");
+  });
+
+  it("finds the first of the year", () => {
+    expect(periodStart("2026-12-31", "year")).toBe("2026-01-01");
   });
 });

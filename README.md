@@ -1,10 +1,16 @@
 # Caulder
 
-A personal CRM and lead manager. One local desktop app that holds your leads,
-tells you what to chase today, and records what your email script actually did.
+A planner and a CRM in one desktop app, for somebody running a company while
+doing a degree. It holds the timetable, the gym, the club, the client meetings
+and the studying alongside the leads, the funnel, the outreach and what any of
+it cost — because that is one Tuesday, not two.
+
+It tells you what to be at right now, what to chase today, what a campaign
+brought back, and how the weeks actually went.
 
 Local-only by design: a single SQLite file on this machine, no cloud, no
-account, works offline.
+account, works offline. Google Calendar and Tasks sync through a script that
+runs in your own account, if you want it.
 
 ## Running it
 
@@ -60,10 +66,11 @@ Everything about how Caulder works lives in **[reference/](reference/)**:
 | [architecture.md](reference/architecture.md) | The stack, the two processes, and why each choice was made |
 | [data-model.md](reference/data-model.md) | Every table and column, and the rules the schema enforces |
 | [features.md](reference/features.md) | What the app actually does, screen by screen |
-| [email-bridge.md](reference/email-bridge.md) | The Apps Script handover, and how to set it up |
 | [design-language.md](reference/design-language.md) | Tokens, the neumorphic rules, both themes |
 | [operations.md](reference/operations.md) | Building, packaging, backups, troubleshooting |
+| [product-review.md](reference/product-review.md) | A dated, opinionated review of how well it works as a product |
 
-Those six files describe shipped behaviour. Anything dated — status, progress,
-what is coming next — belongs in the plan or in Git history, and new material
-goes into a section of one of them rather than into a seventh file.
+The first five describe shipped behaviour. Anything dated — status, progress,
+what is coming next — belongs in [PLAN.md](PLAN.md) or in Git history, and new material
+goes into a section of one of them rather than into a new file. The review is
+the one exception: it is an opinion at a point in time, and says so.

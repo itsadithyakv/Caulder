@@ -23,10 +23,12 @@ const SHEETS: { file: string; sql: string }[] = [
              l.email AS "Email", l.phone AS "Phone", l.alt_phone AS "Alt Phone",
              l.city AS "City", l.location AS "Location", l.pin AS "PIN",
              l.source AS "Source", l.website AS "Website", l.value AS "Value",
-             s.name AS "Stage", l.notes AS "Notes",
+             s.name AS "Stage", l.notes AS "Notes", c.name AS "Campaign",
+             l.do_not_contact AS "Do Not Contact",
              l.last_contacted_at AS "Last Contacted", l.created_at AS "Added"
       FROM leads l
       LEFT JOIN pipeline_stages s ON s.id = l.stage_id
+      LEFT JOIN campaigns c ON c.id = l.campaign_id
       WHERE l.company_id = ?
       ORDER BY l.name COLLATE NOCASE`,
   },
@@ -51,20 +53,58 @@ const SHEETS: { file: string; sql: string }[] = [
       ORDER BY t.due_on DESC`,
   },
   {
-    file: "emails.csv",
+    file: "quotes.csv",
     sql: `
-      SELECT m.subject AS "Subject", l.name AS "Lead", m.to_email AS "To",
-             m.status AS "Status", m.scheduled_for AS "Scheduled",
-             m.sent_at AS "Sent", m.replied_at AS "Replied", m.body AS "Message"
-      FROM email_messages m
-      LEFT JOIN leads l ON l.id = m.lead_id
-      WHERE m.company_id = ?
-      ORDER BY m.created_at DESC`,
+      SELECT q.number AS "Number", l.name AS "Contact", q.status AS "Status",
+             q.issued_on AS "Issued", ql.description AS "Line",
+             ql.quantity AS "Quantity", ql.unit_price AS "Unit Price",
+             ROUND(ql.quantity * ql.unit_price) AS "Amount", q.notes AS "Notes"
+      FROM quotes q
+      JOIN leads l ON l.id = q.lead_id
+      LEFT JOIN quote_lines ql ON ql.quote_id = q.id
+      WHERE q.company_id = ?
+      ORDER BY q.number, ql.position`,
+  },
+  {
+    file: "invoices.csv",
+    sql: `
+      SELECT i.number AS "Number", l.name AS "Contact", i.status AS "Status",
+             i.issued_on AS "Issued", i.due_on AS "Due", i.paid_on AS "Paid On",
+             il.description AS "Line", il.quantity AS "Quantity",
+             il.unit_price AS "Unit Price",
+             ROUND(il.quantity * il.unit_price) AS "Amount", i.notes AS "Notes"
+      FROM invoices i
+      JOIN leads l ON l.id = i.lead_id
+      LEFT JOIN invoice_lines il ON il.invoice_id = i.id
+      WHERE i.company_id = ?
+      ORDER BY i.number, il.position`,
+  },
+  {
+    file: "payments.csv",
+    sql: `
+      SELECT i.number AS "Invoice", l.name AS "Contact", p.amount AS "Amount",
+             p.paid_on AS "Paid On", p.note AS "Note"
+      FROM payments p
+      JOIN invoices i ON i.id = p.invoice_id
+      JOIN leads l ON l.id = i.lead_id
+      WHERE p.company_id = ?
+      ORDER BY p.paid_on DESC`,
+  },
+  {
+    file: "spend.csv",
+    sql: `
+      SELECT s.spent_on AS "Date", s.what AS "What", s.amount AS "Amount",
+             c.name AS "Campaign"
+      FROM spend s
+      LEFT JOIN campaigns c ON c.id = s.campaign_id
+      WHERE s.company_id = ?
+      ORDER BY s.spent_on DESC`,
   },
   {
     file: "templates.csv",
     sql: `
-      SELECT name AS "Name", subject AS "Subject", body AS "Message"
+      SELECT name AS "Name", channel AS "Goes out by", subject AS "Subject",
+             body AS "Message"
       FROM email_templates WHERE company_id = ? ORDER BY name COLLATE NOCASE`,
   },
 ];
@@ -138,7 +178,10 @@ function readme(companyName: string, now: Date): string {
     "leads.csv      Every lead, with its stage.",
     "history.csv    Everything that has happened to them.",
     "tasks.csv      Follow-ups, done and outstanding.",
-    "emails.csv     Every message queued, and what became of it.",
+    "quotes.csv     Every quote, one row per line.",
+    "invoices.csv   Every invoice, one row per line.",
+    "payments.csv   What came in, against which invoice.",
+    "spend.csv      What went out.",
     "templates.csv  The messages worth writing once.",
     "caulder.db     The database itself.",
     "",

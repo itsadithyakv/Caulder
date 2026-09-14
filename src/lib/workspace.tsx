@@ -9,6 +9,7 @@ import {
 } from "react";
 import type { Workspace } from "@shared/ipc";
 import type { AccentId, Company, CompanyInput } from "@shared/domain";
+import { messageOf } from "./errors";
 
 /**
  * Holds the companies and which one is open.
@@ -35,6 +36,7 @@ type WorkspaceContext = {
   create: (input: CompanyInput) => Promise<Company | null>;
   rename: (id: string, name: string) => Promise<void>;
   setAccent: (id: string, accent: AccentId) => Promise<void>;
+  setCurrency: (id: string, currency: string) => Promise<void>;
   archive: (id: string) => Promise<void>;
   /** Ends a workspace and everything in it. Archiving only hides one. */
   remove: (id: string) => Promise<void>;
@@ -45,16 +47,6 @@ type WorkspaceContext = {
 };
 
 const Ctx = createContext<WorkspaceContext | null>(null);
-
-/** IPC rejections arrive wrapped; this digs out the message worth showing. */
-function messageOf(error: unknown): string {
-  if (error instanceof Error) {
-    // Electron prefixes the renderer-side error with the handler location.
-    const match = /Error: (.*)$/m.exec(error.message);
-    return (match?.[1] ?? error.message).trim();
-  }
-  return String(error);
-}
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<Workspace>({
@@ -123,6 +115,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     const root = document.documentElement;
     if (activeCompany) root.setAttribute("data-accent", activeCompany.accent);
     else root.removeAttribute("data-accent");
+
+    // And which face the app wears. One attribute, and every card, button and
+    // input follows - work is squarer and cooler, personal is rounder and
+    // warmer. Two different things to one person, and they want different
+    // manners.
+    root.setAttribute("data-face", activeCompany?.kind === "personal" ? "personal" : "work");
   }, [activeCompany]);
 
   const value = useMemo<WorkspaceContext>(
@@ -140,6 +138,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       },
       setAccent: async (id, accent) => {
         await apply(() => window.caulder.companies.setAccent(id, accent));
+      },
+      setCurrency: async (id, currency) => {
+        await apply(() => window.caulder.companies.setCurrency(id, currency));
       },
       archive: async (id) => {
         await apply(() => window.caulder.companies.archive(id));

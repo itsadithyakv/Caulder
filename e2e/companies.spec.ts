@@ -46,11 +46,12 @@ test("first run creates a company and the sidebar shows it", async () => {
 
   // No company yet, so the app opens straight into setup rather than an
   // empty shell.
-  await expect(page.getByRole("heading", { name: "Set up your first company" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Set up your company" })).toBeVisible();
 
   await page.getByLabel("Company name").fill("Unifloe");
+  // The accent is folded away with the logo and the timezone.
+  await page.getByText("Funnel, logo, colour and timezone").click();
   await page.getByRole("radio", { name: "Violet" }).click();
-  await page.getByLabel("Start with sample data").uncheck();
   await page.getByRole("button", { name: "Create company" }).click();
 
   // The shell replaces the setup screen.
@@ -72,7 +73,7 @@ test("the company and its accent survive a restart", async () => {
 
   // Setup must not reappear now that a company exists.
   await expect(
-    page.getByRole("heading", { name: "Set up your first company" }),
+    page.getByRole("heading", { name: "Set up your company" }),
   ).toHaveCount(0);
 });
 
@@ -85,6 +86,7 @@ test("a second company can be added and switched between", async () => {
 
   await expect(page.getByRole("heading", { name: "Add a company" })).toBeVisible();
   await page.getByLabel("Company name").fill("PaperKite");
+  await page.getByText("Funnel, logo, colour and timezone").click();
   await page.getByRole("radio", { name: "Amber" }).click();
   await page.getByRole("button", { name: "Create company" }).click();
 

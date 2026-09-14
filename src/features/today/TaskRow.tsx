@@ -8,7 +8,13 @@ import {
   Trash2,
   type LucideIcon,
 } from "lucide-react";
-import { TASK_KIND_LABEL, type Task, type TaskKind } from "@shared/domain";
+import {
+  TASK_AREA_LABEL,
+  TASK_KIND_LABEL,
+  type Task,
+  type TaskArea,
+  type TaskKind,
+} from "@shared/domain";
 import { describeDue, shiftDay } from "@shared/dates";
 
 const ICON: Record<TaskKind, LucideIcon> = {
@@ -93,6 +99,17 @@ export function TaskRow({
           <span className="badge badge--neutral taskrow__kindLabel">
             {TASK_KIND_LABEL[task.kind]}
           </span>
+          {task.priority === "must" && (
+            // Only the level that changes what you do. Marking "should" on
+            // every ordinary row would be a label on everything, which is a
+            // label on nothing.
+            <span className="badge badge--neutral taskrow__must">Has to happen</span>
+          )}
+          {task.area && (
+            // Coloured by area, and labelled - never colour alone, the rule
+            // every badge in the app follows.
+            <span className={`area area--${task.area}`}>{areaLabel(task.area)}</span>
+          )}
         </div>
 
         <div className="taskrow__meta">
@@ -145,4 +162,9 @@ export function TaskRow({
       </div>
     </li>
   );
+}
+
+/** The label for a known area, or the typed text for one that is not. */
+function areaLabel(area: string): string {
+  return area in TASK_AREA_LABEL ? TASK_AREA_LABEL[area as TaskArea] : area;
 }

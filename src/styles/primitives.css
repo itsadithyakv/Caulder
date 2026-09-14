@@ -53,10 +53,17 @@
 /* ---- Card ------------------------------------------------------------- */
 
 .card {
-  background: var(--surface);
+  /* Surface plus the face's wash, layered rather than mixed - see base.css
+   * for why a redefinition of --surface would be a cyclic property. */
+  background-color: var(--surface);
+  background-image: linear-gradient(var(--face-wash), var(--face-wash));
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   padding: var(--space-5);
+  /* Transparent on the work face, a warm hairline on the personal one. One
+   * rule, two faces, and no condition here - the token carries the whole
+   * difference. */
+  border: 1px solid var(--face-edge);
 }
 
 .card--tight { padding: var(--space-4); }
@@ -72,6 +79,78 @@
   color: var(--ink-3);
   font-size: var(--text-sm);
 }
+
+.card__head { margin-bottom: var(--space-1); }
+
+.card__title > svg {
+  vertical-align: -2px;
+  margin-right: var(--space-2);
+}
+
+/* ---- Explain: the reasoning, closed by default --------------------------
+ * A card says what it holds in one line. Why it works the way it does is
+ * read once, so it sits behind a native disclosure at the foot of the card:
+ * no state to keep, reachable by keyboard, and out of the way of the data.
+ * ---------------------------------------------------------------------- */
+
+.explain {
+  margin-top: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--ink-3);
+}
+
+.explain__summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  list-style: none;
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--ink-3);
+  border-radius: var(--radius-xs);
+}
+
+.explain__summary::-webkit-details-marker { display: none; }
+
+.explain__summary::before {
+  content: "";
+  width: 0;
+  height: 0;
+  border-left: 5px solid currentColor;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transition: transform var(--dur-fast) var(--ease);
+}
+
+.explain[open] > .explain__summary::before { transform: rotate(90deg); }
+
+.explain__summary:hover { color: var(--ink-2); }
+
+.explain__summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.explain__body {
+  margin-top: var(--space-2);
+  max-width: 64ch;
+  line-height: var(--leading);
+}
+
+.explain__body p + p { margin-top: var(--space-2); }
+
+/* ---- A row of controls -------------------------------------------------
+ * Buttons, or an input and its buttons, side by side and wrapping. Eleven
+ * feature stylesheets each declared one of these under their own name. */
+.actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.actions > .input { flex: 1 1 200px; width: auto; }
 
 /* ---- Button ------------------------------------------------------------
  * Rest = raised. Hover = lifted. Active = pressed (inset). That press is the
@@ -176,8 +255,7 @@
 }
 
 .input,
-.textarea,
-.select {
+.textarea {
   width: 100%;
   min-height: 38px;
   padding: var(--space-2) var(--space-3);
@@ -198,8 +276,7 @@
 }
 
 .input:focus-visible,
-.textarea:focus-visible,
-.select:focus-visible {
+.textarea:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
@@ -208,6 +285,175 @@
   min-height: 96px;
   resize: vertical;
   line-height: var(--leading);
+}
+
+/* ---- Picker: the app's own dropdown -------------------------------------
+ * Closed, it is an input like any other: sunken, rounded, the value on the
+ * left and a chevron on the right. Open, it is a raised surface floating over
+ * the page - the one place a list is allowed to cast a shadow, because it is
+ * genuinely above everything else.
+ *
+ * The chosen row is marked with a check and the accent, not a solid bar of
+ * colour. A bar is what the operating system drew, and it was the loudest
+ * thing on every screen that had one.
+ * ---------------------------------------------------------------------- */
+
+.picker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 38px;
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-sunken);
+  color: var(--ink);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-inset-sm);
+  font-size: var(--text-base);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    box-shadow var(--dur) var(--ease),
+    border-color var(--dur) var(--ease);
+}
+
+.picker:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.picker:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.picker--open {
+  border-color: var(--accent-ring);
+}
+
+.picker--compact {
+  min-height: 32px;
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.picker__value {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.picker__chevron {
+  flex-shrink: 0;
+  color: var(--ink-3);
+  transition: transform var(--dur-fast) var(--ease);
+}
+
+.picker--open .picker__chevron {
+  transform: rotate(180deg);
+}
+
+.picker__list {
+  position: fixed;
+  z-index: 400;
+  max-height: 300px;
+  max-width: min(420px, calc(100vw - 32px));
+  margin: 0;
+  padding: var(--space-1);
+  overflow-y: auto;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-float);
+  animation: unfold var(--dur-fast) var(--ease) both;
+}
+
+.picker__option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--ink-2);
+  font-size: var(--text-base);
+  cursor: pointer;
+}
+
+.picker__option--active {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+
+.picker__option--selected {
+  color: var(--accent-strong);
+  font-weight: 600;
+}
+
+.picker__label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.picker__check {
+  flex-shrink: 0;
+  color: var(--accent-strong);
+}
+
+/* ---- Chips: a few short choices, all visible ----------------------------
+ * Wraps rather than scrolls, so seven block kinds on a narrow dialog become
+ * two rows instead of a strip you have to swipe.
+ * ---------------------------------------------------------------------- */
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.chip {
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-sunken);
+  color: var(--ink-2);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  box-shadow: var(--shadow-inset-sm);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
+}
+
+.chip:hover:not(:disabled) {
+  color: var(--ink);
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* On is raised and carries the accent in its text, never a filled block: the
+   chosen chip should be the obvious one without being the loudest thing on
+   the form. */
+.chip--on {
+  background: var(--surface);
+  color: var(--accent-strong);
+  font-weight: 700;
+  border-color: var(--accent-ring);
+  box-shadow: var(--shadow-xs);
+}
+
+.chip:disabled {
+  cursor: default;
+  opacity: 0.6;
 }
 
 /* Validation gets a SOLID border and text, never a soft glow. */
@@ -220,6 +466,14 @@
   color: var(--danger);
   font-size: var(--text-sm);
   font-weight: 500;
+}
+
+/* A note under a control, saying what it will and will not do. Quieter than
+   the label above it, and never coloured - it is context, not a warning. */
+.field__hint {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
 }
 
 /* ---- Badge -------------------------------------------------------------
@@ -281,7 +535,11 @@
 
 .tab:hover { color: var(--ink-2); }
 
-.tab[aria-selected="true"] {
+/* Selected. Three spellings, one rule: tablists say aria-selected, toggle
+ * groups say aria-pressed, and the weekday pickers use the modifier. */
+.tab[aria-selected="true"],
+.tab[aria-pressed="true"],
+.tab--on {
   background: var(--surface);
   color: var(--ink);
   box-shadow: var(--shadow-xs);
@@ -395,18 +653,53 @@
 
 /* ---- Modal scrim ------------------------------------------------------- */
 
-.scrim {
+/* A dialog: the same scrim recipe as the shortcut help, with a raised panel
+ * centred on it. Three forms - a block of time, the timetable, a campaign -
+ * were written against these class names before any rule existed for them,
+ * so they rendered in the page flow under whatever screen opened them. Nothing
+ * failed; the form simply sat at the bottom of the page. */
+.modal {
   position: fixed;
   inset: 0;
   z-index: 100;
   display: grid;
   place-items: center;
   padding: var(--space-5);
-  /* Darkens both themes rather than tinting: a scrim is not a surface, and
-   * deriving it from a token would make it disappear in one of them. */
   background: rgba(0, 0, 0, 0.45);
   overflow-y: auto;
 }
+
+.modal__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: min(640px, 100%);
+  max-height: calc(100vh - 2 * var(--space-5));
+  padding: var(--space-5);
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--face-edge, transparent);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-float);
+}
+
+.modal__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-top: var(--space-2);
+}
+
+.modal__spacer {
+  flex: 1;
+}
+
+
+/* The same thing as .modal under the name two forms were written against.
+ * Darkens both themes rather than tinting: a scrim is not a surface, and
+ * deriving it from a token would make it disappear in one of them. */
+.scrim { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: var(--space-5); background: rgba(0, 0, 0, 0.45); overflow-y: auto; }
 
 .kbd {
   display: inline-block;

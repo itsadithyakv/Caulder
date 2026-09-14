@@ -13,7 +13,15 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+  /* Fills the pane rather than floating in the top third of it. The table is
+   * the screen; leaving a third of the window blank under it was the layout
+   * of a page that did not know how tall it was. */
+  min-height: calc(100vh - 190px);
 }
+
+/* And the well takes whatever the toolbar and the count do not. */
+.leads__table { flex: 1; min-height: 0; display: flex; }
+.leads__table > .leadtable__well { flex: 1; }
 
 /* ---- Toolbar ---------------------------------------------------------- */
 
@@ -477,6 +485,14 @@
   white-space: pre-wrap;
 }
 
+/* Files and your own fields, under the facts. A hairline rather than a
+ * second card: a card inside a card is a box inside a box. */
+.detail__extra {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--soft-line);
+}
+
 .detail__historyTitle {
   margin-top: var(--space-5);
   padding-top: var(--space-4);
@@ -565,4 +581,58 @@
   color: var(--ink-2);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* ---- Attachments -------------------------------------------------------
+ * A list of files, each openable. The name is the button, because that is
+ * what somebody reaches for.
+ * ---------------------------------------------------------------------- */
+
+.files {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.file {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.file:hover { background: var(--surface-hover); }
+
+.file__icon { color: var(--ink-3); flex: none; }
+
+.file__name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--accent-strong);
+  font-size: var(--text-base);
+  text-align: left;
+  cursor: pointer;
+}
+
+.file__name:hover { text-decoration: underline; }
+
+.file__size {
+  flex: none;
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
 }

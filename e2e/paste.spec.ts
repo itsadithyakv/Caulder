@@ -2,6 +2,7 @@ import { test, expect, _electron as electron, type ElectronApplication, type Pag
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { goTo } from "./nav";
 
 /**
  * Importing a list that was never a file.
@@ -37,11 +38,15 @@ async function openImport(page: Page) {
   await page.waitForSelector(".firstrun, .sidebar");
   if (await page.locator(".firstrun").isVisible()) {
     await page.getByLabel("Company name").fill("Unifloe");
-    await page.getByLabel("Start with sample data").uncheck();
     await page.getByRole("button", { name: "Create company" }).click();
     await expect(page.getByRole("button", { name: /Company: Unifloe/ })).toBeVisible();
+
+  // A first run now offers the tour, which sits over everything. Dismissing
+  // it is exactly what somebody starting the app does.
+  await page.waitForTimeout(700);
+  if (await page.locator(".tour").count()) await page.keyboard.press("Escape");
   }
-  await page.getByRole("button", { name: "Import", exact: true }).click();
+  await goTo(page, "Import");
 }
 
 test.beforeAll(() => {
@@ -74,7 +79,7 @@ test("a pasted chat reply becomes leads", async () => {
 
   await expect(page.locator(".card__hint", { hasText: /3 added/ })).toBeVisible();
 
-  await page.getByRole("button", { name: "Leads", exact: true }).click();
+  await page.getByRole("button", { name: "Contacts", exact: true }).click();
   await expect(page.locator(".leadrow")).toHaveCount(3);
   await expect(
     page.locator(".leadrow__name", { hasText: "Oakridge International School" }),
@@ -86,7 +91,7 @@ test("the prose around the table does not become a lead", async () => {
   const page = await app.firstWindow();
   await openImport(page);
 
-  await page.getByRole("button", { name: "Leads", exact: true }).click();
+  await page.getByRole("button", { name: "Contacts", exact: true }).click();
   await expect(page.locator(".leadrow")).toHaveCount(3);
 
   const names = await page.locator(".leadrow__name").allTextContents();

@@ -7,10 +7,9 @@ import { migrate } from "../db/migrations";
 import { createCompany } from "../repositories/companies";
 import { createLead, logActivity } from "../repositories/leads";
 import { createTask } from "../repositories/tasks";
-import { createTemplate, queueMessage } from "../repositories/email";
+import { createTemplate } from "../repositories/email";
 import { exportEverything } from "./export";
 import { leadInput, taskInput, type Company } from "@shared/domain";
-import { queueInput } from "@shared/email";
 import type * as ConnectionModule from "../db/connection";
 
 type Connection = typeof ConnectionModule;
@@ -78,21 +77,11 @@ function seed() {
     taskInput.parse({ leadId: lead.id, title: "Call again", dueOn: "2026-09-10" }),
   );
   createTemplate(db, company.id, {
+    channel: "email",
     name: "Intro",
     subject: "Hello",
     body: "Hi there",
   });
-  queueMessage(
-    db,
-    company.id,
-    queueInput.parse({
-      leadId: lead.id,
-      toEmail: "office@bps.example.com",
-      subject: "Introducing Unifloe",
-      body: "Hello",
-      scheduledFor: "2026-09-03",
-    }),
-  );
   return lead;
 }
 
@@ -106,7 +95,6 @@ describe("exportEverything", () => {
         "leads.csv",
         "history.csv",
         "tasks.csv",
-        "emails.csv",
         "templates.csv",
         "caulder.db",
         "README.txt",

@@ -465,6 +465,16 @@ export function commitImport(
   db: Db,
   jobId: string,
   resolutions: Record<number, Resolution>,
+  /**
+   * The campaign every lead in this file came from, if it came from one.
+   *
+   * Batch-wide rather than per row: a spreadsheet of two hundred scraped
+   * schools is one push, and asking two hundred times would mean it is never
+   * answered at all. Only applied to leads this import CREATES — a lead that
+   * already existed came from wherever it came from, and rewriting that would
+   * be attributing somebody else's work to this campaign.
+   */
+  campaignId: string | null = null,
 ): ImportSummary {
   const job = jobs.get(jobId);
   if (!job) {
@@ -511,7 +521,7 @@ export function commitImport(
       }
 
       if (row.status === "valid") {
-        const lead = createLead(db, job.companyId, toLeadInput(row.values));
+        const lead = createLead(db, job.companyId, toLeadInput(row.values, campaignId));
         stampBatch(db, lead.id, batchId);
         madeThisRun.set(row.rowNumber, lead.id);
         created += 1;
@@ -525,7 +535,7 @@ export function commitImport(
       }
 
       if (resolution === "create") {
-        const lead = createLead(db, job.companyId, toLeadInput(row.values));
+        const lead = createLead(db, job.companyId, toLeadInput(row.values, campaignId));
         stampBatch(db, lead.id, batchId);
         madeThisRun.set(row.rowNumber, lead.id);
         created += 1;
@@ -629,8 +639,8 @@ const COLUMN: Record<(typeof MERGEABLE)[number], string> = {
   notes: "notes",
 };
 
-function toLeadInput(values: ImportValues) {
-  return { ...values, stageId: null };
+function toLeadInput(values: ImportValues, campaignId: string | null) {
+  return { ...values, stageId: null, campaignId, doNotContact: false };
 }
 
 /* ---- Undo --------------------------------------------------------------- */

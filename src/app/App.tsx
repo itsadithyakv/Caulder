@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
+import { ArrowLeft, Sparkles } from "lucide-react";
 import { TitleBar } from "./TitleBar";
 import { Sidebar } from "./Sidebar";
 import { CompanySwitcher } from "./CompanySwitcher";
-import { routeById, type RouteId } from "./routes";
+import { DEFAULT_ROUTE, routeById, type RouteId } from "./routes";
 import {
   getTheme,
   nextTheme,
@@ -11,7 +12,6 @@ import {
   type ThemeChoice,
 } from "@/lib/theme";
 import { WorkspaceProvider, useWorkspace } from "@/lib/workspace";
-import { ComingSoon } from "@/components/ComingSoon";
 import { ShortcutHelp } from "@/components/ShortcutHelp";
 import { useShortcuts } from "@/lib/shortcuts";
 import { FirstRun } from "@/features/onboarding/FirstRun";
@@ -20,7 +20,8 @@ import { LeadsScreen } from "@/features/leads/LeadsScreen";
 import { ImportScreen } from "@/features/import/ImportScreen";
 import { TodayScreen } from "@/features/today/TodayScreen";
 import { PipelineScreen } from "@/features/pipeline/PipelineScreen";
-import { EmailScreen } from "@/features/email/EmailScreen";
+import { DayScreen } from "@/features/day/DayScreen";
+import { MoneyScreen } from "@/features/money/MoneyScreen";
 
 export function App() {
   return (
@@ -33,7 +34,7 @@ export function App() {
 function Shell() {
   const { status, error, activeCompany, companies, retry } = useWorkspace();
 
-  const [route, setRoute] = useState<RouteId>("today");
+  const [route, setRoute] = useState<RouteId>(DEFAULT_ROUTE);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [addingCompany, setAddingCompany] = useState(false);
   const [theme, setThemeState] = useState<ThemeChoice>(getTheme);
@@ -41,9 +42,34 @@ function Shell() {
   // Set by the Leads screen when Today sends the user to a specific lead.
   const [openLeadId, setOpenLeadId] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
+  // Whether what is on screen is the look-around sample rather than anything
+  // real. Asked of the database, because the sample is an import batch and
+  // not a kind of company.
+  const [sample, setSample] = useState(false);
   // Bumped to ask the Leads screen to focus its search box or open its form.
   const [searchNonce, setSearchNonce] = useState(0);
   const [newLeadNonce, setNewLeadNonce] = useState(0);
+  /** Bumped when Contacts is chosen while already on it, so the list comes back. */
+  const [listNonce, setListNonce] = useState(0);
+  /** Bumped by the A key: Today's quick-add line takes the cursor when it changes. */
+  const [quickNonce, setQuickNonce] = useState(0);
+
+  /** Every deliberate move, from the sidebar, a shortcut or another screen. */
+  const go = useCallback(
+    (id: RouteId) => {
+      if (id === "leads" && route === "leads") setListNonce((n) => n + 1);
+      setRoute(id);
+    },
+    [route],
+  );
+
+  useEffect(() => {
+    if (!activeCompany) return;
+    window.caulder.companies
+      .demoBatch(activeCompany.id)
+      .then((batch) => setSample(batch !== null))
+      .catch(() => setSample(false));
+  }, [activeCompany]);
 
   // The sidebar badge is the one number visible from every screen, so it is
   // read whenever the route changes rather than only on Today.
@@ -71,16 +97,20 @@ function Shell() {
   }, []);
 
   useShortcuts({
-    onRoute: setRoute,
+    onRoute: go,
     onSearch: () => {
-      setRoute("leads");
+      go("leads");
       setSearchNonce((n) => n + 1);
     },
     onNewLead: () => {
-      setRoute("leads");
+      go("leads");
       setNewLeadNonce((n) => n + 1);
     },
     onSwitchCompany: () => setSwitcherOpen((open) => !open),
+    onQuickAdd: () => {
+      go("today");
+      setQuickNonce((n) => n + 1);
+    },
     onHelp: () => setHelpOpen((open) => !open),
     onEscape: () => {
       setHelpOpen(false);
@@ -129,10 +159,11 @@ function Shell() {
         {titleBar}
         <div className="shell__solo">
           <FirstRun
-            onCreated={() => setAddingCompany(false)}
-            {...(companies.length > 0
-              ? { onCancel: () => setAddingCompany(false) }
-              : {})}
+            onCreated={() => {
+              setAddingCompany(false);
+              go(DEFAULT_ROUTE);
+            }}
+            {...(companies.length > 0 ? { onCancel: () => setAddingCompany(false) } : {})}
           />
         </div>
       </div>
@@ -149,7 +180,7 @@ function Shell() {
         <div className="sidebar-wrap">
           <Sidebar
             current={route}
-            onNavigate={setRoute}
+            onNavigate={go}
             company={activeCompany}
             switcherOpen={switcherOpen}
             onToggleSwitcher={() => setSwitcherOpen((open) => !open)}
@@ -165,11 +196,30 @@ function Shell() {
 
         <main className="main">
           <div className="main__inner anim-page" key={route}>
-            <div className="page-head">
-              <div>
-                <h1 className="page-head__title">{meta.label}</h1>
-                <p className="page-head__sub">{meta.subtitle}</p>
+            {sample && (
+              <div className="hintbar hintbar--sample">
+                <Sparkles size={16} className="hintbar__icon" aria-hidden />
+                <p className="hintbar__text">
+                  This is sample data, here to show how the app works. It goes away on
+                  its own when you set up your company.
+                </p>
+                <button
+                  type="button"
+                  className="btn btn--sm btn--primary"
+                  onClick={() => setAddingCompany(true)}
+                >
+                  Set up your company
+                </button>
               </div>
+            )}
+            <div className="page-head">
+              <h1 className="page-head__title">{meta.label}</h1>
+              {route === "import" && (
+                <button type="button" className="btn btn--sm" onClick={() => go("leads")}>
+                  <ArrowLeft size={15} aria-hidden />
+                  All contacts
+                </button>
+              )}
             </div>
 
             {route === "today" ? (
@@ -177,41 +227,42 @@ function Shell() {
                 key={activeCompany?.id}
                 onOpenLead={(leadId) => {
                   setOpenLeadId(leadId);
-                  setRoute("leads");
+                  go("leads");
                 }}
-                onGoToEmail={() => setRoute("email")}
+                onGoToDay={() => go("day")}
+                onGoToMoney={() => go("money")}
+                quickNonce={quickNonce}
               />
             ) : route === "settings" ? (
               <SettingsScreen onAddCompany={() => setAddingCompany(true)} />
             ) : route === "leads" ? (
-              // Keyed on the company so switching workspaces resets the
-              // filters and the open lead rather than carrying them across.
+              // Keyed on the company so switching resets the filters and the
+              // open lead rather than carrying them across.
               <LeadsScreen
                 key={activeCompany?.id}
                 openLeadId={openLeadId}
                 onConsumeOpenLead={() => setOpenLeadId(null)}
                 searchNonce={searchNonce}
                 newLeadNonce={newLeadNonce}
-                onGoToImport={() => setRoute("import")}
+                listNonce={listNonce}
+                onGoToImport={() => go("import")}
+                onGoToMoney={() => go("money")}
               />
             ) : route === "pipeline" ? (
               <PipelineScreen
                 key={activeCompany?.id}
                 onOpenLead={(leadId) => {
                   setOpenLeadId(leadId);
-                  setRoute("leads");
+                  go("leads");
                 }}
-                onGoToSettings={() => setRoute("settings")}
+                onGoToSettings={() => go("settings")}
               />
-            ) : route === "email" ? (
-              <EmailScreen key={activeCompany?.id} />
-            ) : route === "import" ? (
-              <ImportScreen
-                key={activeCompany?.id}
-                onGoToLeads={() => setRoute("leads")}
-              />
+            ) : route === "money" ? (
+              <MoneyScreen key={activeCompany?.id} />
+            ) : route === "day" ? (
+              <DayScreen key={activeCompany?.id} />
             ) : (
-              <ComingSoon route={route} />
+              <ImportScreen key={activeCompany?.id} onGoToLeads={() => go("leads")} />
             )}
           </div>
         </main>

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Lead, LeadListRow, LeadQuery, LeadSort, SortDirection } from "@shared/domain";
+import { messageOf } from "@/lib/errors";
 
 /**
  * Loads the lead list for the current filters.
@@ -61,7 +62,7 @@ export function useLeads(companyId: string | null, filters: Filters) {
       })
       .catch((cause: unknown) => {
         if (ticket !== latest.current) return;
-        setError(cause instanceof Error ? cause.message : String(cause));
+        setError(messageOf(cause));
         setLoading(false);
       });
   }, [companyId, filters.search, filters.stageId, filters.sort, filters.direction]);

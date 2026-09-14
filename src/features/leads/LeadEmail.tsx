@@ -1,23 +1,21 @@
 import { useCallback, useEffect, useState } from "react";
 import { Send } from "lucide-react";
-import {
-  EMAIL_STATUS_LABEL,
-  queueInput,
-  type EmailMessage,
-  type EmailTemplate,
-  type Sequence,
-} from "@shared/email";
+import type { EmailTemplate } from "@shared/email";
 import { render } from "@shared/render";
-import { today as todayIn } from "@shared/dates";
 import type { Lead } from "@shared/domain";
 import { useWorkspace } from "@/lib/workspace";
-import { relativeDay } from "@/lib/format";
+import { Select } from "@/components/Select";
+import { ErrorLine } from "@/components/ErrorLine";
+import { messageOf } from "@/lib/errors";
 
 /**
- * Writing to one lead, and what happened to what was already written.
+ * Writing to one contact, in your own mail app.
  *
- * Nothing is sent from here. A message is queued; the bridge takes it from
- * there, and every status that comes back lands on the timeline below.
+ * Caulder does not send. It fills a template in, opens the message in
+ * whatever handles mail on this machine, and then asks one question: did it
+ * go? Yes writes the history entry and moves last-contacted, the same way a
+ * logged call does. The CSV bridge to Apps Script that used to sit here was
+ * the reason to leave for a spreadsheet; see PLAN.md, phase 2.
  */
 export function LeadEmail({
   lead,
@@ -27,31 +25,27 @@ export function LeadEmail({
   onTimelineChanged: () => void;
 }) {
   const { activeCompany } = useWorkspace();
-  const [messages, setMessages] = useState<EmailMessage[]>([]);
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
-  const [sequences, setSequences] = useState<Sequence[]>([]);
   const [composing, setComposing] = useState(false);
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
+  const [asking, setAsking] = useState(false);
+  /** Which template the compose box started from, shown back in the picker. */
+  const [picked, setPicked] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const companyId = activeCompany?.id ?? null;
 
   const load = useCallback(() => {
     if (!companyId) return;
-    Promise.all([
-      window.caulder.email.forLead(lead.id),
-      window.caulder.email.templates(companyId),
-      window.caulder.email.sequences(companyId),
-    ])
-      .then(([m, t, s]) => {
-        setMessages(m);
-        setTemplates(t);
-        setSequences(s.filter((sequence) => sequence.steps.length > 0));
-      })
-      .catch(() => setMessages([]));
-  }, [companyId, lead.id]);
+    window.caulder.email
+      .templates(companyId)
+      // A WhatsApp template has no subject line, so offering one here would
+      // put an empty subject into a real email.
+      .then((all) => setTemplates(all.filter((template) => template.channel !== "whatsapp")))
+      .catch(() => setTemplates([]));
+  }, [companyId]);
 
   useEffect(load, [load]);
 
@@ -62,67 +56,52 @@ export function LeadEmail({
     companyName: activeCompany?.name ?? "",
   };
 
-  function useTemplate(id: string) {
+  function applyTemplate(id: string) {
     const template = templates.find((t) => t.id === id);
     if (!template) return;
-    // Filled in here, so what is approved is exactly what is queued.
+    // Filled in here, so what is approved is exactly what is opened.
     setSubject(render(template.subject, context));
     setBody(render(template.body, context));
   }
 
-  async function queue() {
-    if (!companyId || !lead.email) return;
-    setBusy(true);
+  // Stated rather than hidden: a button that silently does nothing is worse
+  // than one that says why it cannot.
+  const blocked = lead.doNotContact
+    ? "Marked do not contact."
+    : lead.email
+      ? null
+      : "No email address on this contact.";
+
+  async function open() {
     setError(null);
+    setBusy(true);
     try {
-      const parsed = queueInput.safeParse({
-        leadId: lead.id,
-        toEmail: lead.email,
-        subject,
-        body,
-        scheduledFor: todayIn(activeCompany?.timezone ?? "UTC"),
-      });
-      if (!parsed.success) {
-        setError(parsed.error.issues[0]?.message ?? "Check the message.");
-        return;
-      }
-      await window.caulder.email.queue(companyId, parsed.data);
+      await window.caulder.outreach.email(lead.id, subject, body);
+      // Only now is it worth asking: nothing has been claimed yet.
+      setAsking(true);
+    } catch (cause) {
+      setError(messageOf(cause));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirm(sent: boolean) {
+    setAsking(false);
+    if (!sent) return;
+    setBusy(true);
+    try {
+      await window.caulder.outreach.emailSent(lead.id, subject, body);
       setComposing(false);
       setSubject("");
       setBody("");
-      load();
+      setPicked("");
       onTimelineChanged();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(messageOf(cause));
     } finally {
       setBusy(false);
     }
-  }
-
-  async function enroll(sequenceId: string) {
-    setBusy(true);
-    setError(null);
-    try {
-      await window.caulder.email.enroll(sequenceId, lead.id);
-      load();
-      onTimelineChanged();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (!lead.email) {
-    return (
-      <div className="leadtasks">
-        <h2 className="card__title">Email</h2>
-        <p className="card__hint">
-          This lead has no email address, so there is nothing to write to. Add one
-          and it will appear here.
-        </p>
-      </div>
-    );
   }
 
   return (
@@ -133,8 +112,12 @@ export function LeadEmail({
           <button
             type="button"
             className="btn btn--sm"
-            onClick={() => setComposing(true)}
-            disabled={busy}
+            onClick={() => {
+              setPicked("");
+              setComposing(true);
+            }}
+            disabled={busy || blocked !== null}
+            title={blocked ?? undefined}
           >
             <Send size={14} aria-hidden />
             Write one
@@ -142,11 +125,9 @@ export function LeadEmail({
         )}
       </div>
 
-      {error && (
-        <p className="field__error" role="alert">
-          {error}
-        </p>
-      )}
+      {blocked && <p className="card__hint">{blocked}</p>}
+
+      <ErrorLine>{error}</ErrorLine>
 
       {composing && (
         <div className="leadform anim-panel">
@@ -155,20 +136,19 @@ export function LeadEmail({
               <label className="field__label" htmlFor="lead-email-template">
                 Start from a template
               </label>
-              <select
+              <Select
                 id="lead-email-template"
-                className="select"
-                defaultValue=""
-                onChange={(event) => useTemplate(event.target.value)}
+                value={picked}
+                onChange={(value) => {
+                  setPicked(value);
+                  applyTemplate(value);
+                }}
                 disabled={busy}
-              >
-                <option value="">Write from scratch</option>
-                {templates.map((template) => (
-                  <option key={template.id} value={template.id}>
-                    {template.name}
-                  </option>
-                ))}
-              </select>
+                options={[
+                  { value: "", label: "Write from scratch" },
+                  ...templates.map((template) => ({ value: template.id, label: template.name })),
+                ]}
+              />
             </div>
           )}
 
@@ -182,7 +162,7 @@ export function LeadEmail({
               value={subject}
               onChange={(event) => setSubject(event.target.value)}
               autoComplete="off"
-              disabled={busy}
+              disabled={busy || asking}
             />
           </div>
 
@@ -195,74 +175,54 @@ export function LeadEmail({
               className="textarea tpl__body"
               value={body}
               onChange={(event) => setBody(event.target.value)}
-              disabled={busy}
+              disabled={busy || asking}
             />
           </div>
 
-          <div className="leadform__actions">
-            <button
-              type="button"
-              className="btn"
-              onClick={() => setComposing(false)}
-              disabled={busy}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="btn btn--primary"
-              onClick={() => void queue()}
-              disabled={busy}
-            >
-              Queue it
-            </button>
-          </div>
-          <p className="card__hint">
-            Queued, not sent. It goes out with the next export.
-          </p>
+          {asking ? (
+            <div className="leadform__actions">
+              <p className="card__hint">
+                Caulder cannot see whether that went. Say so and it goes on the
+                history, and counts as having been in touch.
+              </p>
+              <button
+                type="button"
+                className="btn btn--primary"
+                onClick={() => void confirm(true)}
+                disabled={busy}
+              >
+                Sent it
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => void confirm(false)}
+                disabled={busy}
+              >
+                Not now
+              </button>
+            </div>
+          ) : (
+            <div className="leadform__actions">
+              <button
+                type="button"
+                className="btn"
+                onClick={() => setComposing(false)}
+                disabled={busy}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn--primary"
+                onClick={() => void open()}
+                disabled={busy || subject.trim().length === 0}
+              >
+                Open in your mail app
+              </button>
+            </div>
+          )}
         </div>
-      )}
-
-      {!composing && sequences.length > 0 && (
-        <div className="stageadd">
-          <span className="card__hint">Put into a sequence:</span>
-          {sequences.map((sequence) => (
-            <button
-              key={sequence.id}
-              type="button"
-              className="btn btn--sm"
-              disabled={busy}
-              onClick={() => void enroll(sequence.id)}
-            >
-              {sequence.name}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {messages.length > 0 && (
-        <ul className="messages">
-          {messages.map((message) => (
-            <li key={message.id} className="messagerow">
-              <div className="messagerow__body">
-                <span className="messagerow__subject">{message.subject}</span>
-                {message.failure && (
-                  <span className="messagerow__failure">{message.failure}</span>
-                )}
-              </div>
-              <div className="messagerow__side">
-                <span className="badge badge--neutral">
-                  {EMAIL_STATUS_LABEL[message.status]}
-                </span>
-                <span className="messagerow__when">
-                  {message.sentAt
-                    ? relativeDay(message.sentAt)
-                    : `Due ${message.scheduledFor}`}
-                </span>
-              </div>
-            </li>
-          ))}
-        </ul>
       )}
     </div>
   );

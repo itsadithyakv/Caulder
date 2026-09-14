@@ -2,6 +2,7 @@ import { test, expect, _electron as electron, type ElectronApplication, type Pag
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pick } from "./choose";
 
 /**
  * Motion.
@@ -39,21 +40,25 @@ async function ensureCompany(page: Page) {
   await page.waitForSelector(".firstrun, .sidebar");
   if (await page.locator(".firstrun").isVisible()) {
     await page.getByLabel("Company name").fill("Unifloe");
-    await page.getByLabel("Start with sample data").uncheck();
     await page.getByRole("button", { name: "Create company" }).click();
     await expect(page.getByRole("button", { name: /Company: Unifloe/ })).toBeVisible();
+
+  // A first run now offers the tour, which sits over everything. Dismissing
+  // it is exactly what somebody starting the app does.
+  await page.waitForTimeout(700);
+  if (await page.locator(".tour").count()) await page.keyboard.press("Escape");
   }
 }
 
 async function addLeadWithTask(page: Page, name: string) {
-  await page.getByRole("button", { name: "Leads", exact: true }).click();
-  await page.getByRole("button", { name: /^Add a? ?lead$/ }).first().click();
+  await page.getByRole("button", { name: "Contacts", exact: true }).click();
+  await page.getByRole("button", { name: /^Add a? ?contact$/ }).first().click();
   await page.getByLabel("Name").fill(name);
-  await page.getByRole("button", { name: "Add lead" }).click();
+  await page.getByRole("button", { name: "Add contact" }).click();
 
   await page.getByRole("button", { name: "Add a task" }).click();
   await page.getByLabel("What needs doing").fill(`Call ${name}`);
-  await page.getByLabel("Kind").selectOption("call");
+  await pick(page, "Kind", "Call");
   await page.getByRole("button", { name: "Add task" }).click();
   await expect(page.getByText(`Call ${name}`)).toBeVisible();
 }
@@ -87,8 +92,8 @@ test("changing screen replays the page entrance", async () => {
   expect((await animationOf(page, ".main__inner")).name).toBe("rise");
 
   // Keyed on the route, so the second screen animates as well as the first.
-  await page.getByRole("button", { name: "Pipeline", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Pipeline" })).toBeVisible();
+  await page.getByRole("button", { name: "Deals", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Deals" })).toBeVisible();
   expect((await animationOf(page, ".main__inner")).name).toBe("rise");
 });
 
@@ -113,52 +118,13 @@ test("Today's sections arrive in the order they need attention", async () => {
   expect(delays[1]).not.toBe("0s");
 });
 
-test("a tab's panel arrives, and does so again on every tab", async () => {
-  app = await launch();
-  const page = await app.firstWindow();
-  await ensureCompany(page);
-
-  await page.getByRole("button", { name: "Email", exact: true }).click();
-  await expect(page.getByRole("tab", { name: /Queue/ })).toBeVisible();
-  expect((await animationOf(page, ".email__panel")).name).toBe("unfold");
-
-  // Keyed on the tab, so the second one animates as well as the first. A
-  // panel that only animated once would be worse than one that never did.
-  await page.getByRole("tab", { name: /Templates/ }).click();
-  expect((await animationOf(page, ".email__panel")).name).toBe("unfold");
-
-  await page.getByRole("tab", { name: /Sequences/ }).click();
-  expect((await animationOf(page, ".email__panel")).name).toBe("unfold");
-});
-
-test("a panel travels less than a whole screen does", async () => {
-  app = await launch();
-  const page = await app.firstWindow();
-  await ensureCompany(page);
-
-  await page.getByRole("button", { name: "Email", exact: true }).click();
-  await expect(page.locator(".email__panel")).toBeVisible();
-
-  // The distinction is the point: how far something moves says how far you
-  // went to get it. A tab panel arriving like a whole screen would keep
-  // implying you had left the one you are on.
-  const screen = await animationOf(page, ".main__inner");
-  const panel = await animationOf(page, ".email__panel");
-
-  expect(screen.name).toBe("rise");
-  expect(panel.name).toBe("unfold");
-  expect(Number.parseFloat(panel.duration)).toBeLessThan(
-    Number.parseFloat(screen.duration),
-  );
-});
-
 test("a form that opens in place arrives with it", async () => {
   app = await launch();
   const page = await app.firstWindow();
   await ensureCompany(page);
 
-  await page.getByRole("button", { name: "Leads", exact: true }).click();
-  await page.getByRole("button", { name: /^Add a? ?lead$/ }).first().click();
+  await page.getByRole("button", { name: "Contacts", exact: true }).click();
+  await page.getByRole("button", { name: /^Add a? ?contact$/ }).first().click();
 
   expect((await animationOf(page, ".leadform")).name).toBe("unfold");
 });

@@ -1,18 +1,43 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
-import { SHORTCUTS } from "@/lib/shortcuts";
+import { QUICK_WINDOW_SHORTCUTS, SHORTCUTS } from "@/lib/shortcuts";
 
 /**
  * The shortcut list, on `?`.
  *
  * A dialog rather than a settings page: it is read once, mid-flow, and closed.
+ *
+ * The one key that works outside Caulder is read live rather than written
+ * down here: it can be changed, turned off, or taken by another app, and a
+ * list naming a key you do not have would send somebody pressing nothing.
  */
 export function ShortcutHelp({ onClose }: { onClose: () => void }) {
   const closeButton = useRef<HTMLButtonElement>(null);
+  const [anywhere, setAnywhere] = useState<string | null>(null);
 
   // Focus moves into the dialog so Escape and Tab behave, and so a screen
   // reader announces it rather than leaving the user where they were.
   useEffect(() => closeButton.current?.focus(), []);
+
+  useEffect(() => {
+    window.caulder.capture.get().then(
+      (key) => setAnywhere(key.held ? key.accelerator.replace(/\+/g, " + ") : null),
+      () => undefined,
+    );
+  }, []);
+
+  const groups = [
+    ...SHORTCUTS,
+    {
+      group: "From any app",
+      items: [
+        anywhere
+          ? { keys: anywhere, describes: "Open the quick window - or click the tray icon" }
+          : { keys: "Off", describes: "Set a key in Settings, or click the tray icon" },
+      ],
+    },
+    QUICK_WINDOW_SHORTCUTS,
+  ];
 
   return (
     <div
@@ -44,10 +69,11 @@ export function ShortcutHelp({ onClose }: { onClose: () => void }) {
         </div>
 
         <p className="card__hint">
-          Single letters, so they stay out of the way while you are typing.
+          Single letters, so they stay out of the way while you are typing. The
+          quick window works from any app.
         </p>
 
-        {SHORTCUTS.map((group) => (
+        {groups.map((group) => (
           <div key={group.group} className="today__group">
             <h3 className="today__groupTitle">{group.group}</h3>
             <dl className="facts">

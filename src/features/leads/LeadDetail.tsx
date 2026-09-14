@@ -12,7 +12,12 @@ import { Timeline } from "./Timeline";
 import { StageBadge } from "./StageBadge";
 import { LeadTasks } from "./LeadTasks";
 import { LeadEmail } from "./LeadEmail";
+import { LeadWhatsApp } from "./LeadWhatsApp";
+import { LeadMoney } from "./LeadMoney";
+import { Attachments, CustomFields } from "./LeadExtras";
 import { formatDate, formatValue, relativeDay } from "@/lib/format";
+import { messageOf } from "@/lib/errors";
+import { ErrorLine } from "@/components/ErrorLine";
 
 /**
  * One lead: its details, and everything that has happened to it.
@@ -24,12 +29,14 @@ export function LeadDetail({
   leadId,
   stages,
   onBack,
+  onGoToMoney,
   onSaved,
   onDeleted,
 }: {
   leadId: string;
   stages: PipelineStage[];
   onBack: () => void;
+  onGoToMoney: () => void;
   onSaved: (lead: Lead) => void;
   onDeleted: (id: string) => void;
 }) {
@@ -55,7 +62,7 @@ export function LeadDetail({
         setActivities(timeline);
       })
       .catch((cause: unknown) =>
-        setError(cause instanceof Error ? cause.message : String(cause)),
+        setError(messageOf(cause)),
       );
   }, [leadId]);
 
@@ -93,7 +100,7 @@ export function LeadDetail({
       await window.caulder.leads.remove(leadId);
       onDeleted(leadId);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(messageOf(cause));
       setBusy(false);
     }
   }
@@ -121,7 +128,7 @@ export function LeadDetail({
       <div className="detail__bar">
         <button type="button" className="btn btn--sm" onClick={onBack}>
           <ArrowLeft size={15} aria-hidden />
-          All leads
+          All contacts
         </button>
 
         <div className="detail__barActions">
@@ -166,11 +173,7 @@ export function LeadDetail({
         </div>
       </div>
 
-      {error && (
-        <p className="field__error" role="alert">
-          {error}
-        </p>
-      )}
+      <ErrorLine>{error}</ErrorLine>
 
       <div className="detail__grid">
         <section className="card detail__facts">
@@ -187,6 +190,9 @@ export function LeadDetail({
               <div className="detail__head">
                 <h2 className="detail__name">{lead.name}</h2>
                 <StageBadge stage={stage} />
+                {lead.doNotContact && (
+                  <span className="badge badge--danger">Do not contact</span>
+                )}
               </div>
 
               <dl className="facts">
@@ -217,17 +223,31 @@ export function LeadDetail({
                   <p className="detail__notesBody">{lead.notes}</p>
                 </div>
               )}
+
+              {/* What this lead has on it that the app did not decide. Under
+                  the facts, because it is reference, not work. */}
+              <CustomFields leadId={leadId} />
+              <Attachments leadId={leadId} />
             </>
           )}
         </section>
 
         <section className="card detail__timeline">
-          {/* Next steps sit above the history: what happens next is the
-              question somebody opens a lead to answer. */}
+          {/* What happens next, then the ways to make it happen, then what
+              already did. The history is the reason to open a lead at all,
+              and it used to sit under four other cards. */}
           <LeadTasks leadId={leadId} onTimelineChanged={load} />
 
           <div className="detail__historyTitle">
             <LeadEmail lead={lead} onTimelineChanged={load} />
+          </div>
+
+          <div className="detail__historyTitle">
+            <LeadWhatsApp lead={lead} onTimelineChanged={load} />
+          </div>
+
+          <div className="detail__historyTitle">
+            <LeadMoney leadId={leadId} onOpenMoney={onGoToMoney} />
           </div>
 
           <h2 className="card__title detail__historyTitle">History</h2>

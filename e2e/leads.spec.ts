@@ -2,6 +2,7 @@ import { test, expect, _electron as electron, type ElectronApplication, type Pag
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { choose } from "./choose";
 
 /**
  * Phase 3 through the real window: add a lead, find it, edit it, log against
@@ -35,15 +36,19 @@ async function ensureCompany(page: Page) {
 
   if (await page.locator(".firstrun").isVisible()) {
     await page.getByLabel("Company name").fill("Unifloe");
-    await page.getByLabel("Start with sample data").uncheck();
     await page.getByRole("button", { name: "Create company" }).click();
     await expect(page.getByRole("button", { name: /Company: Unifloe/ })).toBeVisible();
+
+  // A first run now offers the tour, which sits over everything. Dismissing
+  // it is exactly what somebody starting the app does.
+  await page.waitForTimeout(700);
+  if (await page.locator(".tour").count()) await page.keyboard.press("Escape");
   }
 }
 
 async function openLeads(page: Page) {
   await ensureCompany(page);
-  await page.getByRole("button", { name: "Leads" }).click();
+  await page.getByRole("button", { name: "Contacts", exact: true }).click();
 }
 
 test.beforeAll(() => {
@@ -63,9 +68,9 @@ test("an empty workspace offers both ways to get leads in", async () => {
   const page = await app.firstWindow();
   await openLeads(page);
 
-  await expect(page.getByText("No leads yet")).toBeVisible();
+  await expect(page.getByText("No contacts yet")).toBeVisible();
   await expect(page.getByRole("button", { name: "Import a spreadsheet" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Add a lead" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add a contact" })).toBeVisible();
 });
 
 test("a lead can be added with only a name", async () => {
@@ -74,9 +79,9 @@ test("a lead can be added with only a name", async () => {
   const page = await app.firstWindow();
   await openLeads(page);
 
-  await page.getByRole("button", { name: "Add a lead" }).click();
+  await page.getByRole("button", { name: "Add a contact" }).click();
   await page.getByLabel("Name").fill("JNS Public School");
-  await page.getByRole("button", { name: "Add lead" }).click();
+  await page.getByRole("button", { name: "Add contact" }).click();
 
   // Lands on the new lead, with its history already started.
   await expect(page.getByRole("heading", { name: "JNS Public School" })).toBeVisible();
@@ -89,7 +94,7 @@ test("a fuller lead shows its details and lands in the first stage", async () =>
   const page = await app.firstWindow();
   await openLeads(page);
 
-  await page.getByRole("button", { name: "Add lead" }).click();
+  await page.getByRole("button", { name: "Add contact" }).click();
   await page.getByLabel("Name").fill("Bengaluru Public School");
   await page.getByLabel("Contact person").fill("Priya");
   await page.getByLabel("Email").fill("hello@bps.example.com");
@@ -97,7 +102,7 @@ test("a fuller lead shows its details and lands in the first stage", async () =>
   await page.getByLabel("Phone", { exact: true }).fill("9480004094");
   await page.getByLabel("City").fill("Bengaluru");
   await page.getByLabel("Value").fill("45000");
-  await page.getByRole("button", { name: "Add lead" }).click();
+  await page.getByRole("button", { name: "Add contact" }).click();
 
   await expect(page.getByRole("heading", { name: "Bengaluru Public School" })).toBeVisible();
   // A lead outside the funnel would be invisible on the board, so it starts in
@@ -111,20 +116,20 @@ test("the list shows both leads and the search narrows it", async () => {
   const page = await app.firstWindow();
   await openLeads(page);
 
-  await expect(page.locator(".leads__count")).toHaveText("2 leads");
+  await expect(page.locator(".leads__count")).toHaveText("2 contacts");
 
-  await page.getByLabel("Search leads").fill("bengaluru");
-  await expect(page.locator(".leads__count")).toHaveText("1 lead matching");
+  await page.getByLabel("Search contacts").fill("bengaluru");
+  await expect(page.locator(".leads__count")).toHaveText("1 contact matching");
   await expect(page.locator(".leadrow__name", { hasText: /Bengaluru Public School/ })).toBeVisible();
 
   // Searching by city finds it too, not just by name.
-  await page.getByLabel("Search leads").fill("JNS");
-  await expect(page.locator(".leads__count")).toHaveText("1 lead matching");
+  await page.getByLabel("Search contacts").fill("JNS");
+  await expect(page.locator(".leads__count")).toHaveText("1 contact matching");
 
-  await page.getByLabel("Search leads").fill("nothing matches this");
+  await page.getByLabel("Search contacts").fill("nothing matches this");
   await expect(page.getByText("Nothing matches those filters")).toBeVisible();
   await page.getByRole("button", { name: "Clear filters" }).click();
-  await expect(page.locator(".leads__count")).toHaveText("2 leads");
+  await expect(page.locator(".leads__count")).toHaveText("2 contacts");
 });
 
 test("logging a call moves the last-contacted date; a note does not", async () => {
@@ -159,7 +164,7 @@ test("editing records what changed on the timeline", async () => {
   await page.getByRole("button", { name: "Edit details" }).click();
 
   await page.getByLabel("City").fill("Bengaluru");
-  await page.getByLabel("Stage").selectOption({ label: "Contacted" });
+  await choose(page, "Stage", "Contacted");
   await page.getByRole("button", { name: "Save changes" }).click();
 
   // The stage move and the field edit are recorded separately, because they
@@ -174,8 +179,8 @@ test("the stage filter narrows to one stage", async () => {
   const page = await app.firstWindow();
   await openLeads(page);
 
-  await page.getByLabel("Filter by stage").selectOption({ label: "Contacted" });
-  await expect(page.locator(".leads__count")).toHaveText("1 lead matching");
+  await choose(page, "Filter by stage", "Contacted");
+  await expect(page.locator(".leads__count")).toHaveText("1 contact matching");
   await expect(page.locator(".leadrow__name", { hasText: /JNS Public School/ })).toBeVisible();
 });
 
@@ -184,7 +189,7 @@ test("everything survives a restart", async () => {
   const page = await app.firstWindow();
   await openLeads(page);
 
-  await expect(page.locator(".leads__count")).toHaveText("2 leads");
+  await expect(page.locator(".leads__count")).toHaveText("2 contacts");
 
   await page.locator(".leadrow__name", { hasText: /JNS Public School/ }).click();
   await expect(page.getByText("Spoke to the principal.")).toBeVisible();
@@ -200,6 +205,6 @@ test("a lead can be deleted, and its history goes with it", async () => {
   await page.getByRole("button", { name: "Delete" }).click();
   await page.getByRole("button", { name: "Delete", exact: true }).last().click();
 
-  await expect(page.locator(".leads__count")).toHaveText("1 lead");
+  await expect(page.locator(".leads__count")).toHaveText("1 contact");
   await expect(page.locator(".leadrow__name", { hasText: /JNS Public School/ })).toHaveCount(0);
 });

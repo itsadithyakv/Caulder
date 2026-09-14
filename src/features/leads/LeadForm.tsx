@@ -1,5 +1,12 @@
 import { useState, type FormEvent } from "react";
-import { leadInput, type Lead, type LeadInput, type PipelineStage } from "@shared/domain";
+import {
+  leadInput,
+  type Lead,
+  type LeadInput,
+  type PipelineStage,
+} from "@shared/domain";
+import { Select } from "@/components/Select";
+import { messageOf } from "@/lib/errors";
 
 /**
  * One form for both creating and editing, because the fields are the same and
@@ -32,6 +39,8 @@ type Draft = {
   value: string;
   notes: string;
   stageId: string;
+  campaignId: string;
+  doNotContact: boolean;
 };
 
 function draftFrom(lead: Lead | undefined, stages: PipelineStage[]): Draft {
@@ -50,6 +59,8 @@ function draftFrom(lead: Lead | undefined, stages: PipelineStage[]): Draft {
     notes: lead?.notes ?? "",
     // A new lead starts in the first stage rather than outside the funnel.
     stageId: lead?.stageId ?? stages[0]?.id ?? "",
+    campaignId: lead?.campaignId ?? "",
+    doNotContact: lead?.doNotContact ?? false,
   };
 }
 
@@ -57,7 +68,7 @@ export function LeadForm({ lead, stages, busy, onSubmit, onCancel }: Props) {
   const [draft, setDraft] = useState<Draft>(() => draftFrom(lead, stages));
   const [error, setError] = useState<string | null>(null);
 
-  function set<K extends keyof Draft>(key: K, value: string) {
+  function set<K extends keyof Draft>(key: K, value: Draft[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
   }
 
@@ -76,6 +87,7 @@ export function LeadForm({ lead, stages, busy, onSubmit, onCancel }: Props) {
       ...draft,
       value,
       stageId: draft.stageId === "" ? null : draft.stageId,
+      campaignId: draft.campaignId === "" ? null : draft.campaignId,
     });
 
     if (!parsed.success) {
@@ -86,7 +98,7 @@ export function LeadForm({ lead, stages, busy, onSubmit, onCancel }: Props) {
     try {
       await onSubmit(parsed.data);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(messageOf(cause));
     }
   }
 
@@ -140,20 +152,16 @@ export function LeadForm({ lead, stages, busy, onSubmit, onCancel }: Props) {
           <label className="field__label" htmlFor="lead-stage">
             Stage
           </label>
-          <select
+          <Select
             id="lead-stage"
-            className="select"
             value={draft.stageId}
-            onChange={(event) => set("stageId", event.target.value)}
+            onChange={(value) => set("stageId", value)}
             disabled={busy}
-          >
-            <option value="">No stage</option>
-            {stages.map((stage) => (
-              <option key={stage.id} value={stage.id}>
-                {stage.name}
-              </option>
-            ))}
-          </select>
+            options={[
+              { value: "", label: "No stage" },
+              ...stages.map((stage) => ({ value: stage.id, label: stage.name })),
+            ]}
+          />
         </div>
 
         <Text id="lead-value" label="Value" value={draft.value} inputMode="numeric"
@@ -166,6 +174,27 @@ export function LeadForm({ lead, stages, busy, onSubmit, onCancel }: Props) {
         <Text id="lead-source" label="Source" value={draft.source}
           onChange={(v) => set("source", v)} busy={busy} />
       </div>
+
+      <label className="checkline">
+        <input
+          type="checkbox"
+          className="tickbox"
+          checked={draft.doNotContact}
+          disabled={busy}
+          // Named explicitly, or the accessible name becomes the whole
+          // paragraph beside it - which is unusable with a screen reader and
+          // makes the box answer to any word in the sentence.
+          aria-label="Do not contact"
+          onChange={(event) => set("doNotContact", event.target.checked)}
+        />
+        <span className="checkline__text">
+          <span className="checkline__title">Do not contact</span>
+          <span className="card__hint">
+            Refused everywhere the reaching-out happens &mdash; the email queue,
+            a sequence, and WhatsApp &mdash; rather than by hiding a button.
+          </span>
+        </span>
+      </label>
 
       <Text id="lead-location" label="Location" value={draft.location}
         onChange={(v) => set("location", v)} busy={busy} />
@@ -198,7 +227,7 @@ export function LeadForm({ lead, stages, busy, onSubmit, onCancel }: Props) {
           Cancel
         </button>
         <button type="submit" className="btn btn--primary" disabled={busy}>
-          {lead ? "Save changes" : "Add lead"}
+          {lead ? "Save changes" : "Add contact"}
         </button>
       </div>
     </form>

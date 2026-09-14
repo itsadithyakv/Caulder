@@ -47,6 +47,12 @@ try {
   check("creates a company", await page.getByText("Unifloe").first().isVisible());
   check("writes its database", existsSync(join(dir, "caulder.db")));
 
+  // A genuine first run now offers the tour, which is a fixed overlay across
+  // the whole window. Dismissing it is exactly what a person does, and without
+  // it every sidebar click below is intercepted by the scrim.
+  await page.waitForTimeout(700);
+  if (await page.locator(".tour").count()) await page.keyboard.press("Escape");
+
   // The Apps Script must survive packaging: it is an extraResource, not code,
   // so nothing else would notice it missing.
   await app.evaluate(async ({ dialog }, target) => {

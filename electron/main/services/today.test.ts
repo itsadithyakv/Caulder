@@ -2,8 +2,15 @@ import { beforeEach, describe, expect, it } from "vitest";
 import Database from "better-sqlite3";
 import { migrate } from "../db/migrations";
 import { createCompany, listStages } from "../repositories/companies";
-import { createLead, listActivities, logActivity, setLeadStage } from "../repositories/leads";
+import {
+  createLead,
+  listActivities,
+  listLeads,
+  logActivity,
+  setLeadStage,
+} from "../repositories/leads";
 import { setSetting } from "../repositories/settings";
+import { deleteStage } from "../repositories/stages";
 import {
   completeTask,
   countOverdue,
@@ -357,5 +364,145 @@ describe("the going-cold list", () => {
       "Quieter School",
       "Bengaluru Public School",
     ]);
+  });
+});
+
+/* ---- What the charts report -------------------------------------------
+ * The two pictures on Today are read at a glance and therefore have to be
+ * right without being checked. A funnel that does not add up to the number in
+ * the sidebar, or a fortnight that closes up its quiet days, is worse than no
+ * chart at all.
+ * ---------------------------------------------------------------------- */
+
+describe("the funnel chart", () => {
+  it("adds up to the number of leads, with none left out", () => {
+    const stages = listStages(db, company.id);
+    for (let i = 0; i < 6; i += 1) {
+      createLead(
+        db,
+        company.id,
+        leadInput.parse({ name: `Lead ${i}`, stageId: stages[i % stages.length]?.id ?? null }),
+      );
+    }
+
+    const day = buildToday(db, company.id, NOW);
+    const counted = day.funnel.reduce((sum, slice) => sum + slice.count, 0);
+
+    // Against the real total rather than a number written here: a funnel that
+    // does not add up to what the sidebar says is a funnel nobody trusts, and
+    // the invariant is the thing worth pinning.
+    expect(counted).toBe(listLeads(db, { companyId: company.id }).length);
+  });
+
+  it("keeps leads left behind by a deleted stage in the picture", () => {
+    const stages = listStages(db, company.id);
+    const doomed = stages[1];
+    if (!doomed) throw new Error("expected a seeded funnel");
+
+    createLead(db, company.id, leadInput.parse({ name: "Stranded", stageId: doomed.id }));
+    deleteStage(db, doomed.id);
+
+    const day = buildToday(db, company.id, NOW);
+    expect(day.funnel.reduce((sum, slice) => sum + slice.count, 0)).toBe(
+      listLeads(db, { companyId: company.id }).length,
+    );
+    const unstaged = day.funnel.find((slice) => slice.stageId === null);
+    expect(unstaged?.count).toBe(1);
+  });
+
+  it("keeps an empty stage in the picture, because a gap is the point", () => {
+    const stages = listStages(db, company.id);
+    createLead(db, company.id, leadInput.parse({ name: "Only one", stageId: stages[0]?.id }));
+
+    const day = buildToday(db, company.id, NOW);
+    // Every stage, and no unstaged bucket: createLead puts a lead with no
+    // stage into the first one, so nothing is outside the funnel.
+    expect(day.funnel).toHaveLength(stages.length);
+    expect(day.funnel.filter((slice) => slice.count === 0).length).toBeGreaterThan(0);
+  });
+
+  it("is in funnel order, never sorted by size", () => {
+    const stages = listStages(db, company.id);
+    // Load the LAST stage most, so a size sort would be obvious.
+    const last = stages[stages.length - 1];
+    for (let i = 0; i < 4; i += 1) {
+      createLead(db, company.id, leadInput.parse({ name: `Won ${i}`, stageId: last?.id }));
+    }
+    createLead(db, company.id, leadInput.parse({ name: "New one", stageId: stages[0]?.id }));
+
+    const day = buildToday(db, company.id, NOW);
+    expect(day.funnel.map((slice) => slice.name).slice(0, stages.length)).toEqual(
+      stages.map((stage) => stage.name),
+    );
+  });
+
+  it("counts only what a stage is worth, not what an empty one might be", () => {
+    const stages = listStages(db, company.id);
+    createLead(db, company.id, leadInput.parse({ name: "Valued", value: 500, stageId: stages[0]?.id }));
+    createLead(db, company.id, leadInput.parse({ name: "Unvalued", stageId: stages[0]?.id }));
+
+    const day = buildToday(db, company.id, NOW);
+    // An unvalued lead contributes nothing rather than counting as zero, which
+    // is the same number but a different claim.
+    expect(day.funnel[0]?.value).toBe(500);
+    // Three, not two: the file's fixture lead is created with no stage, which
+    // createLead reads as the first one.
+    expect(day.funnel[0]?.count).toBe(3);
+  });
+});
+
+describe("the fortnight chart", () => {
+  it("is always fourteen days, starting today, with the quiet ones present", () => {
+    const lead = createLead(db, company.id, leadInput.parse({ name: "A" }));
+    createTask(
+      db,
+      company.id,
+      taskInput.parse({ leadId: lead.id, title: "Call", dueOn: shiftDay(TODAY, 3) }),
+    );
+
+    const day = buildToday(db, company.id, NOW);
+
+    expect(day.ahead).toHaveLength(14);
+    expect(day.ahead[0]?.day).toBe(TODAY);
+    expect(day.ahead[13]?.day).toBe(shiftDay(TODAY, 13));
+    // Zero-filled: a bar chart that omits the quiet days says the busy ones
+    // are next to each other, which is the opposite of the truth.
+    expect(day.ahead[3]?.count).toBe(1);
+    expect(day.ahead[1]?.count).toBe(0);
+  });
+
+  it("leaves out what is already overdue, which has its own section", () => {
+    const lead = createLead(db, company.id, leadInput.parse({ name: "A" }));
+    createTask(
+      db,
+      company.id,
+      taskInput.parse({ leadId: lead.id, title: "Late", dueOn: shiftDay(TODAY, -2) }),
+    );
+
+    const day = buildToday(db, company.id, NOW);
+    expect(day.ahead.reduce((sum, slot) => sum + slot.count, 0)).toBe(0);
+    expect(day.overdue).toHaveLength(1);
+  });
+
+  it("does not count a task somebody has already done", () => {
+    const lead = createLead(db, company.id, leadInput.parse({ name: "A" }));
+    const task = createTask(
+      db,
+      company.id,
+      taskInput.parse({ leadId: lead.id, title: "Call", dueOn: TODAY }),
+    );
+    completeTask(db, task.id);
+
+    const day = buildToday(db, company.id, NOW);
+    expect(day.ahead[0]?.count).toBe(0);
+  });
+
+  it("does not count another company's work", () => {
+    const other = createCompany(db, { name: "Other", accent: "teal", timezone: TZ });
+    const theirs = createLead(db, other.id, leadInput.parse({ name: "Theirs" }));
+    createTask(db, other.id, taskInput.parse({ leadId: theirs.id, title: "Call", dueOn: TODAY }));
+
+    const day = buildToday(db, company.id, NOW);
+    expect(day.ahead.reduce((sum, slot) => sum + slot.count, 0)).toBe(0);
   });
 });

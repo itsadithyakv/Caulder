@@ -25,10 +25,12 @@ export function PreviewStep({
   preview: ImportPreview;
   busy: boolean;
   onBack: () => void;
-  onCommit: (resolutions: Record<number, Resolution>) => void;
+  onCommit: (resolutions: Record<number, Resolution>, campaignId: string | null) => void;
 }) {
   // Skip is the default: doing nothing to an existing lead is the safe choice.
   const [resolutions, setResolutions] = useState<Record<number, Resolution>>({});
+  // One answer for the whole file. Two hundred scraped schools are one push,
+  // and a per-row picker is a question that never gets answered.
 
   const groups = useMemo(
     () => ({
@@ -187,7 +189,7 @@ export function PreviewStep({
         <button
           type="button"
           className="btn btn--primary"
-          onClick={() => onCommit(resolutions)}
+          onClick={() => onCommit(resolutions, null)}
           disabled={busy || (willAdd === 0 && willMerge === 0)}
         >
           Import {willAdd} {willAdd === 1 ? "lead" : "leads"}

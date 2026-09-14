@@ -2,6 +2,7 @@ import { test, expect, _electron as electron, type ElectronApplication } from "@
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { execFile } from "node:child_process";
 
 /**
  * The mark, in a real window.
@@ -98,13 +99,41 @@ test("the window icon resolves to a file that is actually there", async () => {
   expect(existsSync(icon), `window icon missing: ${icon}`).toBe(true);
 });
 
+test("a notification is signed Caulder, with the mark, rather than Electron", async () => {
+  // Windows names a notification after the app's AppUserModelID. Unset, a
+  // reminder arrived as "electron.app.Electron" with no icon. The name and
+  // mark are registered against Caulder's ID for this user, so they show even
+  // without an installed shortcut to read them from.
+  test.skip(process.platform !== "win32", "an AppUserModelID is a Windows idea");
+
+  const appPath = await app.evaluate(({ app: electronApp }) => electronApp.getAppPath());
+  const read = (name: string) =>
+    new Promise<string>((resolve) => {
+      execFile(
+        "reg",
+        ["query", "HKCU\\Software\\Classes\\AppUserModelId\\app.paperkite.caulder", "/v", name],
+        { windowsHide: true },
+        (_error, stdout) => resolve(/REG_SZ\s+(.+)\s*$/m.exec(stdout)?.[1]?.trim() ?? ""),
+      );
+    });
+
+  await expect.poll(() => read("DisplayName")).toBe("Caulder");
+  const icon = await read("IconUri");
+  expect(icon).toBe(join(appPath, "resources", "tray", "notify.png"));
+  expect(existsSync(icon), `notification mark missing: ${icon}`).toBe(true);
+});
+
 test("adding a second company is a form, not a welcome", async () => {
   const page = await app.firstWindow();
 
   await page.getByLabel("Company name").fill("Unifloe");
-  await page.getByLabel("Start with sample data").uncheck();
   await page.getByRole("button", { name: "Create company" }).click();
   await expect(page.getByRole("button", { name: /Company: Unifloe/ })).toBeVisible();
+
+  // A first run now offers the tour, which sits over everything. Dismissing
+  // it is exactly what somebody starting the app does.
+  await page.waitForTimeout(700);
+  if (await page.locator(".tour").count()) await page.keyboard.press("Escape");
 
   await page.getByRole("button", { name: /Company: Unifloe/ }).click();
   await page.getByRole("menuitem", { name: "Add a company" }).click();

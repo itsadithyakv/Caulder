@@ -30,6 +30,7 @@ type CardRow = {
   last_contacted_at: string | null;
   updated_at: string;
   open_tasks: number;
+  do_not_contact: number;
 };
 
 export function buildBoard(db: Db, companyId: string): Board {
@@ -41,7 +42,7 @@ export function buildBoard(db: Db, companyId: string): Board {
       // card, so it is read here rather than in a second query per card.
       `SELECT
          l.id, l.stage_id, l.name, l.city, l.contact_person, l.value,
-         l.last_contacted_at, l.updated_at,
+         l.last_contacted_at, l.updated_at, l.do_not_contact,
          (SELECT COUNT(*) FROM tasks t
           WHERE t.lead_id = l.id AND t.status = 'open') AS open_tasks
        FROM leads l
@@ -109,5 +110,6 @@ function toCard(row: CardRow): BoardCard {
     value: row.value,
     lastContactedAt: row.last_contacted_at,
     hasNextStep: row.open_tasks > 0,
+    doNotContact: row.do_not_contact === 1,
   };
 }

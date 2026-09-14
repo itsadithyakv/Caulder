@@ -7,6 +7,31 @@
  * Layout only. Colour, radius, spacing and type come from tokens.
  * ------------------------------------------------------------------------- */
 
+.today__grid {
+  display: grid;
+  /* The work gets the room; what to notice sits beside it rather than under
+   * it. One column below 1200, where two would crush both. */
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+@media (max-width: 1200px) {
+  .today__grid { grid-template-columns: 1fr; }
+}
+
+.today__work,
+.today__side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/* The charts stack in the narrower column. Their own breakpoint is on the
+ * viewport, which says nothing about the width of the column they are in. */
+.today__side .charts { grid-template-columns: 1fr; }
+
 .today {
   display: flex;
   flex-direction: column;
@@ -262,6 +287,16 @@
   min-width: 160px;
 }
 
+/* Two questions side by side rather than one per row. The form used to run
+   the full width of the screen with a dropdown in each half, which is where
+   most of its empty space came from; now each half holds a whole answer. */
+.taskform__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--space-4) var(--space-5);
+  align-items: start;
+}
+
 /* ---- Tasks on a lead --------------------------------------------------- */
 
 .leadtasks {
@@ -281,14 +316,6 @@
 .taskrow--done .taskrow__title {
   color: var(--ink-3);
   text-decoration: line-through;
-}
-
-/* ---- Email on Today ---------------------------------------------------- */
-
-/* The sync warning is the one card that has to interrupt: the bridge is
- * manual, and stale statuses look like the app simply being wrong. */
-.card--warn {
-  box-shadow: var(--shadow-xs), inset 0 0 0 1px var(--warn-soft);
 }
 
 /* ---- Shortcut help and data safety ------------------------------------- */
@@ -323,4 +350,337 @@
 /* The closing line about exports is a separate thought from the path above. */
 .datasafety__where + .card__hint {
   margin-top: var(--space-2);
+}
+
+/* ---- Rules and custom fields -------------------------------------------
+ * A list of short sentences and a small builder under it. Both read as
+ * statements rather than forms, because that is what a rule is.
+ * ---------------------------------------------------------------------- */
+
+.rules {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rule {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  box-shadow: var(--shadow-inset-sm);
+}
+
+/* A paused rule says so by going quiet rather than by disappearing: it is
+ * still yours, it is just not running. */
+.rule--off { opacity: 0.55; }
+
+.rule__text {
+  flex: 1;
+  min-width: 0;
+  color: var(--ink-2);
+  font-size: var(--text-base);
+}
+
+.rule__text strong { color: var(--ink); }
+.rule__when { color: var(--ink-3); }
+
+.rulebuild {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-3);
+  align-items: end;
+  padding: var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  box-shadow: var(--shadow-inset-sm);
+}
+
+.rulebuild__wide { grid-column: 1 / -1; }
+
+/* ---- The agenda ---------------------------------------------------------
+ * Today's blocks, listed rather than drawn. The grid answers "does it fit";
+ * this answers "what is happening", which is the question the home screen is
+ * for and needs three lines rather than a screenful.
+ * ------------------------------------------------------------------------ */
+
+.agenda {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.agenda__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  box-shadow: var(--shadow-inset-sm);
+}
+
+.agenda__time {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+  min-width: 7ch;
+}
+
+.agenda__title {
+  flex: 1;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agenda__len {
+  flex: none;
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+}
+
+/* ---- The now line -------------------------------------------------------
+ * One line answering the question the app is opened to ask. It sits above
+ * everything because it outranks everything: what is owed later cannot matter
+ * more than what is happening at this minute.
+ * ------------------------------------------------------------------------ */
+
+.nowline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--face-edge);
+}
+
+.nowline__main,
+.nowline__free {
+  margin: 0;
+  flex: 1;
+  min-width: 240px;
+  color: var(--ink);
+  font-size: var(--text-md);
+}
+
+.nowline__label {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.nowline__meta {
+  margin: 0;
+  width: 100%;
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+/* ---- Area of life ------------------------------------------------------
+ * A dot and a word. The dot carries the hue, the word stays in body ink, so a
+ * list of twelve tasks across four areas reads as a list and not a paint
+ * chart.
+ * ---------------------------------------------------------------------- */
+
+.area {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-2);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.area::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--area-personal);
+}
+
+.area--college::before { background: var(--area-college); }
+.area--company::before { background: var(--area-company); }
+.area--health::before { background: var(--area-health); }
+
+/* ---- The quick-add line ------------------------------------------------
+ * The biggest input on the screen, because it is the one used most. The
+ * reading under it is quiet - it is a confirmation, not a second form - and
+ * the question, when there is one, is the only thing in the card that asks
+ * for attention.
+ * ---------------------------------------------------------------------- */
+
+.today__quick {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.today__quick > .quickadd {
+  flex: 1;
+  min-width: 0;
+}
+
+.quickadd {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.quickadd__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
+  background: var(--surface-sunken);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-inset-sm);
+  transition: border-color var(--dur-fast) var(--ease);
+}
+
+.quickadd__row:focus-within {
+  border-color: var(--accent-ring);
+}
+
+.quickadd__icon {
+  flex-shrink: 0;
+  color: var(--accent-strong);
+}
+
+.quickadd__input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-2) 0;
+  background: transparent;
+  border: 0;
+  color: var(--ink);
+  font-size: var(--text-lg);
+}
+
+.quickadd__input::placeholder {
+  color: var(--ink-3);
+}
+
+.quickadd__input:focus-visible {
+  outline: none;
+}
+
+.quickadd__go {
+  flex-shrink: 0;
+}
+
+.quickadd__read {
+  min-height: 1.5em;
+  padding: 0 var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.quickadd__hint {
+  color: var(--ink-3);
+}
+
+.quickadd__added {
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
+.quickadd__reading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  color: var(--ink-2);
+}
+
+.quickadd__title {
+  color: var(--ink);
+}
+
+.quickadd__part {
+  font-variant-numeric: tabular-nums;
+}
+
+.quickadd__note {
+  color: var(--ink-3);
+}
+
+/* The area in the reading is a button - the guess most worth correcting -
+   but it keeps the dot-and-label look of every other area in the app, and
+   only admits to being a button on hover. */
+.quickadd__area {
+  padding: 2px var(--space-2);
+  margin: -2px 0;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.quickadd__area:hover {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+
+/* Faint until wanted: enough to say "this changes" without shouting it. */
+.quickadd__areaIcon {
+  opacity: 0.5;
+}
+
+.quickadd__area:hover .quickadd__areaIcon {
+  opacity: 1;
+}
+
+/* What the reading needs to say out loud: a slip it corrected, a repeat it
+   cannot do. Quiet, but a line of its own so it is not missed. */
+.quickadd__aside {
+  margin: 0;
+  padding: 0 var(--space-2);
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+  font-style: italic;
+}
+
+/* The question. Raised a step off the card so it reads as the app speaking,
+   with its answers as the same chips every other short choice uses. */
+.quickadd__ask {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-hover);
+  box-shadow: var(--shadow-xs);
+}
+
+.quickadd__question {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.quickadd__answers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
