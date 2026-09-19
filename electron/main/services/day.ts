@@ -29,9 +29,15 @@ function companyTimezone(db: Db, companyId: string): string {
   return row?.timezone ?? "UTC";
 }
 
-export function buildDay(db: Db, companyId: string, day: string, now = new Date()): DayPlan {
-  const timezone = companyTimezone(db, companyId);
-  const blocks = listBlocks(db, companyId, day);
+/** Every workspace's rows, one list: your home first, then the company chosen. */
+function across<T>(ids: readonly string[], read: (companyId: string) => T[]): T[] {
+  return ids.length === 1 ? read(ids[0] ?? "") : ids.flatMap(read);
+}
+
+export function buildDay(db: Db, companyIds: string | readonly string[], day: string, now = new Date()): DayPlan {
+  const ids = typeof companyIds === "string" ? [companyIds] : companyIds;
+  const timezone = companyTimezone(db, ids[0] ?? "");
+  const blocks = across(ids, (id) => listBlocks(db, id, day));
 
   // How far through the day being looked at we are. A day already gone is
   // entirely spent and one still ahead entirely unspent; only today has a
@@ -44,9 +50,9 @@ export function buildDay(db: Db, companyId: string, day: string, now = new Date(
   return {
     day,
     blocks: layOut(blocks),
-    tasks: listDueOn(db, companyId, day),
-    deadlines: deadlinesBetween(db, companyId, day, day, currentDay),
-    notes: listNotesOn(db, companyId, day),
+    tasks: across(ids, (id) => listDueOn(db, id, day)),
+    deadlines: across(ids, (id) => deadlinesBetween(db, id, day, day, currentDay)),
+    notes: across(ids, (id) => listNotesOn(db, id, day)),
     spent: spentByKind(blocks),
     planned: blocks.reduce((total, block) => total + block.minutes, 0),
     elapsed: elapsedMinutes(blocks, cursor),
@@ -64,17 +70,13 @@ export function buildDay(db: Db, companyId: string, day: string, now = new Date(
  * One read of the whole span rather than seven of one day each — the same
  * shape as every other builder here: gather rows, hand them to shared/.
  */
-export function buildWeek(db: Db, companyId: string, day: string): WeekPlan {
+export function buildWeek(db: Db, companyIds: string | readonly string[], day: string): WeekPlan {
+  const ids = typeof companyIds === "string" ? [companyIds] : companyIds;
   const from = startOfWeek(day);
   const days = Array.from({ length: 7 }, (_, index) => shiftDay(from, index));
-  const blocks = listBlocksBetween(db, companyId, from, days[6] ?? from);
-  const deadlines = deadlinesBetween(
-    db,
-    companyId,
-    from,
-    days[6] ?? from,
-    todayIn(companyTimezone(db, companyId), new Date()),
-  );
+  const current = todayIn(companyTimezone(db, ids[0] ?? ""), new Date());
+  const blocks = across(ids, (id) => listBlocksBetween(db, id, from, days[6] ?? from));
+  const deadlines = across(ids, (id) => deadlinesBetween(db, id, from, days[6] ?? from, current));
 
   return {
     from,

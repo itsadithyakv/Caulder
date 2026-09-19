@@ -1,6 +1,6 @@
 import { Notification } from "electron";
 import type { BrowserWindow } from "electron";
-import { brandFile } from "../identity";
+import { markFile } from "../identity";
 import { getDatabase } from "../db/connection";
 import { getSetting } from "../repositories/settings";
 import { listCompanies } from "../repositories/companies";
@@ -114,7 +114,7 @@ function check(getWindow: () => BrowserWindow | null): void {
       title: `${overdue + deadlines} to see to in ${company.name}`,
       body: parts.join(" "),
       // The mark beside the words, so it reads as Caulder at a glance.
-      icon: brandFile("notify.png"),
+      icon: markFile("notify"),
       silent: false,
     });
 

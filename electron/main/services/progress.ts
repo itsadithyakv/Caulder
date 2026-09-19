@@ -157,7 +157,18 @@ export function happeningsOf(db: Db, companyId: string, now: Date = new Date()):
   return { today, happenings, habits };
 }
 
+/**
+ * Your level is yours, not a company's: what you did in every workspace
+ * counts, on the day of the one asked for - your home.
+ */
 export function progress(db: Db, companyId: string, now: Date = new Date()): Progress {
   const { today, happenings, habits } = happeningsOf(db, companyId, now);
-  return progressOf(happenings, habits, today);
+  const others = (db.prepare(`SELECT id FROM companies WHERE id <> ? AND is_archived = 0`).all(companyId) as { id: string }[]).map(
+    (row) => happeningsOf(db, row.id, now),
+  );
+  return progressOf(
+    [...happenings, ...others.flatMap((other) => other.happenings)],
+    [...habits, ...others.flatMap((other) => other.habits)],
+    today,
+  );
 }

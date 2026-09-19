@@ -201,18 +201,23 @@
   color: var(--danger);
 }
 
-/* ---- Company switcher --------------------------------------------------
- * Pinned at the top of the sidebar, because which company you are working in
- * changes the meaning of every number on the screen.
+/* ---- The company heading -----------------------------------------------
+ * Heads Contacts, Deals, Money and Brain, and is where the company is chosen:
+ * choosing one changes those screens and nothing above them, so that is
+ * where the control lives.
  * ---------------------------------------------------------------------- */
+
+.companyhead {
+  margin-bottom: var(--space-1);
+}
 
 .company {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2);
   width: 100%;
-  min-height: 52px;
-  padding: var(--space-2) var(--space-3);
+  min-height: 46px;
+  padding: var(--space-1) var(--space-2);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -288,8 +293,8 @@
 .company__mark {
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   flex-shrink: 0;
   border-radius: var(--radius-sm);
   background: var(--accent);

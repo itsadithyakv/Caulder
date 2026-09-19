@@ -120,7 +120,8 @@ test("a notification is signed Caulder, with the mark, rather than Electron", as
 
   await expect.poll(() => read("DisplayName")).toBe("Caulder");
   const icon = await read("IconUri");
-  expect(icon).toBe(join(appPath, "resources", "tray", "notify.png"));
+  // The copy with the ink lifted when Windows is dark: either is the mark.
+  expect([join(appPath, "resources", "tray", "notify.png"), join(appPath, "resources", "tray", "notify-light.png")]).toContain(icon);
   expect(existsSync(icon), `notification mark missing: ${icon}`).toBe(true);
 });
 

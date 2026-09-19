@@ -43,9 +43,10 @@ function ftsQuery(text: string): string | null {
 
 type HitRow = { kind: SearchHit["kind"]; ref_id: string; score: number; title: string; snip: string };
 
-export function searchEverything(db: Db, companyId: string, text: string, limit = 30): SearchHit[] {
+export function searchEverything(db: Db, companyIds: string | readonly string[], text: string, limit = 30): SearchHit[] {
   const query = ftsQuery(text);
   if (!query) return [];
+  const ids = typeof companyIds === "string" ? [companyIds] : [...companyIds];
 
   let rows: HitRow[];
   try {
@@ -56,11 +57,11 @@ export function searchEverything(db: Db, companyId: string, text: string, limit 
                 snippet(brain_search, 1, char(2), char(3), '…', 12) AS snip
          FROM brain_search
          JOIN search_map m ON m.id = brain_search.rowid
-         WHERE brain_search MATCH ? AND m.company_id = ?
+         WHERE brain_search MATCH ? AND m.company_id IN (${ids.map(() => "?").join(", ")})
          ORDER BY score
          LIMIT 200`,
       )
-      .all(query, companyId) as HitRow[];
+      .all(query, ...ids) as HitRow[];
   } catch {
     // A query FTS5 still cannot parse is a query with no answer, not a fault.
     return [];

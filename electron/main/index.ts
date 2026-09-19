@@ -109,7 +109,8 @@ function createWindow(): void {
     // for anyone whose explicit choice agrees with it. An explicit choice
     // against the OS is the one case still unaccounted for, and it cannot be
     // read here: the choice lives in the renderer's localStorage.
-    backgroundColor: nativeTheme.shouldUseDarkColors ? "#1a1c21" : "#e8ecf3",
+    // The coffee ground, so the window opens the colour the page will be.
+    backgroundColor: nativeTheme.shouldUseDarkColors ? "#1b130e" : "#efe6da",
     // Dev only. A packaged build takes its window and taskbar icon from the
     // executable, which electron-builder stamps from the same resources/icon.png;
     // pointing at a path inside the asar here would just fail to load.

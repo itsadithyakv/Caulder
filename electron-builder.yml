@@ -19,9 +19,8 @@ extraResources:
   - from: resources/tray
     to: tray
 win:
-  # 1024x1024 with a light tile behind the mark. The artwork is a near-black
-  # cauldron on transparency, which all but vanishes on a dark taskbar; the
-  # tile is what keeps it legible there. electron-builder derives the .ico.
+  # 1024x1024, the mark on transparency as drawn - no tile. scripts/logo.py
+  # makes it from assets/caulderLogo.png; electron-builder derives the .ico.
   icon: resources/icon.png
   target:
     - target: nsis

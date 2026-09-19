@@ -352,14 +352,13 @@ function Shell() {
             company={activeCompany}
             switcherOpen={switcherOpen}
             onToggleSwitcher={() => setSwitcherOpen((open) => !open)}
+            switcher={
+              switcherOpen && (
+                <CompanySwitcher onClose={() => setSwitcherOpen(false)} onAddCompany={() => setAddingCompany(true)} />
+              )
+            }
             overdueCount={overdueCount}
           />
-          {switcherOpen && (
-            <CompanySwitcher
-              onClose={() => setSwitcherOpen(false)}
-              onAddCompany={() => setAddingCompany(true)}
-            />
-          )}
         </div>
 
         <main className="main">

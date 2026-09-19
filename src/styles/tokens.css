@@ -547,12 +547,14 @@
 }
 
 /* ---------------------------------------------------------------------------
- * Two faces
+ * The face the app wears
  *
- * A workspace made before PLAN.md's first phase may be of the personal kind,
- * and it keeps the manners it was made with: a coffee ground and espresso ink
- * in light, an espresso ground and cream ink in dark, and rounder corners.
- * Nothing creates one any more.
+ * Coffee: a coffee ground and espresso ink in light, an espresso ground and
+ * cream ink in dark, and rounder corners, with the coffee accent. It began
+ * as the face of a personal workspace and is now the app's, whichever
+ * company is chosen - set on <html> in index.html, so it is there from the
+ * first paint. The attribute keeps its old name; the base values above are
+ * what it overrides.
  *
  * Declared in all three places like every other colour in this file - base,
  * the prefers-color-scheme block, and the explicit attribute - with every ink
@@ -653,14 +655,3 @@
   --shadow-float: 0 12px 32px -8px rgba(0, 0, 0, 0.62);
 }
 
-/* The work face is the app as it is: square, cool and quiet. Stated rather
- * than left implicit so the pair reads as a deliberate choice. */
-:root[data-face="work"] {
-  --face-edge: transparent;
-  --face-wash: transparent;
-  --radius-xs: 4px;
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
-}

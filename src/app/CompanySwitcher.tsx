@@ -3,7 +3,10 @@ import { Check, Plus } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace";
 
 /**
- * The list that drops out of the sidebar's company button.
+ * The list that drops out of the company heading in the sidebar. Companies
+ * only: a workspace of the personal kind is you, not a company, and its
+ * things are under Plan and You whichever company is chosen - unless it is
+ * the only workspace there is.
  *
  * Closes on Escape, on a click outside, and after a choice. Focus moves into
  * the list on open so it is reachable without a mouse.
@@ -15,7 +18,8 @@ export function CompanySwitcher({
   onClose: () => void;
   onAddCompany: () => void;
 }) {
-  const { companies, activeCompany, setActive } = useWorkspace();
+  const { companies: all, activeCompany, setActive } = useWorkspace();
+  const companies = all.some((c) => c.kind !== "personal") ? all.filter((c) => c.kind !== "personal") : all;
   const panel = useRef<HTMLDivElement>(null);
 
   useEffect(() => {

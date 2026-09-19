@@ -1,4 +1,4 @@
-import { app } from "electron";
+import { app, nativeTheme } from "electron";
 import { execFile } from "node:child_process";
 import { join } from "node:path";
 
@@ -25,10 +25,20 @@ const APP_ID = "app.paperkite.caulder";
  * build, because a path inside the asar does not load, and straight from the
  * project in development.
  */
-export function brandFile(name: string): string {
+function brandFile(name: string): string {
   return app.isPackaged
     ? join(process.resourcesPath, "tray", name)
     : join(app.getAppPath(), "resources", "tray", name);
+}
+
+/**
+ * The mark for Windows' own surfaces - the tray, a notification - which follow
+ * Windows' colours rather than the app's. It is on transparency, so on a dark
+ * taskbar the near-black cauldron would all but vanish: there it is the copy
+ * with the ink lifted. scripts/logo.py makes both.
+ */
+export function markFile(kind: "tray" | "notify"): string {
+  return brandFile(nativeTheme.shouldUseDarkColorsForSystemIntegratedUI ? `${kind}-light.png` : `${kind}.png`);
 }
 
 /** Before any notification can be shown. Harmless to call before ready. */
@@ -51,5 +61,5 @@ export function registerIdentity(): void {
   const put = (name: string, value: string) =>
     execFile("reg", ["add", key, "/v", name, "/t", "REG_SZ", "/d", value, "/f"], { windowsHide: true }, () => undefined);
   put("DisplayName", "Caulder");
-  put("IconUri", brandFile("notify.png"));
+  put("IconUri", markFile("notify"));
 }

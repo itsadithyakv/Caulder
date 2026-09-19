@@ -83,14 +83,23 @@ in the old one is never what was meant.
 
 ## Companies
 
-One workspace per company, and nothing else: the personal kind was removed in
-phase 1 of PLAN.md. A workspace created as personal before that is shown as a
-company with no contacts; its blocks and tasks are untouched.
+One workspace per company: its own contacts, funnel, templates, calendar and
+money. Nothing is shared between companies.
 
-A company is a **workspace**: its own contacts, funnel, templates, calendar
-and money. Nothing is shared between them.
+**You are not a company.** Plan and You in the sidebar - Today, the Calendar,
+the journal and Life - are yours whichever company is chosen. Your own things
+(the journal, habits, studies, hobbies, goals, the vision board and your
+level) live in one **home**: for someone with one company, that company; for
+someone with a workspace of the personal kind from before phase 1, that
+workspace; otherwise the first company made. Today and the Calendar show your
+home and the chosen company together, so choosing a company never hides your
+own day, and your level counts what you did in every company.
 
-- Switch with the sidebar header. (**Ctrl + K** is search.)
+- **The company is chosen where its screens are**: its name, mark and count
+  head Contacts, Deals, Money and Brain in the sidebar, and pressing it lists
+  the companies. That is all choosing one changes. A workspace of the personal
+  kind is not in the list while there is a company to choose. (**Ctrl + K** is
+  search.)
 - The active company is remembered across restarts.
 - Rename, re-accent, archive or delete from Settings. The last company cannot
   be archived or deleted.
@@ -100,8 +109,9 @@ and money. Nothing is shared between them.
   not by a second button.
 - Names are unique, case-insensitively; a duplicate is refused with a message
   saying what to do.
-- **The whole app re-tints** from the active company's accent, so which
-  workspace you are in is visible without reading.
+- **A company's colour is its mark** in the sidebar heading and its dot in the
+  list. The app itself wears coffee whichever company is chosen: choosing a
+  company changes what the company screens show, not the colour of your day.
 
 ---
 
@@ -1220,10 +1230,10 @@ the copy sat behind an error dialog — one stray process every time Caulder was
 opened while it was already in the tray. `e2e/tray.spec.ts` now launches that
 second copy and requires it to exit with code 0.
 
-The tray icon is its own file, cut in close around the mark: the app icon's
-tile is right for a taskbar button and far too much tile for a slot sixteen
-pixels wide. `scripts/tray.py` derives every size the tray asks for from
-`resources/icon.png`.
+The tray icon is the mark on transparency at every size the tray asks for,
+and on a dark taskbar it is the copy with the ink lifted, switching when
+Windows does; a notification's mark does the same. `scripts/logo.py` makes
+all of them from `assets/caulderLogo.png`.
 
 **Notifications are signed Caulder.** Windows labels a notification with the
 app's AppUserModelID, not its window title, and unset that was Electron's
