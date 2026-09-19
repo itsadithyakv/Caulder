@@ -61,8 +61,9 @@ export function LifeScreen({
   onOpenPage: (pageId: string) => void;
   onOpenContact: (leadId: string) => void;
 }) {
-  const { activeCompany } = useWorkspace();
-  const companyId = activeCompany?.id ?? null;
+  // Yours, not the chosen company's: Life stays put when the company changes.
+  const { home } = useWorkspace();
+  const companyId = home?.id ?? null;
   const [tab, setTab] = useState<Tab>("overview");
   const [view, setView] = useState<View>({ kind: "tab" });
   const [version, setVersion] = useState(0);

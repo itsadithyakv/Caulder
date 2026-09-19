@@ -17,8 +17,9 @@ import {
  * Eight screens and no deep linking, so a router library would be all cost
  * and no benefit. Navigation is a union type plus useState in App.
  *
- * Five rows in two groups, then Brain in its own group, and Settings at the
- * foot. A row is a claim that a thing is opened most days; Brain breaks that
+ * Plan and You are yours; the company group is headed by the company itself,
+ * which is where it is chosen, with Contacts, Deals, Money and Brain under
+ * it; Settings at the foot. A row is a claim that a thing is opened most days; Brain breaks that
  * on purpose, because it is the one place for everything that is not a list
  * of work, and a thing that cannot be found in two keystrokes is a thing
  * nobody writes down (PLAN.md, part two). Import is the one screen without a
@@ -48,13 +49,13 @@ export type RouteId =
   | "setup";
 
 /** The sidebar's sections. "app" is Settings, on its own at the foot. */
-type RouteGroup = "plan" | "you" | "sell" | "company" | "app";
+type RouteGroup = "plan" | "you" | "company" | "app";
 
+/** Company has no label: its heading is the company itself, and the switcher. */
 export const GROUP_LABEL: Record<RouteGroup, string> = {
   plan: "Plan",
   you: "You",
-  sell: "Sell",
-  company: "Company",
+  company: "",
   app: "",
 };
 
@@ -74,10 +75,10 @@ const ROUTES: readonly Route[] = [
   { id: "day", label: "Calendar", icon: CalendarRange, group: "plan" },
   { id: "journal", label: "Journal", icon: NotebookPen, group: "you" },
   { id: "life", label: "Life", icon: Sprout, group: "you" },
-  { id: "leads", label: "Contacts", icon: Users, group: "sell" },
-  { id: "import", label: "Import", icon: Upload, group: "sell", parent: "leads" },
-  { id: "pipeline", label: "Deals", icon: KanbanSquare, group: "sell" },
-  { id: "money", label: "Money", icon: Wallet, group: "sell" },
+  { id: "leads", label: "Contacts", icon: Users, group: "company" },
+  { id: "import", label: "Import", icon: Upload, group: "company", parent: "leads" },
+  { id: "pipeline", label: "Deals", icon: KanbanSquare, group: "company" },
+  { id: "money", label: "Money", icon: Wallet, group: "company" },
   { id: "brain", label: "Brain", icon: Brain, group: "company" },
   { id: "settings", label: "Settings", icon: Settings, group: "app" },
   // The setup guide: shown once when a company is made, and afterwards from
@@ -99,7 +100,7 @@ export function navRouteOf(id: RouteId): RouteId {
 
 /** The sidebar: its groups, each with the routes that stand on their own. */
 export function navFor(): { group: RouteGroup; routes: Route[] }[] {
-  const groups: RouteGroup[] = ["plan", "you", "sell", "company", "app"];
+  const groups: RouteGroup[] = ["plan", "you", "company", "app"];
   return groups.map((group) => ({
     group,
     routes: ROUTES.filter((route) => route.group === group && !route.parent),

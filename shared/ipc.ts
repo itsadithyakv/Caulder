@@ -423,7 +423,10 @@ export type AppApi = {
  */
 export type Workspace = {
   companies: Company[];
+  /** The company chosen in the sidebar: what Contacts, Deals, Money and Brain show. */
   activeCompanyId: string | null;
+  /** Where your own things live - the journal, Life, habits - whichever company is chosen. */
+  homeCompanyId: string | null;
 };
 
 export type CompaniesApi = {

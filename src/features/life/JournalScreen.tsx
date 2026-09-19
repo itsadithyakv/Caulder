@@ -50,9 +50,10 @@ export function JournalScreen({
   onOpenPage: (pageId: string) => void;
   onOpenContact: (leadId: string) => void;
 }) {
-  const { activeCompany } = useWorkspace();
-  const companyId = activeCompany?.id ?? "";
-  const today = todayIn(activeCompany?.timezone ?? "UTC");
+  // Yours, not the chosen company's: the journal stays put when the company changes.
+  const { home } = useWorkspace();
+  const companyId = home?.id ?? "";
+  const today = todayIn(home?.timezone ?? "UTC");
 
   const [day, setDay] = useState(openDay ?? today);
   const [page, setPage] = useState<BrainPage | null>(null);

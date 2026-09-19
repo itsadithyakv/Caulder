@@ -39,6 +39,7 @@ import {
   setPagePinned,
   type StoredFields,
 } from "../repositories/brain";
+import { withHome } from "../repositories/companies";
 import { searchEverything } from "../repositories/search";
 import { linkLabelsOnly } from "@shared/links";
 import type { DecisionEntry } from "@shared/brain";
@@ -332,7 +333,8 @@ export function search(db: Db, companyId: string, text: unknown): SearchHit[] {
       leadId: null,
     }));
   }
-  return searchEverything(db, companyId, query);
+  // Your own pages - the journal, Life - are found whichever company is chosen.
+  return searchEverything(db, withHome(db, companyId), query);
 }
 
 /**

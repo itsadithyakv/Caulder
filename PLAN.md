@@ -1026,3 +1026,23 @@ week is XP by area**, with the time and the count in words, because an hour
 kept and a task done are not the same length of bar; and the areas nothing
 happened in are named rather than drawn as empty bars alone. **A break
 counts for nothing**: rest is not something to farm points from.
+
+### After 0.3 — You, and the company chosen — *done 19 September 2026*
+
+Asked for on 19 September 2026: the switcher at the top of the sidebar changed
+everything, when the outreach and the rest of the company are one part of
+the app; it belongs with the company's screens. And the coffee look, kept.
+
+- **The company is chosen where its screens are**: its heading tops Contacts,
+  Deals, Money and Brain, and the top of the sidebar is Plan and You.
+- **Your own things have one home** - `homeCompanyId`, a workspace of the
+  personal kind if there is one, otherwise the first company made - and the
+  journal, Life, habits, the vision board and your level read from it
+  whichever company is chosen. Nothing moved in the database: for someone
+  with one company, home is that company.
+- **Today and the Calendar are your home and the chosen company together**,
+  merged by the main process (`withHome`), so choosing a company in the
+  sidebar never hides your own day. Your level counts every company.
+- **Coffee is the app's face**, set on the page so the first paint wears it;
+  a company's colour is its mark. The app icon, tray and notification marks
+  are the logo on transparency, with the ink lifted where Windows is dark.

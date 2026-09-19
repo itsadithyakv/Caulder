@@ -27,7 +27,14 @@ type WorkspaceContext = {
   status: Status;
   error: string | null;
   companies: Company[];
+  /** The company chosen in the sidebar: what Contacts, Deals, Money and Brain show. */
   activeCompany: Company | null;
+  /**
+   * Where your own things live - the journal, Life, habits, the vision board,
+   * your level - whichever company is chosen. For most people, their one
+   * company; for someone with a workspace of their own, that one.
+   */
+  home: Company | null;
   /**
    * Returns the company that was created, which the caller needs in order to
    * do anything else to it - seeding the sample, for one - without a second
@@ -52,6 +59,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<Workspace>({
     companies: [],
     activeCompanyId: null,
+    homeCompanyId: null,
   });
   const [status, setStatus] = useState<Status>("loading");
   const [error, setError] = useState<string | null>(null);
@@ -108,20 +116,16 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     [state],
   );
 
-  // The whole app re-tints from the active company's accent. Removing the
-  // attribute when there is no company falls back to the default in tokens.css
-  // rather than leaving the last company's colour on the first-run screen.
-  useEffect(() => {
-    const root = document.documentElement;
-    if (activeCompany) root.setAttribute("data-accent", activeCompany.accent);
-    else root.removeAttribute("data-accent");
+  const home = useMemo(
+    () => state.companies.find((c) => c.id === state.homeCompanyId) ?? activeCompany,
+    [state, activeCompany],
+  );
 
-    // And which face the app wears. One attribute, and every card, button and
-    // input follows - work is squarer and cooler, personal is rounder and
-    // warmer. Two different things to one person, and they want different
-    // manners.
-    root.setAttribute("data-face", activeCompany?.kind === "personal" ? "personal" : "work");
-  }, [activeCompany]);
+  // The app wears one face whichever company is chosen: coffee, set on the
+  // page itself (index.html) so it is there before the first paint. A
+  // company's own colour is its mark in the sidebar, not the whole window -
+  // choosing a company is choosing what the company screens show, not
+  // repainting your day.
 
   const value = useMemo<WorkspaceContext>(
     () => ({
@@ -129,6 +133,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       error,
       companies: state.companies,
       activeCompany,
+      home,
       create: async (input) => {
         const next = await apply(() => window.caulder.companies.create(input));
         return next.companies.find((c) => c.id === next.activeCompanyId) ?? null;
@@ -154,7 +159,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       retry: load,
       refresh,
     }),
-    [status, error, state.companies, activeCompany, apply, load, refresh],
+    [status, error, state.companies, activeCompany, home, apply, load, refresh],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

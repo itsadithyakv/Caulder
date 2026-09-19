@@ -96,6 +96,33 @@ export function listCompanies(db: Db): Company[] {
   return rows.map((row) => ({ ...toCompany(row), leadCount: row.lead_count }));
 }
 
+/**
+ * Where your own things live: the journal, Life, habits, the vision board.
+ * They are yours, not a company's, so they stay put whichever company is
+ * chosen. A workspace of the personal kind is exactly that, if there is one;
+ * otherwise it is the first company made - for most people, their only one.
+ */
+export function homeCompanyId(db: Db): string | null {
+  const row = db
+    .prepare(
+      `SELECT id FROM companies WHERE is_archived = 0
+        ORDER BY (kind = 'personal') DESC, created_at, rowid LIMIT 1`,
+    )
+    .get() as { id: string } | undefined;
+  return row?.id ?? null;
+}
+
+/**
+ * The workspaces your day is made of: your home, and the company chosen.
+ * One id for nearly everyone; two for someone whose own things live apart
+ * from the company they are working on. Home first, so its timezone is the
+ * day's.
+ */
+export function withHome(db: Db, companyId: string): string[] {
+  const home = homeCompanyId(db);
+  return home && home !== companyId ? [home, companyId] : [companyId];
+}
+
 export function findCompany(db: Db, id: string): Company | null {
   const row = db.prepare(`SELECT * FROM companies WHERE id = ?`).get(id) as
     | CompanyRow

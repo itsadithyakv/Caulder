@@ -48,7 +48,7 @@ export function DayScreen({
   /** The journal, on this day. */
   onOpenJournal?: (day: string) => void;
 } = {}) {
-  const { activeCompany } = useWorkspace();
+  const { activeCompany, home } = useWorkspace();
   const companyId = activeCompany?.id ?? null;
   const timezone = activeCompany?.timezone ?? "UTC";
 
@@ -384,7 +384,7 @@ export function DayScreen({
         </div>
 
         <aside className="day__side">
-          {onOpenJournal && day <= currentDay && <DayJournal companyId={companyId} day={day} onOpen={onOpenJournal} />}
+          {onOpenJournal && day <= currentDay && <DayJournal companyId={home?.id ?? companyId} day={day} onOpen={onOpenJournal} />}
           <section className="card">
             <h2 className="card__title">Due today</h2>
             {plan.deadlines.length > 0 && (

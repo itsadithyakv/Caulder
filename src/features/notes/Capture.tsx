@@ -64,14 +64,8 @@ export function Capture() {
           ? { id: active.id, timezone: active.timezone, personal: active.kind === "personal" }
           : null,
       );
-      // This window has no workspace provider of its own, so without these it
-      // would wear the work face and the default blue over a coffee personal
-      // workspace - the same line in two different skins, depending on which
-      // window it was typed into.
-      const root = document.documentElement;
-      root.setAttribute("data-face", active?.kind === "personal" ? "personal" : "work");
-      if (active) root.setAttribute("data-accent", active.accent);
-      else root.removeAttribute("data-accent");
+      // The look is the app's own, set on the page (index.html): this window
+      // wears the same coffee as the main one without being told.
     };
     void refresh();
 

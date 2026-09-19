@@ -49,6 +49,7 @@ const GOES_TO: Record<CaptureKind, string> = {
 const LENGTHS = [15, 30, 45, 60, 90];
 export function QuickAdd({
   companyId,
+  homeId,
   timezone,
   personal,
   focusNonce = 0,
@@ -58,6 +59,8 @@ export function QuickAdd({
   smart = false,
 }: {
   companyId: string;
+  /** Where your own things go - the journal, a hobby's time - whichever company is chosen. */
+  homeId?: string;
   timezone: string;
   /** A personal workspace fills a missing area with Personal; a company one with Company. */
   personal: boolean;
@@ -118,7 +121,7 @@ export function QuickAdd({
     const read = () => {
       Promise.all([
         window.caulder.leads.list({ companyId, sort: "name", direction: "asc" }),
-        window.caulder.life.hobbies(companyId),
+        window.caulder.life.hobbies(homeId ?? companyId),
       ]).then(
         ([contacts, hobbies]) =>
           setKnown({
@@ -131,7 +134,7 @@ export function QuickAdd({
     read();
     window.addEventListener("focus", read);
     return () => window.removeEventListener("focus", read);
-  }, [smart, companyId]);
+  }, [smart, companyId, homeId]);
 
   // The clock where the workspace is, read on every keystroke: a quick-add
   // left open over lunch must not think it is still the morning.
@@ -188,7 +191,7 @@ export function QuickAdd({
     try {
       let summary = "";
       if (goesTo === "journal") {
-        await window.caulder.life.jot(companyId, said);
+        await window.caulder.life.jot(homeId ?? companyId, said);
         summary = "In today's journal";
       } else if (goesTo === "contact" && reading.contact) {
         await window.caulder.activities.log({ leadId: reading.contact.id, kind: reading.logged, body: said });

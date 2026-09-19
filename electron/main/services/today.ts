@@ -44,26 +44,36 @@ const MEANINGFUL = [
   "email_replied",
 ] as const;
 
-export function buildToday(db: Db, companyId: string, now: Date = new Date()): Today {
-  const timezone = companyTimezone(db, companyId);
+export function buildToday(db: Db, companyIds: string | readonly string[], now: Date = new Date()): Today {
+  const ids = typeof companyIds === "string" ? [companyIds] : companyIds;
+  const home = ids[0] ?? "";
+  const timezone = companyTimezone(db, home);
   const day = todayIn(timezone, now);
   const coldAfterDays = readColdAfterDays(db);
+  // Each list from each workspace, then in one order. One workspace, which is
+  // nearly everyone, is read exactly as before.
+  const all = <T>(read: (companyId: string) => T[], order?: (a: T, b: T) => number): T[] => {
+    if (ids.length === 1) return read(home);
+    const rows = ids.flatMap(read);
+    return order ? rows.sort(order) : rows;
+  };
+  const byDue = (a: { dueOn: string; createdAt: string }, b: { dueOn: string; createdAt: string }) =>
+    a.dueOn.localeCompare(b.dueOn) || a.createdAt.localeCompare(b.createdAt);
 
   return {
     day,
-    blocks: layOut(listBlocks(db, companyId, day)),
-    overdue: listOverdue(db, companyId, day),
-    dueToday: listDueOn(db, companyId, day),
-    upcoming: listUpcoming(db, companyId, day),
-    cold: listCold(db, companyId, day, timezone, coldAfterDays),
+    blocks: layOut(all((id) => listBlocks(db, id, day))),
+    overdue: all((id) => listOverdue(db, id, day), byDue),
+    dueToday: all((id) => listDueOn(db, id, day), (a, b) => a.kind.localeCompare(b.kind) || a.createdAt.localeCompare(b.createdAt)),
+    upcoming: all((id) => listUpcoming(db, id, day), byDue),
+    cold: all((id) => listCold(db, id, day, companyTimezone(db, id), coldAfterDays), (a, b) => a.lastTouchedOn.localeCompare(b.lastTouchedOn)),
     coldAfterDays,
-    unpaid: listOverdueInvoices(db, companyId, day),
-    renewals: renewalsFor(db, companyId, day),
-    deadlines: dueSoon(db, companyId, day),
-    replies: listRecentReplies(
-      db,
-      companyId,
-      new Date(now.getTime() - REPLIES_FOR_DAYS * 24 * 60 * 60 * 1000).toISOString(),
+    unpaid: all((id) => listOverdueInvoices(db, id, day), (a, b) => a.dueOn.localeCompare(b.dueOn)),
+    renewals: all((id) => renewalsFor(db, id, day), (a, b) => a.nextOn.localeCompare(b.nextOn)),
+    deadlines: all((id) => dueSoon(db, id, day), (a, b) => a.dueOn.localeCompare(b.dueOn)),
+    replies: all(
+      (id) => listRecentReplies(db, id, new Date(now.getTime() - REPLIES_FOR_DAYS * 24 * 60 * 60 * 1000).toISOString()),
+      (a, b) => b.repliedAt.localeCompare(a.repliedAt),
     ),
   };
 }

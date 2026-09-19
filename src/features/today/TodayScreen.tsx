@@ -61,8 +61,11 @@ export function TodayScreen({
   /** Bumped by the A key, to put the cursor in the quick-add line. */
   quickNonce?: number;
 }) {
-  const { activeCompany } = useWorkspace();
+  const { activeCompany, home } = useWorkspace();
   const companyId = activeCompany?.id ?? null;
+  // Your own things - the journal, habits, your week, your level - come from
+  // home, whichever company is chosen; the work is both, merged by the main process.
+  const homeId = home?.id ?? companyId;
   const timezone = activeCompany?.timezone ?? "UTC";
 
   const fetchToday = useCallback(
@@ -145,6 +148,7 @@ export function TodayScreen({
             personal={activeCompany?.kind === "personal"}
             focusNonce={quickNonce}
             smart
+            homeId={homeId ?? undefined}
             onAdded={() => {
               reload();
               setKept((n) => n + 1);
@@ -312,10 +316,10 @@ export function TodayScreen({
 
         <div className="today__side anim-stagger">
           {/* The life half of the day first: it is the half no other screen puts in front of you. */}
-          <LevelStrip companyId={companyId} version={kept + ticked} watch={today} onOpen={() => onOpenLife()} />
-          <JournalCard key={`journal-${kept}`} companyId={companyId} onOpenJournal={onOpenJournal} />
-          <HabitsCard companyId={companyId} onManage={() => onOpenLife("habits")} onChanged={() => setTicked((n) => n + 1)} />
-          <YourWeekCard companyId={companyId} version={kept} onOpenPage={onOpenPage} onOpenLife={() => onOpenLife()} />
+          <LevelStrip companyId={homeId ?? companyId} version={kept + ticked} watch={today} onOpen={() => onOpenLife()} />
+          <JournalCard key={`journal-${kept}`} companyId={homeId ?? companyId} onOpenJournal={onOpenJournal} />
+          <HabitsCard companyId={homeId ?? companyId} onManage={() => onOpenLife("habits")} onChanged={() => setTicked((n) => n + 1)} />
+          <YourWeekCard companyId={homeId ?? companyId} version={kept} onOpenPage={onOpenPage} onOpenLife={() => onOpenLife()} />
 
           {today.replies.length > 0 && (
             <Card

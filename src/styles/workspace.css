@@ -258,9 +258,10 @@
   min-height: 0;
 }
 
+/* Drops from the company heading; the sidebar says where its foot is. */
 .switcher {
   position: absolute;
-  top: 68px;
+  top: var(--switcher-top, 68px);
   left: var(--space-3);
   right: var(--space-3);
   z-index: 20;

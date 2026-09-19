@@ -187,6 +187,8 @@ import {
   setCompanyCurrency,
   renameCompany,
   setCompanyAccent,
+  homeCompanyId,
+  withHome,
 } from "../repositories/companies";
 import { getSetting, resolveActiveCompanyId, setSetting } from "../repositories/settings";
 
@@ -199,11 +201,19 @@ import { getSetting, resolveActiveCompanyId, setSetting } from "../repositories/
 function workspace(): Workspace {
   const db = getDatabase();
   const companies = listCompanies(db);
-  const activeCompanyId = resolveActiveCompanyId(
+  let activeCompanyId = resolveActiveCompanyId(
     db,
     companies.map((c) => c.id),
   );
-  return { companies, activeCompanyId };
+  // A personal workspace is you, not a company: with a company to choose, the
+  // company screens show that instead of an empty list of your own contacts.
+  const active = companies.find((c) => c.id === activeCompanyId);
+  const firstCompany = companies.find((c) => c.kind !== "personal");
+  if (active?.kind === "personal" && firstCompany) {
+    activeCompanyId = firstCompany.id;
+    setSetting(db, "activeCompanyId", firstCompany.id);
+  }
+  return { companies, activeCompanyId, homeCompanyId: homeCompanyId(db) };
 }
 
 /**
@@ -604,19 +614,19 @@ function registerPersonalHandlers() {
 
   handle(CHANNELS.dayGet, (_event, companyId: unknown, day: unknown) => {
     if (!isDay(day)) throw new Error("That is not a day.");
-    return buildDay(getDatabase(), assertId(companyId, "company id"), day);
+    return buildDay(getDatabase(), withHome(getDatabase(), assertId(companyId, "company id")), day);
   });
 
   handle(CHANNELS.weekGet, (_event, companyId: unknown, day: unknown) => {
     if (!isDay(day)) throw new Error("That is not a day.");
-    return buildWeek(getDatabase(), assertId(companyId, "company id"), day);
+    return buildWeek(getDatabase(), withHome(getDatabase(), assertId(companyId, "company id")), day);
   });
 
   handle(CHANNELS.blocksCreate, (_event, companyId: unknown, raw: unknown) => {
     const id = assertId(companyId, "company id");
     const input = blockInput.parse(raw);
     createBlock(getDatabase(), id, input);
-    return buildDay(getDatabase(), id, input.day);
+    return buildDay(getDatabase(), withHome(getDatabase(), id), input.day);
   });
 
   handle(CHANNELS.blocksUpdate, (_event, id: unknown, raw: unknown) => {
@@ -624,7 +634,7 @@ function registerPersonalHandlers() {
     const before = blockOr(blockId);
     const input = blockInput.parse(raw);
     updateBlock(getDatabase(), blockId, input);
-    return buildDay(getDatabase(), before.companyId, input.day);
+    return buildDay(getDatabase(), withHome(getDatabase(), before.companyId), input.day);
   });
 
   handle(CHANNELS.blocksMove, (_event, id: unknown, where: unknown) => {
@@ -642,7 +652,7 @@ function registerPersonalHandlers() {
       startsAt: target.startsAt,
       minutes: Math.round(minutes),
     });
-    return buildDay(getDatabase(), before.companyId, target.day);
+    return buildDay(getDatabase(), withHome(getDatabase(), before.companyId), target.day);
   });
 
   handle(
@@ -650,7 +660,7 @@ function registerPersonalHandlers() {
     (_event, id: unknown, companyId: unknown, day: unknown) => {
       if (!isDay(day)) throw new Error("That is not a day.");
       deleteBlock(getDatabase(), assertId(id, "block id"));
-      return buildDay(getDatabase(), assertId(companyId, "company id"), day);
+      return buildDay(getDatabase(), withHome(getDatabase(), assertId(companyId, "company id")), day);
     },
   );
 
@@ -659,7 +669,7 @@ function registerPersonalHandlers() {
     (_event, seriesId: unknown, companyId: unknown, day: unknown) => {
       if (!isDay(day)) throw new Error("That is not a day.");
       endSeries(getDatabase(), assertId(seriesId, "series id"), day);
-      return buildDay(getDatabase(), assertId(companyId, "company id"), day);
+      return buildDay(getDatabase(), withHome(getDatabase(), assertId(companyId, "company id")), day);
     },
   );
 
@@ -670,7 +680,7 @@ function registerPersonalHandlers() {
       const value =
         outcome === "skipped" || outcome === "moved" ? (outcome as string) : null;
       setOutcome(getDatabase(), assertId(id, "block id"), value);
-      return buildDay(getDatabase(), assertId(companyId, "company id"), day);
+      return buildDay(getDatabase(), withHome(getDatabase(), assertId(companyId, "company id")), day);
     },
   );
 
@@ -697,7 +707,7 @@ function registerPersonalHandlers() {
         minutes: Math.round(minutes),
         kind: typeof change.kind === "string" && change.kind.length > 0 ? change.kind : null,
       });
-      return buildDay(getDatabase(), assertId(companyId, "company id"), day);
+      return buildDay(getDatabase(), withHome(getDatabase(), assertId(companyId, "company id")), day);
     },
   );
 
@@ -708,7 +718,7 @@ function registerPersonalHandlers() {
       getDatabase()
         .prepare(`UPDATE block_series SET is_habit = ? WHERE id = ?`)
         .run(isHabit === true ? 1 : 0, assertId(seriesId, "series id"));
-      return buildDay(getDatabase(), assertId(companyId, "company id"), day);
+      return buildDay(getDatabase(), withHome(getDatabase(), assertId(companyId, "company id")), day);
     },
   );
 
@@ -1136,7 +1146,7 @@ function registerTaskHandlers() {
   );
 
   handle(CHANNELS.todayGet, (_event, companyId: unknown) =>
-    buildToday(getDatabase(), assertId(companyId, "company id")),
+    buildToday(getDatabase(), withHome(getDatabase(), assertId(companyId, "company id"))),
   );
 
   handle(CHANNELS.companiesSetCurrency, (_event, companyId: unknown, raw: unknown) => {

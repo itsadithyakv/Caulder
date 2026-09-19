@@ -128,13 +128,17 @@ Dark follows MongoDB's own: a `#001e2b` page, `#112733` cards, light grey ink,
 and borders a step above the card rather than below it, so an edge still reads
 where a shadow would have vanished.
 
-## The personal face
+## The face: coffee
 
-A personal workspace is **coffee**: a cafe-au-lait ground with espresso ink in
-light, an espresso ground with cream ink in dark, and rounder radii throughout.
-It is flat like the rest of the app, with its lines drawn in the ink's brown.
-Nothing creates a personal workspace any more; the face is for the ones made
-before that.
+The app is **coffee**: a cafe-au-lait ground with espresso ink in light, an
+espresso ground with cream ink in dark, rounder radii throughout, and the
+coffee accent. It is flat, with its lines drawn in the ink's brown. It began
+as the face of a personal workspace and became the whole app's when the
+company switcher moved to the company screens: the founder liked it, and a
+day that is one person's should not change colour when a company is chosen.
+`data-face="personal"` and `data-accent="coffee"` are set on `<html>` in
+`index.html`, so the first paint is already coffee - the attribute keeps its
+old name. The neutral "work" face is gone.
 
 It replaced a warm *wash* over the work palette, and the reason is worth
 keeping. The wash was mixed from `--warn` — the amber that means "going cold" —
@@ -157,18 +161,17 @@ at 4.7:1 — that is where placeholders live.
 ## Accents
 
 Six ids — blue, teal, violet, amber, rose, coffee — each with a light and a dark
-pair, both contrast-checked by `src/styles/accents.test.ts`. Blue is MongoDB's
-blue (`#016bf8`) and teal is its forest green (`#00684a`), so the look the app
-is modelled on is one swatch away. Coffee is the
-personal face's own and is what a new personal workspace starts on; it clears
-7.0:1 on the work ground too, so a company can pick it.
+pair, both contrast-checked by `src/styles/accents.test.ts`. Coffee is the
+app's own. The rest are a company's colours.
 
 **A company stores the id, never a hex.** A free colour picker cannot promise
 4.5:1 against the canvas or under white button text, and a hex in the database
 is a colour literal living outside the token file.
 
-The active company's accent is stamped as `data-accent` on `<html>`, so the
-whole app re-tints and which workspace you are in is visible without reading.
+**A company's colour is its mark, not the window.** Its accent is stamped as
+`data-accent` on the mark in the sidebar's company heading and on its dot in
+the switcher, so which company the company screens show is visible without
+reading - and the rest of the app stays coffee.
 
 ## Scales
 
@@ -491,9 +494,12 @@ Not on **Add a company** — that is a form, not a welcome. It is decorative in
 both places, because the word *Caulder* or a heading naming the app always sits
 beside it, so it is `aria-hidden` and carries no alt text.
 
-**The app icon gets a tile the mark itself does not.** A black-on-transparent
-mark is invisible against a dark Windows taskbar, so the icon sits on a rounded
-square in `--surface`, which reads on a taskbar of either polarity.
+**The app icon is the mark on transparency, like every other copy of it** -
+no tile, no square behind it. The one place that costs something is a dark
+Windows taskbar, where the near-black cauldron is faint and the flame carries
+it. The tray and notifications follow Windows' own colours, so on dark they
+switch to the copy with the ink lifted, the same one the dark theme uses in
+the window.
 
 ## Type
 

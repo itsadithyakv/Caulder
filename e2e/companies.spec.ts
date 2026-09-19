@@ -63,9 +63,10 @@ test("first run creates a company and the sidebar shows it", async () => {
   await page.getByRole("button", { name: "Done, take me to Today" }).click();
   await expect(page.getByRole("heading", { name: "Today" })).toBeVisible();
 
-  // The chosen accent is applied to the document, which is what re-tints the
-  // whole app.
-  await expect(page.locator("html")).toHaveAttribute("data-accent", "violet");
+  // The chosen colour is the company's mark in the sidebar; the app itself
+  // wears coffee whichever company is chosen.
+  await expect(page.locator(".company__mark")).toHaveAttribute("data-accent", "violet");
+  await expect(page.locator("html")).toHaveAttribute("data-accent", "coffee");
 });
 
 test("the company and its accent survive a restart", async () => {
@@ -74,7 +75,7 @@ test("the company and its accent survive a restart", async () => {
   const page = await app.firstWindow();
 
   await expect(page.getByRole("button", { name: /Company: Unifloe/ })).toBeVisible();
-  await expect(page.locator("html")).toHaveAttribute("data-accent", "violet");
+  await expect(page.locator(".company__mark")).toHaveAttribute("data-accent", "violet");
 
   // Setup must not reappear now that a company exists.
   await expect(
@@ -99,14 +100,16 @@ test("a second company can be added and switched between", async () => {
   // Creating a company moves you into it; staying in the old one is never
   // what was meant.
   await expect(page.getByRole("button", { name: /Company: PaperKite/ })).toBeVisible();
-  await expect(page.locator("html")).toHaveAttribute("data-accent", "amber");
+  await expect(page.locator(".company__mark")).toHaveAttribute("data-accent", "amber");
 
   // Switch back.
   await page.getByRole("button", { name: /Company: PaperKite/ }).click();
   await page.getByRole("menuitemradio", { name: "Unifloe" }).click();
 
   await expect(page.getByRole("button", { name: /Company: Unifloe/ })).toBeVisible();
-  await expect(page.locator("html")).toHaveAttribute("data-accent", "violet");
+  await expect(page.locator(".company__mark")).toHaveAttribute("data-accent", "violet");
+  // Switching changed the company screens, not the app's colour.
+  await expect(page.locator("html")).toHaveAttribute("data-accent", "coffee");
 });
 
 test("a duplicate name is refused with a message that says what to do", async () => {
