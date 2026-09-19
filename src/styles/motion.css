@@ -9,8 +9,8 @@
  *   1. Motion explains, it does not decorate. A menu grows from the control
  *      that opened it. A completed task leaves sideways. If a movement does
  *      not say where something came from or went, it should not move.
- *   2. Nothing travels more than 10px. Neumorphic relief is shallow, and a
- *      long slide reads as a flatter, more Material design language.
+ *   2. Nothing travels more than 10px. The surfaces sit flat on the page, and
+ *      a long slide would give them a weight they do not have.
  *   3. Duration comes from the tokens, never a literal. The reduced-motion
  *      block in tokens.css zeroes them; a hardcoded 300ms would not hear it.
  *   4. Data does not animate as it settles. A container may fade in. Two
@@ -80,6 +80,29 @@
   50%      { opacity: 1;    transform: scale(1); }
 }
 
+/* The brain moves on a spring: arrives from a little below, goes a touch past
+ * where it lands and settles back. The same 8px as a screen arriving - the
+ * spring is in the timing, not the distance. */
+@keyframes spring-rise {
+  from { opacity: 0; transform: translateY(8px) scale(0.985); }
+  30%  { opacity: 1; }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Something small landing: a tick, a mark. Grows from nothing and wobbles. */
+@keyframes spring-pop {
+  from { transform: scale(0.3); opacity: 0; }
+  20%  { opacity: 1; }
+  to   { transform: none; opacity: 1; }
+}
+
+/* The progress ring drawing itself up to where it stands. The end point is
+ * the element's own --ring-to, so one keyframe serves every value. */
+@keyframes ring-draw {
+  from { stroke-dasharray: 0 999; }
+  to   { stroke-dasharray: var(--ring-to); }
+}
+
 /* Done. Leaves to the right, the direction the tick is on. */
 @keyframes leave {
   from { opacity: 1; transform: none; }
@@ -94,6 +117,9 @@
 .anim-mark  { animation: mark-in   var(--dur-slow) var(--ease) both; }
 .anim-pop   { animation: pop       var(--dur)      var(--ease) both; }
 .anim-leave { animation: leave     var(--dur)      var(--ease) both; }
+.anim-spring     { animation: spring-rise var(--dur-spring) var(--ease-spring) both; }
+.anim-spring-pop { animation: spring-pop  var(--dur-bounce) var(--ease-bounce) both; }
+.anim-ring       { animation: ring-draw   var(--dur-bounce) var(--ease-spring) both; }
 
 /* Sections arriving in order. Used where the ORDER carries meaning - Today's
  * sections are ranked by how much they need attention, and the board's columns

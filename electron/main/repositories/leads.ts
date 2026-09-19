@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Db } from "../db/connection";
-import { stopForClosedLead } from "../services/sequences";
+import { MAIN_DEAL } from "./main-deal";
+import { createDeal, findDeal, mainDeal, setDealStage, updateDeal } from "./deals";
 import {
   countsAsContact,
   LEAD_SORT_DEFAULT_DIRECTION,
@@ -12,6 +13,7 @@ import {
   type LeadListRow,
   type LeadQuery,
   type LeadSort,
+  type Relationship,
   type SortDirection,
   type TaskKind,
 } from "@shared/domain";
@@ -39,9 +41,29 @@ type LeadRow = {
   tags: string | null;
   notes: string | null;
   last_contacted_at: string | null;
+  loss_reason: string | null;
+  campaign_id: string | null;
+  do_not_contact: number;
+  relationship: Relationship;
   created_at: string;
   updated_at: string;
+  /** From the main deal, joined in by LEAD_COLUMNS. */
+  md_stage_id: string | null;
+  md_value: number | null;
+  md_loss_reason: string | null;
+  deal_count: number;
 };
+
+/**
+ * A contact's columns, with its main deal's stage, value and loss reason in
+ * place of the old ones on `leads`, which nothing reads any more. Needs
+ * `LEFT JOIN deals md ON md.id = <MAIN_DEAL>` beside it.
+ */
+const LEAD_COLUMNS = `l.*, md.stage_id AS md_stage_id, md.value AS md_value,
+  md.loss_reason AS md_loss_reason,
+  (SELECT COUNT(*) FROM deals dc WHERE dc.lead_id = l.id) AS deal_count`;
+
+const MAIN_JOIN = `LEFT JOIN deals md ON md.id = ${MAIN_DEAL("l.id")}`;
 
 type ActivityRow = {
   id: string;
@@ -56,7 +78,7 @@ function toLead(row: LeadRow): Lead {
   return {
     id: row.id,
     companyId: row.company_id,
-    stageId: row.stage_id,
+    stageId: row.md_stage_id,
     name: row.name,
     contactPerson: row.contact_person,
     email: row.email,
@@ -67,10 +89,15 @@ function toLead(row: LeadRow): Lead {
     pin: row.pin,
     source: row.source,
     website: row.website,
-    value: row.value,
+    value: row.md_value,
     tags: parseTags(row.tags),
     notes: row.notes,
     lastContactedAt: row.last_contacted_at,
+    lossReason: row.md_loss_reason,
+    campaignId: row.campaign_id,
+    doNotContact: row.do_not_contact === 1,
+    relationship: row.relationship,
+    dealCount: row.deal_count,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -119,8 +146,8 @@ const ORDER_BY: Record<LeadSort, Record<SortDirection, string>> = {
     desc: "l.name COLLATE NOCASE DESC",
   },
   value: {
-    desc: "l.value IS NULL, l.value DESC, l.name COLLATE NOCASE ASC",
-    asc: "l.value IS NULL, l.value ASC, l.name COLLATE NOCASE ASC",
+    desc: "md.value IS NULL, md.value DESC, l.name COLLATE NOCASE ASC",
+    asc: "md.value IS NULL, md.value ASC, l.name COLLATE NOCASE ASC",
   },
   stage: {
     asc: "s.position IS NULL, s.position ASC, l.name COLLATE NOCASE ASC",
@@ -168,10 +195,17 @@ export function listLeads(db: Db, query: LeadQuery): LeadListRow[] {
     params["like"] = `%${escapeLike(search)}%`;
   }
 
+  if (query.relationship) {
+    where.push("l.relationship = @relationship");
+    params["relationship"] = query.relationship;
+  }
+
+  // By the main deal's stage: the one the list shows. "No stage" is also a
+  // contact with no deal at all.
   if (query.stageId === null) {
-    where.push("l.stage_id IS NULL");
+    where.push("md.stage_id IS NULL");
   } else if (typeof query.stageId === "string") {
-    where.push("l.stage_id = @stageId");
+    where.push("md.stage_id = @stageId");
     params["stageId"] = query.stageId;
   }
 
@@ -182,9 +216,10 @@ export function listLeads(db: Db, query: LeadQuery): LeadListRow[] {
 
   const rows = db
     .prepare(
-      `SELECT l.*, ${NEXT_TASK}
+      `SELECT ${LEAD_COLUMNS}, ${NEXT_TASK}
        FROM leads l
-       LEFT JOIN pipeline_stages s ON s.id = l.stage_id
+       ${MAIN_JOIN}
+       LEFT JOIN pipeline_stages s ON s.id = md.stage_id
        WHERE ${where.join(" AND ")}
        ORDER BY ${order}`,
     )
@@ -213,36 +248,46 @@ function escapeLike(value: string): string {
 }
 
 export function findLead(db: Db, id: string): Lead | null {
-  const row = db.prepare(`SELECT * FROM leads WHERE id = ?`).get(id) as
+  const row = db.prepare(`SELECT ${LEAD_COLUMNS} FROM leads l ${MAIN_JOIN} WHERE l.id = ?`).get(id) as
     | LeadRow
     | undefined;
   return row ? toLead(row) : null;
 }
 
+/** The relationships a contact is sold to as. Only these start with a deal. */
+const SELLING = new Set<Relationship>(["prospect", "customer"]);
+
 /**
  * Creates a lead and opens its timeline in one transaction. A lead with no
  * history is missing the answer to "where did this come from".
  *
- * With no stage given, the lead lands in the company's first stage, because a
- * lead outside the funnel is invisible on the board.
+ * A contact you sell to - a prospect or a customer - starts with one deal,
+ * named after it, in the stage given or else the company's first: a deal
+ * outside the funnel is invisible on the board.
  */
 export function createLead(db: Db, companyId: string, input: LeadInput): Lead {
   const now = new Date().toISOString();
   const id = randomUUID();
-  const stageId = input.stageId ?? firstStageId(db, companyId);
 
   const run = db.transaction(() => {
     db.prepare(
       `INSERT INTO leads (
          id, company_id, stage_id, name, contact_person, email, phone, alt_phone,
          location, city, pin, source, website, value, tags, notes,
-         last_contacted_at, created_at, updated_at
+         campaign_id, do_not_contact, relationship, last_contacted_at, created_at, updated_at
        ) VALUES (
-         @id, @companyId, @stageId, @name, @contactPerson, @email, @phone, @altPhone,
-         @location, @city, @pin, @source, @website, @value, '[]', @notes,
-         NULL, @now, @now
+         @id, @companyId, NULL, @name, @contactPerson, @email, @phone, @altPhone,
+         @location, @city, @pin, @source, @website, NULL, '[]', @notes,
+         @campaignId, @doNotContact, @relationship, NULL, @now, @now
        )`,
-    ).run({ ...input, id, companyId, stageId, now });
+    ).run({
+      ...input,
+      id,
+      companyId,
+      now,
+      // SQLite has no boolean, and better-sqlite3 refuses to bind one.
+      doNotContact: input.doNotContact ? 1 : 0,
+    });
 
     writeActivity(db, {
       companyId,
@@ -251,6 +296,10 @@ export function createLead(db: Db, companyId: string, input: LeadInput): Lead {
       body: null,
       occurredAt: now,
     });
+
+    if (SELLING.has(input.relationship)) {
+      createDeal(db, id, { title: input.name, stageId: input.stageId, value: input.value }, now);
+    }
   });
 
   run();
@@ -258,15 +307,6 @@ export function createLead(db: Db, companyId: string, input: LeadInput): Lead {
   const created = findLead(db, id);
   if (!created) throw new Error("Lead vanished immediately after being created.");
   return created;
-}
-
-function firstStageId(db: Db, companyId: string): string | null {
-  const row = db
-    .prepare(
-      `SELECT id FROM pipeline_stages WHERE company_id = ? ORDER BY position LIMIT 1`,
-    )
-    .get(companyId) as { id: string } | undefined;
-  return row?.id ?? null;
 }
 
 /**
@@ -282,28 +322,37 @@ export function updateLead(db: Db, id: string, input: LeadInput): Lead {
   if (!before) throw new Error("That lead no longer exists.");
 
   const now = new Date().toISOString();
-  const changed = changedFields(before, input);
+  // A contact with several deals has them edited as deals: the form's stage
+  // and value say nothing about which one.
+  const single = before.dealCount <= 1;
+  const changed = changedFields(before, input).filter(
+    (field) => single || (field !== "stage" && field !== "value"),
+  );
 
   const run = db.transaction(() => {
     db.prepare(
       `UPDATE leads SET
-         stage_id = @stageId, name = @name, contact_person = @contactPerson,
+         name = @name, contact_person = @contactPerson,
          email = @email, phone = @phone, alt_phone = @altPhone,
          location = @location, city = @city, pin = @pin, source = @source,
-         website = @website, value = @value, notes = @notes, updated_at = @now
+         website = @website, notes = @notes,
+         campaign_id = @campaignId, do_not_contact = @doNotContact,
+         relationship = @relationship, updated_at = @now
        WHERE id = @id`,
-    ).run({ ...input, id, now });
+    ).run({ ...input, id, now, doNotContact: input.doNotContact ? 1 : 0 });
 
-    if (input.stageId !== before.stageId) {
-      writeActivity(db, {
-        companyId: before.companyId,
-        leadId: id,
-        kind: "stage_change",
-        body: stageName(db, input.stageId),
-        occurredAt: now,
-      });
+    if (single) {
+      const deal = mainDeal(db, id);
+      // A deal named after the contact follows its name.
+      const title = deal && deal.title !== before.name ? deal.title : input.name;
+      if (deal && (deal.stageId !== input.stageId || deal.value !== input.value || deal.title !== title)) {
+        updateDeal(db, deal.id, { title, stageId: input.stageId, value: input.value });
+      } else if (!deal && SELLING.has(input.relationship) && (input.stageId !== null || input.value !== null)) {
+        createDeal(db, id, { title, stageId: input.stageId, value: input.value }, now);
+      }
     }
 
+    // The move itself is on the history already, written by the deal.
     const other = changed.filter((field) => field !== "stage");
     if (other.length > 0) {
       writeActivity(db, {
@@ -337,6 +386,9 @@ const TRACKED: { key: keyof LeadInput; label: string }[] = [
   { key: "value", label: "value" },
   { key: "notes", label: "notes" },
   { key: "stageId", label: "stage" },
+  { key: "campaignId", label: "campaign" },
+  { key: "doNotContact", label: "do not contact" },
+  { key: "relationship", label: "relationship" },
 ];
 
 function changedFields(before: Lead, input: LeadInput): string[] {
@@ -346,57 +398,31 @@ function changedFields(before: Lead, input: LeadInput): string[] {
   }).map(({ label }) => label);
 }
 
-function stageName(db: Db, stageId: string | null): string | null {
-  if (!stageId) return "No stage";
-  const row = db.prepare(`SELECT name FROM pipeline_stages WHERE id = ?`).get(stageId) as
-    | { name: string }
-    | undefined;
-  return row?.name ?? null;
-}
 
 /**
- * Moving a lead on the board. Kept separate from updateLead so the pipeline
- * does not have to send a whole record to change one field.
+ * Moving a contact on to a stage: its main deal moves, or, with no deal yet,
+ * one is started. Used by a selection moved from the contacts list and by the
+ * sample; the board moves deals themselves.
  */
-export function setLeadStage(db: Db, id: string, stageId: string | null): Lead {
+export function setLeadStage(
+  db: Db,
+  id: string,
+  stageId: string | null,
+  /** False when the stage is being written rather than moved: the sample seed. */
+  options: { followUp?: boolean } = {},
+): Lead {
   const before = findLead(db, id);
   if (!before) throw new Error("That lead no longer exists.");
-  if (before.stageId === stageId) return before;
-
-  const now = new Date().toISOString();
+  if (before.stageId === stageId && before.dealCount > 0) return before;
 
   db.transaction(() => {
-    db.prepare(`UPDATE leads SET stage_id = ?, updated_at = ? WHERE id = ?`).run(
-      stageId,
-      now,
-      id,
-    );
-    writeActivity(db, {
-      companyId: before.companyId,
-      leadId: id,
-      kind: "stage_change",
-      body: stageName(db, stageId),
-      occurredAt: now,
-    });
-
-    // Reaching won or lost ends any cadence the lead is in. Nudging somebody
-    // who has already bought, or already said no, is worse than sending
-    // nothing. Done here so it holds however the move was triggered.
-    if (stageId !== null && isClosedStage(db, stageId)) {
-      stopForClosedLead(db, id);
-    }
+    const deal = mainDeal(db, id) ?? createDeal(db, id, { title: before.name, stageId: null, value: null });
+    if (findDeal(db, deal.id)?.stageId !== stageId) setDealStage(db, deal.id, stageId, options);
   })();
 
   const updated = findLead(db, id);
   if (!updated) throw new Error("That lead no longer exists.");
   return updated;
-}
-
-function isClosedStage(db: Db, stageId: string): boolean {
-  const row = db.prepare(`SELECT kind FROM pipeline_stages WHERE id = ?`).get(stageId) as
-    | { kind: string }
-    | undefined;
-  return row?.kind === "won" || row?.kind === "lost";
 }
 
 /**
@@ -521,12 +547,22 @@ export function writeActivity(
     kind: ActivityKind;
     body: string | null;
     occurredAt: string;
+    /**
+     * Structured detail the timeline does not show but something else needs.
+     *
+     * A stage change puts the stage ID here. `body` carries the NAME, because
+     * that is what the history has to read like years later - but a name is
+     * not an identity, and the forecast reconstructs which stages a lead
+     * passed through. Matching on a name that has since been edited would
+     * quietly attribute a lead's history to the wrong part of the funnel.
+     */
+    meta?: Record<string, unknown>;
   },
 ): string {
   const id = randomUUID();
   db.prepare(
     `INSERT INTO activities (id, company_id, lead_id, kind, body, occurred_at, created_at, meta)
-     VALUES (?, ?, ?, ?, ?, ?, ?, NULL)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     id,
     entry.companyId,
@@ -535,6 +571,7 @@ export function writeActivity(
     entry.body,
     entry.occurredAt,
     new Date().toISOString(),
+    entry.meta ? JSON.stringify(entry.meta) : null,
   );
   return id;
 }

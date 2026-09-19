@@ -4,6 +4,7 @@ import { TASK_KIND_LABEL, type Task, type TaskInput } from "@shared/domain";
 import { describeDue, shiftDay, today as todayIn } from "@shared/dates";
 import { useWorkspace } from "@/lib/workspace";
 import { TaskForm } from "@/features/today/TaskForm";
+import { messageOf } from "@/lib/errors";
 
 /**
  * The follow-ups on one lead.
@@ -37,7 +38,7 @@ export function LeadTasks({
       .forLead(leadId)
       .then(setTasks)
       .catch((cause: unknown) =>
-        setError(cause instanceof Error ? cause.message : String(cause)),
+        setError(messageOf(cause)),
       );
   }, [leadId]);
 
@@ -51,7 +52,7 @@ export function LeadTasks({
         load();
         onTimelineChanged();
       } catch (cause) {
-        setError(cause instanceof Error ? cause.message : String(cause));
+        setError(messageOf(cause));
       } finally {
         setBusy(false);
       }
@@ -104,7 +105,7 @@ export function LeadTasks({
 
       {open.length === 0 && !adding && (
         <p className="card__hint">
-          Nothing planned. A lead with no next step is how one goes quiet.
+          Nothing planned. A contact with no next step is how one goes quiet.
         </p>
       )}
 

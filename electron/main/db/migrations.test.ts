@@ -155,6 +155,8 @@ function insertCompany(db: Database.Database, id: string, name: string) {
 }
 
 describe("migration 6 rebuilds two tables, and must not lose a row doing it", () => {
+  // Checked at 17: migration 18 drops the email tables, so the rebuild is
+  // judged on the last version that still has them.
   /**
    * The one migration so far that rewrites existing tables rather than adding
    * new ones. `status` and `kind` are CHECK constraints and SQLite cannot
@@ -165,7 +167,8 @@ describe("migration 6 rebuilds two tables, and must not lose a row doing it", ()
    * touches, and reads all of it back afterwards.
    */
   function upTo(db: Database.Database, version: number) {
-    for (const migration of MIGRATIONS.filter((m) => m.version <= version)) {
+    const from = currentVersion(db);
+    for (const migration of MIGRATIONS.filter((m) => m.version > from && m.version <= version)) {
       db.exec(migration.sql);
       db.pragma(`user_version = ${migration.version}`);
     }
@@ -208,7 +211,7 @@ describe("migration 6 rebuilds two tables, and must not lose a row doing it", ()
     upTo(db, 5);
     seedV5(db);
 
-    migrate(db);
+    upTo(db, 17);
 
     const row = db.prepare(`SELECT * FROM email_messages WHERE id = 'm1'`).get() as Record<
       string,
@@ -240,7 +243,7 @@ describe("migration 6 rebuilds two tables, and must not lose a row doing it", ()
     upTo(db, 5);
     seedV5(db);
 
-    migrate(db);
+    upTo(db, 17);
 
     const row = db.prepare(`SELECT * FROM activities WHERE id = 'a1'`).get() as Record<
       string,
@@ -253,7 +256,7 @@ describe("migration 6 rebuilds two tables, and must not lose a row doing it", ()
   it("accepts the new status and kind afterwards, and still refuses nonsense", () => {
     const db = new Database(":memory:");
     db.pragma("foreign_keys = ON");
-    migrate(db);
+    upTo(db, 17);
     seedV5Company(db);
 
     expect(() =>
@@ -277,7 +280,7 @@ describe("migration 6 rebuilds two tables, and must not lose a row doing it", ()
 
   it("keeps the indexes the rebuilt tables depend on", () => {
     const db = new Database(":memory:");
-    migrate(db);
+    upTo(db, 17);
 
     const names = (
       db.prepare(`SELECT name FROM sqlite_master WHERE type = 'index'`).all() as {
@@ -305,4 +308,14 @@ describe("migration 6 rebuilds two tables, and must not lose a row doing it", ()
        VALUES ('l1', 'c1', 'Oakridge', ?, ?)`,
     ).run(now, now);
   }
+});
+
+describe("a database from a newer build", () => {
+  it("is refused rather than written to", () => {
+    const db = new Database(":memory:");
+    db.pragma(`user_version = ${LATEST_VERSION + 1}`);
+    expect(() => migrate(db)).toThrow("newer version of Caulder");
+    expect(currentVersion(db)).toBe(LATEST_VERSION + 1);
+    db.close();
+  });
 });

@@ -6,6 +6,7 @@ import {
   type ColumnMapping,
   type TemplateColumn,
 } from "@shared/import";
+import { Select } from "@/components/Select";
 
 /**
  * Says which spreadsheet column means what.
@@ -67,13 +68,20 @@ export function MappingStep({
                       .join(" · ") || <span className="leadrow__missing">Empty</span>}
                   </td>
                   <td>
-                    <select
-                      className="select"
+                    <Select
+                      compact
                       aria-label={`Import ${header || `column ${index + 1}`} as`}
                       value={current ?? ""}
                       disabled={busy}
-                      onChange={(event) => {
-                        const next = event.target.value as TemplateColumn | "";
+                      options={[
+                        { value: "", label: "Ignore this column" },
+                        ...TEMPLATE_COLUMNS.map((column) => ({
+                          value: column as string,
+                          label: column as string,
+                        })),
+                      ]}
+                      onChange={(value) => {
+                        const next = value as TemplateColumn | "";
                         const updated: ColumnMapping = { ...mapping };
                         // A field can only come from one column, so choosing it
                         // here takes it from wherever it was.
@@ -85,14 +93,7 @@ export function MappingStep({
                         updated[index] = next === "" ? null : next;
                         onChange(updated);
                       }}
-                    >
-                      <option value="">Ignore this column</option>
-                      {TEMPLATE_COLUMNS.map((column) => (
-                        <option key={column} value={column}>
-                          {column}
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </td>
                 </tr>
               );

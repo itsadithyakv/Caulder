@@ -14,6 +14,7 @@ import { useWorkspace } from "@/lib/workspace";
 import { MappingStep } from "./MappingStep";
 import { PreviewStep } from "./PreviewStep";
 import { relativeDay } from "@/lib/format";
+import { messageOf } from "@/lib/errors";
 
 /** Shows the shape without needing a sentence to describe it. */
 const PASTE_EXAMPLE = [
@@ -58,7 +59,7 @@ export function ImportScreen({ onGoToLeads }: { onGoToLeads: () => void }) {
   useEffect(() => setStep({ kind: "start" }), [companyId]);
 
   function fail(cause: unknown) {
-    setError(cause instanceof Error ? cause.message : String(cause));
+    setError(messageOf(cause));
   }
 
   async function downloadTemplate() {
@@ -124,11 +125,15 @@ export function ImportScreen({ onGoToLeads }: { onGoToLeads: () => void }) {
     }
   }
 
-  async function commit(jobId: string, resolutions: Record<number, Resolution>) {
+  async function commit(
+    jobId: string,
+    resolutions: Record<number, Resolution>,
+    campaignId: string | null,
+  ) {
     setError(null);
     setBusy(true);
     try {
-      const summary = await window.caulder.imports.commit(jobId, resolutions);
+      const summary = await window.caulder.imports.commit(jobId, resolutions, campaignId);
       setStep({ kind: "done", summary });
       loadBatches();
       // The sidebar shows a lead count, which this has just changed.
@@ -201,9 +206,8 @@ export function ImportScreen({ onGoToLeads }: { onGoToLeads: () => void }) {
           <section className="card">
             <h2 className="card__title">Or paste a list</h2>
             <p className="card__hint">
-              A markdown table from an AI, or rows copied straight out of Excel or
-              Google Sheets. Paste the whole reply if it is easier &mdash; anything
-              around the table is ignored.
+              A table from an AI, or rows copied out of a spreadsheet. Anything around
+              the table is ignored.
             </p>
 
             <textarea
@@ -211,7 +215,7 @@ export function ImportScreen({ onGoToLeads }: { onGoToLeads: () => void }) {
               value={pasted}
               onChange={(event) => setPasted(event.target.value)}
               placeholder={PASTE_EXAMPLE}
-              aria-label="Paste a list of leads"
+              aria-label="Paste a list of contacts"
               spellCheck={false}
               disabled={busy}
             />
@@ -233,8 +237,8 @@ export function ImportScreen({ onGoToLeads }: { onGoToLeads: () => void }) {
             </div>
 
             <p className="card__hint">
-              The prompt names the exact columns Caulder expects, so what comes back
-              needs no rearranging. You still see every row before anything is saved.
+              The prompt names the exact columns Caulder expects, so the reply maps
+              itself.
             </p>
           </section>
         </>
@@ -258,7 +262,9 @@ export function ImportScreen({ onGoToLeads }: { onGoToLeads: () => void }) {
           onBack={() =>
             setStep({ kind: "mapping", file: step.file, mapping: step.preview.mapping })
           }
-          onCommit={(resolutions) => void commit(step.preview.jobId, resolutions)}
+          onCommit={(resolutions, campaignId) =>
+            void commit(step.preview.jobId, resolutions, campaignId)
+          }
         />
       )}
 
@@ -272,7 +278,7 @@ export function ImportScreen({ onGoToLeads }: { onGoToLeads: () => void }) {
           </p>
           <div className="import__start">
             <button type="button" className="btn btn--primary" onClick={onGoToLeads}>
-              See the leads
+              See the contacts
             </button>
             <button
               type="button"
@@ -291,7 +297,7 @@ export function ImportScreen({ onGoToLeads }: { onGoToLeads: () => void }) {
         <section className="card">
           <h2 className="card__title">Earlier imports</h2>
           <p className="card__hint">
-            Undo removes the leads an import added and puts back anything it
+            Undo removes the contacts an import added and puts back anything it
             merged over.
           </p>
           <ul className="batches">

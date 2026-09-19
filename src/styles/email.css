@@ -1,91 +1,11 @@
 /* ---------------------------------------------------------------------------
- * Email: the queue, templates, sequences and the bridge.
- *
- * Layout only. Colour, radius, spacing and type come from tokens.
+ * Email: the template editor on Settings, and the messages on a contact.
+ * Layout only.
  * ------------------------------------------------------------------------- */
-
-.email {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-/* The tab panel wrapper. It exists to be keyed and animated, so it must not
- * also become a layout box: it inherits the column and the gap it replaced. */
-.email__panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.ingest {
-  margin-top: var(--space-3);
-}
-
-/* ---- Messages ---------------------------------------------------------- */
-
-.messages {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin: var(--space-4) 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.messagerow {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-sm);
-  background: var(--surface-sunken);
-  box-shadow: var(--shadow-inset-sm);
-}
-
-.messagerow__body {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.messagerow__subject {
-  color: var(--ink);
-  font-weight: 700;
-  overflow-wrap: anywhere;
-}
-
-.messagerow__meta {
-  color: var(--ink-3);
-  font-size: var(--text-sm);
-  overflow-wrap: anywhere;
-}
-
-.messagerow__failure {
-  color: var(--danger);
-  font-size: var(--text-sm);
-}
-
-.messagerow__side {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 3px;
-  flex: none;
-}
-
-.messagerow__when {
-  color: var(--ink-3);
-  font-size: var(--text-xs);
-  white-space: nowrap;
-}
 
 /* ---- Templates --------------------------------------------------------- */
 
-.templates,
-.sequences {
+.templates {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -101,8 +21,8 @@
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-sm);
-  background: var(--surface-sunken);
-  box-shadow: var(--shadow-inset-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
 }
 
 .templaterow__body {
@@ -129,44 +49,62 @@
   font-family: inherit;
 }
 
-/* ---- Sequences --------------------------------------------------------- */
+/* ---- On a contact ------------------------------------------------------- */
 
-.sequence {
+.mailhead {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  border-radius: var(--radius-sm);
-  background: var(--surface-sunken);
-  box-shadow: var(--shadow-inset-sm);
+  align-items: center;
+  gap: var(--space-2);
 }
 
-.steps {
+.mailwhen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.mailwhen__at {
+  width: auto;
+  min-width: 220px;
+}
+
+.maillist {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
-  margin: 0;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
   padding: 0;
   list-style: none;
 }
 
-.step {
-  display: grid;
-  grid-template-columns: 140px minmax(0, 1fr) auto;
-  gap: var(--space-3);
+.mailrow {
+  display: flex;
   align-items: center;
+  gap: var(--space-3);
   padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-xs);
   background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
 }
 
-.step__when {
+.mailrow__main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mailrow__subject {
+  overflow: hidden;
+  color: var(--ink);
+  font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.mailrow__meta {
   color: var(--ink-3);
   font-size: var(--text-sm);
-  white-space: nowrap;
-}
-
-.step__template {
-  color: var(--ink);
-  overflow-wrap: anywhere;
 }

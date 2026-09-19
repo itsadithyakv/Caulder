@@ -3,6 +3,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Database, { type Database as DatabaseType } from "better-sqlite3";
+import { pick } from "./choose";
+import { passSetup } from "./nav";
 
 /**
  * Tasks and the Today screen through the real window.
@@ -28,9 +30,10 @@ async function ensureCompany(page: Page) {
   await page.waitForSelector(".firstrun, .sidebar");
   if (await page.locator(".firstrun").isVisible()) {
     await page.getByLabel("Company name").fill("Unifloe");
-    await page.getByLabel("Start with sample data").uncheck();
     await page.getByRole("button", { name: "Create company" }).click();
+    await passSetup(page);
     await expect(page.getByRole("button", { name: /Company: Unifloe/ })).toBeVisible();
+
   }
 }
 
@@ -50,10 +53,10 @@ function edit(run: (db: DatabaseType) => void) {
 }
 
 async function addLead(page: Page, name: string) {
-  await page.getByRole("button", { name: "Leads" }).click();
-  await page.getByRole("button", { name: /^Add a? ?lead$/ }).first().click();
+  await page.getByRole("button", { name: "Contacts", exact: true }).click();
+  await page.getByRole("button", { name: /^Add a? ?contact$/ }).first().click();
   await page.getByLabel("Name").fill(name);
-  await page.getByRole("button", { name: "Add lead" }).click();
+  await page.getByRole("button", { name: "Add contact" }).click();
   await expect(page.getByRole("heading", { name })).toBeVisible();
 }
 
@@ -88,7 +91,7 @@ test("a task set on a lead appears on Today", async () => {
 
   await page.getByRole("button", { name: "Add a task" }).click();
   await page.getByLabel("What needs doing").fill("Call the principal");
-  await page.getByLabel("Kind").selectOption("call");
+  await pick(page, "Kind", "Call");
   await page.getByRole("button", { name: "Add task" }).click();
 
   await expect(page.getByText("Call the principal")).toBeVisible();
@@ -139,7 +142,7 @@ test("completing a task records it on the lead's history", async () => {
   const page = await app.firstWindow();
   await ensureCompany(page);
 
-  await page.getByRole("button", { name: "Leads" }).click();
+  await page.getByRole("button", { name: "Contacts", exact: true }).click();
   await page.locator(".leadrow__name", { hasText: /Bengaluru Public School/ }).click();
 
   await page.getByRole("button", { name: 'Mark "Call the principal" done' }).click();
@@ -168,12 +171,20 @@ test("a lead with nothing planned turns up under Going quiet", async () => {
   await ensureCompany(page);
 
   await page.getByRole("button", { name: "Today" }).click();
-  await expect(page.getByText("Going quiet")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Going quiet" })).toBeVisible();
   await expect(page.getByRole("button", { name: /Bengaluru Public School/ })).toBeVisible();
+
+  // A shortcut used earlier is not replayed. N opens the new-contact form
+  // once; it must not open again on the next visit, which here is Today
+  // sending the user to one contact.
+  await page.keyboard.press("n");
+  await expect(page.getByLabel("Contact person")).toBeVisible();
+  await page.getByRole("button", { name: "Today" }).click();
 
   // Clicking through opens that lead.
   await page.getByRole("button", { name: /Bengaluru Public School/ }).click();
   await expect(page.getByRole("heading", { name: "Bengaluru Public School" })).toBeVisible();
+  await expect(page.getByLabel("Contact person")).toHaveCount(0);
 });
 
 test("planning a next step takes the lead out of Going quiet", async () => {
@@ -181,7 +192,7 @@ test("planning a next step takes the lead out of Going quiet", async () => {
   const page = await app.firstWindow();
   await ensureCompany(page);
 
-  await expect(page.getByText("Going quiet")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Going quiet" })).toBeVisible();
 
   await page.getByRole("button", { name: /Bengaluru Public School/ }).click();
   await page.getByRole("button", { name: "Add a task" }).click();
@@ -192,7 +203,7 @@ test("planning a next step takes the lead out of Going quiet", async () => {
   await page.getByRole("button", { name: "Today" }).click();
   // Nothing is falling through once a next step exists, so it drops off the
   // list even though the lead is still quiet.
-  await expect(page.getByText("Going quiet")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Going quiet" })).toHaveCount(0);
 });
 
 test("everything survives a restart", async () => {
@@ -200,7 +211,7 @@ test("everything survives a restart", async () => {
   const page = await app.firstWindow();
   await ensureCompany(page);
 
-  await page.getByRole("button", { name: "Leads" }).click();
+  await page.getByRole("button", { name: "Contacts", exact: true }).click();
   await page.locator(".leadrow__name", { hasText: /Bengaluru Public School/ }).click();
   await expect(page.getByText("Send the proposal")).toBeVisible();
 });

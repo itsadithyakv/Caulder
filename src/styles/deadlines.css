@@ -1,0 +1,311 @@
+/* Deadlines and documents: the filing calendar in the brain's Tax section,
+ * the Documents section, and what falls due on the Calendar.
+ *
+ * One row shape for all three lists - what it is on the left, when on the
+ * right, then a badge and the buttons - so a filing, a contract's notice day
+ * and an expiring certificate read the same wherever they turn up. */
+
+.deadlines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.duelist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.duerow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--row-h);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+/* Inside an obligation the row is the first line, and the history hangs under it. */
+.obligation .duerow {
+  border: none;
+  background: transparent;
+  padding: 0;
+}
+
+.duerow__main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+}
+
+button.duerow__main {
+  cursor: pointer;
+}
+
+button.duerow__main:hover .duerow__title {
+  color: var(--accent-strong);
+}
+
+.duerow__title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.duerow__what {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+.duerow__when {
+  flex: none;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.duerow__actions {
+  display: flex;
+  flex: none;
+  gap: var(--space-1);
+}
+
+.obligation {
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.obligation--paused .duerow__title,
+.obligation--paused .duerow__when {
+  color: var(--ink-3);
+}
+
+.obligation__history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) 0 0;
+  border-top: 1px solid var(--soft-line);
+  list-style: none;
+}
+
+.obligation__done {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.obligation__active {
+  align-self: end;
+}
+
+/* ---- Presets -------------------------------------------------------------- */
+
+.presets {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-top: var(--space-3);
+  padding: var(--space-4);
+  background: var(--surface-sunken);
+  border-radius: var(--radius-md);
+}
+
+.presets__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.presets__group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.presets__title {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.presets__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-2);
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.preset {
+  height: 100%;
+  padding: var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.preset:has(.tickbox:checked) {
+  border-color: var(--accent-ring);
+}
+
+.preset--added {
+  cursor: default;
+  opacity: 0.75;
+}
+
+.preset__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.preset__title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.preset__rule {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.preset__note {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+/* ---- The rule editor ------------------------------------------------------ */
+
+.rule__num {
+  width: 88px;
+}
+
+.rule__day {
+  width: 180px;
+}
+
+.rule__dates {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rule__date {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.rule__date .picker {
+  width: 180px;
+}
+
+/* ---- Documents ------------------------------------------------------------- */
+
+.docs__filter {
+  margin-top: var(--space-3);
+}
+
+.sectionview__pagesTitle {
+  margin: var(--space-2) 0 0;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+/* ---- On the Calendar ------------------------------------------------------- */
+
+.daydue {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.duechip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 100%;
+  padding: 3px var(--space-3);
+  background: var(--warn-soft);
+  color: var(--ink);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+}
+
+.duechip__title {
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.duechip__what {
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.duechip--done {
+  background: var(--ok-soft);
+}
+
+.duechip--done .duechip__title {
+  text-decoration: line-through;
+  text-decoration-color: var(--ink-3);
+}
+
+.duechip--late {
+  background: var(--danger-soft);
+}
+
+.duechip .btn {
+  margin: -2px calc(var(--space-2) * -1) -2px 0;
+}
+
+@media (max-width: 720px) {
+  .duerow {
+    flex-wrap: wrap;
+  }
+
+  .duerow__main {
+    flex-basis: 100%;
+  }
+}

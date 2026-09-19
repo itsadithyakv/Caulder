@@ -2,6 +2,7 @@ import { test, expect, _electron as electron, type ElectronApplication, type Pag
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { passSetup } from "./nav";
 
 /**
  * The pipeline board and the stage editor, through the real window.
@@ -27,17 +28,18 @@ async function ensureCompany(page: Page) {
   await page.waitForSelector(".firstrun, .sidebar");
   if (await page.locator(".firstrun").isVisible()) {
     await page.getByLabel("Company name").fill("Unifloe");
-    await page.getByLabel("Start with sample data").uncheck();
     await page.getByRole("button", { name: "Create company" }).click();
+    await passSetup(page);
     await expect(page.getByRole("button", { name: /Company: Unifloe/ })).toBeVisible();
+
   }
 }
 
 async function addLead(page: Page, name: string) {
-  await page.getByRole("button", { name: "Leads" }).click();
-  await page.getByRole("button", { name: /^Add a? ?lead$/ }).first().click();
+  await page.getByRole("button", { name: "Contacts", exact: true }).click();
+  await page.getByRole("button", { name: /^Add a? ?contact$/ }).first().click();
   await page.getByLabel("Name").fill(name);
-  await page.getByRole("button", { name: "Add lead" }).click();
+  await page.getByRole("button", { name: "Add contact" }).click();
   await expect(page.getByRole("heading", { name })).toBeVisible();
 }
 
@@ -71,7 +73,7 @@ test("an empty board still shows the funnel, with a line of guidance", async () 
   const page = await app.firstWindow();
   await ensureCompany(page);
 
-  await page.getByRole("button", { name: "Pipeline" }).click();
+  await page.getByRole("button", { name: "Deals" }).click();
 
   // The funnel is drawn even with nothing in it. A card saying the board is
   // empty told you less than the empty board itself does, and left the screen
@@ -89,7 +91,7 @@ test("a new lead appears in the first column", async () => {
   await ensureCompany(page);
   await addLead(page, "Bengaluru Public School");
 
-  await page.getByRole("button", { name: "Pipeline" }).click();
+  await page.getByRole("button", { name: "Deals" }).click();
 
   await expect(page.locator(".column")).toHaveCount(7);
   expect(await columnOf(page, "Bengaluru Public School")).toBe("New");
@@ -102,7 +104,7 @@ test("the Move menu crosses columns and records the move", async () => {
   const page = await app.firstWindow();
   await ensureCompany(page);
 
-  await page.getByRole("button", { name: "Pipeline" }).click();
+  await page.getByRole("button", { name: "Deals" }).click();
   await page
     .getByRole("button", { name: "Move Bengaluru Public School to another stage" })
     .click();
@@ -120,7 +122,7 @@ test("the menu closes on Escape without moving anything", async () => {
   app = await launch();
   const page = await app.firstWindow();
   await ensureCompany(page);
-  await page.getByRole("button", { name: "Pipeline" }).click();
+  await page.getByRole("button", { name: "Deals" }).click();
 
   await page
     .getByRole("button", { name: "Move Bengaluru Public School to another stage" })
@@ -136,7 +138,7 @@ test("a card can be dragged to another column", async () => {
   app = await launch();
   const page = await app.firstWindow();
   await ensureCompany(page);
-  await page.getByRole("button", { name: "Pipeline" }).click();
+  await page.getByRole("button", { name: "Deals" }).click();
   // The board loads asynchronously, and evaluate does not wait for anything.
   await expect(card(page, "Bengaluru Public School")).toBeVisible();
 
@@ -182,9 +184,55 @@ test("a column totals the value of the leads in it", async () => {
   await page.getByLabel("Value").fill("45000");
   await page.getByRole("button", { name: "Save changes" }).click();
 
-  await page.getByRole("button", { name: "Pipeline" }).click();
+  await page.getByRole("button", { name: "Deals" }).click();
   const first = page.locator(".column").first();
   await expect(first.locator(".column__value")).toHaveText("45,000");
+});
+
+test("a contact with two deals has a card for each, and they move apart", async () => {
+  app = await launch();
+  const page = await app.firstWindow();
+  await ensureCompany(page);
+
+  await addLead(page, "Beacon Academy");
+  await page.getByRole("button", { name: "Add a deal" }).click();
+  await page.getByLabel("Deal", { exact: true }).fill("Second campus");
+  await page.getByLabel("Deal value").fill("90000");
+  await page.getByRole("button", { name: "Add deal" }).click();
+  const deals = page.getByRole("list", { name: "Deals with Beacon Academy" });
+  await expect(deals.getByRole("listitem")).toHaveCount(2);
+
+  // With two deals there is no one stage or value for the form to edit.
+  await page.getByRole("button", { name: "Edit details" }).click();
+  await expect(page.getByText("2 deals with this contact")).toBeVisible();
+  await expect(page.getByLabel("Value", { exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Cancel" }).click();
+
+  await page.getByRole("button", { name: "Deals" }).click();
+  // The second card names its contact; the first is named after it.
+  await expect(card(page, "Second campus")).toContainText("Beacon Academy");
+  await page.getByRole("button", { name: "Move Second campus to another stage" }).click();
+  await page.getByRole("menuitem", { name: "Won" }).click();
+  expect(await columnOf(page, "Second campus")).toBe("Won");
+  const main = page
+    .locator(".boardcard")
+    .filter({ has: page.locator(".boardcard__name", { hasText: /^Beacon Academy$/ }) });
+  await expect(
+    main.locator("xpath=ancestor::section[contains(@class,'column')]").locator(".column__name"),
+  ).toHaveText("New");
+
+  // The history says which deal moved, and the header follows the open one.
+  await card(page, "Second campus").getByRole("button").first().click();
+  await expect(page.locator(".entry__text").first()).toHaveText("Second campus: Won");
+  await expect(page.locator(".detail__head")).toContainText("New");
+
+  // Losing the other asks why, and keeps the answer on the deal.
+  await page.getByRole("combobox", { name: "Stage of Beacon Academy" }).click();
+  await page.getByRole("option", { name: "Lost" }).click();
+  await page.getByRole("button", { name: "Went quiet" }).click();
+  await expect(deals.getByRole("listitem").filter({ hasText: "Lost because: Went quiet" })).toHaveCount(1);
+  // Nothing open now, so the contact is summed up by the deal touched last.
+  await expect(page.locator(".detail__head")).toContainText("Lost");
 });
 
 test("stages can be renamed, reordered and added", async () => {
@@ -211,7 +259,7 @@ test("stages can be renamed, reordered and added", async () => {
   await page.getByLabel("New stage name").fill("Negotiating");
   await page.getByRole("button", { name: "Add", exact: true }).click();
 
-  await page.getByRole("button", { name: "Pipeline" }).click();
+  await page.getByRole("button", { name: "Deals" }).click();
 
   // Polled, not read once. allInnerTexts does not auto-wait, and the board is
   // fetched after the screen mounts - reading it straight after the click gets
@@ -247,7 +295,7 @@ test("deleting a stage keeps its leads, on an Unstaged column", async () => {
   await page.getByRole("button", { name: "Delete Proposal sent" }).click();
   await page.getByRole("button", { name: "Delete", exact: true }).click();
 
-  await page.getByRole("button", { name: "Pipeline" }).click();
+  await page.getByRole("button", { name: "Deals" }).click();
   expect(await columnOf(page, "Bengaluru Public School")).toBe("Unstaged");
 
   // And it can be put back from there.
@@ -262,7 +310,7 @@ test("everything survives a restart", async () => {
   app = await launch();
   const page = await app.firstWindow();
   await ensureCompany(page);
-  await page.getByRole("button", { name: "Pipeline" }).click();
+  await page.getByRole("button", { name: "Deals" }).click();
 
   await expect
     .poll(() => page.locator(".column__name").allInnerTexts())

@@ -2,6 +2,8 @@ import { test, expect, _electron as electron, type ElectronApplication, type Pag
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { choose } from "./choose";
+import { passSetup } from "./nav";
 
 /**
  * The leads table as something you work rather than only read.
@@ -35,11 +37,12 @@ async function openLeads(page: Page) {
   await page.waitForSelector(".firstrun, .sidebar");
   if (await page.locator(".firstrun").isVisible()) {
     await page.getByLabel("Company name").fill("Unifloe");
-    await page.getByLabel("Start with sample data").uncheck();
     await page.getByRole("button", { name: "Create company" }).click();
+    await passSetup(page);
     await expect(page.getByRole("button", { name: /Company: Unifloe/ })).toBeVisible();
+
   }
-  await page.getByRole("button", { name: "Leads", exact: true }).click();
+  await page.getByRole("button", { name: "Contacts", exact: true }).click();
 }
 
 /** The names as the table currently has them, top to bottom. */
@@ -55,12 +58,12 @@ test.beforeAll(async () => {
   await openLeads(page);
 
   for (const lead of LEADS) {
-    await page.getByRole("button", { name: /^Add a? ?lead$/ }).first().click();
+    await page.getByRole("button", { name: /^Add a? ?contact$/ }).first().click();
     await page.getByLabel("Name").fill(lead.name);
     if (lead.value) await page.getByLabel(/^Value/).first().fill(lead.value);
-    await page.getByRole("button", { name: "Add lead" }).click();
+    await page.getByRole("button", { name: "Add contact" }).click();
     await expect(page.getByRole("heading", { name: lead.name })).toBeVisible();
-    await page.getByRole("button", { name: "All leads" }).click();
+    await page.getByRole("button", { name: "All contacts" }).click();
   }
 
   await seed.close();
@@ -79,7 +82,7 @@ test("a column heading sorts, and sorts back", async () => {
   const page = await app.firstWindow();
   await openLeads(page);
 
-  const name = page.getByRole("button", { name: "Name" });
+  const name = page.getByRole("button", { name: "Name", exact: true });
 
   await name.click();
   await expect.poll(() => names(page)).toEqual([
@@ -142,7 +145,7 @@ test("ticking a row does not open it", async () => {
   // Still on the list. The checkbox lives inside a row that opens on click,
   // so without stopping the event a tick also navigates away from the tick.
   await expect(page.locator(".leadtable")).toBeVisible();
-  await expect(page.locator(".bulkbar")).toContainText("1 lead selected");
+  await expect(page.locator(".bulkbar")).toContainText("1 contact selected");
 });
 
 test("the header box selects everything, and clears it again", async () => {
@@ -151,7 +154,7 @@ test("the header box selects everything, and clears it again", async () => {
   await openLeads(page);
 
   await page.locator("thead .tickbox").check();
-  await expect(page.locator(".bulkbar")).toContainText("3 leads selected");
+  await expect(page.locator(".bulkbar")).toContainText("3 contacts selected");
 
   await page.locator("thead .tickbox").uncheck();
   await expect(page.locator(".bulkbar")).toHaveCount(0);
@@ -163,9 +166,7 @@ test("moving a selection to a stage moves all of it", async () => {
   await openLeads(page);
 
   await page.locator("thead .tickbox").check();
-  await page
-    .getByLabel("Move the selected leads to a stage")
-    .selectOption({ label: "Contacted" });
+  await choose(page, "Move the selected contacts to a stage", "Contacted");
 
   // The bar goes when the action lands, and the rows show where they now are.
   await expect(page.locator(".bulkbar")).toHaveCount(0);
@@ -180,7 +181,7 @@ test("a bulk delete asks first, and can be backed out of", async () => {
   await page.locator(".leadrow .tickbox").first().check();
   await page.getByRole("button", { name: "Delete", exact: true }).click();
 
-  await expect(page.locator(".bulkbar")).toContainText("Delete 1 lead, and everything");
+  await expect(page.locator(".bulkbar")).toContainText("Delete 1 contact, and everything");
   await page.getByRole("button", { name: "Keep them" }).click();
 
   await expect.poll(async () => (await names(page)).length).toBe(3);
@@ -197,10 +198,10 @@ test("a confirmed bulk delete removes exactly what was ticked", async () => {
   await page.locator(".leadrow .tickbox").nth(0).check();
   await page.locator(".leadrow .tickbox").nth(1).check();
   await page.getByRole("button", { name: "Delete", exact: true }).click();
-  await page.getByRole("button", { name: "Delete 2 leads" }).click();
+  await page.getByRole("button", { name: "Delete 2 contacts" }).click();
 
   await expect.poll(() => names(page)).toEqual(["Charlie College"]);
 
   // And the sidebar count is the same number, not the one it read at launch.
-  await expect(page.getByRole("button", { name: /Company: Unifloe/ })).toContainText("1 lead");
+  await expect(page.getByRole("button", { name: /Company: Unifloe/ })).toContainText("1 contact");
 });

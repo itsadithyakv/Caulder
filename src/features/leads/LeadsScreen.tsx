@@ -1,16 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
-import { Plus, Search, Trash2, Users, X } from "lucide-react";
+import { Plus, Search, Trash2, Users, X, Upload } from "lucide-react";
 import {
   LEAD_SORT_DEFAULT_DIRECTION,
   type LeadInput,
   type LeadSort,
   type PipelineStage,
+  type Relationship,
+  RELATIONSHIPS,
+  RELATIONSHIP_LABEL,
 } from "@shared/domain";
 import { useWorkspace } from "@/lib/workspace";
 import { EMPTY_FILTERS, useLeads, type Filters } from "./useLeads";
 import { LeadsTable } from "./LeadsTable";
 import { LeadDetail } from "./LeadDetail";
 import { LeadForm } from "./LeadForm";
+import { Select } from "@/components/Select";
 
 /**
  * The Leads screen has three modes: the list, one lead, or the new-lead form.
@@ -24,7 +28,10 @@ export function LeadsScreen({
   onConsumeOpenLead,
   searchNonce = 0,
   newLeadNonce = 0,
+  listNonce = 0,
   onGoToImport,
+  onGoToMoney,
+  onOpenPage,
 }: {
   /** Set when Today sends the user straight to one lead. */
   openLeadId?: string | null;
@@ -35,7 +42,12 @@ export function LeadsScreen({
    */
   searchNonce?: number;
   newLeadNonce?: number;
+  /** Bumped when the sidebar's Leads row is pressed while already here: back to the list. */
+  listNonce?: number;
   onGoToImport: () => void;
+  onGoToMoney: () => void;
+  /** A brain page linked to a contact, opened on Brain. */
+  onOpenPage: (pageId: string) => void;
 }) {
   const { activeCompany, refresh } = useWorkspace();
   const companyId = activeCompany?.id ?? null;
@@ -68,7 +80,7 @@ export function LeadsScreen({
   useEffect(() => {
     setPicked(new Set());
     setAnchor(null);
-  }, [companyId, filters.search, filters.stageId]);
+  }, [companyId, filters.search, filters.stageId, filters.relationship]);
 
   // Today can hand over a lead to open. Cleared once acted on, so coming back
   // to Leads later lands on the list rather than reopening it.
@@ -88,6 +100,14 @@ export function LeadsScreen({
     });
     return () => cancelAnimationFrame(id);
   }, [searchNonce]);
+
+  // The sidebar row means the list. Pressing it from inside a lead used to do
+  // nothing, because the route had not changed - and a row that does nothing
+  // reads as broken.
+  useEffect(() => {
+    if (listNonce === 0) return;
+    setMode({ kind: "list" });
+  }, [listNonce]);
 
   useEffect(() => {
     if (newLeadNonce === 0) return;
@@ -206,7 +226,7 @@ export function LeadsScreen({
   if (mode.kind === "new") {
     return (
       <section className="card leads__formCard">
-        <h2 className="card__title">Add a lead</h2>
+        <h2 className="card__title">Add a contact</h2>
         <p className="card__hint">
           Only the name is needed. Everything else can follow.
         </p>
@@ -223,9 +243,13 @@ export function LeadsScreen({
   if (mode.kind === "detail") {
     return (
       <LeadDetail
+        key={mode.id}
         leadId={mode.id}
         stages={stages}
         onBack={() => setMode({ kind: "list" })}
+        onGoToMoney={onGoToMoney}
+        onOpenPage={onOpenPage}
+        onOpenContact={(id) => setMode({ kind: "detail", id })}
         onSaved={patch}
         onDeleted={(id) => {
           remove(id);
@@ -235,7 +259,8 @@ export function LeadsScreen({
     );
   }
 
-  const filtering = filters.search.trim().length > 0 || filters.stageId !== undefined;
+  const filtering =
+    filters.search.trim().length > 0 || filters.stageId !== undefined || filters.relationship !== undefined;
 
   return (
     <div className="leads">
@@ -244,6 +269,7 @@ export function LeadsScreen({
         stages={stages}
         onChange={setFilters}
         onNew={() => setMode({ kind: "new" })}
+        onImport={onGoToImport}
       />
 
       {picked.size > 0 && (
@@ -265,6 +291,7 @@ export function LeadsScreen({
 
       {leads.length > 0 ? (
         <>
+          <div className="leads__table">
           <LeadsTable
             leads={leads}
             stages={stages}
@@ -277,8 +304,9 @@ export function LeadsScreen({
             onToggleAll={toggleAll}
             onSelect={(lead) => setMode({ kind: "detail", id: lead.id })}
           />
+          </div>
           <p className="leads__count">
-            {leads.length} {leads.length === 1 ? "lead" : "leads"}
+            {leads.length} {leads.length === 1 ? "contact" : "contacts"}
             {filtering ? " matching" : ""}
           </p>
         </>
@@ -303,7 +331,7 @@ export function LeadsScreen({
         <section className="card">
           <div className="empty">
             <Users size={24} className="empty__icon" aria-hidden />
-            <p className="empty__title">No leads yet</p>
+            <p className="empty__title">No contacts yet</p>
             <p className="empty__body">
               Import a spreadsheet to bring in a list, or add one by hand.
             </p>
@@ -316,7 +344,7 @@ export function LeadsScreen({
                 className="btn"
                 onClick={() => setMode({ kind: "new" })}
               >
-                Add a lead
+                Add a contact
               </button>
             </div>
           </div>
@@ -331,11 +359,13 @@ function Toolbar({
   stages,
   onChange,
   onNew,
+  onImport,
 }: {
   filters: Filters;
   stages: PipelineStage[];
   onChange: (filters: Filters) => void;
   onNew: () => void;
+  onImport: () => void;
 }) {
   return (
     <div className="leads__toolbar">
@@ -346,38 +376,56 @@ function Toolbar({
           value={filters.search}
           onChange={(event) => onChange({ ...filters, search: event.target.value })}
           placeholder="Search name, contact, email, phone or city"
-          aria-label="Search leads"
+          aria-label="Search contacts"
           type="search"
         />
       </div>
 
-      <select
-        className="select leads__filter"
+      <Select
+        compact
+        className="leads__filter"
         aria-label="Filter by stage"
         value={filters.stageId === undefined ? "" : (filters.stageId ?? "none")}
-        onChange={(event) => {
-          const raw = event.target.value;
+        onChange={(raw) => {
           onChange({
             ...filters,
             stageId: raw === "" ? undefined : raw === "none" ? null : raw,
           });
         }}
-      >
-        <option value="">Every stage</option>
-        {stages.map((stage) => (
-          <option key={stage.id} value={stage.id}>
-            {stage.name}
-          </option>
-        ))}
-        <option value="none">No stage</option>
-      </select>
+        options={[
+          { value: "", label: "Every stage" },
+          ...stages.map((stage) => ({ value: stage.id, label: stage.name })),
+          { value: "none", label: "No stage" },
+        ]}
+      />
+
+      <Select
+        compact
+        className="leads__filter"
+        aria-label="Filter by relationship"
+        value={filters.relationship ?? ""}
+        onChange={(raw) =>
+          onChange({ ...filters, relationship: raw === "" ? undefined : (raw as Relationship) })
+        }
+        options={[
+          { value: "", label: "Everybody" },
+          ...RELATIONSHIPS.map((id) => ({ value: id, label: RELATIONSHIP_LABEL[id] })),
+        ]}
+      />
 
       {/* No sort control here. The column headings are the sort control, which
           is where somebody looks for one and where every CRM puts it. */}
 
+      {/* Import lives here rather than in the sidebar: it is something done
+          to this list a handful of times, not a place to go. */}
+      <button type="button" className="btn" onClick={onImport}>
+        <Upload size={15} aria-hidden />
+        Import
+      </button>
+
       <button type="button" className="btn btn--primary" onClick={onNew}>
         <Plus size={15} aria-hidden />
-        Add lead
+        Add contact
       </button>
     </div>
   );
@@ -410,39 +458,36 @@ function BulkBar({
   onClear: () => void;
 }) {
   const [confirming, setConfirming] = useState(false);
-  const noun = count === 1 ? "lead" : "leads";
+  const noun = count === 1 ? "contact" : "contacts";
 
   return (
     <div
       className="bulkbar anim-panel"
       role="region"
-      aria-label="Actions for the selected leads"
+      aria-label="Actions for the selected contacts"
     >
       <span className="bulkbar__count">
         {count} {noun} selected
       </span>
 
-      <select
-        className="select bulkbar__move"
-        aria-label="Move the selected leads to a stage"
-        // Stays on its own label rather than showing a stage, because it is an
-        // action to take, not the current state of anything.
+      {/* Stays on its own label rather than showing a stage, because it is an
+          action to take, not the current state of anything. */}
+      <Select
+        compact
+        className="bulkbar__move"
+        aria-label="Move the selected contacts to a stage"
         value=""
         disabled={busy}
-        onChange={(event) => {
-          const raw = event.target.value;
+        onChange={(raw) => {
           if (raw === "") return;
           onMove(raw === "none" ? null : raw);
         }}
-      >
-        <option value="">Move to stage</option>
-        {stages.map((stage) => (
-          <option key={stage.id} value={stage.id}>
-            {stage.name}
-          </option>
-        ))}
-        <option value="none">No stage</option>
-      </select>
+        options={[
+          { value: "", label: "Move to stage" },
+          ...stages.map((stage) => ({ value: stage.id, label: stage.name })),
+          { value: "none", label: "No stage" },
+        ]}
+      />
 
       {confirming ? (
         <>

@@ -47,29 +47,49 @@ try {
   check("creates a company", await page.getByText("Unifloe").first().isVisible());
   check("writes its database", existsSync(join(dir, "caulder.db")));
 
+  // Then the setup guide, which a person can skip; the e2e suite does the same.
+  const skip = page.getByRole("button", { name: "Skip this for now" });
+  if (await skip.count()) await skip.click();
+
+  // A genuine first run can offer the tour, a fixed overlay across the whole
+  // window. Dismissing it is exactly what a person does, and without it every
+  // sidebar click below is intercepted by the scrim.
+  await page.waitForTimeout(700);
+  if (await page.locator(".tour").count()) await page.keyboard.press("Escape");
+  const nav = page.getByLabel("Main");
+
   // The Apps Script must survive packaging: it is an extraResource, not code,
-  // so nothing else would notice it missing.
-  await app.evaluate(async ({ dialog }, target) => {
-    dialog.showSaveDialog = () =>
-      Promise.resolve({ canceled: false, filePath: target });
-  }, join(dir, "Caulder.gs"));
+  // so nothing else would notice it missing. Copy the script reads it from
+  // beside the executable; the clipboard is put back as it was afterwards.
+  const before = await app.evaluate(({ clipboard }) => clipboard.readText());
+  try {
+    await app.evaluate(({ clipboard }) => clipboard.writeText(""));
+    await nav.getByRole("button", { name: "Settings" }).click();
+    await page.getByRole("button", { name: "Copy the script" }).first().click();
+    await page.waitForTimeout(800);
+    const copied = await app.evaluate(({ clipboard }) => clipboard.readText());
+    check("ships the Apps Script, at the version this build expects", /var SCRIPT_VERSION = 3;/.test(copied));
+  } finally {
+    await app.evaluate(({ clipboard }, text) => clipboard.writeText(text), before);
+  }
 
-  await page.getByRole("button", { name: "Email" }).click();
-  await page.getByRole("button", { name: "Save the Apps Script" }).click();
-  await page.waitForTimeout(1500);
-  check("ships the Apps Script file", existsSync(join(dir, "Caulder.gs")));
-
-  // Leads exercise better-sqlite3's native binding under the packager's
+  // Contacts exercise better-sqlite3's native binding under the packager's
   // rebuild, which is the thing most likely to break in a package.
-  await page.getByRole("button", { name: "Leads" }).click();
-  await page.getByRole("button", { name: /^Add a? ?lead$/ }).first().click();
+  await nav.getByRole("button", { name: "Contacts" }).click();
+  await page.getByRole("button", { name: "Add a contact" }).first().click();
   await page.getByLabel("Name").fill("Bengaluru Public School");
-  await page.getByRole("button", { name: "Add lead" }).click();
+  await page.getByRole("button", { name: "Add contact" }).click();
   await page.waitForTimeout(800);
   check(
     "reads and writes through the native module",
     await page.getByRole("heading", { name: "Bengaluru Public School" }).isVisible(),
   );
+
+  // Your level is worked out across a dozen tables on every read: if a query
+  // broke under the package, Today would lose its first line.
+  await nav.getByRole("button", { name: "Today" }).click();
+  await page.waitForTimeout(800);
+  check("works out your level on Today", await page.getByRole("button", { name: /^Level 1, 0 XP/ }).isVisible());
 
   const errors = [];
   page.on("pageerror", (error) => errors.push(String(error)));

@@ -2,6 +2,7 @@ import { test, expect, _electron as electron, type ElectronApplication } from "@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { passSetup } from "./nav";
 
 /**
  * The Phase 2 exit criterion, driven through the real window: create a
@@ -46,15 +47,20 @@ test("first run creates a company and the sidebar shows it", async () => {
 
   // No company yet, so the app opens straight into setup rather than an
   // empty shell.
-  await expect(page.getByRole("heading", { name: "Set up your first company" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Set up your company" })).toBeVisible();
 
   await page.getByLabel("Company name").fill("Unifloe");
+  // The accent is folded away with the logo and the timezone.
+  await page.getByText("Funnel, logo, colour and timezone").click();
   await page.getByRole("radio", { name: "Violet" }).click();
-  await page.getByLabel("Start with sample data").uncheck();
   await page.getByRole("button", { name: "Create company" }).click();
 
-  // The shell replaces the setup screen.
+  // The shell replaces the first-run screen, on the guide for the two things
+  // that are connected in somebody else's console.
   await expect(page.getByRole("button", { name: /Company: Unifloe/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Caulder is yours, Unifloe" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Google: your calendar/ })).toBeVisible();
+  await page.getByRole("button", { name: "Done, take me to Today" }).click();
   await expect(page.getByRole("heading", { name: "Today" })).toBeVisible();
 
   // The chosen accent is applied to the document, which is what re-tints the
@@ -72,7 +78,7 @@ test("the company and its accent survive a restart", async () => {
 
   // Setup must not reappear now that a company exists.
   await expect(
-    page.getByRole("heading", { name: "Set up your first company" }),
+    page.getByRole("heading", { name: "Set up your company" }),
   ).toHaveCount(0);
 });
 
@@ -85,8 +91,10 @@ test("a second company can be added and switched between", async () => {
 
   await expect(page.getByRole("heading", { name: "Add a company" })).toBeVisible();
   await page.getByLabel("Company name").fill("PaperKite");
+  await page.getByText("Funnel, logo, colour and timezone").click();
   await page.getByRole("radio", { name: "Amber" }).click();
   await page.getByRole("button", { name: "Create company" }).click();
+  await passSetup(page);
 
   // Creating a company moves you into it; staying in the old one is never
   // what was meant.

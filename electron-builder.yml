@@ -6,9 +6,18 @@ directories:
 files:
   - out/**
   - package.json
+# A .node binary cannot be loaded from inside an asar. better-sqlite3 is the
+# only native module now, and it is detected and unpacked automatically.
+asarUnpack:
+  - "**/*.node"
+
 extraResources:
   - from: resources/appsscript
     to: appsscript
+  # Outside the asar, beside the executable: the tray loads tray.png and its
+  # @Nx siblings by path, and a path inside the archive does not load.
+  - from: resources/tray
+    to: tray
 win:
   # 1024x1024 with a light tile behind the mark. The artwork is a near-black
   # cauldron on transparency, which all but vanishes on a dark taskbar; the

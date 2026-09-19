@@ -1,0 +1,1211 @@
+/* The founder's own half of the brain: studies, hobbies, goals and the
+ * journal, and the time set aside for a page (PLAN.md, part four). */
+
+/* ---- The journal: the entry, and its month beside it ------------------- */
+
+.journalscreen {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.journalscreen__main,
+.journalscreen__side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.journalentry__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.journalentry__day {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+.journalentry__status {
+  margin-left: auto;
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+}
+
+.journalentry__status--failed {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.journalentry__body {
+  width: 100%;
+  min-height: 340px;
+  font-size: var(--text-base);
+  line-height: 1.7;
+  resize: vertical;
+}
+
+.journalentry__private {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+}
+
+/* ---- Life: its tabs, and what each shows ----------------------------- */
+
+.life,
+.life__main,
+.life__overview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+@media (max-width: 1000px) {
+  .journalscreen { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ---- Moods ------------------------------------------------------------- */
+
+/* Five faces, each with its word. The ink says which is chosen; colour only
+ * warms the chosen one, and never carries the meaning alone. */
+.moods {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: var(--space-2) 0 var(--space-3);
+}
+
+.mood {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  padding: var(--space-2) var(--space-1);
+  background: var(--surface);
+  color: var(--ink-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    transform var(--dur-spring) var(--ease-bounce);
+}
+
+.mood:hover:not(:disabled) {
+  color: var(--ink);
+  border-color: var(--border-strong);
+}
+
+.mood:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.mood:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.mood--on,
+.mood--on:hover:not(:disabled) {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  border-color: var(--accent);
+}
+
+.mood__word {
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.moodtag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--ink-2);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.journalcard__excerpt {
+  margin: 0 0 var(--space-3);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+}
+
+/* ---- The journal's month ---------------------------------------------- */
+
+.journal__run {
+  margin: var(--space-3) 0 0;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.journal__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-bottom: var(--space-2);
+}
+
+.journal__month {
+  min-width: 11ch;
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-base);
+  font-weight: 700;
+  text-align: center;
+}
+
+.journal__count {
+  margin-left: auto;
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+.journal__grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-1);
+}
+
+.journal__weekday {
+  padding-bottom: var(--space-1);
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-align: center;
+}
+
+.journal__slot {
+  display: block;
+  min-width: 0;
+}
+
+.journal__cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 2px;
+  width: 100%;
+  height: 52px;
+  padding: var(--space-1);
+  background: transparent;
+  color: var(--ink-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+
+.journal__cell:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.journal__cell:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.journal__cell:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.journal__cell--written {
+  background: var(--surface-sunken);
+  color: var(--ink);
+  border-color: var(--border);
+}
+
+.journal__cell--written svg {
+  color: var(--accent-strong);
+}
+
+.journal__cell--today {
+  border-color: var(--accent);
+}
+
+.journal__cell--open,
+.journal__cell--open:hover:not(:disabled) {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  border-color: var(--accent);
+}
+
+.journal__date {
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.journal__dot {
+  width: 6px;
+  height: 6px;
+  margin-top: 5px;
+  background: var(--accent);
+  border-radius: 50%;
+}
+
+/* ---- Studies, hobbies, goals ------------------------------------------- */
+
+.life__average {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
+.life__average strong {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.life__code {
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+.life__grade {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.life__soon {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* A measure against its own target: one bar, 4px ends, the words beside it. */
+.lifebars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lifebar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+}
+
+.lifebar__name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  justify-self: start;
+  padding: 0;
+  background: none;
+  color: var(--ink);
+  border: none;
+  font-size: var(--text-base);
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lifebar__name:hover {
+  color: var(--accent-strong);
+  text-decoration: underline;
+}
+
+.lifebar__track {
+  grid-column: 1 / -1;
+  display: block;
+  height: 8px;
+  overflow: hidden;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.lifebar__fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 0 4px 4px 0;
+  transition: width var(--dur-slow) var(--ease-spring);
+}
+
+.lifebar__words {
+  grid-column: 1 / -1;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.lifebar--done .lifebar__name {
+  color: var(--ink-2);
+}
+
+/* ---- Time for a page -------------------------------------------------- */
+
+.timecard__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  list-style: none;
+}
+
+.timecard__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  color: var(--ink);
+  font-size: var(--text-sm);
+}
+
+.timecard__facts {
+  margin: var(--space-2) 0 0;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+}
+
+.timecard__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.timecard__fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+/* ---- The day in Caulder ----------------------------------------------- */
+
+.dayrecord {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.dayrecord__row {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.dayrecord__row dt {
+  color: var(--ink-3);
+  font-weight: 700;
+}
+
+.dayrecord__row dd {
+  margin: 0;
+  color: var(--ink);
+  line-height: var(--leading);
+}
+
+.dayrecord__list {
+  margin: 0;
+  padding-left: var(--space-4);
+}
+
+.dayrecord__area {
+  color: var(--ink-3);
+}
+
+/* A name in a sentence that opens something: underlined like a link, a button underneath. */
+.linkbtn {
+  display: inline;
+  padding: 0;
+  background: none;
+  color: var(--accent-strong);
+  border: none;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.linkbtn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-radius: 2px;
+}
+
+/* ---- On the Calendar -------------------------------------------------- */
+
+.blockform__page {
+  margin: calc(var(--space-2) * -1) 0 var(--space-3);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.bpage__more {
+  margin: 0;
+}
+
+.dayjournal {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface);
+  color: var(--ink-2);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.dayjournal--written {
+  border-style: solid;
+  color: var(--ink);
+}
+
+.dayjournal:hover {
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+.dayjournal__excerpt {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink-2);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 640px) {
+  .timecard__fields { grid-template-columns: minmax(0, 1fr); }
+  .dayrecord__row { grid-template-columns: minmax(0, 1fr); gap: var(--space-1); }
+  .mood__word { font-size: 11px; }
+}
+
+/* ---- Habits: ticked on Today, looked back on in Life ------------------ */
+
+.habits__tally {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.habits {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  list-style: none;
+}
+
+.habit {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 34px;
+}
+
+.habit__tick {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: var(--surface);
+  color: var(--ink-on-accent);
+  border: 1.5px solid var(--border-strong);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), transform var(--dur-spring) var(--ease-bounce);
+}
+
+.habit__tick:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.habit__tick:active:not(:disabled) {
+  transform: scale(0.9);
+}
+
+.habit__tick:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.habit--done .habit__tick {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.habit__name {
+  flex: 1;
+  min-width: 0;
+  color: var(--ink);
+  font-size: var(--text-base);
+}
+
+.habit--done .habit__name {
+  color: var(--ink-2);
+}
+
+.habit__streak {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--accent-strong);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.habits__add {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.habits__add .input {
+  flex: 1;
+  min-width: 0;
+}
+
+.habitlist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.habitlist__row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--soft-line);
+}
+
+.habitlist__row:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.habitlist__head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.habitlist__name {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.habitlist__days {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+.habitlist__actions {
+  display: inline-flex;
+  gap: var(--space-1);
+  margin-left: auto;
+}
+
+.habitlist__facts {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+/* Twelve weeks, Monday at the top. Kept is filled, missed is an outline, and
+ * a day it is not for is empty - the words beside it say the same. */
+.weeksgrid {
+  display: flex;
+  gap: 3px;
+}
+
+.weeksgrid__week {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.weeksgrid__day {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.weeksgrid__day--kept {
+  background: var(--accent);
+}
+
+.weeksgrid__day--missed {
+  box-shadow: inset 0 0 0 1.5px var(--border-strong);
+}
+
+.habitform {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+}
+
+.habitform__row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+/* Your week on Today: how long since a hobby is a fact, not a warning. */
+.yourweek .coldrow__days {
+  color: var(--ink-3);
+}
+
+/* ---- Your life in check (phase 17) --------------------------------------
+ * The vision board on top of Life, then the level beside the week, then
+ * achievements. Pictures are the point of the board, so its tiles are
+ * mostly picture; the words under them are quiet.
+ * ---------------------------------------------------------------------- */
+
+.life__pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.vision__field {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.vision--dropping .vision__field {
+  outline: 2px dashed var(--accent);
+  outline-offset: 6px;
+  border-radius: var(--radius-md);
+}
+
+.vision__dropHint {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  color: var(--accent-strong);
+  font-weight: 700;
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  border-radius: var(--radius-md);
+  pointer-events: none;
+}
+
+.vision__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-6) var(--space-4);
+  color: var(--ink-2);
+  text-align: center;
+  background: var(--surface-sunken);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font: inherit;
+}
+
+.vision__empty:hover {
+  border-color: var(--accent);
+}
+
+.vision__empty:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.vision__emptyTitle {
+  color: var(--ink);
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+
+.vision__tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vision__tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: grab;
+  transition:
+    transform var(--dur-spring) var(--ease-spring),
+    box-shadow var(--dur-fast) var(--ease),
+    opacity var(--dur-fast) var(--ease);
+}
+
+.vision__tile:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.vision__tile--dragging {
+  opacity: 0.4;
+}
+
+/* Where a dragged tile will land: the one it is over gives way a little. */
+.vision__tile--over {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  transform: scale(0.97);
+}
+
+.vision__img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  background: var(--surface-sunken);
+}
+
+.vision__words {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: var(--leading-tight);
+  overflow-wrap: anywhere;
+}
+
+/* A tile of words alone is the words, large, on its area's own tint. */
+.vision__tile--words {
+  justify-content: center;
+  min-height: 142px;
+  background: color-mix(in srgb, var(--area-tint, var(--accent)) 10%, var(--surface));
+  border-color: color-mix(in srgb, var(--area-tint, var(--accent)) 30%, var(--border));
+}
+
+.vision__tile--words .vision__words {
+  padding: var(--space-4);
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+
+.vision__tile--college { --area-tint: var(--area-college); }
+.vision__tile--company { --area-tint: var(--area-company); }
+.vision__tile--personal { --area-tint: var(--area-personal); }
+.vision__tile--health { --area-tint: var(--area-health); }
+
+.vision__tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3) var(--space-2);
+}
+
+.vision__goal {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  color: var(--accent-strong);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.vision__goal:hover {
+  text-decoration: underline;
+}
+
+/* The menu shows on hover, and whenever something in the tile has the keyboard. */
+.vision__menu {
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-1);
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+
+.vision__tile:hover .vision__menu,
+.vision__tile:focus-within .vision__menu {
+  opacity: 1;
+}
+
+.vision__menuBtn {
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(6px);
+}
+
+.vision__form {
+  display: flex;
+  gap: var(--space-4);
+  padding: var(--space-3);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.vision__preview {
+  width: 180px;
+  max-height: 180px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+}
+
+.vision__formFields {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.vision__formRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-3);
+}
+
+@media (max-width: 640px) {
+  .vision__form { flex-direction: column; }
+  .vision__preview { width: 100%; }
+}
+
+/* ---- The level ------------------------------------------------------------ */
+
+.level__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+/* A hero number: the one figure on the card worth reading from across the room. */
+.level__number {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 84px;
+  height: 84px;
+  margin: 0;
+  color: var(--accent-strong);
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  background: var(--accent-soft);
+  border-radius: 50%;
+}
+
+.level__word {
+  color: var(--ink-2);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.level__progress {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.level__xp {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.level__progress .card__hint {
+  margin: 0;
+}
+
+.level__track,
+.achieve__track {
+  display: block;
+  height: 8px;
+  overflow: hidden;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.level__fill,
+.achieve__fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 0 4px 4px 0;
+  transition: width var(--dur-slow) var(--ease-spring);
+}
+
+.level__sources {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: var(--space-3) 0 0;
+  padding: var(--space-3) 0 0;
+  list-style: none;
+  border-top: 1px solid var(--soft-line);
+}
+
+.level__source {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 72px;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.level__sourceName { color: var(--ink-2); }
+.level__sourceCount { color: var(--ink); text-align: right; }
+.level__sourceXp { color: var(--ink-3); text-align: right; }
+
+/* ---- The week across the four areas --------------------------------------- */
+
+.balance {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.balance__row {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr) minmax(96px, auto);
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.balance__area {
+  font-size: var(--text-sm);
+}
+
+.balance__track {
+  display: block;
+  height: 10px;
+  overflow: hidden;
+  background: var(--surface-sunken);
+  border-radius: 4px;
+}
+
+.balance__fill {
+  display: block;
+  height: 100%;
+  border-radius: 0 4px 4px 0;
+  transition: width var(--dur-slow) var(--ease-spring);
+}
+
+.balance__fill--college { background: var(--area-college); }
+.balance__fill--company { background: var(--area-company); }
+.balance__fill--personal { background: var(--area-personal); }
+.balance__fill--health { background: var(--area-health); }
+
+.balance__words {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.balance__row--quiet .balance__words {
+  color: var(--ink-3);
+}
+
+/* ---- Achievements --------------------------------------------------------- */
+
+.achieves {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.achieve {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-3);
+  color: var(--ink-2);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.achieve__icon {
+  color: var(--ink-3);
+}
+
+.achieve__title {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.achieve__about {
+  font-size: var(--text-xs);
+}
+
+.achieve__when {
+  margin-top: auto;
+  padding-top: 4px;
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Earned: lit, with the day it was earned. The icon and the words say so, not the colour alone. */
+.achieve--earned {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+}
+
+.achieve--earned .achieve__icon {
+  color: var(--accent-strong);
+}
+
+/* ---- Your level, on Today ------------------------------------------------
+ * One line, not a card: it is a glance, and the cards around it are the work.
+ * ---------------------------------------------------------------------- */
+
+.levelstrip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    transform var(--dur-spring) var(--ease-spring);
+}
+
+.levelstrip:hover {
+  border-color: var(--border-strong);
+}
+
+.levelstrip:active {
+  transform: scale(0.99);
+}
+
+.levelstrip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.levelstrip__badge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 40px;
+  height: 28px;
+  padding: 0 var(--space-2);
+  color: var(--accent-strong);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  background: var(--accent-soft);
+  border-radius: var(--radius-pill);
+}
+
+.levelstrip__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.levelstrip__words {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.levelstrip__words strong {
+  color: var(--ink);
+}
+
+.levelstrip__week {
+  margin-left: auto;
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+}
+
+.levelstrip__track {
+  display: block;
+  height: 4px;
+  overflow: hidden;
+  background: var(--surface-sunken);
+  border-radius: 2px;
+}
+
+.levelstrip__fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width var(--dur-slow) var(--ease-spring);
+}
+
+/* A level just crossed: the strip lights for a moment, and says so in words. */
+.levelstrip--up {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}

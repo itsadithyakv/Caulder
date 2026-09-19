@@ -161,3 +161,84 @@ describe("the prompt handed to a model", () => {
     expect(parsed.rows[0]?.[0]).toBe("Oakridge");
   });
 });
+
+describe("pasting what a model actually returns", () => {
+  it("finds the table inside a reply that talks either side of it", () => {
+    const parsed = parsePasted(
+      [
+        "Here are 3 schools in Bengaluru that match your criteria:",
+        "",
+        "| Name | Email | City |",
+        "| --- | --- | --- |",
+        "| Oakridge International | asha@oakridge.edu.in | Bengaluru |",
+        "| TRIO World School | | Bengaluru |",
+        "",
+        "Let me know if you would like more.",
+      ].join("\n"),
+    );
+
+    expect(parsed?.kind).toBe("table");
+    if (parsed?.kind !== "table") return;
+    expect(parsed.headers).toEqual(["Name", "Email", "City"]);
+    expect(parsed.rows).toHaveLength(2);
+    expect(parsed.rows[1]).toEqual(["TRIO World School", "", "Bengaluru"]);
+  });
+
+  it("prefers the real list over a small example table earlier in the reply", () => {
+    const parsed = parsePasted(
+      [
+        "The format looks like this:",
+        "| Name |",
+        "| --- |",
+        "| Example |",
+        "",
+        "And here is your list:",
+        "| Name | City |",
+        "| --- | --- |",
+        "| One | Bengaluru |",
+        "| Two | Mysuru |",
+        "| Three | Hubli |",
+      ].join("\n"),
+    );
+
+    if (parsed?.kind !== "table") throw new Error("expected a table");
+    expect(parsed.rows).toHaveLength(3);
+  });
+
+  it("takes a fenced block at its word and drops the prose around it", () => {
+    const parsed = parsePasted(
+      ["Sure:", "", "```csv", "Name,City", "Oakridge,Bengaluru", "```", "", "Anything else?"].join(
+        "\n",
+      ),
+    );
+    expect(parsed?.kind).toBe("csv");
+    if (parsed?.kind !== "csv") return;
+    expect(parsed.text).toBe("Name,City\nOakridge,Bengaluru");
+  });
+
+  it("reads rows copied straight out of a spreadsheet", () => {
+    const parsed = parsePasted("Name\tCity\nOakridge\tBengaluru\nTRIO\tMysuru");
+    if (parsed?.kind !== "table") throw new Error("expected a table");
+    expect(parsed.headers).toEqual(["Name", "City"]);
+    expect(parsed.rows).toHaveLength(2);
+  });
+
+  it("squares up a ragged table rather than dropping the short rows", () => {
+    const parsed = parsePasted(
+      ["| Name | Email | City |", "| --- | --- | --- |", "| Only a name |", "| A | b@c.d | E | F |"].join(
+        "\n",
+      ),
+    );
+    if (parsed?.kind !== "table") throw new Error("expected a table");
+    expect(parsed.rows[0]).toEqual(["Only a name", "", ""]);
+    expect(parsed.rows[1]).toEqual(["A", "b@c.d", "E"]);
+  });
+
+  it("says no to things that are not tables", () => {
+    expect(parsePasted("")).toBeNull();
+    expect(parsePasted("   \n  \n ")).toBeNull();
+    expect(parsePasted("Just a sentence about leads.")).toBeNull();
+    // A pipe in prose is not a table without a separator row.
+    expect(parsePasted("Use a | between them")).toBeNull();
+  });
+});

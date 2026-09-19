@@ -1,5 +1,18 @@
-import { copyFileSync, existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from "node:fs";
-import { join } from "node:path";
+import Database from "better-sqlite3";
+import {
+  closeSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readdirSync,
+  readSync,
+  statSync,
+  unlinkSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { basename, join } from "node:path";
+import { LATEST_VERSION } from "./migrations";
 import { backupsDir, checkpoint, databasePath } from "./connection";
 import type { BackupFile } from "@shared/data";
 
@@ -140,27 +153,94 @@ export function backupNow(now: Date = new Date()): BackupFile {
 }
 
 /**
+ * The path of one of Caulder's own backups, from its file name.
+ *
+ * The name is all the window sends. Anything that is not a bare file name in
+ * the backups folder's own pattern is refused, so no path the window could be
+ * talked into sending - the live database, a file elsewhere on the disk - can
+ * be copied over the user's data.
+ */
+function backupPath(name: string): string {
+  const file = basename(name);
+  if (file !== name || !file.startsWith(PREFIX) || !file.endsWith(SUFFIX)) {
+    throw new Error("That is not one of Caulder's backups, so nothing was restored.");
+  }
+  const path = join(backupsDir(), file);
+  if (!existsSync(path)) throw new Error("That backup is no longer on disk.");
+  return path;
+}
+
+const SQLITE_HEADER = "SQLite format 3\u0000";
+
+/**
+ * Whether a file is safe to put in the live database's place.
+ *
+ * Three questions, asked of a scratch copy so the backup itself is never
+ * opened for writing: is it an SQLite file at all, does SQLite find it intact,
+ * and was it made by a version of Caulder this one can read. A backup that
+ * fails any of them is refused before anything has been touched.
+ */
+function checkRestorable(path: string, now: Date): void {
+  const head = Buffer.alloc(16);
+  const handle = openSync(path, "r");
+  try {
+    readSync(handle, head, 0, 16, 0);
+  } finally {
+    closeSync(handle);
+  }
+  if (head.toString("latin1") !== SQLITE_HEADER) {
+    throw new Error("That file is not a Caulder database, so nothing was restored.");
+  }
+
+  const probe = join(tmpdir(), `caulder-restore-check-${stamp(now)}-${process.pid}.db`);
+  copyFileSync(path, probe);
+  const copy = new Database(probe);
+  try {
+    const check = copy.pragma("integrity_check", { simple: true });
+    if (check !== "ok") {
+      throw new Error(`That backup is damaged (${String(check)}), so nothing was restored.`);
+    }
+    const version = Number(copy.pragma("user_version", { simple: true }));
+    if (version > LATEST_VERSION) {
+      throw new Error(
+        "That backup was made by a newer version of Caulder, so this one cannot open it.",
+      );
+    }
+  } finally {
+    copy.close();
+    for (const leftover of [probe, `${probe}-wal`, `${probe}-shm`]) {
+      if (existsSync(leftover)) unlinkSync(leftover);
+    }
+  }
+}
+
+/**
  * Puts a backup back.
  *
  * The dangerous one, so it is deliberately careful:
  *
+ *  - it takes a backup's file name, never a path, and checks the file is an
+ *    intact Caulder database this version can read before touching anything;
  *  - the current database is copied aside **first**, so restoring the wrong
  *    file is itself undoable;
  *  - the connection is closed before the file is overwritten, because SQLite
  *    holds it open and a swap underneath a live handle corrupts both;
  *  - the WAL and shared-memory sidecars go too. Leaving a `-wal` from the old
- *    database beside a restored file is how a restore silently half-applies;
+ *    database beside a restored file is how a restore silently half-applies,
+ *    so if Windows will not let one go, the restore stops there and the old
+ *    database is reopened untouched;
  *  - the connection is reopened before returning, because `getDatabase()`
  *    throws rather than lazily opening, so leaving it closed would break every
  *    call that follows.
  */
 export function restoreBackup(
-  path: string,
+  name: string,
   close: () => void,
   reopen: () => void,
   now: Date = new Date(),
 ): { safetyCopy: string } {
-  if (!existsSync(path)) throw new Error("That backup is no longer on disk.");
+  const path = backupPath(name);
+  checkRestorable(path, now);
 
   const source = databasePath();
   const dir = backupsDir();
@@ -177,12 +257,17 @@ export function restoreBackup(
 
   for (const sidecar of ["-wal", "-shm"]) {
     const stale = `${source}${sidecar}`;
-    if (existsSync(stale)) {
-      try {
-        unlinkSync(stale);
-      } catch {
-        // Windows can hold these briefly. The copy below still wins.
-      }
+    if (!existsSync(stale)) continue;
+    try {
+      unlinkSync(stale);
+    } catch {
+      // Windows can hold these briefly. Copying over the database with the
+      // old log still beside it would half-apply the restore, so stop here
+      // with nothing changed.
+      reopen();
+      throw new Error(
+        "Windows is still holding part of the database, so nothing was restored. Wait a moment and try again.",
+      );
     }
   }
 

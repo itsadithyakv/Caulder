@@ -101,7 +101,7 @@ export function LeadsTable({
                 className="tickbox"
                 checked={allSelected}
                 onChange={onToggleAll}
-                aria-label={allSelected ? "Clear the selection" : "Select every lead shown"}
+                aria-label={allSelected ? "Clear the selection" : "Select every contact shown"}
               />
             </th>
             <SortHeader column="name" sort={sort} direction={direction} onSort={onSort} />

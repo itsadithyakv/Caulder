@@ -2,7 +2,12 @@ import { beforeEach, describe, expect, it } from "vitest";
 import Database from "better-sqlite3";
 import { migrate } from "../db/migrations";
 import { createCompany, listStages } from "../repositories/companies";
-import { createLead, listActivities, logActivity, setLeadStage } from "../repositories/leads";
+import {
+  createLead,
+  listActivities,
+  logActivity,
+  setLeadStage,
+} from "../repositories/leads";
 import { setSetting } from "../repositories/settings";
 import {
   completeTask,

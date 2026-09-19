@@ -1,12 +1,15 @@
 import { randomUUID } from "node:crypto";
 import type { Db } from "../db/connection";
 import {
+  COMPANY_MODE_STAGES,
   DEFAULT_STAGES,
+  WORKSPACE_KINDS,
   type AccentId,
   type Company,
-  type CompanyInput,
+  type CompanyDraft,
   type PipelineStage,
   type StageKind,
+  type WorkspaceKind,
 } from "@shared/domain";
 
 /**
@@ -21,9 +24,16 @@ type CompanyRow = {
   name: string;
   accent: string;
   timezone: string;
+  kind: string;
   is_archived: number;
   created_at: string;
   updated_at: string;
+  logo: string | null;
+  goal_value: number | null;
+  goal_period: string | null;
+  remind_minutes: number | null;
+  qualified_stage_id: string | null;
+  currency: string;
 };
 
 type StageRow = {
@@ -40,12 +50,24 @@ function toCompany(row: CompanyRow): Company {
     name: row.name,
     accent: row.accent as AccentId,
     timezone: row.timezone,
+    // Rows written before migration 9 default to 'solo', which is what they
+    // have always been. The fallback covers a value the app can no longer
+    // produce rather than a missing one.
+    kind: (WORKSPACE_KINDS as readonly string[]).includes(row.kind)
+      ? (row.kind as WorkspaceKind)
+      : "solo",
     isArchived: row.is_archived === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     // Overwritten by listCompanies, which counts in the same query. Callers
     // fetching a single company do not need the count.
     leadCount: 0,
+    logo: row.logo,
+    goalValue: row.goal_value,
+    goalPeriod: (row.goal_period as Company["goalPeriod"]) ?? null,
+    remindMinutes: row.remind_minutes,
+    qualifiedStageId: row.qualified_stage_id,
+    currency: row.currency,
   };
 }
 
@@ -86,22 +108,110 @@ export function findCompany(db: Db, id: string): Company | null {
  * workspace with no stages cannot show a board, so the two are never allowed
  * to exist apart.
  */
-export function createCompany(db: Db, input: CompanyInput): Company {
+/**
+ * What this company is aiming at.
+ *
+ * Null clears it, which is different from a target of zero - "no goal set" and
+ * "aiming at nothing" are not the same statement, and the forecast says
+ * different things about them.
+ */
+export function setCompanyGoal(
+  db: Db,
+  companyId: string,
+  goal: { value: number; period: string } | null,
+): Company {
+  db.prepare(
+    `UPDATE companies SET goal_value = ?, goal_period = ?, updated_at = ? WHERE id = ?`,
+  ).run(goal?.value ?? null, goal?.period ?? null, new Date().toISOString(), companyId);
+
+  const row = db.prepare(`SELECT * FROM companies WHERE id = ?`).get(companyId) as
+    | CompanyRow
+    | undefined;
+  if (!row) throw new Error("That company no longer exists.");
+  return toCompany(row);
+}
+
+/**
+ * How long before a block starts this workspace says something, or null for
+ * nothing at all.
+ *
+ * Off is the default and off is the master switch: a block asking for its own
+ * lead time is ignored while this is null. A control that keeps acting after
+ * it has been turned off is worse than one that was never offered.
+ */
+export function setCompanyRemind(db: Db, companyId: string, minutes: number | null): Company {
+  db.prepare(`UPDATE companies SET remind_minutes = ?, updated_at = ? WHERE id = ?`).run(
+    minutes,
+    new Date().toISOString(),
+    companyId,
+  );
+
+  const row = db.prepare(`SELECT * FROM companies WHERE id = ?`).get(companyId) as
+    | CompanyRow
+    | undefined;
+  if (!row) throw new Error("That workspace no longer exists.");
+  return toCompany(row);
+}
+
+/**
+ * Which stage counts as qualified, and what currency this workspace is in.
+ *
+ * Both belong to the marketing report and both are nullable-by-meaning:
+ * qualified is null until somebody says, because inventing it from stage
+ * position would be Caulder deciding what this funnel means, and the report
+ * says "not set" rather than reporting zero qualified leads.
+ */
+/** Display only. Nothing is ever converted, so a total is a total of one thing. */
+export function setCompanyCurrency(db: Db, companyId: string, currency: string): Company {
+  db.prepare(`UPDATE companies SET currency = ?, updated_at = ? WHERE id = ?`).run(
+    currency,
+    new Date().toISOString(),
+    companyId,
+  );
+
+  const row = db.prepare(`SELECT * FROM companies WHERE id = ?`).get(companyId) as
+    | CompanyRow
+    | undefined;
+  if (!row) throw new Error("That workspace no longer exists.");
+  return toCompany(row);
+}
+
+export function createCompany(db: Db, input: CompanyDraft): Company {
   const now = new Date().toISOString();
   const id = randomUUID();
 
   const insertCompany = db.prepare(
-    `INSERT INTO companies (id, name, accent, timezone, is_archived, created_at, updated_at)
-     VALUES (?, ?, ?, ?, 0, ?, ?)`,
+    `INSERT INTO companies (id, name, accent, timezone, kind, logo, is_archived, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)`,
   );
   const insertStage = db.prepare(
     `INSERT INTO pipeline_stages (id, company_id, name, position, kind, created_at)
      VALUES (?, ?, ?, ?, ?, ?)`,
   );
 
+  const kind = input.kind ?? "solo";
+
+  // The chosen funnel, not always the default one. Every stage stays editable
+  // from Settings afterwards, so this is a starting point rather than a
+  // commitment - but starting from the right shape is most of the value.
+  //
+  // A personal workspace gets none. It has no board to show them on, and
+  // seeding seven stages nobody can reach would leave the pipeline screen
+  // technically correct and completely pointless.
+  const stages = kind === "personal" ? [] : COMPANY_MODE_STAGES[input.mode ?? "sales"] ?? DEFAULT_STAGES;
+
   const run = db.transaction(() => {
-    insertCompany.run(id, input.name, input.accent, input.timezone, now, now);
-    DEFAULT_STAGES.forEach((stage, index) => {
+    insertCompany.run(
+      id,
+      input.name,
+      input.accent,
+      input.timezone,
+      kind,
+      input.logo ?? null,
+      now,
+      now,
+    );
+    stages.forEach((stage, index) => {
       insertStage.run(randomUUID(), id, stage.name, index, stage.kind, now);
     });
   });
@@ -173,7 +283,7 @@ export function archiveCompany(db: Db, id: string): void {
  *
  * Archiving hides a workspace; this ends it. Every table carries company_id
  * with ON DELETE CASCADE, so one statement takes the leads, their timelines,
- * the tasks, the funnel, the templates, the sequences and the email queue -
+ * the tasks, the funnel, the templates, the calendar and the money -
  * which is exactly why it needs confirming by name in the UI rather than by
  * a button somebody can be halfway through pressing.
  *

@@ -8,8 +8,15 @@ import {
   Trash2,
   type LucideIcon,
 } from "lucide-react";
-import { TASK_KIND_LABEL, type Task, type TaskKind } from "@shared/domain";
+import {
+  TASK_AREA_LABEL,
+  TASK_KIND_LABEL,
+  type Task,
+  type TaskArea,
+  type TaskKind,
+} from "@shared/domain";
 import { describeDue, shiftDay } from "@shared/dates";
+import { useOpenRef } from "@/lib/navigate";
 
 const ICON: Record<TaskKind, LucideIcon> = {
   call: Phone,
@@ -42,6 +49,7 @@ export function TaskRow({
   onComplete,
   onReschedule,
   onDelete,
+  onCall,
 }: {
   task: Task;
   day: string;
@@ -51,8 +59,11 @@ export function TaskRow({
   onComplete: () => void;
   onReschedule: (dueOn: string) => void;
   onDelete: () => void;
+  /** Given for a call with a contact: opens the prompter, which ticks the task off. */
+  onCall?: () => void;
 }) {
   const Icon = ICON[task.kind];
+  const openRef = useOpenRef();
 
   // Ticking removes the row, and a row that vanishes mid-click leaves you
   // unsure which one you got. So it leaves on its own first, and the parent
@@ -93,6 +104,17 @@ export function TaskRow({
           <span className="badge badge--neutral taskrow__kindLabel">
             {TASK_KIND_LABEL[task.kind]}
           </span>
+          {task.priority === "must" && (
+            // Only the level that changes what you do. Marking "should" on
+            // every ordinary row would be a label on everything, which is a
+            // label on nothing.
+            <span className="badge badge--neutral taskrow__must">Has to happen</span>
+          )}
+          {task.area && (
+            // Coloured by area, and labelled - never colour alone, the rule
+            // every badge in the app follows.
+            <span className={`area area--${task.area}`}>{areaLabel(task.area)}</span>
+          )}
         </div>
 
         <div className="taskrow__meta">
@@ -105,6 +127,16 @@ export function TaskRow({
               {task.leadName}
             </button>
           )}
+          {task.pageId && task.pageTitle && (
+            // A playbook's step says which playbook, and opens it.
+            <button
+              type="button"
+              className="taskrow__lead taskrow__page"
+              onClick={() => openRef({ kind: "page", id: task.pageId as string })}
+            >
+              from {task.pageTitle}
+            </button>
+          )}
           <span className={overdue ? "taskrow__due taskrow__due--late" : "taskrow__due"}>
             {describeDue(task.dueOn, day)}
           </span>
@@ -114,6 +146,18 @@ export function TaskRow({
       </div>
 
       <div className="taskrow__actions">
+        {onCall && (
+          <button
+            type="button"
+            className="btn btn--sm btn--primary taskrow__call"
+            onClick={onCall}
+            disabled={busy || leaving}
+            aria-label={`Call for "${task.title}"`}
+          >
+            <Phone size={13} aria-hidden />
+            Call
+          </button>
+        )}
         <button
           type="button"
           className="btn btn--sm btn--ghost"
@@ -145,4 +189,9 @@ export function TaskRow({
       </div>
     </li>
   );
+}
+
+/** The label for a known area, or the typed text for one that is not. */
+function areaLabel(area: string): string {
+  return area in TASK_AREA_LABEL ? TASK_AREA_LABEL[area as TaskArea] : area;
 }

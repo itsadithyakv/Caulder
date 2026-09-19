@@ -1,0 +1,1597 @@
+/* ---------------------------------------------------------------------------
+ * The company brain: the rail, home, a section, a page and its history, and
+ * the Ctrl+K search that reaches all of it. Layout only. Colour, radius,
+ * spacing and type come from tokens.
+ * ------------------------------------------------------------------------- */
+
+.brain {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+/* ---- The rail --------------------------------------------------------- */
+
+.brain__rail {
+  position: sticky;
+  top: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* The highlight behind the open section. One element that moves on a spring,
+ * so going from Plan to Legal is a movement down the rail rather than one
+ * box going out and another coming on. */
+/* A hairline between Home and the Map, the sections, and what is done to the whole brain. */
+.brain__railRule {
+  display: block;
+  height: 1px;
+  margin: var(--space-2) var(--space-3);
+  background: var(--soft-line);
+}
+
+.brain__railPill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  pointer-events: none;
+}
+
+.brain__railPill--ready {
+  transition:
+    transform var(--dur-spring) var(--ease-spring),
+    width var(--dur-spring) var(--ease-spring),
+    height var(--dur-spring) var(--ease-spring);
+}
+
+.brain__railItem {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 32px;
+  padding: 0 var(--space-3);
+  background: transparent;
+  color: var(--ink-2);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    transform var(--dur-spring) var(--ease-spring);
+}
+
+.brain__railItem:hover {
+  color: var(--ink);
+  background: var(--hover);
+}
+
+/* A nudge along the rail, and a squeeze when pressed, both on the spring. */
+.brain__railItem:hover svg {
+  transform: translateX(2px);
+}
+
+.brain__railItem svg {
+  flex-shrink: 0;
+  transition: transform var(--dur-spring) var(--ease-bounce);
+}
+
+.brain__railItem:active {
+  transform: scale(0.97);
+}
+
+/* The pill is the background; the row only takes the ink. */
+.brain__railItem[aria-current="page"] {
+  background: transparent;
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+
+.brain__railItem:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.brain__railLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.brain__railCount {
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--border);
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.brain__main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/* ---- Home ------------------------------------------------------------- */
+
+.brainhome {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.brainhome__main,
+.brainhome__side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.brainhome__company {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.brainhome__name {
+  color: var(--ink);
+  font-size: var(--text-xl);
+  font-weight: 700;
+  line-height: var(--leading-tight);
+}
+
+.brainhome__oneLiner {
+  color: var(--ink-2);
+  font-size: var(--text-md);
+}
+
+.checklist__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-3);
+}
+
+.checklist__items {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.checklist__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 34px;
+  padding: var(--space-1) var(--space-2);
+  background: transparent;
+  color: var(--ink);
+  border: none;
+  border-radius: var(--radius-xs);
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease),
+    transform var(--dur-spring) var(--ease-spring);
+}
+
+.checklist__item:hover {
+  background: var(--surface-hover);
+}
+
+.checklist__item:active {
+  transform: scale(0.97);
+}
+
+.checklist__item:hover .checklist__mark {
+  transform: scale(1.15);
+}
+
+.checklist__item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.checklist__item--done .checklist__label {
+  color: var(--ink-3);
+}
+
+.checklist__label {
+  flex: 1;
+  min-width: 0;
+}
+
+.checklist__mark {
+  flex-shrink: 0;
+  color: var(--ink-3);
+  transition: transform var(--dur-bounce) var(--ease-bounce);
+}
+
+.checklist__mark--done {
+  color: var(--ok);
+}
+
+.checklist__progress {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ring {
+  position: relative;
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+}
+
+.ring svg {
+  position: absolute;
+  inset: 0;
+}
+
+.ring__track {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 5;
+}
+
+.ring__fill {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 5;
+  stroke-linecap: round;
+  transition: stroke-dasharray var(--dur-spring) var(--ease-spring);
+}
+
+.ring__count {
+  color: var(--ink);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- A section, and lists of pages ------------------------------------ */
+
+.sectionview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.sectionview__archived {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.sectionhead {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.sectionhead__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.sectionhead__new {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.sectionhead__icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--accent-strong);
+}
+
+.sectionhead__title {
+  color: var(--ink);
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+.sectionhead__prompt {
+  max-width: 68ch;
+  margin-top: var(--space-1);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+}
+
+.pagelist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pagerow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3);
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease),
+    box-shadow var(--dur) var(--ease),
+    transform var(--dur-spring) var(--ease-spring);
+}
+
+.pagerow:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+}
+
+.pagerow:active {
+  transform: translateY(0) scale(0.99);
+  box-shadow: none;
+}
+
+.pagerow:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.pagerow__main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pagerow__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.pagerow__pin {
+  flex-shrink: 0;
+  color: var(--accent-strong);
+}
+
+.pagerow__excerpt {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.pagerow__meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.pagerow__section {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* ---- A page ------------------------------------------------------------ */
+
+.bpage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.bpage__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.bpage__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+}
+
+.bpage__updated {
+  margin-left: auto;
+}
+
+.bpage__title {
+  color: var(--ink);
+  font-size: var(--text-xl);
+  font-weight: 700;
+  line-height: var(--leading-tight);
+  overflow-wrap: anywhere;
+}
+
+.bpage__titleInput {
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+.bpage__facts {
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--soft-line);
+}
+
+.bpage__long {
+  white-space: pre-line;
+}
+
+.bpage__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.bpage__body {
+  min-height: 320px;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+  resize: vertical;
+}
+
+.fieldgrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3) var(--space-4);
+}
+
+.fieldgrid__wide,
+.fieldgrid__check {
+  grid-column: 1 / -1;
+}
+
+.secret {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.secret__value {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+/* ---- Written text ------------------------------------------------------ */
+
+.prose {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: 76ch;
+  color: var(--ink);
+  line-height: var(--leading);
+  overflow-wrap: anywhere;
+}
+
+.prose__h1,
+.prose__h2,
+.prose__h3 {
+  margin-top: var(--space-2);
+  color: var(--ink);
+  font-weight: 700;
+  line-height: var(--leading-tight);
+}
+
+.prose__h1 { font-size: var(--text-lg); }
+.prose__h2 { font-size: var(--text-md); }
+.prose__h3 { font-size: var(--text-base); }
+
+.prose__p {
+  white-space: pre-line;
+}
+
+.prose__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding-left: var(--space-5);
+}
+
+.prose__list--ticks {
+  padding-left: 0;
+  list-style: none;
+}
+
+.prose__tick {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+
+/* A step ticked while reading lands with a bounce; the words strike through
+ * after it rather than at the same instant. */
+.prose__tick .tickbox {
+  transition: transform var(--dur-bounce) var(--ease-bounce);
+}
+
+.prose__tick .tickbox:checked {
+  animation: spring-pop var(--dur-bounce) var(--ease-bounce);
+}
+
+.prose__tick:active .tickbox {
+  transform: scale(0.85);
+}
+
+.prose__done {
+  transition: color var(--dur) var(--ease) var(--dur-fast);
+}
+
+.prose__done {
+  color: var(--ink-3);
+  text-decoration: line-through;
+}
+
+.prose__quote {
+  margin: 0;
+  padding-left: var(--space-3);
+  border-left: 3px solid var(--border-strong);
+  color: var(--ink-2);
+  white-space: pre-line;
+}
+
+.prose__code {
+  margin: 0;
+  padding: var(--space-3);
+  overflow-x: auto;
+  background: var(--surface-sunken);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.prose__inlineCode {
+  padding: 0 var(--space-1);
+  background: var(--surface-sunken);
+  border-radius: var(--radius-xs);
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+
+.prose__rule {
+  width: 100%;
+  border: none;
+  border-top: 1px solid var(--soft-line);
+}
+
+.prose__tableWrap {
+  overflow-x: auto;
+}
+
+.prose__table {
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.prose__table th,
+.prose__table td {
+  padding: var(--space-1) var(--space-3);
+  border-bottom: 1px solid var(--soft-line);
+  text-align: left;
+}
+
+.prose__table th {
+  color: var(--ink-3);
+  font-weight: 700;
+}
+
+/* ---- History ------------------------------------------------------------ */
+
+.revisions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.revisions__pick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.revisions__pick .field {
+  min-width: 220px;
+}
+
+.revisions__changes {
+  margin: 0;
+  padding-left: var(--space-5);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.diff {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.diff__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.diff__row--head {
+  background: var(--surface-sunken);
+  color: var(--ink-3);
+  font-family: var(--font);
+  font-weight: 700;
+}
+
+.diff__row--head span {
+  padding: var(--space-2) var(--space-3);
+}
+
+.diff__cell {
+  min-height: 1.6em;
+  padding: 0 var(--space-3);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.diff__cell + .diff__cell {
+  border-left: 1px solid var(--soft-line);
+}
+
+.diff__cell--removed {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.diff__cell--added {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+/* ---- Search everything ------------------------------------------------- */
+
+/* Near the top rather than centred, so the list grows downward into space. */
+.palette__scrim {
+  place-items: start center;
+  padding-top: 12vh;
+}
+
+.palette {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: min(640px, 100%);
+  max-height: 70vh;
+  padding: var(--space-3);
+}
+
+.palette__box {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.palette__box:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.palette__icon {
+  flex-shrink: 0;
+  color: var(--ink-3);
+}
+
+.palette__input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-1) 0;
+  background: transparent;
+  color: var(--ink);
+  border: none;
+  outline: none;
+  font: inherit;
+  font-size: var(--text-md);
+}
+
+.palette__caption {
+  padding: 0 var(--space-2);
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+}
+
+.palette__list {
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.palette__item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.palette__item--active {
+  background: var(--accent-soft);
+}
+
+.palette__item {
+  transition: transform var(--dur-spring) var(--ease-spring);
+}
+
+.palette__item--active .palette__title {
+  display: inline-block;
+  transform: translateX(3px);
+  transition: transform var(--dur-spring) var(--ease-spring);
+}
+
+.palette__kind {
+  flex-shrink: 0;
+  width: 132px;
+  padding-top: 2px;
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.palette__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.palette__title {
+  color: var(--ink);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.palette__detail {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.palette__detail mark {
+  padding: 0 1px;
+  background: var(--warn-soft);
+  color: var(--ink);
+  border-radius: var(--radius-xs);
+}
+
+/* ---- Links in a page -------------------------------------------------- */
+
+/* A link is a chip with the colour of its dot on the Map, so a page read
+ * after a week on the Map reads in the same colours. */
+.brainlink {
+  --dot: var(--map-page);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 1px;
+  padding: 0 6px;
+  background: color-mix(in srgb, var(--dot) 12%, var(--surface));
+  color: var(--ink);
+  border: 1px solid color-mix(in srgb, var(--dot) 35%, var(--surface));
+  border-radius: var(--radius-pill);
+  font: inherit;
+  line-height: 1.45;
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease),
+    transform var(--dur-spring) var(--ease-spring);
+}
+
+.brainlink::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--dot);
+  content: "";
+}
+
+.brainlink:hover {
+  background: color-mix(in srgb, var(--dot) 22%, var(--surface));
+  transform: translateY(-1px);
+}
+
+.brainlink:active {
+  transform: scale(0.96);
+}
+
+.brainlink:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.brainlink:disabled {
+  cursor: default;
+}
+
+.brainlink--contact  { --dot: var(--map-contact); }
+.brainlink--product  { --dot: var(--map-product); }
+.brainlink--person   { --dot: var(--map-person); }
+.brainlink--document { --dot: var(--map-document); }
+.brainlink--decision { --dot: var(--map-decision); }
+.brainlink--own      { --dot: var(--map-own); }
+
+/* A link whose target was deleted: the words, and nothing to press. */
+.brainlink--gone {
+  --dot: var(--ink-3);
+  color: var(--ink-3);
+  cursor: default;
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--ink-3) 50%, transparent);
+}
+
+/* ---- Writing a link ---------------------------------------------------- */
+
+.linkfield {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.linkfield__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.linkfield__box {
+  position: relative;
+}
+
+.linkfield__box .textarea {
+  width: 100%;
+}
+
+.linkfield__list {
+  position: absolute;
+  z-index: 5;
+  width: 280px;
+  max-height: 260px;
+  margin: 0;
+  padding: var(--space-1);
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-float);
+  list-style: none;
+}
+
+.linkfield__option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.linkfield__option--active {
+  background: var(--accent-soft);
+}
+
+.linkfield__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.linkfield__kind,
+.linkfield__empty {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+}
+
+.linkfield__empty {
+  padding: var(--space-2);
+}
+
+/* ---- The Map ----------------------------------------------------------- */
+
+/* A plain field, as Obsidian draws its graph: the dots are the picture. */
+.mapcanvas {
+  position: relative;
+  overflow: hidden;
+  background: var(--surface-sunken);
+  border-radius: var(--radius-md);
+}
+
+.mapcanvas__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;
+}
+
+.mapdot {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.mapdot--page     { background: var(--map-page); }
+.mapdot--contact  { background: var(--map-contact); }
+.mapdot--product  { background: var(--map-product); }
+.mapdot--person   { background: var(--map-person); }
+.mapdot--document { background: var(--map-document); }
+.mapdot--decision { background: var(--map-decision); }
+.mapdot--own      { background: var(--map-own); }
+
+.mapview__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* The map fills what it is given; everything else floats over it. */
+.mapview__stage {
+  position: relative;
+  height: max(460px, calc(100vh - 250px));
+  overflow: hidden;
+  background: var(--surface-sunken);
+  border-radius: var(--radius-md);
+}
+
+.mapview__stage .mapcanvas {
+  border-radius: 0;
+}
+
+.mapview__stage .maplist {
+  height: 100%;
+  max-height: none;
+  padding: 104px var(--space-4) var(--space-4);
+  background: var(--surface);
+}
+
+.mapview__float {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  gap: var(--space-2);
+}
+
+.mapview__float--left {
+  top: var(--space-3);
+  left: var(--space-3);
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: min(380px, 55%);
+}
+
+.mapview__float--right {
+  top: var(--space-3);
+  right: var(--space-3);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: 45%;
+}
+
+.mapview__float--foot {
+  right: var(--space-3);
+  bottom: var(--space-3);
+  left: var(--space-3);
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  backdrop-filter: blur(6px);
+}
+
+.mapview__tool {
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(6px);
+}
+
+.mapview__search {
+  position: relative;
+  width: 240px;
+  max-width: 100%;
+}
+
+.mapview__searchIcon {
+  position: absolute;
+  /* Over the input, whose blurred background paints above an earlier sibling. */
+  z-index: 1;
+  top: 50%;
+  left: var(--space-3);
+  color: var(--ink-3);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.mapview__searchInput {
+  width: 100%;
+  padding-left: 34px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(6px);
+}
+
+.mapview__kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.mapview__kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px var(--space-2);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  color: var(--ink-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  transition: transform var(--dur-spring) var(--ease-spring), color var(--dur-fast) var(--ease);
+}
+
+.mapview__kind:active {
+  transform: scale(0.94);
+}
+
+.mapview__kind:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.mapview__kind--on {
+  color: var(--ink);
+  border-color: var(--border-strong);
+}
+
+/* A kind switched off keeps its word and fades its dot: the legend stays whole. */
+.mapview__kind:not(.mapview__kind--on) .mapdot {
+  opacity: 0.3;
+}
+
+.mapview__kindCount {
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.mapview__replay {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.mapview__slider {
+  flex: 1;
+  accent-color: var(--accent);
+}
+
+.mapview__moment {
+  min-width: 96px;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Display: the forces and the looks, beside the map rather than over the middle of it. */
+.mapdisplay {
+  position: absolute;
+  top: 56px;
+  right: var(--space-3);
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 264px;
+  max-height: calc(100% - 72px);
+  padding: var(--space-3);
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+}
+
+.mapdisplay__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mapdisplay__title {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.mapdisplay__group {
+  margin: var(--space-2) 0 0;
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.mapdisplay__slider {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mapdisplay__label {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.mapdisplay__slider input {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.mapdisplay__toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.mapdisplay__reset {
+  align-self: flex-start;
+  margin-top: var(--space-2);
+}
+
+.maplist {
+  display: flex;
+  flex-direction: column;
+  max-height: 560px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.maplist__row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 2fr) auto minmax(0, 3fr);
+  gap: var(--space-3);
+  align-items: baseline;
+  padding: var(--space-2) var(--space-1);
+  border-bottom: 1px solid var(--soft-line);
+}
+
+.maplist__name {
+  padding: 0;
+  overflow: hidden;
+  background: none;
+  color: var(--ink);
+  border: none;
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.maplist__name:hover {
+  color: var(--accent-strong);
+}
+
+.maplist__kind,
+.maplist__links {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+.brainlinks__map {
+  margin-top: var(--space-3);
+}
+
+.detail__brain {
+  margin-top: var(--space-5);
+}
+
+.detail__brain .brainlinks {
+  padding: 0;
+  border: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+@media (max-width: 1100px) {
+  .brainhome { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Narrow: the rail becomes a row that scrolls, above what it opens. */
+@media (max-width: 860px) {
+  .brain { grid-template-columns: minmax(0, 1fr); }
+
+  .brain__rail {
+    /* Still positioned: the pill is placed against it. */
+    position: relative;
+    flex-direction: row;
+    overflow-x: auto;
+    padding-bottom: var(--space-1);
+  }
+
+  .brain__railItem { flex-shrink: 0; }
+  .brain__railRule { width: 1px; height: 20px; margin: 0 var(--space-1); align-self: center; }
+  .checklist__items,
+  .fieldgrid { grid-template-columns: minmax(0, 1fr); }
+  .palette__kind { width: 88px; }
+}
+
+/* ---- Ask the brain ----------------------------------------------------- */
+
+.ask__thread {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: var(--space-2) 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+
+.ask__exchange {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.ask__question {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  align-self: flex-end;
+  max-width: 85%;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--accent-soft);
+  color: var(--ink);
+  border-radius: var(--radius-lg) var(--radius-lg) var(--radius-sm) var(--radius-lg);
+  font-weight: 600;
+}
+
+.ask__question svg {
+  flex: none;
+  color: var(--accent-strong);
+  transform: translateY(2px);
+}
+
+.ask__answer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg) var(--radius-lg) var(--radius-lg) var(--radius-sm);
+}
+
+.ask__answer .prose > :last-child { margin-bottom: 0; }
+
+.ask__thinking {
+  margin: 0;
+  color: var(--ink-3);
+  font-style: italic;
+  /* The same slow breath as the loading mark, and like it, never a loop
+   * under reduced motion. */
+  animation: breathe 1.6s var(--ease) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ask__thinking { animation: none; }
+}
+
+.ask__sent {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+.ask__sent summary { cursor: pointer; }
+.ask__sent p { margin: var(--space-1) 0 0; }
+
+.ask__form {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.ask__input {
+  flex: 1;
+  min-height: 48px;
+  resize: vertical;
+}
+
+.ask__examples { margin-top: var(--space-3); }
+
+.aicard__connected {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.aicard__connected svg { color: var(--ok); }
+
+.aicard__connect,
+.aicard__row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.aicard__heading {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 700;
+}
+
+.aicard__steps .prose { margin-bottom: 0; }
+.aicard__steps .prose ol { margin: 0; padding-left: var(--space-5); }
+.aicard__steps .prose li { margin-bottom: var(--space-2); }
+
+.aicard__model,
+.aicard__typed {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.aicard__model .picker { min-width: 260px; }
+.aicard__typed .input { max-width: 320px; }
+
+.aicard__privacy {
+  margin-top: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+/* The services: a grid of cards, because the choice is the first thing and a
+ * dropdown of seven names says nothing about which is free. */
+.aiservices {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.aiservice {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+
+.aiservice:hover { border-color: var(--border-input); }
+
+.aiservice--on,
+.aiservice--on:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.aiservice:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.aiservice__name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 700;
+}
+
+.aiservice__tagline {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+/* ---- All sections, and Share and export -------------------------------- */
+
+.sectionsindex {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-2);
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sectionsindex__item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  width: 100%;
+  height: 100%;
+  padding: var(--space-3);
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease), transform var(--dur-spring) var(--ease-bounce);
+}
+
+.sectionsindex__item:hover {
+  border-color: var(--accent);
+}
+
+.sectionsindex__item:active {
+  transform: scale(0.99);
+}
+
+.sectionsindex__item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.sectionsindex__icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--accent-strong);
+}
+
+.sectionsindex__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.sectionsindex__name {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-weight: 700;
+}
+
+.sectionsindex__count {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sectionsindex__lead {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+}
+
+.brainshare {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.checklist__words {
+  min-width: 0;
+}
+
+.checklist__more {
+  margin-top: var(--space-2);
+}
+
+/* Ask the brain, before an AI is connected: one line, not a card of reasons. */
+.askoff {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  padding-bottom: var(--space-3);
+}
+
+.askoff__icon {
+  flex-shrink: 0;
+  color: var(--accent-strong);
+}
+
+.askoff__text {
+  flex: 1;
+  min-width: 220px;
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.brainlinks__depth {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}

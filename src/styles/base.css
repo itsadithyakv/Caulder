@@ -17,7 +17,14 @@ body,
 
 body {
   margin: 0;
-  background: var(--bg);
+  /* The canvas, plus a wash the face decides.
+   *
+   * A flat gradient over --bg rather than a redefinition of it. Redefining
+   * --bg in terms of itself is a cyclic custom property and CSS throws the
+   * whole thing away - which is exactly how the first attempt at this turned
+   * the app black. A layer on top has nothing to recurse into. */
+  background-color: var(--bg);
+  background-image: linear-gradient(var(--face-wash), var(--face-wash));
   color: var(--ink-2);
   font-family: var(--font);
   font-size: var(--text-base);
@@ -68,8 +75,8 @@ textarea {
   transition: none !important;
 }
 
-/* Focus. A deliberate break from neumorphism: a soft glow is unreadable on a
- * soft surface, so focus is always a solid, offset, high-contrast ring. */
+/* Focus. A solid, offset, high-contrast ring everywhere a field does not draw
+ * its own halo. */
 :focus { outline: none; }
 
 :focus-visible {
@@ -88,7 +95,7 @@ textarea {
 /* Scrollbars, themed rather than left to the platform. */
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
+  scrollbar-color: var(--border-strong) transparent;
 }
 
 *::-webkit-scrollbar {
@@ -101,7 +108,7 @@ textarea {
 }
 
 *::-webkit-scrollbar-thumb {
-  background: var(--border);
+  background: var(--border-strong);
   border: 3px solid transparent;
   border-radius: var(--radius-pill);
   background-clip: content-box;

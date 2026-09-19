@@ -111,3 +111,46 @@ describe("tokens.css is the only place colour is defined", () => {
     expect(rootBlocks, `${file} defines a :root token`).toBeNull();
   });
 });
+
+describe("the personal face is declared like every other colour", () => {
+  // The personal blocks sit after the theme blocks at the same specificity, so
+  // anything the light personal block sets and a dark one forgets WINS in dark
+  // mode: a coffee-cream surface under cream text. The rule the base palette
+  // follows, enforced for the face too.
+  const personalLight = declarations(blockAfter(tokensCss, ':root[data-face="personal"] {'));
+  const personalDarkSystem = declarations(
+    blockAfter(tokensCss, ':root[data-face="personal"]:not([data-theme="light"])'),
+  );
+  const personalDarkExplicit = declarations(
+    blockAfter(tokensCss, ':root[data-face="personal"][data-theme="dark"]'),
+  );
+
+  /** Radii are the same in both themes on purpose; everything else is colour. */
+  const themed = [...personalLight.keys()].filter(
+    (name) => !name.startsWith("--radius-") && name !== "--face-wash",
+  );
+
+  it("re-declares every themed token in both dark blocks", () => {
+    for (const name of themed) {
+      expect(personalDarkSystem.has(name), `${name} missing from the system dark block`).toBe(true);
+      expect(personalDarkExplicit.has(name), `${name} missing from the explicit dark block`).toBe(true);
+    }
+  });
+
+  it("gives the two dark copies the same values", () => {
+    expect([...personalDarkExplicit.keys()].sort()).toEqual([...personalDarkSystem.keys()].sort());
+    for (const [name, value] of personalDarkSystem) {
+      expect(personalDarkExplicit.get(name), name).toBe(value);
+    }
+  });
+
+  it("does not borrow a status colour as decoration", () => {
+    // The mistake this palette replaced: the face was mixed from --warn, the
+    // amber that means "going cold", which is how it came to look muddy.
+    for (const block of [personalLight, personalDarkSystem, personalDarkExplicit]) {
+      for (const value of block.values()) {
+        expect(value).not.toMatch(/var\(--(warn|danger|ok)/);
+      }
+    }
+  });
+});

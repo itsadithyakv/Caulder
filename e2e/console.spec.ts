@@ -2,6 +2,7 @@ import { test, expect, _electron as electron, type ElectronApplication, type Pag
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { goTo, openBrainSection, passSetup } from "./nav";
 
 /**
  * Nothing complains on the way through.
@@ -55,9 +56,10 @@ test("first run says nothing to the console", async () => {
 
   await page.waitForSelector(".firstrun");
   await page.getByLabel("Company name").fill("Unifloe");
-  await page.getByLabel("Start with sample data").uncheck();
   await page.getByRole("button", { name: "Create company" }).click();
+  await passSetup(page);
   await expect(page.getByRole("button", { name: /Company: Unifloe/ })).toBeVisible();
+
 
   expect(complaints).toEqual([]);
 });
@@ -71,19 +73,44 @@ test("every screen loads without a complaint", async () => {
   complaints = watch(page);
   await page.waitForSelector(".sidebar");
 
-  for (const screen of ["Today", "Leads", "Pipeline", "Import", "Email", "Settings"]) {
-    await page.getByRole("button", { name: screen, exact: true }).click();
+  // Scoped to the sidebar: the Day screen has its own Day/Week tabs, so an
+  // unscoped "Day" now matches two controls.
+  const nav = page.getByLabel("Main");
+
+  for (const screen of ["Today", "Calendar", "Contacts", "Deals", "Money", "Import", "Brain", "Settings"]) {
+    await goTo(page, screen);
     await expect(page.getByRole("heading", { name: screen, exact: true })).toBeVisible();
   }
+
+  // The week is a second reading of the same screen rather than a screen of
+  // its own, so it is walked here rather than being missed by a nav loop.
+  await nav.getByRole("button", { name: "Calendar", exact: true }).click();
+  await page.getByLabel("How much to show").getByRole("button", { name: "Week" }).click();
+  await expect(page.locator(".week__lane")).toHaveCount(7);
 
   // And the things that sit over a screen rather than being one.
   await page.keyboard.press("?");
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.keyboard.press("Escape");
 
+  // Ctrl+K is search, typed into so the index is read; switching company is
+  // the sidebar header.
   await page.keyboard.press("Control+k");
+  await page.getByRole("combobox", { name: "Search everything" }).fill("uni");
+  await expect(page.getByText(/match|Nothing matches/)).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "Search everything" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: /Company: Unifloe/ }).click();
   await expect(page.locator(".switcher")).toBeVisible();
   await page.keyboard.press("Escape");
+
+  // A brain section and a page, written and read back.
+  await openBrainSection(page, "Decisions");
+  await page.getByRole("button", { name: "Write down a decision" }).click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByRole("button", { name: "History" }).click();
+  await expect(page.getByRole("region", { name: "Page history" })).toBeVisible();
 
   expect(complaints).toEqual([]);
 });

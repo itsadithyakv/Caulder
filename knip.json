@@ -9,5 +9,10 @@
     "e2e/**/*.spec.ts"
   ],
   "project": ["electron/**/*.ts", "src/**/*.{ts,tsx}", "shared/**/*.ts", "e2e/**/*.ts"],
-  "ignore": ["src/global.d.ts"]
+  // Ambient declarations. Nothing imports them - that is what ambient means -
+  // so they read as unused to any reachability analysis.
+  "ignore": [
+    "src/global.d.ts",
+    "e2e/bridge.d.ts"
+  ]
 }

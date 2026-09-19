@@ -183,15 +183,15 @@ describe("resolveActiveCompanyId", () => {
 
 describe("settings store", () => {
   it("overwrites rather than duplicating a key", () => {
-    setSetting(db, "syncFolder", "C:/one");
-    setSetting(db, "syncFolder", "C:/two");
+    setSetting(db, "coldAfterDays", "C:/one");
+    setSetting(db, "coldAfterDays", "C:/two");
 
-    expect(getSetting(db, "syncFolder")).toBe("C:/two");
+    expect(getSetting(db, "coldAfterDays")).toBe("C:/two");
     const count = db.prepare(`SELECT COUNT(*) AS n FROM settings`).get() as { n: number };
     expect(count.n).toBe(1);
   });
 
   it("returns null for a key never set", () => {
-    expect(getSetting(db, "syncFolder")).toBeNull();
+    expect(getSetting(db, "coldAfterDays")).toBeNull();
   });
 });

@@ -1,5 +1,15 @@
 import { useState, type FormEvent } from "react";
-import { leadInput, type Lead, type LeadInput, type PipelineStage } from "@shared/domain";
+import {
+  leadInput,
+  RELATIONSHIPS,
+  RELATIONSHIP_LABEL,
+  type Relationship,
+  type Lead,
+  type LeadInput,
+  type PipelineStage,
+} from "@shared/domain";
+import { Select } from "@/components/Select";
+import { messageOf } from "@/lib/errors";
 
 /**
  * One form for both creating and editing, because the fields are the same and
@@ -32,6 +42,9 @@ type Draft = {
   value: string;
   notes: string;
   stageId: string;
+  campaignId: string;
+  doNotContact: boolean;
+  relationship: Relationship;
 };
 
 function draftFrom(lead: Lead | undefined, stages: PipelineStage[]): Draft {
@@ -50,14 +63,20 @@ function draftFrom(lead: Lead | undefined, stages: PipelineStage[]): Draft {
     notes: lead?.notes ?? "",
     // A new lead starts in the first stage rather than outside the funnel.
     stageId: lead?.stageId ?? stages[0]?.id ?? "",
+    campaignId: lead?.campaignId ?? "",
+    doNotContact: lead?.doNotContact ?? false,
+    relationship: lead?.relationship ?? "prospect",
   };
 }
 
 export function LeadForm({ lead, stages, busy, onSubmit, onCancel }: Props) {
   const [draft, setDraft] = useState<Draft>(() => draftFrom(lead, stages));
+  // With several deals there is no one stage or value to edit here: each deal
+  // has its own, under Deals. The server ignores these fields in that case too.
+  const severalDeals = (lead?.dealCount ?? 0) > 1;
   const [error, setError] = useState<string | null>(null);
 
-  function set<K extends keyof Draft>(key: K, value: string) {
+  function set<K extends keyof Draft>(key: K, value: Draft[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
   }
 
@@ -76,6 +95,7 @@ export function LeadForm({ lead, stages, busy, onSubmit, onCancel }: Props) {
       ...draft,
       value,
       stageId: draft.stageId === "" ? null : draft.stageId,
+      campaignId: draft.campaignId === "" ? null : draft.campaignId,
     });
 
     if (!parsed.success) {
@@ -86,7 +106,7 @@ export function LeadForm({ lead, stages, busy, onSubmit, onCancel }: Props) {
     try {
       await onSubmit(parsed.data);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(messageOf(cause));
     }
   }
 
@@ -113,7 +133,7 @@ export function LeadForm({ lead, stages, busy, onSubmit, onCancel }: Props) {
           className={`input${error ? " input--invalid" : ""}`}
           value={draft.name}
           onChange={(event) => set("name", event.target.value)}
-          placeholder="Bengaluru Public School"
+          placeholder="A company, or a person"
           autoFocus={!lead}
           autoComplete="off"
           maxLength={160}
@@ -137,41 +157,80 @@ export function LeadForm({ lead, stages, busy, onSubmit, onCancel }: Props) {
 
       <div className="leadform__row">
         <div className="field">
-          <label className="field__label" htmlFor="lead-stage">
-            Stage
+          <label className="field__label" htmlFor="lead-relationship">
+            Relationship
           </label>
-          <select
-            id="lead-stage"
-            className="select"
-            value={draft.stageId}
-            onChange={(event) => set("stageId", event.target.value)}
+          <Select
+            id="lead-relationship"
+            value={draft.relationship}
+            onChange={(value) => set("relationship", value as Relationship)}
             disabled={busy}
-          >
-            <option value="">No stage</option>
-            {stages.map((stage) => (
-              <option key={stage.id} value={stage.id}>
-                {stage.name}
-              </option>
-            ))}
-          </select>
+            options={RELATIONSHIPS.map((id) => ({ value: id, label: RELATIONSHIP_LABEL[id] }))}
+          />
         </div>
 
-        <Text id="lead-value" label="Value" value={draft.value} inputMode="numeric"
-          onChange={(v) => set("value", v)} busy={busy} />
+        {severalDeals ? (
+          <p className="card__hint leadform__aside">
+            {lead?.dealCount} deals with this contact. Their stages and values are under Deals.
+          </p>
+        ) : (
+          <div className="field">
+            <label className="field__label" htmlFor="lead-stage">
+              Stage
+            </label>
+            <Select
+              id="lead-stage"
+              value={draft.stageId}
+              onChange={(value) => set("stageId", value)}
+              disabled={busy}
+              options={[
+                { value: "", label: "No stage" },
+                ...stages.map((stage) => ({ value: stage.id, label: stage.name })),
+              ]}
+            />
+          </div>
+        )}
       </div>
 
       <div className="leadform__row">
+        {!severalDeals && (
+          <Text id="lead-value" label="Value" value={draft.value} inputMode="numeric"
+            onChange={(v) => set("value", v)} busy={busy} />
+        )}
         <Text id="lead-city" label="City" value={draft.city}
           onChange={(v) => set("city", v)} busy={busy} />
+      </div>
+
+      <label className="checkline">
+        <input
+          type="checkbox"
+          className="tickbox"
+          checked={draft.doNotContact}
+          disabled={busy}
+          // Named explicitly, or the accessible name becomes the whole
+          // paragraph beside it - which is unusable with a screen reader and
+          // makes the box answer to any word in the sentence.
+          aria-label="Do not contact"
+          onChange={(event) => set("doNotContact", event.target.checked)}
+        />
+        <span className="checkline__text">
+          <span className="checkline__title">Do not contact</span>
+          <span className="card__hint">
+            Email and WhatsApp refuse this contact, rather than the buttons
+            quietly going missing.
+          </span>
+        </span>
+      </label>
+
+      <div className="leadform__row">
         <Text id="lead-source" label="Source" value={draft.source}
           onChange={(v) => set("source", v)} busy={busy} />
+        <Text id="lead-website" label="Website" value={draft.website}
+          onChange={(v) => set("website", v)} busy={busy} />
       </div>
 
       <Text id="lead-location" label="Location" value={draft.location}
         onChange={(v) => set("location", v)} busy={busy} />
-
-      <Text id="lead-website" label="Website" value={draft.website}
-        onChange={(v) => set("website", v)} busy={busy} />
 
       <div className="field">
         <label className="field__label" htmlFor="lead-notes">
@@ -198,7 +257,7 @@ export function LeadForm({ lead, stages, busy, onSubmit, onCancel }: Props) {
           Cancel
         </button>
         <button type="submit" className="btn btn--primary" disabled={busy}>
-          {lead ? "Save changes" : "Add lead"}
+          {lead ? "Save changes" : "Add contact"}
         </button>
       </div>
     </form>

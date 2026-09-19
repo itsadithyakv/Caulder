@@ -6,6 +6,8 @@ import {
   type PipelineStage,
   type StageKind,
 } from "@shared/domain";
+import { Select } from "@/components/Select";
+import { messageOf } from "@/lib/errors";
 
 /**
  * The funnel, as a list you can edit.
@@ -14,6 +16,11 @@ import {
  * settings pane, the buttons work from the keyboard without any extra code, and
  * the board is where dragging earns its place.
  */
+const STAGE_KIND_OPTIONS = (["open", "won", "lost"] as StageKind[]).map((kind) => ({
+  value: kind,
+  label: STAGE_KIND_LABEL[kind],
+}));
+
 export function StageEditor({ companyId }: { companyId: string }) {
   const [stages, setStages] = useState<PipelineStage[]>([]);
   const [adding, setAdding] = useState(false);
@@ -35,7 +42,7 @@ export function StageEditor({ companyId }: { companyId: string }) {
     try {
       setStages(await run());
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(messageOf(cause));
     } finally {
       setBusy(false);
     }
@@ -58,7 +65,7 @@ export function StageEditor({ companyId }: { companyId: string }) {
       <h2 className="card__title">Pipeline stages</h2>
       <p className="card__hint">
         The columns on the board, in order. Won and Lost are treated as closed:
-        leads in them are left out of the going-quiet list.
+        contacts in them are left out of the going-quiet list.
       </p>
 
       {error && (
@@ -109,30 +116,21 @@ export function StageEditor({ companyId }: { companyId: string }) {
               }}
             />
 
-            <select
-              className="select stagerow__kind"
+            <Select
+              compact
+              className="stagerow__kind"
               value={stage.kind}
               aria-label={`What ${stage.name} means`}
               disabled={busy}
-              onChange={(event) =>
-                void act(() =>
-                  window.caulder.board.setStageKind(
-                    stage.id,
-                    event.target.value as StageKind,
-                  ),
-                )
+              onChange={(value) =>
+                void act(() => window.caulder.board.setStageKind(stage.id, value))
               }
-            >
-              {(["open", "won", "lost"] as StageKind[]).map((kind) => (
-                <option key={kind} value={kind}>
-                  {STAGE_KIND_LABEL[kind]}
-                </option>
-              ))}
-            </select>
+              options={STAGE_KIND_OPTIONS}
+            />
 
             {confirming === stage.id ? (
               <span className="detail__confirm">
-                <span className="card__hint">Leads here keep their place in the list.</span>
+                <span className="card__hint">Contacts here keep their place in the list.</span>
                 <button
                   type="button"
                   className="btn btn--sm btn--danger"
@@ -179,19 +177,15 @@ export function StageEditor({ companyId }: { companyId: string }) {
             autoFocus
             disabled={busy}
           />
-          <select
-            className="select stagerow__kind"
+          <Select
+            compact
+            className="stagerow__kind"
             value={newKind}
             aria-label="What the new stage means"
-            onChange={(event) => setNewKind(event.target.value as StageKind)}
+            onChange={setNewKind}
             disabled={busy}
-          >
-            {(["open", "won", "lost"] as StageKind[]).map((kind) => (
-              <option key={kind} value={kind}>
-                {STAGE_KIND_LABEL[kind]}
-              </option>
-            ))}
-          </select>
+            options={STAGE_KIND_OPTIONS}
+          />
           <button
             type="button"
             className="btn btn--primary btn--sm"

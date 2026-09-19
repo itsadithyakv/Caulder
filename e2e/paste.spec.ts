@@ -2,6 +2,7 @@ import { test, expect, _electron as electron, type ElectronApplication, type Pag
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { goTo, passSetup } from "./nav";
 
 /**
  * Importing a list that was never a file.
@@ -37,11 +38,12 @@ async function openImport(page: Page) {
   await page.waitForSelector(".firstrun, .sidebar");
   if (await page.locator(".firstrun").isVisible()) {
     await page.getByLabel("Company name").fill("Unifloe");
-    await page.getByLabel("Start with sample data").uncheck();
     await page.getByRole("button", { name: "Create company" }).click();
+    await passSetup(page);
     await expect(page.getByRole("button", { name: /Company: Unifloe/ })).toBeVisible();
+
   }
-  await page.getByRole("button", { name: "Import", exact: true }).click();
+  await goTo(page, "Import");
 }
 
 test.beforeAll(() => {
@@ -61,7 +63,7 @@ test("a pasted chat reply becomes leads", async () => {
   const page = await app.firstWindow();
   await openImport(page);
 
-  await page.getByLabel("Paste a list of leads").fill(REPLY);
+  await page.getByLabel("Paste a list of contacts").fill(REPLY);
   await page.getByRole("button", { name: "Read this list" }).click();
 
   // Straight into the mapping step, with the columns already matched from the
@@ -74,7 +76,7 @@ test("a pasted chat reply becomes leads", async () => {
 
   await expect(page.locator(".card__hint", { hasText: /3 added/ })).toBeVisible();
 
-  await page.getByRole("button", { name: "Leads", exact: true }).click();
+  await page.getByRole("button", { name: "Contacts", exact: true }).click();
   await expect(page.locator(".leadrow")).toHaveCount(3);
   await expect(
     page.locator(".leadrow__name", { hasText: "Oakridge International School" }),
@@ -86,7 +88,7 @@ test("the prose around the table does not become a lead", async () => {
   const page = await app.firstWindow();
   await openImport(page);
 
-  await page.getByRole("button", { name: "Leads", exact: true }).click();
+  await page.getByRole("button", { name: "Contacts", exact: true }).click();
   await expect(page.locator(".leadrow")).toHaveCount(3);
 
   const names = await page.locator(".leadrow__name").allTextContents();
@@ -100,12 +102,12 @@ test("pasting something that is not a table says so", async () => {
   const page = await app.firstWindow();
   await openImport(page);
 
-  await page.getByLabel("Paste a list of leads").fill("I could not find any schools.");
+  await page.getByLabel("Paste a list of contacts").fill("I could not find any schools.");
   await page.getByRole("button", { name: "Read this list" }).click();
 
   await expect(page.getByRole("alert")).toContainText("does not look like a table");
   // And it stays put rather than throwing away what was pasted.
-  await expect(page.getByLabel("Paste a list of leads")).toHaveValue(
+  await expect(page.getByLabel("Paste a list of contacts")).toHaveValue(
     "I could not find any schools.",
   );
 });
@@ -116,7 +118,7 @@ test("the button is dead until there is something to read", async () => {
   await openImport(page);
 
   await expect(page.getByRole("button", { name: "Read this list" })).toBeDisabled();
-  await page.getByLabel("Paste a list of leads").fill("| Name |\n| --- |\n| A |");
+  await page.getByLabel("Paste a list of contacts").fill("| Name |\n| --- |\n| A |");
   await expect(page.getByRole("button", { name: "Read this list" })).toBeEnabled();
 });
 
