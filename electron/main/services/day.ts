@@ -12,6 +12,7 @@ import {
   today as todayIn,
 } from "@shared/dates";
 import type { DayPlan, WeekPlan } from "@shared/domain";
+import { deadlinesBetween } from "./deadlines";
 
 /**
  * One day, assembled.
@@ -44,6 +45,7 @@ export function buildDay(db: Db, companyId: string, day: string, now = new Date(
     day,
     blocks: layOut(blocks),
     tasks: listDueOn(db, companyId, day),
+    deadlines: deadlinesBetween(db, companyId, day, day, currentDay),
     notes: listNotesOn(db, companyId, day),
     spent: spentByKind(blocks),
     planned: blocks.reduce((total, block) => total + block.minutes, 0),
@@ -66,6 +68,13 @@ export function buildWeek(db: Db, companyId: string, day: string): WeekPlan {
   const from = startOfWeek(day);
   const days = Array.from({ length: 7 }, (_, index) => shiftDay(from, index));
   const blocks = listBlocksBetween(db, companyId, from, days[6] ?? from);
+  const deadlines = deadlinesBetween(
+    db,
+    companyId,
+    from,
+    days[6] ?? from,
+    todayIn(companyTimezone(db, companyId), new Date()),
+  );
 
   return {
     from,
@@ -75,6 +84,7 @@ export function buildWeek(db: Db, companyId: string, day: string): WeekPlan {
         day: each,
         blocks: layOut(mine),
         planned: mine.reduce((total, block) => total + block.minutes, 0),
+        deadlines: deadlines.filter((deadline) => deadline.dueOn === each),
       };
     }),
   };

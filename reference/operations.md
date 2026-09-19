@@ -77,9 +77,13 @@ caulder.db          the database — this is the one to copy
 caulder.db-wal      write-ahead log
 caulder.db-shm      shared memory
 backups/            caulder-YYYYMMDD-HHMMSS.db, ten kept
+logs/               caulder.log, and caulder.log.1 once it passes a megabyte
 ```
 
-Settings shows the exact path, and can open the backups folder.
+Settings shows the exact path, and can open the backups folder and the log
+folder. The log holds faults only — programming errors, anything SQLite
+raised, a window or process that stopped, a screen that failed to draw — not
+every message the app shows.
 
 ## Backups
 
@@ -101,13 +105,20 @@ and silence would be worse.
 
 Settings → Your data → Restore, on any listed backup.
 
+0. The window sends the backup's **file name, never a path**, and main finds
+   it in the backups folder. A scratch copy is then checked: it must start
+   with the SQLite header, pass `integrity_check`, and have a schema version
+   this build knows. A backup that fails any of these is refused with nothing
+   changed.
 1. The current database is **copied aside first**, as
    `caulder-before-restore-*.db`, so restoring the wrong file is itself
    undoable.
 2. The connection is closed, because SQLite holds the file open and swapping it
    underneath a live handle corrupts both.
 3. The `-wal` and `-shm` sidecars are removed. A stale `-wal` beside a restored
-   file is how a restore silently half-applies.
+   file is how a restore silently half-applies, so if Windows will not let one
+   go, the restore stops, the old database is reopened untouched, and the
+   message says to try again.
 4. The backup is copied over, the connection reopens, and the window reloads —
    everything on screen describes data that no longer exists.
 
@@ -175,10 +186,16 @@ rather than a runtime surprise.
 
 ## Troubleshooting
 
-**`window.caulder` is undefined.** The preload path must end in `.mjs`.
-`package.json` is `"type": "module"`, so electron-vite emits ESM, and Electron
-loads an ESM preload only when the extension says so. Pointing at `.js` fails
-silently.
+**`window.caulder` is undefined.** The preload is built as CommonJS,
+`out/preload/index.cjs` (see `electron.vite.config.ts`), because both windows
+run sandboxed and Electron runs an ESM preload only with the sandbox off. A
+preload path that does not match the built file fails silently. A sandboxed
+preload can only `require("electron")`, so it must import nothing from
+`shared/` but types and plain functions that get bundled in.
+
+**Something went wrong and the window said little.** Read
+`%APPDATA%\Caulder\logs\caulder.log`, or Settings → Your data → Open the log
+folder.
 
 **"compiled against a different Node.js version".** Run
 `npx electron-builder install-app-deps`.
@@ -189,6 +206,5 @@ SQLite file is a corruption risk.
 
 **A test passes alone and fails in the suite.** Almost always
 millisecond-resolution timestamps: two events written in one transaction share
-a millisecond. Both known cases are documented — the activity ordering in
-[data-model.md](data-model.md#activities) and the reply comparison in
-[email-bridge.md](email-bridge.md#the-status-ladder).
+a millisecond. The known case is documented: the activity ordering in
+[data-model.md](data-model.md#activities).

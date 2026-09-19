@@ -65,10 +65,10 @@ function build(): BrowserWindow {
     backgroundColor: "#00000000",
     transparent: true,
     webPreferences: {
-      preload: join(__dirname, "../preload/index.mjs"),
+      preload: join(__dirname, "../preload/index.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
     },
   });
 

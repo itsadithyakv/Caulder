@@ -1,4 +1,5 @@
 import { Notification } from "electron";
+import { isFault, logProblem } from "../log";
 import type { BrowserWindow } from "electron";
 import { brandFile } from "../identity";
 import { getDatabase } from "../db/connection";
@@ -63,8 +64,10 @@ function asking(): Asking[] {
           WHERE is_archived = 0 AND remind_minutes IS NOT NULL`,
       )
       .all() as Asking[];
-  } catch {
-    // Asked before the database is open, which is not a reason to fail.
+  } catch (error) {
+    // Asked before the database is open, which is not a reason to fail. A
+    // real fault is, and goes in the log.
+    if (isFault(error)) logProblem("reminders", error);
     return [];
   }
 }
@@ -88,7 +91,8 @@ function check(getWindow: () => BrowserWindow | null): void {
         minutes,
         company.remind_minutes,
       );
-    } catch {
+    } catch (error) {
+      logProblem("reminders", error);
       continue;
     }
     if (due.length === 0) continue;

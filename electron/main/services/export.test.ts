@@ -8,7 +8,7 @@ import { createCompany } from "../repositories/companies";
 import { createLead, logActivity } from "../repositories/leads";
 import { createTask } from "../repositories/tasks";
 import { createTemplate } from "../repositories/email";
-import { exportEverything } from "./export";
+import { csvCell, exportEverything } from "./export";
 import { leadInput, taskInput, type Company } from "@shared/domain";
 import type * as ConnectionModule from "../db/connection";
 
@@ -94,6 +94,9 @@ describe("exportEverything", () => {
       expect.arrayContaining([
         "leads.csv",
         "history.csv",
+        "calls.csv",
+        "cash.csv",
+        "products.csv",
         "tasks.csv",
         "templates.csv",
         "caulder.db",
@@ -204,7 +207,7 @@ describe("backups", () => {
     createLead(db, company.id, leadInput.parse({ name: "Added after the backup" }));
     db.close();
 
-    const { safetyCopy } = restoreBackup(taken.path, () => {}, () => {});
+    const { safetyCopy } = restoreBackup(taken.name, () => {}, () => {});
     expect(existsSync(safetyCopy)).toBe(true);
 
     // Restoring the wrong file is itself undoable.
@@ -237,7 +240,7 @@ describe("backups", () => {
     const wal = join(workDir, "caulder.db-wal");
     writeFileSync(wal, "stale");
 
-    restoreBackup(taken.path, () => {}, () => {});
+    restoreBackup(taken.name, () => {}, () => {});
     expect(existsSync(wal)).toBe(false);
 
     db = new Database(join(workDir, "caulder.db"));
@@ -245,7 +248,7 @@ describe("backups", () => {
 
   it("refuses a backup that is no longer on disk", async () => {
     const { restoreBackup } = await import("../db/backup");
-    expect(() => restoreBackup(join(workDir, "gone.db"), () => {}, () => {})).toThrow(
+    expect(() => restoreBackup("caulder-20200101-000000.db", () => {}, () => {})).toThrow(
       "no longer on disk",
     );
   });
@@ -259,5 +262,28 @@ describe("backups", () => {
 
     const kept = readdirSync(join(workDir, "backups"));
     expect(kept).toHaveLength(10);
+  });
+});
+
+describe("a cell a spreadsheet would run", () => {
+  it.each([
+    ["=HYPERLINK(\"http://evil\")", "'=HYPERLINK(\"http://evil\")"],
+    ["@SUM(A1)", "'@SUM(A1)"],
+    ["+cmd|' /C calc'!A0", "'+cmd|' /C calc'!A0"],
+    ["- call them back", "'- call them back"],
+  ])("makes %s inert", (value, written) => {
+    expect(csvCell(value)).toBe(written);
+  });
+
+  it.each(["+91 98450 98450", "-500", "Oakridge International School", ""])(
+    "leaves %s as it is",
+    (value) => {
+      expect(csvCell(value)).toBe(value);
+    },
+  );
+
+  it("leaves numbers and empties alone", () => {
+    expect(csvCell(-500)).toBe(-500);
+    expect(csvCell(null)).toBe(null);
   });
 });

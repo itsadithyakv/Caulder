@@ -48,5 +48,3 @@ export type EmailTemplate = {
   createdAt: string;
   updatedAt: string;
 };
-
-/* ---- Messages ----------------------------------------------------------- */

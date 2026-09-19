@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, ExternalLink, Trash2 } from "lucide-react";
+import { ArrowLeft, ExternalLink, Phone, Trash2 } from "lucide-react";
 import type {
   Activity,
   Lead,
@@ -7,6 +7,7 @@ import type {
   LoggableKind,
   PipelineStage,
 } from "@shared/domain";
+import { RELATIONSHIP_LABEL } from "@shared/domain";
 import { LeadForm } from "./LeadForm";
 import { Timeline } from "./Timeline";
 import { StageBadge } from "./StageBadge";
@@ -14,8 +15,11 @@ import { LeadTasks } from "./LeadTasks";
 import { LeadEmail } from "./LeadEmail";
 import { LeadWhatsApp } from "./LeadWhatsApp";
 import { LeadMoney } from "./LeadMoney";
+import { LeadDeals } from "./LeadDeals";
 import { Attachments, CustomFields } from "./LeadExtras";
-import { formatDate, formatValue, relativeDay } from "@/lib/format";
+import { BrainLinks } from "@/features/brain/BrainLinks";
+import { useStartCall } from "@/features/calls/CallProvider";
+import { formatDate, relativeDay } from "@/lib/format";
 import { messageOf } from "@/lib/errors";
 import { ErrorLine } from "@/components/ErrorLine";
 
@@ -32,6 +36,8 @@ export function LeadDetail({
   onGoToMoney,
   onSaved,
   onDeleted,
+  onOpenPage,
+  onOpenContact,
 }: {
   leadId: string;
   stages: PipelineStage[];
@@ -39,6 +45,9 @@ export function LeadDetail({
   onGoToMoney: () => void;
   onSaved: (lead: Lead) => void;
   onDeleted: (id: string) => void;
+  /** For Linked here: a brain page, or another contact on the local map. */
+  onOpenPage?: (pageId: string) => void;
+  onOpenContact?: (leadId: string) => void;
 }) {
   const [lead, setLead] = useState<Lead | null>(null);
   const [editing, setEditing] = useState(false);
@@ -46,6 +55,11 @@ export function LeadDetail({
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [error, setError] = useState<string | null>(null);
+  /** Bumped when an edit here may have moved or renamed a deal. */
+  const [dealsVersion, setDealsVersion] = useState(0);
+  /** Bumped after a call, which can tick a task off and add the next. */
+  const [tasksVersion, setTasksVersion] = useState(0);
+  const startCall = useStartCall();
 
   /**
    * Loads its own lead rather than reading one out of the table's list. A lead
@@ -76,8 +90,9 @@ export function LeadDetail({
       onSaved(updated);
       setEditing(false);
       // An edit can write a stage_change or field_change entry, so the
-      // timeline is no longer what it was.
+      // timeline is no longer what it was - and it can move the one deal.
       load();
+      setDealsVersion((version) => version + 1);
     } finally {
       setBusy(false);
     }
@@ -92,6 +107,23 @@ export function LeadDetail({
       onSaved(refreshed);
     }
     setActivities(await window.caulder.activities.list(leadId));
+  }
+
+  /** A deal changed: the header badge, the table row and the history follow. */
+  async function dealsChanged() {
+    try {
+      const [found, timeline] = await Promise.all([
+        window.caulder.leads.find(leadId),
+        window.caulder.activities.list(leadId),
+      ]);
+      if (found) {
+        setLead(found);
+        onSaved(found);
+      }
+      setActivities(timeline);
+    } catch (cause) {
+      setError(messageOf(cause));
+    }
   }
 
   async function remove() {
@@ -132,6 +164,26 @@ export function LeadDetail({
         </button>
 
         <div className="detail__barActions">
+          {startCall && !editing && (
+            <button
+              type="button"
+              className="btn btn--sm btn--primary"
+              onClick={() =>
+                startCall(leadId, {
+                  onLogged: () => {
+                    void dealsChanged();
+                    setDealsVersion((version) => version + 1);
+                    setTasksVersion((version) => version + 1);
+                  },
+                })
+              }
+              disabled={lead.doNotContact}
+              title={lead.doNotContact ? `${lead.name} is marked do not contact` : "Open the call prompter"}
+            >
+              <Phone size={14} aria-hidden />
+              Call
+            </button>
+          )}
           {!editing && (
             <button
               type="button"
@@ -196,6 +248,7 @@ export function LeadDetail({
               </div>
 
               <dl className="facts">
+                <Fact label="Relationship" value={RELATIONSHIP_LABEL[lead.relationship]} />
                 <Fact label="Contact" value={lead.contactPerson} />
                 <Fact label="Email" value={lead.email} />
                 <Fact label="Phone" value={lead.phone} />
@@ -204,10 +257,6 @@ export function LeadDetail({
                 <Fact label="Location" value={lead.location} />
                 <Fact label="PIN" value={lead.pin} />
                 <Fact label="Source" value={lead.source} />
-                <Fact
-                  label="Value"
-                  value={lead.value === null ? null : formatValue(lead.value)}
-                />
                 <Fact label="Website" value={lead.website} link />
                 <Fact
                   label="Last contacted"
@@ -228,6 +277,17 @@ export function LeadDetail({
                   the facts, because it is reference, not work. */}
               <CustomFields leadId={leadId} />
               <Attachments leadId={leadId} />
+              {onOpenPage && onOpenContact && (
+                <div className="detail__brain">
+                  <BrainLinks
+                    companyId={lead.companyId}
+                    kind="contact"
+                    id={leadId}
+                    onOpenPage={onOpenPage}
+                    onOpenContact={onOpenContact}
+                  />
+                </div>
+              )}
             </>
           )}
         </section>
@@ -236,7 +296,16 @@ export function LeadDetail({
           {/* What happens next, then the ways to make it happen, then what
               already did. The history is the reason to open a contact at all,
               and it used to sit under four other cards. */}
-          <LeadTasks leadId={leadId} onTimelineChanged={load} />
+          <LeadTasks key={tasksVersion} leadId={leadId} onTimelineChanged={load} />
+
+          <div className="detail__historyTitle">
+            <LeadDeals
+              lead={lead}
+              stages={stages}
+              version={dealsVersion}
+              onChanged={() => void dealsChanged()}
+            />
+          </div>
 
           <div className="detail__historyTitle">
             <LeadEmail lead={lead} onTimelineChanged={load} />

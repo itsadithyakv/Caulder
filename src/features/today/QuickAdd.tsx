@@ -8,6 +8,7 @@ import {
   type TaskArea,
 } from "@shared/domain";
 import { describeWeekdays, parseQuick, type Answers } from "@shared/quickadd";
+import { readCapture, type CaptureKind, type Known } from "@shared/capture";
 import { occurrencesOf } from "@shared/repeat";
 import { daysBetween, minutesOf, timeNow, today as todayIn } from "@shared/dates";
 import { formatDuration, formatTime } from "@/lib/format";
@@ -29,7 +30,23 @@ import { messageOf } from "@/lib/errors";
  *
  * And when it guessed the area wrong, the area in the reading is a button:
  * one click moves it on, without having to know that "#college" exists.
+ *
+ * On Today it is **smart** (PLAN.md, part four): the line takes anything, and
+ * says where it will go before it goes - a task, today's journal, a contact's
+ * history, time on a hobby, an idea, a note - from what Caulder knows
+ * (shared/capture.ts). The chips under it move it somewhere else.
  */
+
+const GOES_TO: Record<CaptureKind, string> = {
+  task: "Task",
+  journal: "Journal",
+  contact: "History",
+  hobby: "Hobby",
+  idea: "Idea",
+  note: "Note",
+};
+
+const LENGTHS = [15, 30, 45, 60, 90];
 export function QuickAdd({
   companyId,
   timezone,
@@ -38,6 +55,7 @@ export function QuickAdd({
   placeholder = "Datascience assignment at 4pm today",
   hint,
   onAdded,
+  smart = false,
 }: {
   companyId: string;
   timezone: string;
@@ -49,6 +67,8 @@ export function QuickAdd({
   /** What to say under an empty line. The capture window has no A key to mention. */
   hint?: string;
   onAdded?: (summary: string) => void;
+  /** Takes anything and works out where it goes, rather than only tasks. */
+  smart?: boolean;
 }) {
   const [text, setText] = useState("");
   const [answers, setAnswers] = useState<Answers>({});
@@ -63,6 +83,12 @@ export function QuickAdd({
   const [termEnd, setTermEnd] = useState<string | null>(null);
   /** The key that opens the quick window from any app, when one is held. */
   const [anywhere, setAnywhere] = useState<string | null>(null);
+  /** What the smart line recognises: the contacts and the hobbies. */
+  const [known, setKnown] = useState<Known>({ contacts: [], hobbies: [] });
+  /** Where the person moved it to, over what the line guessed. */
+  const [chosen, setChosen] = useState<CaptureKind | null>(null);
+  /** How long, for time on a hobby the line did not say the length of. */
+  const [length, setLength] = useState<number | null>(null);
 
   useEffect(() => {
     if (focusNonce > 0) input.current?.focus();
@@ -86,6 +112,27 @@ export function QuickAdd({
     return () => window.removeEventListener("focus", read);
   }, [companyId, timezone]);
 
+  // The names the smart line listens for, read when the window comes back to the front.
+  useEffect(() => {
+    if (!smart) return;
+    const read = () => {
+      Promise.all([
+        window.caulder.leads.list({ companyId, sort: "name", direction: "asc" }),
+        window.caulder.life.hobbies(companyId),
+      ]).then(
+        ([contacts, hobbies]) =>
+          setKnown({
+            contacts: contacts.map((contact) => ({ id: contact.id, name: contact.name, person: contact.contactPerson })),
+            hobbies: hobbies.map((hobby) => ({ id: hobby.id, title: hobby.title })),
+          }),
+        () => undefined,
+      );
+    };
+    read();
+    window.addEventListener("focus", read);
+    return () => window.removeEventListener("focus", read);
+  }, [smart, companyId]);
+
   // The clock where the workspace is, read on every keystroke: a quick-add
   // left open over lunch must not think it is still the morning.
   const today = todayIn(timezone);
@@ -104,9 +151,16 @@ export function QuickAdd({
       anywhere ? `, or ${anywhere} from any app` : ""
     }.`;
 
-  const question = text.trim().length > 0 ? questions[0] : undefined;
+  const reading = useMemo(() => (smart && text.trim() ? readCapture(text, known) : null), [smart, text, known]);
+  const goesTo: CaptureKind = chosen ?? reading?.kind ?? "task";
+  const asTask = goesTo === "task";
+  const minutes = reading?.minutes ?? length;
+
+  const question = text.trim().length > 0 && asTask ? questions[0] : undefined;
   const area = (task.area ?? (personal ? "personal" : "company")) as string;
-  const ready = text.trim().length > 0 && questions.length === 0 && task.day !== null;
+  const ready = asTask
+    ? text.trim().length > 0 && questions.length === 0 && task.day !== null
+    : (reading?.text ?? "").length > 0 && (goesTo !== "hobby" || minutes !== null);
   const repeat = task.repeat && task.repeat.until !== null && task.day !== null
     ? { weekdays: task.repeat.weekdays, until: task.repeat.until }
     : null;
@@ -125,7 +179,56 @@ export function QuickAdd({
     input.current?.focus();
   }
 
+  /** Everything that is not a task: kept where the line said, or where it was moved to. */
+  async function keep() {
+    if (!ready || busy || !reading) return;
+    const said = reading.text;
+    setBusy(true);
+    setError(null);
+    try {
+      let summary = "";
+      if (goesTo === "journal") {
+        await window.caulder.life.jot(companyId, said);
+        summary = "In today's journal";
+      } else if (goesTo === "contact" && reading.contact) {
+        await window.caulder.activities.log({ leadId: reading.contact.id, kind: reading.logged, body: said });
+        summary = `On ${reading.contact.name}'s history${reading.logged === "note" ? "" : `, as a ${reading.logged}`}`;
+      } else if (goesTo === "hobby" && reading.hobby && minutes !== null) {
+        await window.caulder.life.logTime(reading.hobby.id, minutes);
+        summary = `${formatDuration(minutes)} of ${reading.hobby.title}, kept`;
+      } else if (goesTo === "idea") {
+        const page = await window.caulder.brain.create(companyId, "ideas", "idea");
+        await window.caulder.brain.save(page.id, {
+          title: said.length > 120 ? `${said.slice(0, 117).trimEnd()}…` : said,
+          body: said,
+          fields: page.fields,
+          secrets: {},
+          baseRevision: page.revision,
+        });
+        summary = "An idea, in the brain";
+      } else {
+        await window.caulder.notes.create(companyId, said);
+        summary = "A note, at the foot of Today";
+      }
+      setAdded(summary);
+      setText("");
+      setAnswers({});
+      setChosen(null);
+      setLength(null);
+      onAdded?.(summary);
+      input.current?.focus();
+    } catch (cause) {
+      setError(messageOf(cause));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function add() {
+    if (!asTask) {
+      await keep();
+      return;
+    }
     if (!ready || busy || task.day === null) return;
     setBusy(true);
     setError(null);
@@ -139,6 +242,7 @@ export function QuickAdd({
         area,
         priority: task.priority,
         repeat,
+        leadId: reading?.contact?.id ?? null,
       });
       const summary = repeat
         ? `${task.title} — ${describeWeekdays(repeat.weekdays)}${task.time ? ` at ${formatTime(task.time)}` : ""}, ${result.repeats} on your day`
@@ -146,6 +250,7 @@ export function QuickAdd({
       setAdded(summary);
       setText("");
       setAnswers({});
+      setChosen(null);
       onAdded?.(summary);
       input.current?.focus();
     } catch (cause) {
@@ -170,8 +275,8 @@ export function QuickAdd({
           ref={input}
           className="quickadd__input"
           value={text}
-          placeholder={placeholder}
-          aria-label="Add a task in one line"
+          placeholder={smart ? "Anything: a task, a call just made, how today went, guitar 40 min, an idea" : placeholder}
+          aria-label={smart ? "Anything, in one line" : "Add a task in one line"}
           aria-describedby={readId}
           autoComplete="off"
           spellCheck={false}
@@ -182,6 +287,8 @@ export function QuickAdd({
             // changes the question may no longer exist, and a stale answer
             // would override what was just typed.
             setAnswers({});
+            setChosen(null);
+            setLength(null);
             setError(null);
           }}
           onKeyDown={(event) => {
@@ -209,7 +316,7 @@ export function QuickAdd({
           onClick={() => void add()}
         >
           <CornerDownLeft size={14} aria-hidden />
-          Add
+          {asTask ? "Add" : "Keep"}
         </button>
       </div>
 
@@ -218,8 +325,29 @@ export function QuickAdd({
           added ? (
             <span className="quickadd__added">Added: {added}</span>
           ) : (
-            <span className="quickadd__hint">{shownHint}</span>
+            <span className="quickadd__hint">
+              {smart
+                ? "Type it the way you would say it. It goes where it belongs - a task, today's journal, a contact's history, a hobby, an idea or a note - and says so before it goes."
+                : shownHint}
+            </span>
           )
+        ) : !asTask && reading ? (
+          <span className="quickadd__reading">
+            <strong className="quickadd__title">{reading.text || "…"}</strong>
+            <span className="quickadd__note">
+              {goesTo === "journal"
+                ? "into today's journal"
+                : goesTo === "contact" && reading.contact
+                  ? `on ${reading.contact.name}'s history${reading.logged === "note" ? "" : `, as a ${reading.logged}`}`
+                  : goesTo === "hobby" && reading.hobby
+                    ? minutes !== null
+                      ? `${formatDuration(minutes)} of ${reading.hobby.title}, kept on the Calendar`
+                      : `time on ${reading.hobby.title}: how long?`
+                    : goesTo === "idea"
+                      ? "an idea, in the brain's Ideas"
+                      : "a note at the foot of Today, to file later"}
+            </span>
+          </span>
         ) : (
           <Reading
             title={task.title}
@@ -237,8 +365,57 @@ export function QuickAdd({
         )}
       </div>
 
-      {text.trim().length > 0 && notes.length > 0 && (
+      {text.trim().length > 0 && asTask && notes.length > 0 && (
         <p className="quickadd__aside">{notes.join(" ")}</p>
+      )}
+
+      {/* Where it goes: the line's guess pressed, every other sensible place a click away. */}
+      {reading && (
+        <div className="quickadd__goes" role="group" aria-label="Where it goes">
+          <span className="quickadd__goesLabel">Goes to</span>
+          <span className="quickadd__goesChips">
+            {reading.options.map((option) => (
+              <button
+                key={option}
+                type="button"
+                className={`chip${goesTo === option ? " chip--on" : ""}`}
+                aria-pressed={goesTo === option}
+                onClick={() => {
+                  setChosen(option);
+                  input.current?.focus();
+                }}
+              >
+                {option === "contact" && reading.contact
+                  ? reading.contact.name
+                  : option === "hobby" && reading.hobby
+                    ? reading.hobby.title
+                    : GOES_TO[option]}
+              </button>
+            ))}
+          </span>
+        </div>
+      )}
+
+      {reading && goesTo === "hobby" && reading.minutes === null && (
+        <div className="quickadd__ask" role="group" aria-label="How long">
+          <span className="quickadd__question">How long?</span>
+          <span className="quickadd__answers">
+            {LENGTHS.map((each) => (
+              <button
+                key={each}
+                type="button"
+                className={`chip${length === each ? " chip--on" : ""}`}
+                aria-pressed={length === each}
+                onClick={() => {
+                  setLength(each);
+                  input.current?.focus();
+                }}
+              >
+                {formatDuration(each)}
+              </button>
+            ))}
+          </span>
+        </div>
       )}
 
       {question && (

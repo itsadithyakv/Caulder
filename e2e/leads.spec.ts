@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { choose } from "./choose";
+import { passSetup } from "./nav";
 
 /**
  * Phase 3 through the real window: add a lead, find it, edit it, log against
@@ -37,12 +38,9 @@ async function ensureCompany(page: Page) {
   if (await page.locator(".firstrun").isVisible()) {
     await page.getByLabel("Company name").fill("Unifloe");
     await page.getByRole("button", { name: "Create company" }).click();
+    await passSetup(page);
     await expect(page.getByRole("button", { name: /Company: Unifloe/ })).toBeVisible();
 
-  // A first run now offers the tour, which sits over everything. Dismissing
-  // it is exactly what somebody starting the app does.
-  await page.waitForTimeout(700);
-  if (await page.locator(".tour").count()) await page.keyboard.press("Escape");
   }
 }
 
@@ -107,8 +105,11 @@ test("a fuller lead shows its details and lands in the first stage", async () =>
   await expect(page.getByRole("heading", { name: "Bengaluru Public School" })).toBeVisible();
   // A lead outside the funnel would be invisible on the board, so it starts in
   // the first stage rather than nowhere.
-  await expect(page.getByText("New", { exact: true })).toBeVisible();
-  await expect(page.getByText("45,000")).toBeVisible();
+  await expect(page.locator(".detail__head").getByText("New", { exact: true })).toBeVisible();
+  // The stage and value went on the contact's first deal.
+  const deals = page.getByRole("list", { name: "Deals with Bengaluru Public School" });
+  await expect(deals.getByRole("listitem")).toHaveCount(1);
+  await expect(deals).toContainText("45,000");
 });
 
 test("the list shows both leads and the search narrows it", async () => {
@@ -202,7 +203,8 @@ test("a lead can be deleted, and its history goes with it", async () => {
   await openLeads(page);
 
   await page.locator(".leadrow__name", { hasText: /JNS Public School/ }).click();
-  await page.getByRole("button", { name: "Delete" }).click();
+  // Exact: the contact's deal has its own "Delete the deal" button.
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
   await page.getByRole("button", { name: "Delete", exact: true }).last().click();
 
   await expect(page.locator(".leads__count")).toHaveText("1 contact");

@@ -95,6 +95,14 @@ export function formatDay(day: string): string {
   return dateFormat.format(new Date(year ?? 1970, (month ?? 1) - 1, date ?? 1));
 }
 
+const monthFormat = new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" });
+
+/** A calendar day's month and year: "July 2027". Built from parts, like formatDay. */
+export function formatMonth(day: string): string {
+  const [year, month] = day.split("-").map(Number);
+  return monthFormat.format(new Date(year ?? 1970, (month ?? 1) - 1, 1));
+}
+
 export function formatDateTime(iso: string): string {
   const date = new Date(iso);
   return `${dateFormat.format(date)} at ${timeFormat.format(date)}`;

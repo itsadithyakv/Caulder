@@ -1,4 +1,7 @@
 import { z } from "zod";
+import type { EmailReply } from "./mail";
+import type { Renewal } from "./costs";
+import type { Deadline } from "./deadlines";
 
 /**
  * The domain types and their validators, imported by BOTH the renderer and the
@@ -255,6 +258,33 @@ const optionalText = (max: number) =>
     .nullable()
     .default(null);
 
+/**
+ * Who a contact is to the company. Deals and Going quiet show prospects and
+ * customers; an accountant or a vendor is somebody you know, not a sale.
+ */
+export const RELATIONSHIPS = [
+  "prospect",
+  "customer",
+  "vendor",
+  "partner",
+  "advisor",
+  "investor",
+  "accountant",
+  "candidate",
+] as const;
+export type Relationship = (typeof RELATIONSHIPS)[number];
+
+export const RELATIONSHIP_LABEL: Record<Relationship, string> = {
+  prospect: "Prospect",
+  customer: "Customer",
+  vendor: "Vendor",
+  partner: "Partner",
+  advisor: "Advisor",
+  investor: "Investor",
+  accountant: "Accountant",
+  candidate: "Candidate",
+};
+
 export const leadInput = z.object({
   name: z
     .string()
@@ -280,6 +310,11 @@ export const leadInput = z.object({
     .nullable()
     .default(null),
   notes: optionalText(4000),
+  /**
+   * With `value`, the contact's main deal. A new contact you sell to starts
+   * with one; an edit moves it while the contact has at most one deal. A
+   * contact with several has them edited as deals.
+   */
   stageId: z.string().nullable().default(null),
   /** Which campaign this lead came from. Single-touch, and often nothing. */
   campaignId: z.string().nullable().default(null),
@@ -291,6 +326,7 @@ export const leadInput = z.object({
    * only the screen respects is not a flag.
    */
   doNotContact: z.boolean().default(false),
+  relationship: z.enum(RELATIONSHIPS).default("prospect"),
 });
 
 export type LeadInput = z.infer<typeof leadInput>;
@@ -320,7 +356,50 @@ export type Lead = {
   /** The campaign it came from, or null. Attribution is single-touch. */
   campaignId: string | null;
   doNotContact: boolean;
+  relationship: Relationship;
+  /**
+   * How many deals the contact has. `stageId`, `value` and `lossReason` above
+   * are its main deal's - the open one touched last, or the last one - so the
+   * list can show one stage per contact; null when it has none.
+   */
+  dealCount: number;
 };
+
+/* ---- Deals ---------------------------------------------------------------
+ * What is being sold to a contact. A contact can have several: a school that
+ * buys twice, two products to one customer. The board shows deals; a quote
+ * or an invoice belongs to one.
+ * ------------------------------------------------------------------------ */
+
+export type Deal = {
+  id: string;
+  companyId: string;
+  leadId: string;
+  title: string;
+  stageId: string | null;
+  value: number | null;
+  lossReason: string | null;
+  closedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export const dealInput = z.object({
+  title: z
+    .string()
+    .trim()
+    .min(1, "Give the deal a name.")
+    .max(160, "Keep the name under 160 characters."),
+  stageId: z.string().nullable().default(null),
+  value: z
+    .number()
+    .int("Value has to be a whole number.")
+    .nonnegative("Value cannot be negative.")
+    .nullable()
+    .default(null),
+});
+
+export type DealInput = z.infer<typeof dealInput>;
 
 /** What the table asks for. Every field is optional and they combine with AND. */
 export type LeadQuery = {
@@ -328,6 +407,7 @@ export type LeadQuery = {
   /** Matched against name, contact, email, phone and city. */
   search?: string;
   stageId?: string | null;
+  relationship?: Relationship;
   sort?: LeadSort;
   direction?: SortDirection;
 };
@@ -466,8 +546,14 @@ export const CURRENCIES = ["INR", "USD", "EUR", "GBP", "AED", "SGD", "AUD"] as c
  * cards carrying only what a card shows.
  * ------------------------------------------------------------------------ */
 
+/** A deal on the board, with enough of its contact to recognise it. */
 export type BoardCard = {
+  /** The deal. */
   id: string;
+  leadId: string;
+  /** The deal's own name, which starts as the contact's. */
+  title: string;
+  /** The contact's name. */
   name: string;
   city: string | null;
   contactPerson: string | null;
@@ -484,7 +570,7 @@ export type BoardColumn = {
   stageId: string | null;
   name: string;
   kind: StageKind;
-  /** Every lead in the column, even where more cards exist than are rendered. */
+  /** Every deal in the column, even where more cards exist than are rendered. */
   total: number;
   value: number;
   cards: BoardCard[];
@@ -564,6 +650,9 @@ export type Task = {
   leadId: string | null;
   /** Denormalised for display: Today lists tasks, not leads. */
   leadName: string | null;
+  /** The page that made it - a playbook's step - so the task can say where it came from. */
+  pageId: string | null;
+  pageTitle: string | null;
   title: string;
   kind: TaskKind;
   /** College, company, personal, health - or whatever was typed. */
@@ -636,6 +725,8 @@ export const quickInput = z.object({
   kind: z.enum(TASK_KINDS).default("todo"),
   area: z.string().trim().max(40).nullable().default(null),
   priority: z.enum(["must", "should", "spare"]).nullable().default(null),
+  /** The contact it is for, when the line named one: "call Oakridge tmrw". */
+  leadId: z.string().nullable().default(null),
   /**
    * "Gym every Mon, Wed, Fri" - hours set aside on those days until the last
    * one, rather than a task. A task is done once; a repeat is a habit.
@@ -708,6 +799,12 @@ export type Today = {
   coldAfterDays: number;
   /** Sent invoices past their due date. Above overdue tasks: late money is later than a late call. */
   unpaid: Invoice[];
+  /** Replies to email sent from Caulder, from the last seven days. */
+  replies: EmailReply[];
+  /** Running costs renewing soon, or overdue for it. */
+  renewals: Renewal[];
+  /** Filings, notice dates and expiries that are late or coming up. */
+  deadlines: Deadline[];
 
 };
 
@@ -718,6 +815,11 @@ export type Today = {
 
 export const SETTING_KEYS = [
   "activeCompanyId",
+  /**
+   * Who this Caulder is, for two founders: a name every revision it writes
+   * carries, and an id the shared brain knows it by. JSON.
+   */
+  "thisIsMe",
   "coldAfterDays",
   /**
    * Days until the built-in follow-up is due after a deal moves stage with
@@ -749,6 +851,23 @@ export const SETTING_KEYS = [
   "googleConnection",
   /** Whether to keep Google in step without being asked. Off by default. */
   "googleAuto",
+  /**
+   * What the script said about itself when last asked: its version, the Gmail
+   * address it sends from and today's remaining sends. JSON. Kept so a
+   * contact's page knows whether it can send without asking Google first.
+   */
+  "googleScript",
+  /**
+   * The AI service Ask the brain uses - which one, its address and its key -
+   * encrypted by the OS like `googleConnection`. Empty once disconnected.
+   */
+  "aiConnection",
+  /** The models that service offered when last asked, as JSON. */
+  "aiModels",
+  /** Which of them answers. */
+  "aiModel",
+  /** How much of the company goes with a question: small, medium, large or whole. */
+  "aiContext",
 ] as const;
 export type SettingKey = (typeof SETTING_KEYS)[number];
 
@@ -768,16 +887,6 @@ export function systemTimezone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 }
 
-
-/* ---- Attachments -------------------------------------------------------- */
-
-export type Attachment = {
-  id: string;
-  leadId: string;
-  name: string;
-  bytes: number;
-  createdAt: string;
-};
 
 /* ---- Custom fields ------------------------------------------------------ */
 
@@ -873,6 +982,9 @@ export type Block = {
   outcome: string | null;
   /** Denormalised for display, the way `Task.leadName` is. */
   taskTitle: string | null;
+  /** The brain page this time is for - a course, a hobby - when it was set aside from one. */
+  pageId: string | null;
+  pageTitle: string | null;
   /**
    * How long before this starts to say something.
    *
@@ -965,6 +1077,8 @@ export type WeekPlan = {
     blocks: LaidOutBlock[];
     /** Minutes accounted for, so a heavy day is visible from the heading. */
     planned: number;
+    /** What falls due that day. */
+    deadlines: Deadline[];
   }[];
 };
 
@@ -973,6 +1087,8 @@ export type DayPlan = {
   blocks: LaidOutBlock[];
   /** Open tasks due on this day, so the plan can be built out of real work. */
   tasks: Task[];
+  /** Filings, notice dates and expiries falling on this day, done or not. */
+  deadlines: Deadline[];
   notes: Note[];
   /** Minutes accounted for, by block kind. What "four hours of admin" reads off. */
   spent: { kind: string; minutes: number }[];
@@ -1062,6 +1178,15 @@ export type GoogleState = {
   /** Whether it syncs on its own. Off until asked for. */
   auto: boolean;
   sync: GoogleSync;
+  /** What the script said about itself when last asked; null before it ever has. */
+  script: {
+    version: number;
+    /** The version this build ships. Older than this means "update the script". */
+    latest: number;
+    address: string | null;
+    remaining: number | null;
+    mailError: string | null;
+  } | null;
 };
 
 /* ---- Money ---------------------------------------------------------------
@@ -1103,11 +1228,19 @@ export const moneyLineInput = z.object({
     .max(100_000, "That is too many."),
   /** Whole units of the currency. Zero is allowed: a free line is a real line. */
   unitPrice: z.number().int("Whole units of the currency.").min(0, "A price cannot be negative."),
+  /**
+   * The product it is, when it came from the catalogue. The words and the
+   * price stay the line's own: what was charged is what was charged, whatever
+   * the catalogue says later.
+   */
+  productId: z.string().nullable().optional(),
 });
 export type MoneyLineInput = z.infer<typeof moneyLineInput>;
 
 export const quoteInput = z.object({
   leadId: z.string().min(1, "Pick a contact."),
+  /** The deal it is for. Left out, it is the contact's main deal. */
+  dealId: z.string().nullable().optional(),
   issuedOn: dayString,
   notes: optionalText(2000),
   lines: z.array(moneyLineInput).min(1, "Add at least one line.").max(50, "Fifty lines is the limit."),
@@ -1146,6 +1279,9 @@ export type MoneyLine = {
   description: string;
   quantity: number;
   unitPrice: number;
+  /** The product it came from, if it did, and that product's name now. */
+  productId: string | null;
+  productName: string | null;
 };
 
 export type Quote = {
@@ -1153,6 +1289,8 @@ export type Quote = {
   companyId: string;
   leadId: string;
   leadName: string;
+  dealId: string | null;
+  dealTitle: string | null;
   number: number;
   status: QuoteStatus;
   issuedOn: string;
@@ -1175,6 +1313,8 @@ export type Invoice = {
   companyId: string;
   leadId: string;
   leadName: string;
+  dealId: string | null;
+  dealTitle: string | null;
   quoteId: string | null;
   number: number;
   status: InvoiceStatus;

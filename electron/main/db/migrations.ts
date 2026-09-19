@@ -16,6 +16,12 @@ type Migration = {
   version: number;
   name: string;
   sql: string;
+  /**
+   * Rebuilds a table other tables point at. Run with foreign keys off, as
+   * SQLite's own recipe for it says: dropping the old table would otherwise
+   * cascade into everything that refers to it.
+   */
+  rebuilds?: true;
 };
 
 const M001_COMPANIES = `
@@ -1148,6 +1154,1185 @@ const M018_DELETION = `
   DELETE FROM settings WHERE key IN ('widgetLevel', 'widgetOpen', 'mailProvider', 'syncFolder');
 `;
 
+
+/**
+ * Email that Caulder sends through the Google script. See PLAN.md, phase 5.
+ *
+ * One row per message, with its one optional follow-up as columns rather than
+ * a second row: there is never more than one, and a follow-up means nothing
+ * apart from the message it follows. `settled` says nothing more can happen
+ * to it; `forgotten` says the script has been told it may drop its copy.
+ */
+const M019_EMAILS = `
+  CREATE TABLE emails (
+    id                TEXT PRIMARY KEY,
+    company_id        TEXT NOT NULL REFERENCES companies (id) ON DELETE CASCADE,
+    lead_id           TEXT NOT NULL REFERENCES leads (id) ON DELETE CASCADE,
+    to_email          TEXT NOT NULL,
+    subject           TEXT NOT NULL,
+    body              TEXT NOT NULL,
+    send_at           TEXT,
+    status            TEXT NOT NULL
+                      CHECK (status IN ('scheduled', 'sent', 'replied', 'failed', 'cancelled')),
+    sent_at           TEXT,
+    replied_at        TEXT,
+    error             TEXT,
+    follow_up_days    INTEGER CHECK (follow_up_days BETWEEN 1 AND 60),
+    follow_up_body    TEXT,
+    follow_up_status  TEXT
+                      CHECK (follow_up_status IN ('waiting', 'sent', 'skipped', 'cancelled', 'failed')),
+    follow_up_sent_at TEXT,
+    follow_up_error   TEXT,
+    settled           INTEGER NOT NULL DEFAULT 0 CHECK (settled IN (0, 1)),
+    forgotten         INTEGER NOT NULL DEFAULT 0 CHECK (forgotten IN (0, 1)),
+    created_at        TEXT NOT NULL,
+    updated_at        TEXT NOT NULL
+  );
+
+  CREATE INDEX emails_lead    ON emails (lead_id, created_at DESC);
+  CREATE INDEX emails_work    ON emails (settled, forgotten, updated_at);
+  CREATE INDEX emails_replies ON emails (company_id, status, replied_at);
+`;
+
+/**
+ * The company brain, and search over everything. See PLAN.md, phase 6.
+ *
+ * Pages hold their template's fields as JSON, because the fields are defined
+ * in shared/brain.ts and change with it, and nothing queries them by column.
+ * A secret field is stored as `{"$secret": "<encrypted>"}` inside that JSON,
+ * so it travels with its revisions and never reaches the search index, which
+ * only reads a field's text and numbers.
+ *
+ * Search is FTS5, kept current by triggers rather than by every place that
+ * writes a lead or a note remembering to. `search_map` gives each indexed row
+ * a stable integer id, which is what FTS5 keys on; the source tables' own
+ * rowids can change under VACUUM. Every trigger runs the same "refresh this
+ * row" step, so an insert, an edit and a delete cannot disagree about what
+ * the index should hold.
+ *
+ * FROZEN: the SQL this builds is migration 20. A later change to what is
+ * indexed is a later migration that drops and recreates the triggers.
+ */
+const M020_SOURCES: {
+  kind: string;
+  table: string;
+  when: string;
+  title: string;
+  body: string;
+  columns: string;
+}[] = [
+  {
+    kind: "page",
+    table: "brain_pages",
+    when: "t.is_archived = 0",
+    title: "t.title",
+    body: `t.body || ' ' || COALESCE((SELECT group_concat(value, ' ') FROM json_each(t.fields)
+             WHERE type IN ('text', 'integer', 'real')), '')`,
+    columns: "title, body, fields, is_archived",
+  },
+  {
+    kind: "contact",
+    table: "leads",
+    when: "1",
+    title: "t.name",
+    body: `concat_ws(' ', t.contact_person, t.email, t.phone, t.alt_phone, t.city,
+             t.location, t.website, t.source, t.notes)`,
+    columns: "name, contact_person, email, phone, alt_phone, city, location, website, source, notes",
+  },
+  {
+    kind: "note",
+    table: "notes",
+    when: "1",
+    title: "''",
+    body: "t.body",
+    columns: "body",
+  },
+  {
+    kind: "history",
+    table: "activities",
+    when: `t.body IS NOT NULL AND t.kind NOT IN ('created', 'stage_change', 'field_change',
+             'imported', 'import_undone', 'task_done')`,
+    title: "''",
+    body: "t.body",
+    columns: "body, kind",
+  },
+  {
+    kind: "invoice",
+    table: "invoices",
+    when: "1",
+    title: `'INV-' || printf('%04d', t.number)`,
+    body: `concat_ws(' ', (SELECT name FROM leads WHERE id = t.lead_id), t.notes,
+             (SELECT group_concat(description, ' ') FROM invoice_lines WHERE invoice_id = t.id))`,
+    columns: "number, notes, lead_id",
+  },
+];
+
+function m020Refresh(source: (typeof M020_SOURCES)[number], id: string): string {
+  const { kind, table, when, title, body } = source;
+  return `
+    DELETE FROM brain_search
+      WHERE rowid = (SELECT id FROM search_map WHERE kind = '${kind}' AND ref_id = ${id});
+    DELETE FROM search_map WHERE kind = '${kind}' AND ref_id = ${id};
+    INSERT INTO search_map (kind, ref_id, company_id)
+      SELECT '${kind}', t.id, t.company_id FROM ${table} t WHERE t.id = ${id} AND (${when});
+    INSERT INTO brain_search (rowid, title, body)
+      SELECT m.id, ${title}, ${body}
+      FROM ${table} t JOIN search_map m ON m.kind = '${kind}' AND m.ref_id = t.id
+      WHERE t.id = ${id};`;
+}
+
+function m020Triggers(): string {
+  const parts: string[] = [];
+  for (const source of M020_SOURCES) {
+    const { kind, table, when, title, body, columns } = source;
+    parts.push(`
+  CREATE TRIGGER search_${kind}_insert AFTER INSERT ON ${table} BEGIN${m020Refresh(source, "NEW.id")}
+  END;
+  CREATE TRIGGER search_${kind}_update AFTER UPDATE OF ${columns} ON ${table} BEGIN${m020Refresh(source, "NEW.id")}
+  END;
+  CREATE TRIGGER search_${kind}_delete AFTER DELETE ON ${table} BEGIN${m020Refresh(source, "OLD.id")}
+  END;
+  INSERT INTO search_map (kind, ref_id, company_id)
+    SELECT '${kind}', t.id, t.company_id FROM ${table} t WHERE ${when};
+  INSERT INTO brain_search (rowid, title, body)
+    SELECT m.id, ${title}, ${body}
+    FROM ${table} t JOIN search_map m ON m.kind = '${kind}' AND m.ref_id = t.id;`);
+  }
+
+  const invoice = M020_SOURCES.find((source) => source.kind === "invoice");
+  if (!invoice) throw new Error("Migration 20 lost its invoice source.");
+  // An invoice's lines are part of its text, and they are written after it.
+  parts.push(`
+  CREATE TRIGGER search_invoice_line_insert AFTER INSERT ON invoice_lines BEGIN${m020Refresh(invoice, "NEW.invoice_id")}
+  END;
+  CREATE TRIGGER search_invoice_line_update AFTER UPDATE OF description ON invoice_lines BEGIN${m020Refresh(invoice, "NEW.invoice_id")}
+  END;
+  CREATE TRIGGER search_invoice_line_delete AFTER DELETE ON invoice_lines BEGIN${m020Refresh(invoice, "OLD.invoice_id")}
+  END;`);
+
+  return parts.join("\n");
+}
+
+const M020_BRAIN = `
+  -- Who a contact is to the company. Deals shows prospects and customers.
+  ALTER TABLE leads ADD COLUMN relationship TEXT NOT NULL DEFAULT 'prospect'
+    CHECK (relationship IN ('prospect', 'customer', 'vendor', 'partner', 'advisor',
+                            'investor', 'accountant', 'candidate'));
+  UPDATE leads SET relationship = 'customer'
+    WHERE stage_id IN (SELECT id FROM pipeline_stages WHERE kind = 'won');
+  CREATE INDEX leads_relationship ON leads (company_id, relationship);
+
+  CREATE TABLE brain_pages (
+    id          TEXT PRIMARY KEY,
+    company_id  TEXT NOT NULL REFERENCES companies (id) ON DELETE CASCADE,
+    section     TEXT NOT NULL CHECK (section IN (
+                  'company', 'plan', 'products', 'money', 'tax', 'people', 'customers',
+                  'playbooks', 'legal', 'tools', 'decisions', 'meetings', 'metrics',
+                  'documents', 'ideas')),
+    template    TEXT NOT NULL,
+    title       TEXT NOT NULL,
+    body        TEXT NOT NULL DEFAULT '',
+    fields      TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(fields)),
+    is_pinned   INTEGER NOT NULL DEFAULT 0 CHECK (is_pinned IN (0, 1)),
+    is_archived INTEGER NOT NULL DEFAULT 0 CHECK (is_archived IN (0, 1)),
+    -- Bumped on every save; an edit made on an older one is refused.
+    revision    INTEGER NOT NULL DEFAULT 1,
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL
+  );
+
+  CREATE INDEX brain_pages_section ON brain_pages (company_id, section, is_archived, updated_at DESC);
+  CREATE INDEX brain_pages_recent  ON brain_pages (company_id, updated_at DESC);
+  -- The pages a company has one of.
+  CREATE UNIQUE INDEX brain_pages_single ON brain_pages (company_id, template)
+    WHERE template IN ('profile', 'brand', 'lean-plan', 'cap-table', 'accountant');
+
+  CREATE TABLE brain_revisions (
+    id        TEXT PRIMARY KEY,
+    page_id   TEXT NOT NULL REFERENCES brain_pages (id) ON DELETE CASCADE,
+    revision  INTEGER NOT NULL,
+    title     TEXT NOT NULL,
+    body      TEXT NOT NULL,
+    fields    TEXT NOT NULL,
+    edited_at TEXT NOT NULL,
+    -- Who wrote it, once there are two founders (phase 12).
+    edited_by TEXT,
+    UNIQUE (page_id, revision)
+  );
+
+  CREATE TABLE search_map (
+    id         INTEGER PRIMARY KEY,
+    kind       TEXT NOT NULL,
+    ref_id     TEXT NOT NULL,
+    company_id TEXT NOT NULL,
+    UNIQUE (kind, ref_id)
+  );
+
+  CREATE INDEX search_map_company ON search_map (company_id);
+
+  CREATE VIRTUAL TABLE brain_search USING fts5(
+    title, body,
+    tokenize = 'unicode61 remove_diacritics 2',
+    prefix = '2 3'
+  );
+
+  -- Before the cascade, so the rows go while search_map can still find them.
+  CREATE TRIGGER search_company_delete BEFORE DELETE ON companies BEGIN
+    DELETE FROM brain_search
+      WHERE rowid IN (SELECT id FROM search_map WHERE company_id = OLD.id);
+    DELETE FROM search_map WHERE company_id = OLD.id;
+  END;
+${m020Triggers()}
+`;
+
+/**
+ * Links between pages and contacts, and where the Map left its dots. See
+ * PLAN.md, phase 7, and shared/links.ts for how a link is written.
+ *
+ * `brain_links` is derived: every save of a page replaces that page's rows
+ * with what its text now links to. A link always starts on a page; it may end
+ * on a page or a contact. The target has no foreign key because it can be
+ * either, so a trigger on each removes the rows pointing at something
+ * deleted - the words stay in the text that linked to it.
+ */
+const M021_LINKS = `
+  CREATE TABLE brain_links (
+    id         INTEGER PRIMARY KEY,
+    company_id TEXT NOT NULL REFERENCES companies (id) ON DELETE CASCADE,
+    from_page  TEXT NOT NULL REFERENCES brain_pages (id) ON DELETE CASCADE,
+    to_kind    TEXT NOT NULL CHECK (to_kind IN ('page', 'contact')),
+    to_id      TEXT NOT NULL,
+    -- The words the link was written with, for a target since deleted.
+    label      TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE (from_page, to_kind, to_id)
+  );
+
+  CREATE INDEX brain_links_to      ON brain_links (to_kind, to_id);
+  CREATE INDEX brain_links_company ON brain_links (company_id);
+
+  -- Where each dot was left, so the Map is the same map tomorrow.
+  CREATE TABLE map_positions (
+    company_id TEXT NOT NULL REFERENCES companies (id) ON DELETE CASCADE,
+    node       TEXT NOT NULL,
+    x          REAL NOT NULL,
+    y          REAL NOT NULL,
+    pinned     INTEGER NOT NULL DEFAULT 0 CHECK (pinned IN (0, 1)),
+    PRIMARY KEY (company_id, node)
+  );
+
+  CREATE TRIGGER links_page_gone AFTER DELETE ON brain_pages BEGIN
+    DELETE FROM brain_links WHERE to_kind = 'page' AND to_id = OLD.id;
+    DELETE FROM map_positions WHERE company_id = OLD.company_id AND node = 'page:' || OLD.id;
+  END;
+
+  CREATE TRIGGER links_contact_gone AFTER DELETE ON leads BEGIN
+    DELETE FROM brain_links WHERE to_kind = 'contact' AND to_id = OLD.id;
+    DELETE FROM map_positions WHERE company_id = OLD.company_id AND node = 'contact:' || OLD.id;
+  END;
+`;
+
+/**
+ * Deals apart from contacts (product-review.md, second review; PLAN.md).
+ *
+ * A contact used to be its own single deal: the stage and the value sat on
+ * `leads`, so a school that bought twice could not be shown. Now a contact has
+ * deals, the board shows deals, and a quote or an invoice belongs to one.
+ *
+ * Every contact that was on the board - a prospect or a customer - or that has
+ * a quote or an invoice gets one deal carrying the stage, value, loss reason
+ * and close date it had, named after it and dated when it was. Its quotes and
+ * invoices point at that deal. Nothing moves on screen.
+ *
+ * The old columns on `leads` stay, unread: `stage_id` is a foreign key, and
+ * dropping it would mean rebuilding the table everything else points at.
+ */
+const M022_DEALS = `
+  CREATE TABLE deals (
+    id          TEXT PRIMARY KEY,
+    company_id  TEXT NOT NULL REFERENCES companies (id) ON DELETE CASCADE,
+    lead_id     TEXT NOT NULL REFERENCES leads (id) ON DELETE CASCADE,
+    title       TEXT NOT NULL,
+    stage_id    TEXT REFERENCES pipeline_stages (id) ON DELETE SET NULL,
+    value       INTEGER CHECK (value IS NULL OR value >= 0),
+    loss_reason TEXT,
+    closed_at   TEXT,
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL
+  );
+
+  CREATE INDEX deals_lead  ON deals (lead_id, updated_at DESC);
+  CREATE INDEX deals_stage ON deals (company_id, stage_id);
+
+  INSERT INTO deals (id, company_id, lead_id, title, stage_id, value, loss_reason, closed_at,
+                     created_at, updated_at)
+  SELECT
+    lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' ||
+      substr(lower(hex(randomblob(2))), 2) || '-' ||
+      substr('89ab', 1 + (abs(random()) % 4), 1) || substr(lower(hex(randomblob(2))), 2) || '-' ||
+      lower(hex(randomblob(6))),
+    l.company_id, l.id, l.name, l.stage_id, l.value, l.loss_reason, l.closed_at,
+    l.created_at, l.updated_at
+  FROM leads l
+  WHERE l.relationship IN ('prospect', 'customer')
+     OR EXISTS (SELECT 1 FROM quotes q WHERE q.lead_id = l.id)
+     OR EXISTS (SELECT 1 FROM invoices i WHERE i.lead_id = l.id);
+
+  ALTER TABLE quotes   ADD COLUMN deal_id TEXT REFERENCES deals (id) ON DELETE SET NULL;
+  ALTER TABLE invoices ADD COLUMN deal_id TEXT REFERENCES deals (id) ON DELETE SET NULL;
+
+  UPDATE quotes   SET deal_id = (SELECT d.id FROM deals d WHERE d.lead_id = quotes.lead_id);
+  UPDATE invoices SET deal_id = (SELECT d.id FROM deals d WHERE d.lead_id = invoices.lead_id);
+
+  CREATE INDEX quotes_deal   ON quotes (deal_id);
+  CREATE INDEX invoices_deal ON invoices (deal_id);
+`;
+
+/**
+ * Calls made from the prompter: how each went, how interested they were, the
+ * script and the answers. The history keeps a readable line for each; this is
+ * the part something can count.
+ *
+ * `interest` only exists for a call where somebody spoke, which the CHECK
+ * holds as well as the input schema.
+ */
+const M023_CALLS = `
+  CREATE TABLE calls (
+    id          TEXT PRIMARY KEY,
+    company_id  TEXT NOT NULL REFERENCES companies (id) ON DELETE CASCADE,
+    lead_id     TEXT NOT NULL REFERENCES leads (id) ON DELETE CASCADE,
+    deal_id     TEXT REFERENCES deals (id) ON DELETE SET NULL,
+    script_id   TEXT REFERENCES brain_pages (id) ON DELETE SET NULL,
+    activity_id TEXT REFERENCES activities (id) ON DELETE SET NULL,
+    outcome     TEXT NOT NULL
+                CHECK (outcome IN ('no_answer', 'busy', 'voicemail', 'wrong_number', 'spoke')),
+    interest    INTEGER
+                CHECK (interest IS NULL OR (interest BETWEEN 1 AND 5 AND outcome = 'spoke')),
+    notes       TEXT,
+    answers     TEXT NOT NULL DEFAULT '[]',
+    started_at  TEXT,
+    seconds     INTEGER CHECK (seconds IS NULL OR seconds >= 0),
+    created_at  TEXT NOT NULL
+  );
+
+  CREATE INDEX calls_lead    ON calls (lead_id, created_at DESC);
+  CREATE INDEX calls_company ON calls (company_id, created_at DESC);
+  CREATE INDEX calls_script  ON calls (script_id);
+`;
+
+/**
+ * Runway: what is in the bank, typed with the day it was true, one row each
+ * time so the figure can be seen changing. And a spend row that paid a
+ * running cost says which, so the burn does not count that cost twice - once
+ * as a running cost and again as spending.
+ */
+const M024_RUNWAY = `
+  CREATE TABLE cash_balances (
+    id         TEXT PRIMARY KEY,
+    company_id TEXT NOT NULL REFERENCES companies (id) ON DELETE CASCADE,
+    amount     INTEGER NOT NULL,
+    as_of      TEXT NOT NULL,
+    note       TEXT,
+    created_at TEXT NOT NULL
+  );
+
+  CREATE INDEX cash_balances_company ON cash_balances (company_id, as_of DESC, created_at DESC);
+
+  ALTER TABLE spend ADD COLUMN cost_page_id TEXT REFERENCES brain_pages (id) ON DELETE SET NULL;
+  CREATE INDEX spend_cost_page ON spend (cost_page_id);
+`;
+
+/**
+ * Products and pricing (PLAN.md, phase 8).
+ *
+ * What a company sells was a page in the brain, which was right while it was
+ * only prose and wrong the moment a quote line wanted to pick one: a price
+ * has to be a number something can multiply, and a price that changed has to
+ * be two rows rather than an edited sentence. So each product page becomes a
+ * product, its text becomes the product's notes, its price becomes the first
+ * row of its price book, and the page goes - its links and its search rows
+ * with it, by the triggers migration 20 and 21 put there.
+ *
+ * `prices` is a book rather than a column because a price has a life: a tier,
+ * a shape (once, monthly) and the days it applied. What was actually charged
+ * is not here at all - that is on the invoice lines, which now say which
+ * product they were, so the history is what happened rather than what was
+ * meant to happen.
+ */
+const M025_PRODUCTS = `
+  CREATE TABLE products (
+    id         TEXT PRIMARY KEY,
+    company_id TEXT NOT NULL REFERENCES companies (id) ON DELETE CASCADE,
+    name       TEXT NOT NULL,
+    kind       TEXT NOT NULL DEFAULT 'service'
+               CHECK (kind IN ('service', 'good', 'subscription')),
+    -- What one of it is: a seat, a month, a workshop, an hour.
+    unit       TEXT,
+    status     TEXT NOT NULL DEFAULT 'live'
+               CHECK (status IN ('idea', 'building', 'live', 'retired')),
+    cost       INTEGER CHECK (cost IS NULL OR cost >= 0),
+    tax_rate   REAL CHECK (tax_rate IS NULL OR (tax_rate >= 0 AND tax_rate <= 100)),
+    -- HSN or SAC, for an Indian invoice.
+    code       TEXT,
+    notes      TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  CREATE INDEX products_company ON products (company_id, name COLLATE NOCASE);
+
+  CREATE TABLE prices (
+    id         TEXT PRIMARY KEY,
+    company_id TEXT NOT NULL REFERENCES companies (id) ON DELETE CASCADE,
+    product_id TEXT NOT NULL REFERENCES products (id) ON DELETE CASCADE,
+    name       TEXT NOT NULL,
+    amount     INTEGER NOT NULL CHECK (amount >= 0),
+    recurrence TEXT NOT NULL DEFAULT 'once'
+               CHECK (recurrence IN ('once', 'monthly', 'quarterly', 'yearly')),
+    valid_from TEXT,
+    valid_to   TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  CREATE INDEX prices_product ON prices (product_id, valid_from DESC);
+
+  INSERT INTO products (id, company_id, name, kind, unit, status, cost, tax_rate, code, notes,
+                        created_at, updated_at)
+  SELECT
+    lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' ||
+      substr(lower(hex(randomblob(2))), 2) || '-' ||
+      substr('89ab', 1 + (abs(random()) % 4), 1) || substr(lower(hex(randomblob(2))), 2) || '-' ||
+      lower(hex(randomblob(6))),
+    p.company_id, p.title,
+    CASE WHEN json_extract(p.fields, '$.billing') IN ('monthly', 'yearly') THEN 'subscription' ELSE 'service' END,
+    json_extract(p.fields, '$.unit'),
+    CASE json_extract(p.fields, '$.status')
+      WHEN 'idea' THEN 'idea' WHEN 'building' THEN 'building' WHEN 'retired' THEN 'retired' ELSE 'live' END,
+    CAST(json_extract(p.fields, '$.cost') AS INTEGER),
+    json_extract(p.fields, '$.taxRate'),
+    json_extract(p.fields, '$.hsn'),
+    NULLIF(TRIM(p.body), ''),
+    p.created_at, p.updated_at
+  FROM brain_pages p
+  WHERE p.template = 'product';
+
+  INSERT INTO prices (id, company_id, product_id, name, amount, recurrence, valid_from,
+                      created_at, updated_at)
+  SELECT
+    lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' ||
+      substr(lower(hex(randomblob(2))), 2) || '-' ||
+      substr('89ab', 1 + (abs(random()) % 4), 1) || substr(lower(hex(randomblob(2))), 2) || '-' ||
+      lower(hex(randomblob(6))),
+    r.company_id, r.id, 'Standard',
+    CAST(json_extract(p.fields, '$.price') AS INTEGER),
+    CASE json_extract(p.fields, '$.billing')
+      WHEN 'monthly' THEN 'monthly' WHEN 'yearly' THEN 'yearly' ELSE 'once' END,
+    substr(p.created_at, 1, 10),
+    r.created_at, r.updated_at
+  FROM brain_pages p
+  JOIN products r ON r.company_id = p.company_id AND r.name = p.title
+  WHERE p.template = 'product' AND json_extract(p.fields, '$.price') IS NOT NULL;
+
+  DELETE FROM brain_pages WHERE template = 'product';
+
+  ALTER TABLE quote_lines   ADD COLUMN product_id TEXT REFERENCES products (id) ON DELETE SET NULL;
+  ALTER TABLE invoice_lines ADD COLUMN product_id TEXT REFERENCES products (id) ON DELETE SET NULL;
+
+  CREATE INDEX quote_lines_product   ON quote_lines (product_id);
+  CREATE INDEX invoice_lines_product ON invoice_lines (product_id);
+`;
+
+/**
+ * Deadlines and documents (PLAN.md, phase 9).
+ *
+ * An obligation is something the company has to do by a date, again and
+ * again: a GST return, advance tax, the annual filings. It is one row with a
+ * rule, not a row per occurrence; `obligation_done` records each occurrence
+ * that was done, keyed by the day it was due, which is also how "what was
+ * filed for which period" is answered.
+ *
+ * `documents` replaces `attachments`. A file is no longer only something
+ * hanging off a contact: a certificate, a contract, a pitch deck belong to the
+ * company, may belong to a contact or a page as well, have a category, and
+ * may expire. A document can also be only a record of where the file is, for
+ * the ones that live in a drawer or somebody else's drive.
+ *
+ * Three moves come with it: every attachment becomes a document of its
+ * contact, keeping its id and its stored file; every "document" page becomes
+ * a document; and every "filing" page becomes a one-off obligation, done on
+ * the day it says it was filed. The pages go, and their links and search rows
+ * with them.
+ */
+const M026_DEADLINES = `
+  CREATE TABLE documents (
+    id         TEXT PRIMARY KEY,
+    company_id TEXT NOT NULL REFERENCES companies (id) ON DELETE CASCADE,
+    name       TEXT NOT NULL,
+    category   TEXT NOT NULL DEFAULT 'other'
+               CHECK (category IN ('certificate', 'contract', 'agreement', 'invoice-sent',
+                                   'invoice-received', 'statement', 'pitch-deck', 'identity', 'other')),
+    -- The stored file's name in the app's folder, or NULL for one that is
+    -- only written down with where it is.
+    file       TEXT,
+    bytes      INTEGER CHECK (bytes IS NULL OR bytes >= 0),
+    location   TEXT,
+    expires_on TEXT,
+    -- A contact's files go with the contact, as attachments did.
+    lead_id    TEXT REFERENCES leads (id) ON DELETE CASCADE,
+    page_id    TEXT REFERENCES brain_pages (id) ON DELETE SET NULL,
+    notes      TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  CREATE INDEX documents_company ON documents (company_id, category, name COLLATE NOCASE);
+  CREATE INDEX documents_lead    ON documents (lead_id, created_at DESC);
+  CREATE INDEX documents_expiry  ON documents (company_id, expires_on);
+
+  CREATE TABLE obligations (
+    id          TEXT PRIMARY KEY,
+    company_id  TEXT NOT NULL REFERENCES companies (id) ON DELETE CASCADE,
+    title       TEXT NOT NULL,
+    kind        TEXT NOT NULL DEFAULT 'filing'
+                CHECK (kind IN ('filing', 'payment', 'renewal', 'other')),
+    -- {"every": "once", "on"} | {"every": "month", "day"} | {"every": "year", "dates": [{month, day}]}
+    rule        TEXT NOT NULL CHECK (json_valid(rule)),
+    period      TEXT NOT NULL DEFAULT 'none'
+                CHECK (period IN ('none', 'month-before', 'quarter-before', 'fy-before', 'year-before')),
+    remind_days INTEGER NOT NULL DEFAULT 7 CHECK (remind_days BETWEEN 0 AND 90),
+    amount      INTEGER CHECK (amount IS NULL OR amount >= 0),
+    notes       TEXT,
+    -- Which preset it came from, so a preset is never added twice.
+    preset_id   TEXT,
+    starts_on   TEXT NOT NULL,
+    ends_on     TEXT,
+    page_id     TEXT REFERENCES brain_pages (id) ON DELETE SET NULL,
+    lead_id     TEXT REFERENCES leads (id) ON DELETE SET NULL,
+    document_id TEXT REFERENCES documents (id) ON DELETE SET NULL,
+    is_active   INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL
+  );
+
+  CREATE INDEX obligations_company ON obligations (company_id, is_active);
+  CREATE UNIQUE INDEX obligations_preset ON obligations (company_id, preset_id) WHERE preset_id IS NOT NULL;
+
+  CREATE TABLE obligation_done (
+    id            TEXT PRIMARY KEY,
+    obligation_id TEXT NOT NULL REFERENCES obligations (id) ON DELETE CASCADE,
+    due_on        TEXT NOT NULL,
+    done_on       TEXT NOT NULL,
+    note          TEXT,
+    amount        INTEGER CHECK (amount IS NULL OR amount >= 0),
+    created_at    TEXT NOT NULL,
+    UNIQUE (obligation_id, due_on)
+  );
+
+  -- Attachments become their contact's documents, keeping id and file.
+  INSERT INTO documents (id, company_id, name, category, file, bytes, lead_id, created_at, updated_at)
+  SELECT id, company_id, name, 'other', file, bytes, lead_id, created_at, created_at FROM attachments;
+
+  DROP TABLE attachments;
+
+  -- A document page was a record of where a file is: a document without one.
+  INSERT INTO documents (id, company_id, name, category, location, expires_on, notes, created_at, updated_at)
+  SELECT p.id, p.company_id, p.title,
+         CASE json_extract(p.fields, '$.category')
+           WHEN 'certificate' THEN 'certificate' WHEN 'contract' THEN 'contract'
+           WHEN 'agreement' THEN 'agreement' WHEN 'invoice-received' THEN 'invoice-received'
+           WHEN 'pitch-deck' THEN 'pitch-deck' ELSE 'other' END,
+         NULLIF(TRIM(json_extract(p.fields, '$.where')), ''),
+         json_extract(p.fields, '$.expiresOn'),
+         NULLIF(TRIM(p.body), ''),
+         p.created_at, p.updated_at
+  FROM brain_pages p
+  WHERE p.template = 'document';
+
+  -- A filing page was one occurrence of an obligation: once, done when filed.
+  INSERT INTO obligations (id, company_id, title, kind, rule, period, notes, starts_on, created_at, updated_at)
+  SELECT p.id, p.company_id, p.title, 'filing',
+         json_object('every', 'once', 'on',
+           COALESCE(json_extract(p.fields, '$.dueOn'), json_extract(p.fields, '$.filedOn'), substr(p.created_at, 1, 10))),
+         'none',
+         NULLIF(TRIM(
+           COALESCE('For the period: ' || NULLIF(TRIM(json_extract(p.fields, '$.period')), ''), '') ||
+           CASE WHEN TRIM(p.body) <> '' AND NULLIF(TRIM(json_extract(p.fields, '$.period')), '') IS NOT NULL
+                THEN char(10) || char(10) ELSE '' END ||
+           TRIM(p.body)), ''),
+         COALESCE(json_extract(p.fields, '$.dueOn'), json_extract(p.fields, '$.filedOn'), substr(p.created_at, 1, 10)),
+         p.created_at, p.updated_at
+  FROM brain_pages p
+  WHERE p.template = 'filing';
+
+  INSERT INTO obligation_done (id, obligation_id, due_on, done_on, created_at)
+  SELECT
+    lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' ||
+      substr(lower(hex(randomblob(2))), 2) || '-' ||
+      substr('89ab', 1 + (abs(random()) % 4), 1) || substr(lower(hex(randomblob(2))), 2) || '-' ||
+      lower(hex(randomblob(6))),
+    p.id, json_extract(o.rule, '$.on'), json_extract(p.fields, '$.filedOn'), p.updated_at
+  FROM brain_pages p
+  JOIN obligations o ON o.id = p.id
+  WHERE p.template = 'filing' AND json_extract(p.fields, '$.filedOn') IS NOT NULL;
+
+  DELETE FROM brain_pages WHERE template IN ('document', 'filing');
+`;
+
+/**
+ * People and hiring (PLAN.md, phase 10).
+ *
+ * `people` is everybody - founders, employees, interns, freelancers, advisors
+ * and candidates - because a candidate who is hired becomes one of the others
+ * without being written out twice. `openings` are the roles being hired for.
+ * `tasks.person_id` ties the tasks onboarding makes to the person, so their
+ * page can say how far along it is.
+ *
+ * Founder, teammate and open-role pages become rows, keeping their ids, and
+ * go. People are searchable, by the same refresh-this-row triggers as the
+ * rest of the index.
+ *
+ * FROZEN once released.
+ */
+const M027_PEOPLE = `
+  CREATE TABLE openings (
+    id         TEXT PRIMARY KEY,
+    company_id TEXT NOT NULL REFERENCES companies (id) ON DELETE CASCADE,
+    title      TEXT NOT NULL,
+    status     TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'paused', 'filled')),
+    pay        TEXT,
+    notes      TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  CREATE INDEX openings_company ON openings (company_id, status);
+
+  CREATE TABLE people (
+    id             TEXT PRIMARY KEY,
+    company_id     TEXT NOT NULL REFERENCES companies (id) ON DELETE CASCADE,
+    name           TEXT NOT NULL,
+    kind           TEXT NOT NULL
+                   CHECK (kind IN ('founder', 'employee', 'intern', 'freelancer', 'advisor', 'candidate')),
+    role           TEXT,
+    email          TEXT,
+    phone          TEXT,
+    -- The contact they are, when they are one: a candidate who came in as a
+    -- lead, an advisor who is also an investor.
+    lead_id        TEXT REFERENCES leads (id) ON DELETE SET NULL,
+    starts_on      TEXT,
+    ends_on        TEXT,
+    pay            INTEGER CHECK (pay IS NULL OR pay >= 0),
+    pay_per        TEXT CHECK (pay_per IS NULL OR pay_per IN ('month', 'hour', 'day', 'project', 'year')),
+    -- A percentage, vesting monthly from starts_on after the cliff.
+    equity         REAL CHECK (equity IS NULL OR (equity >= 0 AND equity <= 100)),
+    vesting_months INTEGER CHECK (vesting_months IS NULL OR vesting_months BETWEEN 1 AND 120),
+    cliff_months   INTEGER CHECK (cliff_months IS NULL OR cliff_months BETWEEN 0 AND 60),
+    owns           TEXT,
+    opening_id     TEXT REFERENCES openings (id) ON DELETE SET NULL,
+    stage          TEXT CHECK (stage IS NULL OR stage IN ('applied', 'talking', 'interview', 'offer', 'hired', 'declined')),
+    onboarded_on   TEXT,
+    notes          TEXT,
+    created_at     TEXT NOT NULL,
+    updated_at     TEXT NOT NULL
+  );
+
+  CREATE INDEX people_company ON people (company_id, kind);
+  CREATE INDEX people_opening ON people (opening_id);
+
+  ALTER TABLE tasks ADD COLUMN person_id TEXT REFERENCES people (id) ON DELETE SET NULL;
+  CREATE INDEX tasks_person ON tasks (person_id);
+
+  -- Founder pages: the role, what they own, equity, and the vesting sentence,
+  -- which cannot be read as months and so goes to the notes.
+  INSERT INTO people (id, company_id, name, kind, role, email, starts_on, equity, owns, notes, created_at, updated_at)
+  SELECT p.id, p.company_id, p.title, 'founder',
+         NULLIF(TRIM(json_extract(p.fields, '$.role')), ''),
+         NULLIF(TRIM(json_extract(p.fields, '$.email')), ''),
+         CASE WHEN json_extract(p.fields, '$.startedOn') GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+              THEN json_extract(p.fields, '$.startedOn') END,
+         CASE WHEN json_type(p.fields, '$.equity') IN ('integer', 'real')
+                   AND json_extract(p.fields, '$.equity') BETWEEN 0 AND 100
+              THEN json_extract(p.fields, '$.equity') END,
+         NULLIF(TRIM(json_extract(p.fields, '$.owns')), ''),
+         NULLIF(TRIM(
+           COALESCE('Vesting: ' || NULLIF(TRIM(json_extract(p.fields, '$.vesting')), '') || char(10) || char(10), '') ||
+           TRIM(p.body, ' ' || char(9) || char(10) || char(13)),
+           ' ' || char(9) || char(10) || char(13)), ''),
+         p.created_at, p.updated_at
+  FROM brain_pages p
+  WHERE p.template = 'founder';
+
+  -- Teammate pages: how they work here, the role, pay and dates.
+  INSERT INTO people (id, company_id, name, kind, role, email, starts_on, ends_on, pay, pay_per, notes, created_at, updated_at)
+  SELECT p.id, p.company_id, p.title,
+         CASE json_extract(p.fields, '$.kind')
+           WHEN 'intern' THEN 'intern' WHEN 'freelancer' THEN 'freelancer' WHEN 'advisor' THEN 'advisor'
+           ELSE 'employee' END,
+         NULLIF(TRIM(json_extract(p.fields, '$.role')), ''),
+         NULLIF(TRIM(json_extract(p.fields, '$.email')), ''),
+         CASE WHEN json_extract(p.fields, '$.startsOn') GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+              THEN json_extract(p.fields, '$.startsOn') END,
+         CASE WHEN json_extract(p.fields, '$.endsOn') GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+              THEN json_extract(p.fields, '$.endsOn') END,
+         CASE WHEN json_type(p.fields, '$.pay') IN ('integer', 'real') AND json_extract(p.fields, '$.pay') >= 0
+              THEN CAST(ROUND(json_extract(p.fields, '$.pay')) AS INTEGER) END,
+         CASE json_extract(p.fields, '$.payPer')
+           WHEN 'month' THEN 'month' WHEN 'hour' THEN 'hour' WHEN 'project' THEN 'project' END,
+         NULLIF(NULLIF(TRIM(p.body, ' ' || char(9) || char(10) || char(13)), ''), '## What we agreed'),
+         p.created_at, p.updated_at
+  FROM brain_pages p
+  WHERE p.template = 'teammate';
+
+  -- Open-role pages: the title, whether it is open, and the pay range.
+  INSERT INTO openings (id, company_id, title, status, pay, notes, created_at, updated_at)
+  SELECT p.id, p.company_id, p.title,
+         CASE json_extract(p.fields, '$.status') WHEN 'paused' THEN 'paused' WHEN 'filled' THEN 'filled' ELSE 'open' END,
+         NULLIF(TRIM(json_extract(p.fields, '$.pay')), ''),
+         NULLIF(NULLIF(TRIM(p.body, ' ' || char(9) || char(10) || char(13)), ''),
+                '## What they will do' || char(10) || char(10) || char(10) || '## Who we are looking for'),
+         p.created_at, p.updated_at
+  FROM brain_pages p
+  WHERE p.template = 'opening';
+
+  DELETE FROM brain_pages WHERE template IN ('founder', 'teammate', 'opening');
+
+  -- Search: a person by name, with their role, contact details, what they
+  -- own and their notes.
+  CREATE TRIGGER search_person_insert AFTER INSERT ON people BEGIN
+    INSERT INTO search_map (kind, ref_id, company_id) VALUES ('person', NEW.id, NEW.company_id);
+    INSERT INTO brain_search (rowid, title, body)
+      SELECT m.id, NEW.name, concat_ws(' ', NEW.role, NEW.email, NEW.phone, NEW.owns, NEW.notes)
+      FROM search_map m WHERE m.kind = 'person' AND m.ref_id = NEW.id;
+  END;
+  CREATE TRIGGER search_person_update AFTER UPDATE OF name, role, email, phone, owns, notes ON people BEGIN
+    DELETE FROM brain_search WHERE rowid = (SELECT id FROM search_map WHERE kind = 'person' AND ref_id = NEW.id);
+    INSERT INTO brain_search (rowid, title, body)
+      SELECT m.id, NEW.name, concat_ws(' ', NEW.role, NEW.email, NEW.phone, NEW.owns, NEW.notes)
+      FROM search_map m WHERE m.kind = 'person' AND m.ref_id = NEW.id;
+  END;
+  CREATE TRIGGER search_person_delete AFTER DELETE ON people BEGIN
+    DELETE FROM brain_search WHERE rowid = (SELECT id FROM search_map WHERE kind = 'person' AND ref_id = OLD.id);
+    DELETE FROM search_map WHERE kind = 'person' AND ref_id = OLD.id;
+  END;
+
+  INSERT INTO search_map (kind, ref_id, company_id) SELECT 'person', id, company_id FROM people;
+  INSERT INTO brain_search (rowid, title, body)
+    SELECT m.id, t.name, concat_ws(' ', t.role, t.email, t.phone, t.owns, t.notes)
+    FROM people t JOIN search_map m ON m.kind = 'person' AND m.ref_id = t.id;
+`;
+
+/**
+ * Decisions, meetings and metrics (PLAN.md, phase 11).
+ *
+ * `tasks.page_id` and `tasks.source_step` say which page made a task and
+ * from which step: a meeting's action item becomes a task once, and the page
+ * can say which are done. `metrics` are the numbers the company watches -
+ * worked out from what Caulder holds, or written down - and `metric_values`
+ * the readings of the ones written down. Metric pages become metrics, their
+ * "now" the first reading, and go.
+ *
+ * `metrics.source` is not checked here: the derived metrics are a list in
+ * code, and adding one should not need a migration.
+ *
+ * FROZEN once released.
+ */
+const M028_METRICS = `
+  ALTER TABLE tasks ADD COLUMN page_id TEXT REFERENCES brain_pages (id) ON DELETE SET NULL;
+  ALTER TABLE tasks ADD COLUMN source_step TEXT;
+  CREATE INDEX tasks_page ON tasks (page_id);
+
+  CREATE TABLE metrics (
+    id         TEXT PRIMARY KEY,
+    company_id TEXT NOT NULL REFERENCES companies (id) ON DELETE CASCADE,
+    name       TEXT NOT NULL,
+    kind       TEXT NOT NULL DEFAULT 'count' CHECK (kind IN ('count', 'money', 'percent')),
+    unit_label TEXT,
+    source     TEXT NOT NULL DEFAULT 'manual',
+    target     REAL,
+    direction  TEXT NOT NULL DEFAULT 'up' CHECK (direction IN ('up', 'down')),
+    notes      TEXT,
+    position   INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  CREATE INDEX metrics_company ON metrics (company_id, position);
+  -- A derived metric once per company: two "Paid in" cards would be one number twice.
+  CREATE UNIQUE INDEX metrics_source ON metrics (company_id, source) WHERE source <> 'manual';
+
+  CREATE TABLE metric_values (
+    id         TEXT PRIMARY KEY,
+    metric_id  TEXT NOT NULL REFERENCES metrics (id) ON DELETE CASCADE,
+    on_day     TEXT NOT NULL,
+    value      REAL NOT NULL,
+    note       TEXT,
+    created_at TEXT NOT NULL,
+    UNIQUE (metric_id, on_day)
+  );
+
+  -- Metric pages: what the unit said decides money, a percentage or a count.
+  WITH m AS (
+    SELECT p.*, TRIM(COALESCE(json_extract(p.fields, '$.unit'), '')) AS unit
+      FROM brain_pages p WHERE p.template = 'metric'
+  ), k AS (
+    SELECT m.*,
+           CASE
+             WHEN m.unit LIKE '%₹%' OR m.unit LIKE '%$%' OR lower(m.unit) LIKE '%inr%'
+                  OR lower(m.unit) LIKE '%rupee%' OR lower(m.unit) LIKE '%usd%' OR lower(m.unit) IN ('rs', 'rs.')
+               THEN 'money'
+             WHEN instr(m.unit, '%') > 0 OR lower(m.unit) LIKE '%percent%' THEN 'percent'
+             ELSE 'count'
+           END AS kind
+      FROM m
+  )
+  INSERT INTO metrics (id, company_id, name, kind, unit_label, target, notes, created_at, updated_at)
+  SELECT k.id, k.company_id, k.title, k.kind,
+         CASE WHEN k.kind = 'count' THEN NULLIF(k.unit, '') END,
+         CASE WHEN json_type(k.fields, '$.target') IN ('integer', 'real') THEN json_extract(k.fields, '$.target') END,
+         NULLIF(NULLIF(TRIM(k.body, ' ' || char(9) || char(10) || char(13)), ''),
+                '## Why it matters' || char(10) || char(10) || char(10) || '## How it is counted'),
+         k.created_at, k.updated_at
+    FROM k;
+
+  INSERT INTO metric_values (id, metric_id, on_day, value, created_at)
+  SELECT
+    lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' ||
+      substr(lower(hex(randomblob(2))), 2) || '-' ||
+      substr('89ab', 1 + (abs(random()) % 4), 1) || substr(lower(hex(randomblob(2))), 2) || '-' ||
+      lower(hex(randomblob(6))),
+    p.id,
+    CASE WHEN json_extract(p.fields, '$.asOf') GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+         THEN json_extract(p.fields, '$.asOf') ELSE substr(p.updated_at, 1, 10) END,
+    json_extract(p.fields, '$.current'),
+    p.updated_at
+  FROM brain_pages p
+  WHERE p.template = 'metric' AND json_type(p.fields, '$.current') IN ('integer', 'real');
+
+  DELETE FROM brain_pages WHERE template = 'metric';
+`;
+
+/**
+ * Two founders (PLAN.md, phase 12).
+ *
+ * A revision says who wrote it (`edited_by`, there since migration 20) and
+ * whether it was written at the same time as another (`concurrent`). A page
+ * says who wrote it last, and where it stands with the shared brain:
+ * `sync_revision` is the shared log's revision it matches, `sync_dirty` that
+ * it has changed here since. A company says which shared brain it is, where
+ * in the log it has read to, and - encrypted by the OS, like the Google
+ * connection - how to reach it.
+ *
+ * Marking a page to send is the database's job, by trigger, so no way of
+ * changing a page can forget to: a change made here leaves `sync_revision`
+ * alone and marks the page; a change arriving from the other founder moves
+ * `sync_revision` in the same statement and does not. A shared page deleted
+ * here leaves a tombstone, which is what tells the other side.
+ *
+ * FROZEN once released.
+ */
+const M029_SHARING = `
+  ALTER TABLE brain_revisions ADD COLUMN concurrent INTEGER NOT NULL DEFAULT 0 CHECK (concurrent IN (0, 1));
+
+  ALTER TABLE brain_pages ADD COLUMN updated_by TEXT;
+  ALTER TABLE brain_pages ADD COLUMN sync_revision INTEGER;
+  ALTER TABLE brain_pages ADD COLUMN sync_dirty INTEGER NOT NULL DEFAULT 0 CHECK (sync_dirty IN (0, 1));
+
+  ALTER TABLE companies ADD COLUMN brain_key TEXT;
+  ALTER TABLE companies ADD COLUMN brain_name TEXT;
+  ALTER TABLE companies ADD COLUMN brain_role TEXT CHECK (brain_role IS NULL OR brain_role IN ('owner', 'member'));
+  ALTER TABLE companies ADD COLUMN brain_connection TEXT;
+  ALTER TABLE companies ADD COLUMN brain_cursor INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE companies ADD COLUMN brain_synced_at TEXT;
+  ALTER TABLE companies ADD COLUMN brain_error TEXT;
+
+  CREATE TABLE brain_tombstones (
+    company_id    TEXT NOT NULL,
+    page_id       TEXT NOT NULL,
+    sync_revision INTEGER,
+    deleted_at    TEXT NOT NULL,
+    PRIMARY KEY (company_id, page_id)
+  );
+
+  CREATE TRIGGER brain_dirty_update
+    AFTER UPDATE OF section, template, title, body, fields, is_archived ON brain_pages
+    WHEN NEW.sync_revision IS OLD.sync_revision
+  BEGIN
+    UPDATE brain_pages SET sync_dirty = 1 WHERE id = NEW.id;
+  END;
+
+  CREATE TRIGGER brain_dirty_insert AFTER INSERT ON brain_pages
+    WHEN NEW.sync_revision IS NULL
+  BEGIN
+    UPDATE brain_pages SET sync_dirty = 1 WHERE id = NEW.id;
+  END;
+
+  -- Only for a page the shared brain already has, and only while the company
+  -- is still here: a company deleted takes its pages with it, and has no
+  -- shared brain left to tell.
+  CREATE TRIGGER brain_tombstone AFTER DELETE ON brain_pages
+    WHEN OLD.sync_revision IS NOT NULL
+     AND EXISTS (SELECT 1 FROM companies WHERE id = OLD.company_id AND brain_key IS NOT NULL)
+  BEGIN
+    INSERT OR REPLACE INTO brain_tombstones (company_id, page_id, sync_revision, deleted_at)
+    VALUES (OLD.company_id, OLD.id, OLD.sync_revision, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+  END;
+
+  CREATE TRIGGER brain_tombstones_company AFTER DELETE ON companies
+  BEGIN
+    DELETE FROM brain_tombstones WHERE company_id = OLD.id;
+  END;
+`;
+
+
+/**
+ * A life, not only a company (PLAN.md, part four, phase 14).
+ *
+ * The brain gains the founder's own sections - studies, hobbies, goals and a
+ * journal - and `brain_pages.section` was a CHECK listing the fifteen
+ * company ones. SQLite cannot alter a CHECK, so the table is rebuilt, and
+ * rebuilt without one: a section is checked where every other enumeration
+ * added since is, in shared/brain.ts, so this is the last time a new section
+ * costs a rebuild.
+ *
+ * Seven tables point at `brain_pages` and three of them cascade, so the
+ * rebuild runs with foreign keys off (SQLite's own twelve-step recipe; the
+ * runner does it for a step marked so): dropping the old table must not take
+ * every revision and link with it. Rows are copied wholesale, ids and all,
+ * so every reference still lands. The table's indexes and triggers go with
+ * it and are made again exactly as they were, beside two new rules:
+ *
+ *  - **One journal entry a day**, a unique index on the entry's day.
+ *  - **Time set aside for a page** - a course's study hours, a hobby's
+ *    evenings - is `page_id` on a repeat and on its blocks, cleared rather
+ *    than deleted when the page goes: the hours happened either way.
+ */
+const M030_LIFE = `
+  CREATE TABLE brain_pages_new (
+    id            TEXT PRIMARY KEY,
+    company_id    TEXT NOT NULL REFERENCES companies (id) ON DELETE CASCADE,
+    -- Checked in shared/brain.ts rather than here; see the note above.
+    section       TEXT NOT NULL,
+    template      TEXT NOT NULL,
+    title         TEXT NOT NULL,
+    body          TEXT NOT NULL DEFAULT '',
+    fields        TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(fields)),
+    is_pinned     INTEGER NOT NULL DEFAULT 0 CHECK (is_pinned IN (0, 1)),
+    is_archived   INTEGER NOT NULL DEFAULT 0 CHECK (is_archived IN (0, 1)),
+    revision      INTEGER NOT NULL DEFAULT 1,
+    created_at    TEXT NOT NULL,
+    updated_at    TEXT NOT NULL,
+    updated_by    TEXT,
+    sync_revision INTEGER,
+    sync_dirty    INTEGER NOT NULL DEFAULT 0 CHECK (sync_dirty IN (0, 1))
+  );
+
+  INSERT INTO brain_pages_new (
+    id, company_id, section, template, title, body, fields, is_pinned, is_archived,
+    revision, created_at, updated_at, updated_by, sync_revision, sync_dirty
+  )
+  SELECT
+    id, company_id, section, template, title, body, fields, is_pinned, is_archived,
+    revision, created_at, updated_at, updated_by, sync_revision, sync_dirty
+  FROM brain_pages;
+
+  DROP TABLE brain_pages;
+  ALTER TABLE brain_pages_new RENAME TO brain_pages;
+
+  CREATE INDEX brain_pages_section ON brain_pages (company_id, section, is_archived, updated_at DESC);
+  CREATE INDEX brain_pages_recent  ON brain_pages (company_id, updated_at DESC);
+  CREATE UNIQUE INDEX brain_pages_single ON brain_pages (company_id, template)
+    WHERE template IN ('profile', 'brand', 'lean-plan', 'cap-table', 'accountant');
+  CREATE UNIQUE INDEX brain_pages_journal_day ON brain_pages (company_id, json_extract(fields, '$.day'))
+    WHERE template = 'entry';
+
+  CREATE TRIGGER brain_dirty_update
+    AFTER UPDATE OF section, template, title, body, fields, is_archived ON brain_pages
+    WHEN NEW.sync_revision IS OLD.sync_revision
+  BEGIN
+    UPDATE brain_pages SET sync_dirty = 1 WHERE id = NEW.id;
+  END;
+
+  CREATE TRIGGER brain_dirty_insert AFTER INSERT ON brain_pages
+    WHEN NEW.sync_revision IS NULL
+  BEGIN
+    UPDATE brain_pages SET sync_dirty = 1 WHERE id = NEW.id;
+  END;
+
+  CREATE TRIGGER brain_tombstone AFTER DELETE ON brain_pages
+    WHEN OLD.sync_revision IS NOT NULL
+     AND EXISTS (SELECT 1 FROM companies WHERE id = OLD.company_id AND brain_key IS NOT NULL)
+  BEGIN
+    INSERT OR REPLACE INTO brain_tombstones (company_id, page_id, sync_revision, deleted_at)
+    VALUES (OLD.company_id, OLD.id, OLD.sync_revision, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+  END;
+
+  CREATE TRIGGER links_page_gone AFTER DELETE ON brain_pages BEGIN
+    DELETE FROM brain_links WHERE to_kind = 'page' AND to_id = OLD.id;
+    DELETE FROM map_positions WHERE company_id = OLD.company_id AND node = 'page:' || OLD.id;
+  END;
+
+  CREATE TRIGGER search_page_delete AFTER DELETE ON brain_pages BEGIN
+    DELETE FROM brain_search
+      WHERE rowid = (SELECT id FROM search_map WHERE kind = 'page' AND ref_id = OLD.id);
+    DELETE FROM search_map WHERE kind = 'page' AND ref_id = OLD.id;
+  END;
+
+  CREATE TRIGGER search_page_insert AFTER INSERT ON brain_pages BEGIN
+    DELETE FROM brain_search
+      WHERE rowid = (SELECT id FROM search_map WHERE kind = 'page' AND ref_id = NEW.id);
+    DELETE FROM search_map WHERE kind = 'page' AND ref_id = NEW.id;
+    INSERT INTO search_map (kind, ref_id, company_id)
+      SELECT 'page', t.id, t.company_id FROM brain_pages t WHERE t.id = NEW.id AND (t.is_archived = 0);
+    INSERT INTO brain_search (rowid, title, body)
+      SELECT m.id, t.title, t.body || ' ' || COALESCE((SELECT group_concat(value, ' ') FROM json_each(t.fields)
+             WHERE type IN ('text', 'integer', 'real')), '')
+      FROM brain_pages t JOIN search_map m ON m.kind = 'page' AND m.ref_id = t.id
+      WHERE t.id = NEW.id;
+  END;
+
+  CREATE TRIGGER search_page_update AFTER UPDATE OF title, body, fields, is_archived ON brain_pages BEGIN
+    DELETE FROM brain_search
+      WHERE rowid = (SELECT id FROM search_map WHERE kind = 'page' AND ref_id = NEW.id);
+    DELETE FROM search_map WHERE kind = 'page' AND ref_id = NEW.id;
+    INSERT INTO search_map (kind, ref_id, company_id)
+      SELECT 'page', t.id, t.company_id FROM brain_pages t WHERE t.id = NEW.id AND (t.is_archived = 0);
+    INSERT INTO brain_search (rowid, title, body)
+      SELECT m.id, t.title, t.body || ' ' || COALESCE((SELECT group_concat(value, ' ') FROM json_each(t.fields)
+             WHERE type IN ('text', 'integer', 'real')), '')
+      FROM brain_pages t JOIN search_map m ON m.kind = 'page' AND m.ref_id = t.id
+      WHERE t.id = NEW.id;
+  END;
+
+  ALTER TABLE block_series ADD COLUMN page_id TEXT REFERENCES brain_pages (id) ON DELETE SET NULL;
+  ALTER TABLE blocks ADD COLUMN page_id TEXT REFERENCES brain_pages (id) ON DELETE SET NULL;
+  CREATE INDEX blocks_page ON blocks (page_id, day) WHERE page_id IS NOT NULL;
+`;
+
+
+/**
+ * Habits (PLAN.md, part four): the small things done most days - read,
+ * exercise, no phone after ten - ticked on Today, with a streak. A habit is
+ * its name, the area it belongs to and the days it is for; a tick is a day.
+ * Nothing else is kept: the streak, the best run and the last twelve weeks
+ * are worked out from the ticks when asked.
+ *
+ * Not `block_series.is_habit`, which was a repeat's hours counted by the
+ * Review screen phase 1 removed: a habit here has no time of day, because
+ * "read twenty pages" is done whenever it is done.
+ */
+const M031_HABITS = `
+  CREATE TABLE habits (
+    id          TEXT PRIMARY KEY,
+    company_id  TEXT NOT NULL REFERENCES companies (id) ON DELETE CASCADE,
+    name        TEXT NOT NULL,
+    area        TEXT,
+    -- ISO weekday numbers it is for: '1,2,3,4,5,6,7' is every day.
+    weekdays    TEXT NOT NULL DEFAULT '1,2,3,4,5,6,7',
+    position    INTEGER NOT NULL DEFAULT 0,
+    archived_at TEXT,
+    created_at  TEXT NOT NULL
+  );
+
+  CREATE INDEX habits_company ON habits (company_id, archived_at, position);
+
+  CREATE TABLE habit_checks (
+    habit_id   TEXT NOT NULL REFERENCES habits (id) ON DELETE CASCADE,
+    day        TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (habit_id, day)
+  );
+`;
+
+
+/**
+ * One connected brain (PLAN.md, part four, phase 16): a link written in a
+ * page reaches a product, a person or a document, not only a page or a
+ * contact. `brain_links.to_kind` was a CHECK of the two, so the table is
+ * rebuilt without one - the kinds are checked in shared/links.ts - and every
+ * link is copied across as it was. Nothing points at `brain_links`, so no
+ * foreign keys need switching off; the two triggers that mention it are
+ * dropped first and made again, and three more clear a link, and a dot's
+ * place on the Map, when a product, a person or a document goes.
+ */
+const M032_LINKS = `
+  DROP TRIGGER links_page_gone;
+  DROP TRIGGER links_contact_gone;
+
+  CREATE TABLE brain_links_new (
+    id         INTEGER PRIMARY KEY,
+    company_id TEXT NOT NULL REFERENCES companies (id) ON DELETE CASCADE,
+    from_page  TEXT NOT NULL REFERENCES brain_pages (id) ON DELETE CASCADE,
+    -- page, contact, product, person or document: checked in shared/links.ts.
+    to_kind    TEXT NOT NULL,
+    to_id      TEXT NOT NULL,
+    label      TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE (from_page, to_kind, to_id)
+  );
+
+  INSERT INTO brain_links_new (id, company_id, from_page, to_kind, to_id, label, created_at)
+    SELECT id, company_id, from_page, to_kind, to_id, label, created_at FROM brain_links;
+
+  DROP TABLE brain_links;
+  ALTER TABLE brain_links_new RENAME TO brain_links;
+
+  CREATE INDEX brain_links_to      ON brain_links (to_kind, to_id);
+  CREATE INDEX brain_links_company ON brain_links (company_id);
+
+  CREATE TRIGGER links_page_gone AFTER DELETE ON brain_pages BEGIN
+    DELETE FROM brain_links WHERE to_kind = 'page' AND to_id = OLD.id;
+    DELETE FROM map_positions WHERE company_id = OLD.company_id AND node = 'page:' || OLD.id;
+  END;
+
+  CREATE TRIGGER links_contact_gone AFTER DELETE ON leads BEGIN
+    DELETE FROM brain_links WHERE to_kind = 'contact' AND to_id = OLD.id;
+    DELETE FROM map_positions WHERE company_id = OLD.company_id AND node = 'contact:' || OLD.id;
+  END;
+
+  CREATE TRIGGER links_product_gone AFTER DELETE ON products BEGIN
+    DELETE FROM brain_links WHERE to_kind = 'product' AND to_id = OLD.id;
+    DELETE FROM map_positions WHERE company_id = OLD.company_id AND node = 'product:' || OLD.id;
+  END;
+
+  CREATE TRIGGER links_person_gone AFTER DELETE ON people BEGIN
+    DELETE FROM brain_links WHERE to_kind = 'person' AND to_id = OLD.id;
+    DELETE FROM map_positions WHERE company_id = OLD.company_id AND node = 'person:' || OLD.id;
+  END;
+
+  CREATE TRIGGER links_document_gone AFTER DELETE ON documents BEGIN
+    DELETE FROM brain_links WHERE to_kind = 'document' AND to_id = OLD.id;
+    DELETE FROM map_positions WHERE company_id = OLD.company_id AND node = 'document:' || OLD.id;
+  END;
+`;
+
+/**
+ * Your life in check (PLAN.md, part four, phase 17): the vision board. A
+ * picture is made smaller in the window and kept here, in the database,
+ * so a backup carries it and nothing else on the disk needs finding. A goal
+ * a tile is tied to can go; the tile stays, untied.
+ */
+const M033_VISION = `
+  CREATE TABLE vision_tiles (
+    id           TEXT PRIMARY KEY,
+    company_id   TEXT NOT NULL REFERENCES companies (id) ON DELETE CASCADE,
+    words        TEXT,
+    picture      BLOB,
+    picture_type TEXT CHECK (picture_type IS NULL OR picture_type IN ('image/webp', 'image/jpeg', 'image/png')),
+    width        INTEGER,
+    height       INTEGER,
+    goal_id      TEXT REFERENCES brain_pages (id) ON DELETE SET NULL,
+    area         TEXT,
+    position     INTEGER NOT NULL,
+    created_at   TEXT NOT NULL,
+    updated_at   TEXT NOT NULL,
+    CHECK (words IS NOT NULL OR picture IS NOT NULL),
+    CHECK ((picture IS NULL) = (picture_type IS NULL))
+  );
+
+  CREATE INDEX vision_tiles_company ON vision_tiles (company_id, position);
+`;
+
 export const MIGRATIONS: readonly Migration[] = [
   { version: 1, name: "companies, stages, settings", sql: M001_COMPANIES },
   { version: 2, name: "leads, activities", sql: M002_LEADS },
@@ -1167,6 +2352,21 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 16, name: "your words", sql: M016_WORDS },
   { version: 17, name: "money", sql: M017_MONEY },
   { version: 18, name: "the deletion pass", sql: M018_DELETION },
+  { version: 19, name: "email through the script", sql: M019_EMAILS },
+  { version: 20, name: "the brain", sql: M020_BRAIN },
+  { version: 21, name: "links and the map", sql: M021_LINKS },
+  { version: 22, name: "deals apart from contacts", sql: M022_DEALS },
+  { version: 23, name: "calls", sql: M023_CALLS },
+  { version: 24, name: "running costs and runway", sql: M024_RUNWAY },
+  { version: 25, name: "products and pricing", sql: M025_PRODUCTS },
+  { version: 26, name: "deadlines and documents", sql: M026_DEADLINES },
+  { version: 27, name: "people and hiring", sql: M027_PEOPLE },
+  { version: 28, name: "decisions, meetings and metrics", sql: M028_METRICS },
+  { version: 29, name: "two founders", sql: M029_SHARING },
+  { version: 30, name: "a life, not only a company", sql: M030_LIFE, rebuilds: true },
+  { version: 31, name: "habits", sql: M031_HABITS },
+  { version: 32, name: "links to everything", sql: M032_LINKS },
+  { version: 33, name: "the vision board", sql: M033_VISION },
 ];
 
 export function currentVersion(db: Db): number {
@@ -1186,6 +2386,14 @@ type MigrationResult = {
  */
 export function migrate(db: Db): MigrationResult {
   const from = currentVersion(db);
+
+  // A newer build has already changed this file. Opening it here would mean
+  // writing to tables this build does not know the shape of.
+  if (from > LATEST_VERSION) {
+    throw new Error(
+      `This database was last opened by a newer version of Caulder (schema ${from}; this version knows up to ${LATEST_VERSION}). Install the newer version, or restore a backup made by this one.`,
+    );
+  }
   const pending = MIGRATIONS.filter((m) => m.version > from).sort(
     (a, b) => a.version - b.version,
   );
@@ -1193,6 +2401,10 @@ export function migrate(db: Db): MigrationResult {
   const applied: string[] = [];
 
   for (const migration of pending) {
+    // Foreign keys can only be switched outside a transaction, so this comes
+    // before BEGIN and goes back to what it was whatever happens.
+    const keys = db.pragma("foreign_keys", { simple: true });
+    if (migration.rebuilds) db.pragma("foreign_keys = OFF");
     // exec cannot run inside better-sqlite3's transaction() helper because the
     // SQL contains its own statement separators, so the transaction is driven
     // by hand here.
@@ -1211,6 +2423,8 @@ export function migrate(db: Db): MigrationResult {
           error instanceof Error ? error.message : String(error)
         }`,
       );
+    } finally {
+      if (migration.rebuilds) db.pragma(`foreign_keys = ${keys === 1 ? "ON" : "OFF"}`);
     }
   }
 

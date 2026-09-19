@@ -1,0 +1,46 @@
+import type { LucideIcon } from "lucide-react";
+import {
+  Building2,
+  CalendarClock,
+  ChartLine,
+  FileText,
+  Gavel,
+  GraduationCap,
+  Landmark,
+  Lightbulb,
+  ListChecks,
+  MessagesSquare,
+  Mountain,
+  NotebookPen,
+  Package,
+  Palette,
+  Receipt,
+  Scale,
+  Target,
+  Users,
+  Wrench,
+} from "lucide-react";
+import type { BrainSectionId } from "@shared/brain";
+
+/** One icon per section, always beside its name: the icon never means anything alone. */
+export const SECTION_ICON: Record<BrainSectionId, LucideIcon> = {
+  company: Building2,
+  plan: Target,
+  products: Package,
+  money: Landmark,
+  tax: Receipt,
+  people: Users,
+  customers: MessagesSquare,
+  playbooks: ListChecks,
+  legal: Scale,
+  tools: Wrench,
+  decisions: Gavel,
+  meetings: CalendarClock,
+  metrics: ChartLine,
+  documents: FileText,
+  ideas: Lightbulb,
+  studies: GraduationCap,
+  hobbies: Palette,
+  goals: Mountain,
+  journal: NotebookPen,
+};

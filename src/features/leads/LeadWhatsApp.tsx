@@ -79,11 +79,14 @@ export function LeadWhatsApp({
     setComposing(false);
     if (!sent) return;
 
+    // What went, not the template it came from: the history is read later by
+    // somebody who wants to know what the contact was actually told.
+    const said = render(message, context).trim();
     try {
       await window.caulder.activities.log({
         leadId: lead.id,
         kind: "whatsapp",
-        body: message.trim().length > 0 ? message.trim() : null,
+        body: said.length > 0 ? said : null,
       });
       setMessage("");
       onTimelineChanged();

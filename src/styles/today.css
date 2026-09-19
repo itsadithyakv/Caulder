@@ -1,8 +1,8 @@
 /* ---------------------------------------------------------------------------
  * Today, and the task rows it is made of.
  *
- * Same rule as everywhere else: the cards are neumorphic, the work inside them
- * is flat and high-contrast. A morning list is read at a glance.
+ * Same rule as everywhere else: the cards are quiet, and the work inside them
+ * carries the contrast. A morning list is read at a glance.
  *
  * Layout only. Colour, radius, spacing and type come from tokens.
  * ------------------------------------------------------------------------- */
@@ -43,12 +43,11 @@
   gap: var(--space-2);
 }
 
-/* Overdue is the one card allowed to announce itself, and it does it with a
- * left edge rather than a full tint, which would fight the neumorphic surface. */
+/* Overdue is the one card allowed to announce itself, and it does it with its
+ * edge rather than a full tint: a red card would shout over everything else on
+ * the page. The heading and the count say what the edge means. */
 .card--alert {
-  /* No left rule. A flat 3px edge against a soft raised card reads as a stray
-   * line rather than as an alarm; the heading and the count carry it. */
-  box-shadow: var(--shadow-xs), inset 0 0 0 1px var(--danger-soft);
+  border-color: color-mix(in srgb, var(--danger) 30%, var(--surface));
 }
 
 .today__group + .today__group {
@@ -100,8 +99,8 @@
   align-items: start;
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-sm);
-  background: var(--surface-sunken);
-  box-shadow: var(--shadow-inset-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
 }
 
 @media (max-width: 760px) {
@@ -113,31 +112,26 @@
   }
 }
 
-/* The tick is the primary action, so it gets the only raised surface in the
+/* The tick is the primary action, so it is the only outlined control in the
  * row and sits where the eye lands first. */
 .taskrow__tick {
   display: grid;
   place-items: center;
   width: 26px;
   height: 26px;
-  border: none;
+  border: 1px solid var(--border-strong);
   border-radius: 50%;
   background: var(--surface);
-  box-shadow: var(--shadow-xs);
   color: var(--ink-3);
   cursor: pointer;
   transition:
     color var(--dur-fast) var(--ease),
-    box-shadow var(--dur-fast) var(--ease);
+    border-color var(--dur-fast) var(--ease);
 }
 
 .taskrow__tick:hover:not(:disabled) {
   color: var(--ok);
-  box-shadow: var(--shadow-sm);
-}
-
-.taskrow__tick:active:not(:disabled) {
-  box-shadow: var(--shadow-inset-sm);
+  border-color: var(--ok);
 }
 
 .taskrow__tick:focus-visible {
@@ -194,6 +188,11 @@
 
 .taskrow__lead:hover {
   text-decoration: underline;
+}
+
+/* Where it came from is quieter than who it is for. */
+.taskrow__page {
+  color: var(--ink-2);
 }
 
 .taskrow__due {
@@ -374,8 +373,8 @@
   gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-sm);
-  background: var(--surface-sunken);
-  box-shadow: var(--shadow-inset-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
 }
 
 /* A paused rule says so by going quiet rather than by disappearing: it is
@@ -400,7 +399,7 @@
   padding: var(--space-4);
   border-radius: var(--radius-sm);
   background: var(--surface-sunken);
-  box-shadow: var(--shadow-inset-sm);
+  border: 1px solid var(--border);
 }
 
 .rulebuild__wide { grid-column: 1 / -1; }
@@ -426,8 +425,8 @@
   gap: var(--space-3);
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-sm);
-  background: var(--surface-sunken);
-  box-shadow: var(--shadow-inset-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
 }
 
 .agenda__time {
@@ -468,7 +467,6 @@
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-lg);
   background: var(--surface);
-  box-shadow: var(--shadow-sm);
   border: 1px solid var(--face-edge);
 }
 
@@ -552,15 +550,15 @@
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
-  background: var(--surface-sunken);
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-inset-sm);
-  transition: border-color var(--dur-fast) var(--ease);
+  background: var(--surface);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-sm);
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 
 .quickadd__row:focus-within {
-  border-color: var(--accent-ring);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-halo);
 }
 
 .quickadd__icon {
@@ -662,7 +660,7 @@
   font-style: italic;
 }
 
-/* The question. Raised a step off the card so it reads as the app speaking,
+/* The question. Set off by its own edge so it reads as the app speaking,
    with its answers as the same chips every other short choice uses. */
 .quickadd__ask {
   display: flex;
@@ -672,7 +670,7 @@
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
   background: var(--surface-hover);
-  box-shadow: var(--shadow-xs);
+  border: 1px solid var(--border);
 }
 
 .quickadd__question {
@@ -682,6 +680,45 @@
 }
 
 .quickadd__answers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* ---- Renewing soon ----------------------------------------------------- */
+
+.renewrow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.renewrow .coldrow {
+  flex: 1;
+  min-width: 0;
+}
+
+.renewrow__late {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+/* Where the smart line will put what is typed: its guess pressed, the rest a click away. */
+.quickadd__goes {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.quickadd__goesLabel {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.quickadd__goesChips {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);

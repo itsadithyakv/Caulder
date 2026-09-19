@@ -239,13 +239,14 @@ describe("stages under editing", () => {
     if (!theirStage) throw new Error("expected a seeded funnel");
 
     const lead = createLead(db, company.id, leadInput.parse({ name: "Cross" }));
-    // Nothing in the UI offers this, but the IPC surface takes a bare id and
-    // the board must not be able to lose a lead however one gets into this
-    // state. Before the fix it belonged to no column at all and vanished.
-    updateLead(db, lead.id, {
-      ...leadInput.parse({ name: "Cross" }),
-      stageId: theirStage.id,
-    });
+    // A move into another company's stage is refused at the door now...
+    expect(() =>
+      updateLead(db, lead.id, { ...leadInput.parse({ name: "Cross" }), stageId: theirStage.id }),
+    ).toThrow("not in this company");
+
+    // ...but the board must not lose a deal however one gets into this state.
+    // Before the fix it belonged to no column at all and vanished.
+    db.prepare(`UPDATE deals SET stage_id = ? WHERE lead_id = ?`).run(theirStage.id, lead.id);
 
     const board = buildBoard(db, company.id);
     const names = board.columns.flatMap((c) => c.cards.map((card) => card.name));

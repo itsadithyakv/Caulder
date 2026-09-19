@@ -1,3 +1,4 @@
+import { MAIN_DEAL } from "../repositories/main-deal";
 import type { Db } from "../db/connection";
 import type { ColdLead, Today } from "@shared/domain";
 import { daysBetween, dayOf, today as todayIn } from "@shared/dates";
@@ -6,6 +7,9 @@ import { listDueOn, listOverdue, listUpcoming } from "../repositories/tasks";
 import { listBlocks } from "../repositories/blocks";
 import { layOut } from "@shared/day";
 import { listOverdueInvoices } from "../repositories/money";
+import { listRecentReplies } from "../repositories/mail";
+import { renewalsFor } from "./costs";
+import { dueSoon } from "./deadlines";
 
 /**
  * The Today engine.
@@ -17,6 +21,9 @@ import { listOverdueInvoices } from "../repositories/money";
  */
 
 const DEFAULT_COLD_AFTER_DAYS = 14;
+
+/** How far back Today shows replies. A week is long enough to have missed one. */
+const REPLIES_FOR_DAYS = 7;
 
 /**
  * Activity kinds that count as the lead being alive.
@@ -51,6 +58,13 @@ export function buildToday(db: Db, companyId: string, now: Date = new Date()): T
     cold: listCold(db, companyId, day, timezone, coldAfterDays),
     coldAfterDays,
     unpaid: listOverdueInvoices(db, companyId, day),
+    renewals: renewalsFor(db, companyId, day),
+    deadlines: dueSoon(db, companyId, day),
+    replies: listRecentReplies(
+      db,
+      companyId,
+      new Date(now.getTime() - REPLIES_FOR_DAYS * 24 * 60 * 60 * 1000).toISOString(),
+    ),
   };
 }
 
@@ -89,7 +103,9 @@ type ColdRow = {
  *    already decided what happens next, nothing is falling through; an overdue
  *    task is the right way to be told, and it is already the first section.
  *  - **`field_change` does not count as a touch**, so tidying a record cannot
- *    make a lead look alive.
+ *    make a lead look alive. Nor does a call from the prompter that nobody
+ *    answered: ringing is not hearing from them. A call logged by hand says
+ *    nothing about an answer and still counts.
  *
  * The clock starts at the latest of: the last meaningful activity, the last
  * recorded contact, and the lead's own creation. A brand-new lead is therefore
@@ -114,10 +130,15 @@ function listCold(
            COALESCE((
              SELECT MAX(a.occurred_at) FROM activities a
              WHERE a.lead_id = l.id AND a.kind IN (${placeholders})
+               AND NOT (a.kind = 'call'
+                        AND COALESCE(json_extract(a.meta, '$.outcome'), 'spoke') <> 'spoke')
            ), l.created_at)
          ) AS last_touch
        FROM leads l
-       LEFT JOIN pipeline_stages s ON s.id = l.stage_id
+       -- Going quiet is about a deal in play: the main deal is an open one
+       -- whenever the contact has any.
+       JOIN deals md ON md.id = ${MAIN_DEAL("l.id")}
+       LEFT JOIN pipeline_stages s ON s.id = md.stage_id
        WHERE l.company_id = ?
          AND COALESCE(s.kind, 'open') = 'open'
          AND NOT EXISTS (

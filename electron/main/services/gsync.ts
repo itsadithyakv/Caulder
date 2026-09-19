@@ -1,7 +1,7 @@
 import { net } from "electron";
 import { randomUUID } from "node:crypto";
 import type { Db } from "../db/connection";
-import { readConnection } from "./credentials";
+import { readConnection, type BrainConnection } from "./credentials";
 import {
   forgetTombstones,
   listTombstones,
@@ -49,9 +49,20 @@ const AHEAD_DAYS = 45;
 
 type Reply<T> = { ok: true; data: T } | { ok: false; error: string };
 
-async function call<T>(action: string, payload: Record<string, unknown>): Promise<T> {
-  const connection = readConnection();
+/**
+ * One request to the script. Rejects with a sentence a person can act on.
+ *
+ * `through` is for the shared brain, which may be reached with an invitation
+ * to somebody else's script rather than with this Caulder's own key.
+ */
+export async function callScript<T>(
+  action: string,
+  payload: Record<string, unknown>,
+  through?: BrainConnection,
+): Promise<T> {
+  const connection: BrainConnection | null = through ?? readConnection();
   if (!connection) throw new Error("Caulder is not connected to Google yet.");
+  const credential = connection.invite ? { invite: connection.invite } : { secret: connection.secret };
 
   const stop = new AbortController();
   const timer = setTimeout(() => stop.abort(), TIMEOUT_MS);
@@ -64,7 +75,7 @@ async function call<T>(action: string, payload: Record<string, unknown>): Promis
       // is deliberate: a JSON content type makes the browser stack send a
       // CORS preflight that Apps Script does not answer.
       headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ ...payload, action, secret: connection.secret }),
+      body: JSON.stringify({ ...payload, action, ...credential }),
       signal: stop.signal,
       redirect: "follow",
     });
@@ -84,7 +95,7 @@ async function call<T>(action: string, payload: Record<string, unknown>): Promis
       // Almost always Google's sign-in page, served because the deployment is
       // set to "Only myself". Saying so beats printing HTML at somebody.
       throw new Error(
-        "Google returned a web page rather than an answer. Check the deployment is set to run as you, with access set to Anyone.",
+        "Google returned a web page rather than an answer. Check the deployment runs as you with access set to Anyone. If you have just updated the script, open it and run setUp once more so Google can ask for the new permissions.",
       );
     }
 
@@ -104,11 +115,16 @@ export type Hello = {
   email: string;
   calendars: { id: string; name: string }[];
   taskLists: { id: string; name: string }[];
+  /** Absent from the first version of the script, which could not send email. */
+  version?: number;
+  mail?: { address: string; remaining: number } | null;
+  /** Why the script cannot send, when it knows - usually a missing permission. */
+  mailError?: string | null;
 };
 
 /** The connection test, and where the calendar and list choices come from. */
 export async function hello(): Promise<Hello> {
-  return call<Hello>("hello", {});
+  return callScript<Hello>("hello", {});
 }
 
 /* ---- Reading the two sides ---------------------------------------------- */
@@ -232,7 +248,7 @@ async function syncCalendar(
     isDirty: row.is_dirty === 1,
   }));
 
-  const { events } = await call<{ events: RemoteEvent[] }>("pullEvents", {
+  const { events } = await callScript<{ events: RemoteEvent[] }>("pullEvents", {
     calendarId,
     timeZone: company.timezone,
     from: window.from,
@@ -248,7 +264,7 @@ async function syncCalendar(
     notes: notesById.get(block.id) ?? null,
   });
 
-  const result = await call<{
+  const result = await callScript<{
     created: { blockId: string; eventId: string; etag: string | null }[];
     updated: { blockId: string; eventId: string; etag: string | null }[];
     failures: { blockId: string; error: string }[];
@@ -340,7 +356,7 @@ async function syncTasks(db: Db, companyId: string, taskListId: string) {
     isDirty: row.is_dirty === 1,
   }));
 
-  const { tasks, complete } = await call<{ tasks: RemoteTask[]; complete: boolean }>(
+  const { tasks, complete } = await callScript<{ tasks: RemoteTask[]; complete: boolean }>(
     "pullTasks",
     { taskListId },
   );
@@ -350,7 +366,7 @@ async function syncTasks(db: Db, companyId: string, taskListId: string) {
   // Nothing is deleted here on the strength of a page that stopped early.
   const plan = planTasks(local, tasks, tombstones, complete);
 
-  const result = await call<{
+  const result = await callScript<{
     created: { taskId: string; externalId: string }[];
     failures: { taskId: string; error: string }[];
   }>("pushTasks", {

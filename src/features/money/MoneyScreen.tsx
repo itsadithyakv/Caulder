@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { FileText, Plus, Trash2 } from "lucide-react";
 import {
   INVOICE_STATUS_LABEL,
@@ -11,19 +11,24 @@ import {
   type SpendEntry,
 } from "@shared/domain";
 import { today as todayIn } from "@shared/dates";
+import { describeRunway, type CostsOverview } from "@shared/costs";
+import type { BrainSectionId } from "@shared/brain";
 import { useWorkspace } from "@/lib/workspace";
 import { useResource } from "@/lib/resource";
-import { formatDay, formatValue, relativeDay } from "@/lib/format";
+import { formatDay, formatMonth, formatValue, relativeDay } from "@/lib/format";
+import { messageOf } from "@/lib/errors";
 import { Card } from "@/components/Card";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorLine } from "@/components/ErrorLine";
 import { DocumentForm, SpendForm, TargetForm } from "./MoneyForms";
+import { CostsTab } from "./CostsTab";
+import { ProductsTab } from "./ProductsTab";
 
 /**
  * Is the company making money?
  *
- * Four numbers for the month at the top - quoted, invoiced, paid, spent - and
- * the three lists under them. Nothing an accountant would recognise: no
+ * Four numbers for the month at the top - quoted, invoiced, paid, spent - how
+ * long the money lasts, and the lists under them. Nothing an accountant would recognise: no
  * ledger, no double entry, no tax. When the founder needs those they have an
  * accountant, and Export everything gives the accountant the CSVs.
  *
@@ -31,23 +36,61 @@ import { DocumentForm, SpendForm, TargetForm } from "./MoneyForms";
  * invoice, the paid figure and the overdue list in one read.
  */
 
-type Tab = "invoices" | "quotes" | "spend";
+type Tab = "invoices" | "quotes" | "spend" | "products" | "costs";
+
+function isTab(value: unknown): value is Tab {
+  return typeof value === "string" && value in TAB_LABEL;
+}
 
 const TAB_LABEL: Record<Tab, string> = {
   invoices: "Invoices",
   quotes: "Quotes",
   spend: "Spend",
+  products: "Products",
+  costs: "Running costs",
 };
 
-export function MoneyScreen() {
+export function MoneyScreen({
+  onOpenPage,
+  onOpenContact,
+  openTab,
+  onConsumeTab,
+  openProductId = null,
+  onConsumeProduct,
+}: {
+  onOpenPage: (pageId: string) => void;
+  onOpenContact: (leadId: string) => void;
+  /** A tab asked for from elsewhere - the brain's checklist wants Products. */
+  openTab?: string | null;
+  onConsumeTab?: () => void;
+  /** A product a link or a dot on the Map asked for. */
+  openProductId?: string | null;
+  onConsumeProduct?: () => void;
+}) {
   const { activeCompany, refresh } = useWorkspace();
   const companyId = activeCompany?.id ?? null;
   const timezone = activeCompany?.timezone ?? "UTC";
 
   const fetchMoney = useCallback(() => window.caulder.money.get(companyId as string), [companyId]);
-  const { data, error, busy, reload, act } = useResource<MoneyOverview>(companyId ? fetchMoney : null);
+  const { data, error, busy, reload, act, setError } = useResource<MoneyOverview>(companyId ? fetchMoney : null);
+  const fetchCosts = useCallback(() => window.caulder.costs.overview(companyId as string), [companyId]);
+  const costs = useResource<CostsOverview>(companyId ? fetchCosts : null);
 
   const [tab, setTab] = useState<Tab>("invoices");
+  const [openProduct, setOpenProduct] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isTab(openTab)) return;
+    setTab(openTab);
+    onConsumeTab?.();
+  }, [openTab, onConsumeTab]);
+
+  useEffect(() => {
+    if (!openProductId) return;
+    setTab("products");
+    setOpenProduct(openProductId);
+    onConsumeProduct?.();
+  }, [openProductId, onConsumeProduct]);
   const [editing, setEditing] = useState<
     { kind: "invoice"; invoice: Invoice | null } | { kind: "quote"; quote: Quote | null } | null
   >(null);
@@ -59,6 +102,30 @@ export function MoneyScreen() {
 
   const money = (value: number) => formatValue(value, data.currency);
   const day = todayIn(timezone);
+  const runway = costs.data?.runway ?? null;
+
+  /** A cost change moves the spend list too, so both halves are read again. */
+  async function changeCosts(run: () => Promise<unknown>): Promise<boolean> {
+    try {
+      await run();
+      costs.reload();
+      reload();
+      return true;
+    } catch (cause) {
+      costs.setError(messageOf(cause));
+      return false;
+    }
+  }
+
+  async function newPage(section: BrainSectionId, template: string) {
+    if (!companyId) return;
+    try {
+      const page = await window.caulder.brain.create(companyId, section, template);
+      onOpenPage(page.id);
+    } catch (cause) {
+      setError(messageOf(cause));
+    }
+  }
 
   return (
     <div className="money anim-stagger">
@@ -78,6 +145,17 @@ export function MoneyScreen() {
           <Figure label="Paid" value={money(data.paid)} tone="ok" />
           <Figure label="Spent" value={money(data.spent)} tone="warn" />
         </div>
+        {runway?.cash != null && (
+          <p className="money__target money__runway">
+            <button type="button" className="linklike" onClick={() => setTab("costs")}>
+              {runway.months === null
+                ? "Not burning: more comes in than goes out."
+                : `Runway: ${describeRunway(runway.months)}${
+                    runway.runsOutOn ? `, to ${formatMonth(runway.runsOutOn)}` : ""
+                  }.`}
+            </button>
+          </p>
+        )}
         {data.target !== null && (
           <p className="money__target">
             {data.paid >= data.target
@@ -109,7 +187,7 @@ export function MoneyScreen() {
         </Card>
       )}
 
-      <div className="tabs" role="tablist" aria-label="Money">
+      <div className="tabs tabs--line" role="tablist" aria-label="Money">
         {(Object.keys(TAB_LABEL) as Tab[]).map((option) => (
           <button
             key={option}
@@ -247,6 +325,33 @@ export function MoneyScreen() {
         </Card>
       )}
 
+      {tab === "products" && (
+        <ProductsTab
+          companyId={companyId}
+          onOpenContact={onOpenContact}
+          openId={openProduct}
+          onOpen={setOpenProduct}
+        />
+      )}
+
+      {tab === "costs" &&
+        (costs.data ? (
+          <>
+            <ErrorLine>{costs.error}</ErrorLine>
+            <CostsTab
+              overview={costs.data}
+              busy={costs.busy || busy}
+              onRenew={(pageId) => void changeCosts(() => window.caulder.costs.renew(companyId, pageId))}
+              onAddBalance={(input) => changeCosts(() => window.caulder.costs.addBalance(companyId, input))}
+              onRemoveBalance={(id) => void changeCosts(() => window.caulder.costs.removeBalance(companyId, id))}
+              onOpenPage={onOpenPage}
+              onNewPage={(section, template) => void newPage(section, template)}
+            />
+          </>
+        ) : (
+          <ErrorLine>{costs.error}</ErrorLine>
+        ))}
+
       {editing && (
         <DocumentForm
           companyId={companyId}
@@ -277,6 +382,11 @@ export function MoneyScreen() {
       )}
     </div>
   );
+}
+
+/** The contact, and the deal when it is not simply named after them. */
+function whoFor(doc: { leadName: string; dealTitle: string | null }): string {
+  return doc.dealTitle && doc.dealTitle !== doc.leadName ? `${doc.leadName} · ${doc.dealTitle}` : doc.leadName;
 }
 
 function Figure({ label, value, tone }: { label: string; value: string; tone?: "ok" | "warn" }) {
@@ -314,7 +424,7 @@ function InvoiceRow({
     <li className="money__row">
       <button type="button" className="money__main" onClick={onEdit} disabled={busy}>
         <span className="money__number">{documentNumber("invoice", invoice.number)}</span>
-        <span className="money__who">{invoice.leadName}</span>
+        <span className="money__who">{whoFor(invoice)}</span>
         <span className="money__when">
           {overdue ? `Due ${relativeDay(invoice.dueOn)}` : `Due ${formatDay(invoice.dueOn)}`}
         </span>
@@ -409,7 +519,7 @@ function QuoteRow({
     <li className="money__row">
       <button type="button" className="money__main" onClick={onEdit} disabled={busy}>
         <span className="money__number">{documentNumber("quote", quote.number)}</span>
-        <span className="money__who">{quote.leadName}</span>
+        <span className="money__who">{whoFor(quote)}</span>
         <span className="money__when">{formatDay(quote.issuedOn)}</span>
       </button>
       <span className="money__amount">{money(quote.total)}</span>

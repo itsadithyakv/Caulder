@@ -1,6 +1,9 @@
 import { useState, type FormEvent } from "react";
 import {
   leadInput,
+  RELATIONSHIPS,
+  RELATIONSHIP_LABEL,
+  type Relationship,
   type Lead,
   type LeadInput,
   type PipelineStage,
@@ -41,6 +44,7 @@ type Draft = {
   stageId: string;
   campaignId: string;
   doNotContact: boolean;
+  relationship: Relationship;
 };
 
 function draftFrom(lead: Lead | undefined, stages: PipelineStage[]): Draft {
@@ -61,11 +65,15 @@ function draftFrom(lead: Lead | undefined, stages: PipelineStage[]): Draft {
     stageId: lead?.stageId ?? stages[0]?.id ?? "",
     campaignId: lead?.campaignId ?? "",
     doNotContact: lead?.doNotContact ?? false,
+    relationship: lead?.relationship ?? "prospect",
   };
 }
 
 export function LeadForm({ lead, stages, busy, onSubmit, onCancel }: Props) {
   const [draft, setDraft] = useState<Draft>(() => draftFrom(lead, stages));
+  // With several deals there is no one stage or value to edit here: each deal
+  // has its own, under Deals. The server ignores these fields in that case too.
+  const severalDeals = (lead?.dealCount ?? 0) > 1;
   const [error, setError] = useState<string | null>(null);
 
   function set<K extends keyof Draft>(key: K, value: Draft[K]) {
@@ -149,30 +157,48 @@ export function LeadForm({ lead, stages, busy, onSubmit, onCancel }: Props) {
 
       <div className="leadform__row">
         <div className="field">
-          <label className="field__label" htmlFor="lead-stage">
-            Stage
+          <label className="field__label" htmlFor="lead-relationship">
+            Relationship
           </label>
           <Select
-            id="lead-stage"
-            value={draft.stageId}
-            onChange={(value) => set("stageId", value)}
+            id="lead-relationship"
+            value={draft.relationship}
+            onChange={(value) => set("relationship", value as Relationship)}
             disabled={busy}
-            options={[
-              { value: "", label: "No stage" },
-              ...stages.map((stage) => ({ value: stage.id, label: stage.name })),
-            ]}
+            options={RELATIONSHIPS.map((id) => ({ value: id, label: RELATIONSHIP_LABEL[id] }))}
           />
         </div>
 
-        <Text id="lead-value" label="Value" value={draft.value} inputMode="numeric"
-          onChange={(v) => set("value", v)} busy={busy} />
+        {severalDeals ? (
+          <p className="card__hint leadform__aside">
+            {lead?.dealCount} deals with this contact. Their stages and values are under Deals.
+          </p>
+        ) : (
+          <div className="field">
+            <label className="field__label" htmlFor="lead-stage">
+              Stage
+            </label>
+            <Select
+              id="lead-stage"
+              value={draft.stageId}
+              onChange={(value) => set("stageId", value)}
+              disabled={busy}
+              options={[
+                { value: "", label: "No stage" },
+                ...stages.map((stage) => ({ value: stage.id, label: stage.name })),
+              ]}
+            />
+          </div>
+        )}
       </div>
 
       <div className="leadform__row">
+        {!severalDeals && (
+          <Text id="lead-value" label="Value" value={draft.value} inputMode="numeric"
+            onChange={(v) => set("value", v)} busy={busy} />
+        )}
         <Text id="lead-city" label="City" value={draft.city}
           onChange={(v) => set("city", v)} busy={busy} />
-        <Text id="lead-source" label="Source" value={draft.source}
-          onChange={(v) => set("source", v)} busy={busy} />
       </div>
 
       <label className="checkline">
@@ -197,11 +223,14 @@ export function LeadForm({ lead, stages, busy, onSubmit, onCancel }: Props) {
       </label>
 
       <div className="leadform__row">
-        <Text id="lead-location" label="Location" value={draft.location}
-          onChange={(v) => set("location", v)} busy={busy} />
+        <Text id="lead-source" label="Source" value={draft.source}
+          onChange={(v) => set("source", v)} busy={busy} />
         <Text id="lead-website" label="Website" value={draft.website}
           onChange={(v) => set("website", v)} busy={busy} />
       </div>
+
+      <Text id="lead-location" label="Location" value={draft.location}
+        onChange={(v) => set("location", v)} busy={busy} />
 
       <div className="field">
         <label className="field__label" htmlFor="lead-notes">

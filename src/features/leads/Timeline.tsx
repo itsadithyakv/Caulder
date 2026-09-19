@@ -85,7 +85,7 @@ export function Timeline({
   return (
     <div className="timeline">
       <div className="timeline__compose">
-        <div className="tabs" role="tablist" aria-label="What happened">
+        <div className="tabs tabs--line" role="tablist" aria-label="What happened">
           {LOGGABLE_KINDS.map((option) => (
             <button
               key={option}

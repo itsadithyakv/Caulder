@@ -3,7 +3,7 @@ import type { Db } from "../db/connection";
 import type { EmailTemplate, TemplateInput } from "@shared/email";
 
 /**
- * Templates, and the queue of messages waiting to cross the bridge.
+ * Email and WhatsApp templates. The messages themselves are in mail.ts.
  */
 
 /* ---- Templates ---------------------------------------------------------- */
@@ -39,6 +39,13 @@ export function listTemplates(db: Db, companyId: string): EmailTemplate[] {
     )
     .all(companyId) as TemplateRow[];
   return rows.map(toTemplate);
+}
+
+export function findTemplate(db: Db, id: string): EmailTemplate | null {
+  const row = db.prepare(`SELECT * FROM email_templates WHERE id = ?`).get(id) as
+    | TemplateRow
+    | undefined;
+  return row ? toTemplate(row) : null;
 }
 
 export function createTemplate(

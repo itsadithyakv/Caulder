@@ -25,6 +25,15 @@ import { getSetting, setSetting } from "../repositories/settings";
 
 type Connection = { url: string; secret: string };
 
+/**
+ * How one company reaches its shared brain: the script's address, and either
+ * the owner's key (for the founder whose script it is) or the invitation the
+ * owner sent (for the other). Encrypted like the Google connection, and kept
+ * on the company, because a co-founder's own Google connection is their own
+ * and the brain may live in somebody else's.
+ */
+export type BrainConnection = { url: string; secret?: string; invite?: string };
+
 export function encryptionAvailable(): boolean {
   try {
     return safeStorage.isEncryptionAvailable();
@@ -65,6 +74,31 @@ export function readConnection(): Connection | null {
     // Written by a different user account, or the OS keys were reset. Not an
     // error to throw at somebody opening Settings - it means "not connected",
     // and reconnecting is the fix.
+    return null;
+  }
+}
+
+export function saveBrainConnection(companyId: string, connection: BrainConnection): void {
+  if (!encryptionAvailable()) {
+    throw new Error(
+      "Windows will not encrypt stored secrets on this machine, so Caulder will not keep the shared brain's address. Nothing has been saved.",
+    );
+  }
+  const blob = safeStorage.encryptString(JSON.stringify(connection)).toString("base64");
+  getDatabase().prepare(`UPDATE companies SET brain_connection = ? WHERE id = ?`).run(blob, companyId);
+}
+
+export function readBrainConnection(companyId: string): BrainConnection | null {
+  const row = getDatabase().prepare(`SELECT brain_connection FROM companies WHERE id = ?`).get(companyId) as
+    | { brain_connection: string | null }
+    | undefined;
+  if (!row?.brain_connection || !encryptionAvailable()) return null;
+  try {
+    const parsed = JSON.parse(safeStorage.decryptString(Buffer.from(row.brain_connection, "base64"))) as BrainConnection;
+    return typeof parsed.url === "string" && (typeof parsed.secret === "string" || typeof parsed.invite === "string")
+      ? parsed
+      : null;
+  } catch {
     return null;
   }
 }

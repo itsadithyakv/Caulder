@@ -2,7 +2,7 @@ import { test, expect, _electron as electron, type ElectronApplication } from "@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { goTo } from "./nav";
+import { goTo, passSetup } from "./nav";
 
 /**
  * The sample data, and taking it away again.
@@ -45,10 +45,6 @@ test("looking around opens on a day with work in it, and says what it is", async
   await expect(page.getByRole("button", { name: /Company: Sample company/ })).toBeVisible();
   await expect(page.getByText(/This is sample data/)).toBeVisible();
 
-  // A first run now offers the tour, which sits over everything. Dismissing
-  // it is exactly what somebody starting the app does.
-  await page.waitForTimeout(700);
-  if (await page.locator(".tour").count()) await page.keyboard.press("Escape");
 
   // Today is the screen the app is for, so it is the one that must not be
   // blank on the first launch.
@@ -77,6 +73,7 @@ test("setting up the real company takes the sample away on its own", async () =>
   await page.getByRole("button", { name: "Set up your company" }).click();
   await page.getByLabel("Company name").fill("Unifloe");
   await page.getByRole("button", { name: "Create company" }).click();
+  await passSetup(page);
 
   await expect(page.getByRole("button", { name: /Company: Unifloe/ })).toBeVisible();
   await expect(page.getByText(/This is sample data/)).toHaveCount(0);

@@ -2,6 +2,7 @@ import { test, expect, _electron as electron, type ElectronApplication } from "@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { passSetup } from "./nav";
 
 /**
  * The Google link, as far as it can be driven without a Google account.
@@ -29,13 +30,8 @@ async function openApp() {
   if (await page.locator(".firstrun").isVisible()) {
     await page.getByLabel("Company name").fill("Mine");
     await page.getByRole("button", { name: "Create company" }).click();
+    await passSetup(page);
     await expect(page.getByRole("button", { name: /Mine/ })).toBeVisible();
-    // A first run offers a short tour, which sits over everything. Leaving it
-    // is exactly what somebody starting the app does.
-    await page.locator(".tour").waitFor({ timeout: 3000 }).then(
-      () => page.keyboard.press("Escape"),
-      () => undefined,
-    );
   }
 
   await page.getByRole("button", { name: /^Settings/ }).click();

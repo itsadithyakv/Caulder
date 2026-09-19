@@ -1,4 +1,5 @@
 import type { Db } from "../db/connection";
+import { logProblem } from "../log";
 import { createTask } from "../repositories/tasks";
 import { shiftDay, today as todayIn } from "@shared/dates";
 import { taskInput } from "@shared/domain";
@@ -48,8 +49,9 @@ export function followUpIfNothingPlanned(db: Db, companyId: string, leadId: stri
         dueOn: shiftDay(todayIn(timezone, new Date()), days),
       }),
     );
-  } catch {
+  } catch (error) {
     // Automation, not the person's work: losing the card move to save the
-    // follow-up is the wrong trade.
+    // follow-up is the wrong trade. It is still written down.
+    logProblem("follow-up", error);
   }
 }

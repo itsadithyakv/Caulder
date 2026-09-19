@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Package, Plus, Trash2, X } from "lucide-react";
 import {
   invoiceInput,
   quoteInput,
   spendEntryInput,
+  type Deal,
   type Invoice,
   type LeadListRow,
   type Quote,
 } from "@shared/domain";
 import { shiftDay } from "@shared/dates";
+import { describeRecurrence, type PickableProduct } from "@shared/products";
 import { Portal } from "@/components/Portal";
 import { Select } from "@/components/Select";
 import { ErrorLine } from "@/components/ErrorLine";
@@ -23,9 +25,10 @@ import { messageOf } from "@/lib/errors";
  * out as you type, so what the form says is what the file will say.
  */
 
-type LineDraft = { description: string; quantity: string; unitPrice: string };
+/** A line as typed. `productId` is set when it came from the catalogue, and stays until unlinked. */
+type LineDraft = { description: string; quantity: string; unitPrice: string; productId: string | null };
 
-const EMPTY_LINE: LineDraft = { description: "", quantity: "1", unitPrice: "" };
+const EMPTY_LINE: LineDraft = { description: "", quantity: "1", unitPrice: "", productId: null };
 
 function useEscape(onClose: () => void) {
   useEffect(() => {
@@ -60,6 +63,8 @@ export function DocumentForm({
 
   const [contacts, setContacts] = useState<LeadListRow[]>([]);
   const [leadId, setLeadId] = useState(existing?.leadId ?? "");
+  const [deals, setDeals] = useState<Deal[]>([]);
+  const [dealId, setDealId] = useState(existing?.dealId ?? "");
   const [issuedOn, setIssuedOn] = useState(existing?.issuedOn ?? day);
   const [dueOn, setDueOn] = useState(
     existing && "dueOn" in existing ? existing.dueOn : shiftDay(day, 14),
@@ -71,18 +76,68 @@ export function DocumentForm({
           description: line.description,
           quantity: String(line.quantity),
           unitPrice: String(line.unitPrice),
+          productId: line.productId,
         }))
       : [EMPTY_LINE],
   );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [products, setProducts] = useState<PickableProduct[]>([]);
+  const [picking, setPicking] = useState(false);
 
   useEffect(() => {
     window.caulder.leads
       .list({ companyId, sort: "name", direction: "asc" })
       .then(setContacts)
       .catch(() => setContacts([]));
+    window.caulder.products
+      .pickable(companyId)
+      .then(setProducts)
+      .catch(() => setProducts([]));
   }, [companyId]);
+
+  /**
+   * A product from the catalogue becomes a line with its name and today's
+   * price. After that the line is the line's own: its words and its price can
+   * be changed for this one customer without touching the catalogue.
+   */
+  function pick(product: PickableProduct) {
+    const line: LineDraft = {
+      description: product.name,
+      quantity: "1",
+      unitPrice: product.price ? String(product.price.amount) : "",
+      productId: product.id,
+    };
+    setLines((current) => {
+      const blank = current.findIndex((draft) => draft.description.trim() === "" && draft.unitPrice.trim() === "");
+      return blank >= 0 ? current.map((draft, at) => (at === blank ? line : draft)) : [...current, line];
+    });
+    setPicking(false);
+  }
+
+  const productName = (id: string | null) => products.find((product) => product.id === id)?.name ?? null;
+
+  // The chosen contact's deals, main one first. With one or none there is
+  // nothing to ask; with several, the picker starts on the main deal, which is
+  // where the document would go anyway.
+  useEffect(() => {
+    if (leadId === "") {
+      setDeals([]);
+      return;
+    }
+    let live = true;
+    window.caulder.deals
+      .forLead(leadId)
+      .then((found) => {
+        if (!live) return;
+        setDeals(found);
+        setDealId((current) => (found.some((deal) => deal.id === current) ? current : (found[0]?.id ?? "")));
+      })
+      .catch(() => live && setDeals([]));
+    return () => {
+      live = false;
+    };
+  }, [leadId]);
 
   const total = lines.reduce((sum, line) => {
     const quantity = Number(line.quantity);
@@ -98,6 +153,7 @@ export function DocumentForm({
     setError(null);
     const raw = {
       leadId,
+      dealId: dealId === "" ? null : dealId,
       issuedOn,
       dueOn,
       notes: notes.trim() === "" ? null : notes,
@@ -105,6 +161,7 @@ export function DocumentForm({
         description: line.description,
         quantity: Number(line.quantity),
         unitPrice: Number(line.unitPrice),
+        productId: line.productId,
       })),
     };
     const parsed = kind === "invoice" ? invoiceInput.safeParse(raw) : quoteInput.safeParse(raw);
@@ -160,6 +217,19 @@ export function DocumentForm({
             />
           </label>
 
+          {deals.length > 1 && (
+            <label className="field">
+              <span className="field__label">Deal</span>
+              <Select
+                value={dealId}
+                onChange={setDealId}
+                disabled={busy}
+                aria-label="Deal"
+                options={deals.map((deal) => ({ value: deal.id, label: deal.title }))}
+              />
+            </label>
+          )}
+
           <div className="blockform__row">
             <label className="field">
               <span className="field__label">Issued</span>
@@ -189,7 +259,7 @@ export function DocumentForm({
             <span className="field__label">Lines</span>
             <div className="money__lines">
               {lines.map((line, index) => (
-                <div key={index} className="money__line">
+                <div key={index} className={`money__line${line.productId ? " money__line--product" : ""}`}>
                   <input
                     className="input"
                     value={line.description}
@@ -224,9 +294,47 @@ export function DocumentForm({
                   >
                     <Trash2 size={14} aria-hidden />
                   </button>
+                  {line.productId && (
+                    <span className="money__lineProduct">
+                      <Package size={12} aria-hidden />
+                      {productName(line.productId) ?? "From the catalogue"}
+                      <button
+                        type="button"
+                        className="money__unlink"
+                        aria-label={`Stop counting line ${index + 1} as ${productName(line.productId) ?? "a product"}`}
+                        title="Keep the words and price, but stop counting it as that product"
+                        disabled={busy}
+                        onClick={() => setLine(index, { productId: null })}
+                      >
+                        <X size={11} aria-hidden />
+                      </button>
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
+            {picking && (
+              <div className="catalogue anim-spring" role="group" aria-label="The catalogue">
+                {products.map((product) => (
+                  <button
+                    key={product.id}
+                    type="button"
+                    className="catalogue__item"
+                    onClick={() => pick(product)}
+                    disabled={busy}
+                  >
+                    <span className="catalogue__name">{product.name}</span>
+                    <span className="catalogue__price">
+                      {product.price
+                        ? `${formatValue(product.price.amount, currency)} ${describeRecurrence(product.price.recurrence)}${
+                            product.unit ? ` · per ${product.unit}` : ""
+                          }`
+                        : "No price yet"}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="actions">
               <button
                 type="button"
@@ -237,6 +345,18 @@ export function DocumentForm({
                 <Plus size={14} aria-hidden />
                 Add a line
               </button>
+              {products.length > 0 && (
+                <button
+                  type="button"
+                  className="btn btn--sm btn--ghost"
+                  aria-expanded={picking}
+                  disabled={busy || lines.length >= 50}
+                  onClick={() => setPicking((open) => !open)}
+                >
+                  <Package size={14} aria-hidden />
+                  From the catalogue
+                </button>
+              )}
               <span className="money__formTotal">Total {formatValue(total, currency)}</span>
             </div>
           </div>

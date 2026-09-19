@@ -12,6 +12,9 @@ import { WeekGrid } from "./WeekGrid";
 import { HOUR_PX, PER_MINUTE, SNAP, hourWindow, snapTo } from "./grid";
 import { messageOf } from "@/lib/errors";
 import { ErrorLine } from "@/components/ErrorLine";
+import { describeDeadline } from "@shared/deadlines";
+import type { JournalDay } from "@shared/life";
+import { MoodTag } from "@/features/life/MoodPicker";
 
 /**
  * The day, as hours you can see.
@@ -37,7 +40,14 @@ type Drag = {
   minutes: number;
 };
 
-export function DayScreen() {
+export function DayScreen({
+  onOpenPage,
+  onOpenJournal,
+}: {
+  onOpenPage?: (pageId: string) => void;
+  /** The journal, on this day. */
+  onOpenJournal?: (day: string) => void;
+} = {}) {
   const { activeCompany } = useWorkspace();
   const companyId = activeCompany?.id ?? null;
   const timezone = activeCompany?.timezone ?? "UTC";
@@ -374,10 +384,40 @@ export function DayScreen() {
         </div>
 
         <aside className="day__side">
+          {onOpenJournal && day <= currentDay && <DayJournal companyId={companyId} day={day} onOpen={onOpenJournal} />}
           <section className="card">
             <h2 className="card__title">Due today</h2>
+            {plan.deadlines.length > 0 && (
+              <ul className="daydue" aria-label="Deadlines on this day">
+                {plan.deadlines.map((deadline) => (
+                  <li
+                    key={deadline.key}
+                    className={`duechip${deadline.doneOn ? " duechip--done" : deadline.daysLeft < 0 ? " duechip--late" : ""}`}
+                    title={describeDeadline(deadline)}
+                  >
+                    <span className="duechip__title">{deadline.title}</span>
+                    <span className="duechip__what">{deadline.period ? `for ${deadline.period}` : deadline.what}</span>
+                    {deadline.source === "obligation" && !deadline.doneOn && (
+                      <button
+                        type="button"
+                        className="btn btn--sm btn--ghost"
+                        aria-label={`${deadline.title}${deadline.period ? ` for ${deadline.period}` : ""} is done`}
+                        onClick={() =>
+                          void window.caulder.deadlines
+                            .done(deadline.id, deadline.dueOn)
+                            .then(() => load())
+                            .catch((cause: unknown) => setError(messageOf(cause)))
+                        }
+                      >
+                        Done
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
             {plan.tasks.length === 0 ? (
-              <p className="card__hint">Nothing is due. The day is yours to spend.</p>
+              plan.deadlines.length === 0 && <p className="card__hint">Nothing is due. The day is yours to spend.</p>
             ) : (
               <ul className="daytasks">
                 {plan.tasks.map((task) => (
@@ -464,6 +504,7 @@ export function DayScreen() {
           tasks={plan.tasks}
           workspaceLead={activeCompany?.remindMinutes ?? null}
           forTask={forTask}
+          {...(onOpenPage ? { onOpenPage } : {})}
           onClose={() => {
             setAdding(null);
             setEditing(null);
@@ -578,4 +619,40 @@ function spanOf(from: string): string {
   return `${shortFormat.format(new Date(`${from}T00:00:00Z`))} – ${shortFormat.format(
     new Date(`${to}T00:00:00Z`),
   )}`;
+}
+
+/**
+ * The day's journal entry, at the top of the day's side (PLAN.md, part
+ * four): its mood and first words when it is written, and a way to write it
+ * when it is not - for today or any day that has been.
+ */
+function DayJournal({ companyId, day, onOpen }: { companyId: string; day: string; onOpen: (day: string) => void }) {
+  const [entry, setEntry] = useState<JournalDay | null | undefined>(undefined);
+
+  useEffect(() => {
+    let live = true;
+    window.caulder.life.month(companyId, day.slice(0, 7)).then(
+      (month) => live && setEntry(month.entries.find((each) => each.day === day) ?? null),
+      () => live && setEntry(null),
+    );
+    return () => {
+      live = false;
+    };
+  }, [companyId, day]);
+
+  if (entry === undefined) return null;
+
+  return (
+    <button type="button" className={`dayjournal${entry ? " dayjournal--written" : ""}`} onClick={() => onOpen(day)}>
+      <strong>Journal</strong>
+      {entry ? (
+        <>
+          {entry.mood && <MoodTag mood={entry.mood} />}
+          <span className="dayjournal__excerpt">{entry.excerpt || "Written"}</span>
+        </>
+      ) : (
+        <span className="dayjournal__excerpt">Write about this day</span>
+      )}
+    </button>
+  );
 }

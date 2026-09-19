@@ -1,0 +1,397 @@
+/* Metrics, the decision log, and a page's steps as tasks (phase 11).
+ *
+ * The charts follow the data-viz rules the rest of the app has no need for:
+ * one series each, so no legend; columns at most 24px with a 4px rounded
+ * data end and square on the baseline; a 2px line with a 4px end dot in a
+ * 2px surface ring; hairline, solid, recessive rules. The months gone are the
+ * muted ink and the one still counting is the accent - both clear 3:1 on
+ * either surface. Text never wears the mark's colour. */
+
+.metrics {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.metrics__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  height: 100%;
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-xs);
+}
+
+.metric__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.metric__name {
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.metric__name:hover {
+  color: var(--accent-strong);
+}
+
+.metric__source {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+/* Proportional figures at display size: tabular digits look loose this big. */
+.metric__value {
+  margin: var(--space-1) 0 0;
+  color: var(--ink);
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  line-height: var(--leading-tight);
+}
+
+.metric__value--large {
+  margin: 0 0 var(--space-3);
+}
+
+.metric__when {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+.metric__change {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.metric__change--good {
+  color: var(--ok);
+}
+
+.metric__change--bad {
+  color: var(--danger);
+}
+
+.metric__target {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+.metric__meter {
+  display: block;
+  height: 6px;
+  overflow: hidden;
+  background: var(--accent-soft);
+  border-radius: var(--radius-pill);
+}
+
+.metric__meterFill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: var(--radius-pill);
+}
+
+.metric__targetWords {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+}
+
+/* ---- The chart -------------------------------------------------------------- */
+
+.metricchart {
+  position: relative;
+  width: 100%;
+  margin-top: var(--space-3);
+}
+
+.metricchart__svg {
+  display: block;
+  overflow: visible;
+  border-bottom: 1px solid var(--soft-line);
+  border-radius: 0;
+  cursor: crosshair;
+}
+
+.metricchart__svg:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
+.metricchart--large .metricchart__svg {
+  border-bottom: none;
+}
+
+.metricchart__bar {
+  fill: var(--ink-3);
+  transition: opacity var(--dur-fast) var(--ease);
+}
+
+.metricchart__bar--now {
+  fill: var(--accent);
+}
+
+.metricchart__svg:hover .metricchart__bar:not(.metricchart__bar--active),
+.metricchart__svg:focus-visible .metricchart__bar:not(.metricchart__bar--active) {
+  opacity: 0.55;
+}
+
+.metricchart__line {
+  fill: none;
+  stroke: var(--ink-3);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.metricchart__dot {
+  fill: var(--accent);
+  stroke: var(--surface);
+  stroke-width: 2;
+  paint-order: stroke;
+}
+
+.metricchart__dot--hover {
+  fill: var(--ink-2);
+}
+
+.metricchart__zero,
+.metricchart__cross {
+  stroke: var(--soft-line);
+  stroke-width: 1;
+}
+
+.metricchart__cross {
+  stroke: var(--border-strong);
+}
+
+.metricchart__month {
+  fill: var(--ink-3);
+  font-size: 11px;
+  text-anchor: middle;
+}
+
+.metricchart__tip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-1) var(--space-2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.metricchart__tip strong {
+  color: var(--ink);
+  font-size: var(--text-sm);
+}
+
+.metricchart__tip span {
+  color: var(--ink-3);
+}
+
+.metrictable {
+  width: 100%;
+  margin-top: var(--space-4);
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.metrictable th,
+.metrictable td {
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--soft-line);
+  text-align: left;
+}
+
+.metrictable thead th {
+  color: var(--ink-3);
+  font-weight: 700;
+}
+
+.metrictable tbody th {
+  color: var(--ink-2);
+  font-weight: 500;
+}
+
+.metrictable td {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.metrictable thead th:last-child {
+  text-align: right;
+}
+
+/* ---- Adding one, and writing one down --------------------------------------- */
+
+.metricpick {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  padding: var(--space-4);
+  background: var(--surface-sunken);
+  border-radius: var(--radius-md);
+}
+
+.metricpick__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.metricpick__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.metricpick__words {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.metricrecord {
+  display: grid;
+  grid-template-columns: 180px 160px minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+@media (max-width: 720px) {
+  .metricrecord {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---- A page's steps as tasks ------------------------------------------------- */
+
+.pagetasks__run {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.pagetasks__run .picker {
+  width: 280px;
+}
+
+.pagetasks__runs {
+  margin: var(--space-3) 0 0;
+}
+
+.pagetasks__owner {
+  color: var(--ink-3);
+}
+
+/* ---- The decision log -------------------------------------------------------- */
+
+.decisionlog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.decisionlog__heading {
+  margin: 0 0 var(--space-2);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.decisionlog__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0 0 0 var(--space-4);
+  border-left: 2px solid var(--soft-line);
+  list-style: none;
+}
+
+.decisionlog__open {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 100%;
+  padding: var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease);
+}
+
+.decisionlog__open:hover {
+  border-color: var(--border-strong);
+}
+
+.decisionlog__title {
+  font-weight: 700;
+}
+
+.decisionlog__summary {
+  color: var(--ink-2);
+}
+
+.decisionlog__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}

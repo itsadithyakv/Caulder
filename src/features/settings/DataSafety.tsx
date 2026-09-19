@@ -20,7 +20,9 @@ export function DataSafety({
   companyName: string;
 }) {
   const [backups, setBackups] = useState<BackupFile[]>([]);
-  const [paths, setPaths] = useState<{ database: string; backups: string } | null>(null);
+  const [paths, setPaths] = useState<{ database: string; backups: string; logs: string } | null>(
+    null,
+  );
   const [confirming, setConfirming] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -108,7 +110,7 @@ export function DataSafety({
             type="button"
             className="btn"
             disabled={busy}
-            onClick={() => void window.caulder.data.revealFolder(paths.backups)}
+            onClick={() => void window.caulder.data.revealFolder("backups")}
           >
             <FolderOpen size={15} aria-hidden />
             Open the backups folder
@@ -151,7 +153,7 @@ export function DataSafety({
                     onClick={() =>
                       void run(async () => {
                         setConfirming(null);
-                        await window.caulder.data.restore(backup.path);
+                        await window.caulder.data.restore(backup.name);
                       })
                     }
                   >
@@ -187,6 +189,23 @@ export function DataSafety({
           somewhere else now and again, with Caulder closed.
         </p>
       )}
+
+      <div className="actions">
+        <span className="card__hint">
+          When something goes wrong, Caulder writes it to a log.
+        </span>
+        <button
+          type="button"
+          className="btn btn--sm btn--ghost"
+          onClick={() =>
+            void run(() => window.caulder.data.revealFolder("logs"))
+          }
+          disabled={busy}
+        >
+          <FolderOpen size={14} aria-hidden />
+          Open the log folder
+        </button>
+      </div>
 
       <p className="card__hint">Exports are per company. This one is {companyName}.</p>
     </section>

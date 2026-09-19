@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Database, { type Database as DatabaseType } from "better-sqlite3";
 import { pick } from "./choose";
+import { passSetup } from "./nav";
 
 /**
  * Tasks and the Today screen through the real window.
@@ -30,12 +31,9 @@ async function ensureCompany(page: Page) {
   if (await page.locator(".firstrun").isVisible()) {
     await page.getByLabel("Company name").fill("Unifloe");
     await page.getByRole("button", { name: "Create company" }).click();
+    await passSetup(page);
     await expect(page.getByRole("button", { name: /Company: Unifloe/ })).toBeVisible();
 
-  // A first run now offers the tour, which sits over everything. Dismissing
-  // it is exactly what somebody starting the app does.
-  await page.waitForTimeout(700);
-  if (await page.locator(".tour").count()) await page.keyboard.press("Escape");
   }
 }
 
@@ -176,9 +174,17 @@ test("a lead with nothing planned turns up under Going quiet", async () => {
   await expect(page.getByRole("heading", { name: "Going quiet" })).toBeVisible();
   await expect(page.getByRole("button", { name: /Bengaluru Public School/ })).toBeVisible();
 
+  // A shortcut used earlier is not replayed. N opens the new-contact form
+  // once; it must not open again on the next visit, which here is Today
+  // sending the user to one contact.
+  await page.keyboard.press("n");
+  await expect(page.getByLabel("Contact person")).toBeVisible();
+  await page.getByRole("button", { name: "Today" }).click();
+
   // Clicking through opens that lead.
   await page.getByRole("button", { name: /Bengaluru Public School/ }).click();
   await expect(page.getByRole("heading", { name: "Bengaluru Public School" })).toBeVisible();
+  await expect(page.getByLabel("Contact person")).toHaveCount(0);
 });
 
 test("planning a next step takes the lead out of Going quiet", async () => {

@@ -1,9 +1,9 @@
 /* ---------------------------------------------------------------------------
  * The pipeline board, and the stage editor in settings.
  *
- * The columns are sunken wells and the cards are the raised things inside
- * them — the one place in the app where a lift is the right signal, because a
- * card really is an object you pick up and put down.
+ * The columns are quiet grey lanes and the cards are white inside them. A
+ * card lifts under the pointer - the one place in the app where it should,
+ * because a card really is an object you pick up and put down.
  *
  * Layout only. Colour, radius, spacing and type come from tokens.
  * ------------------------------------------------------------------------- */
@@ -80,11 +80,11 @@
    * Both come from tokens - the ramp is mixed from the company's own accent,
    * so a rose company gets a rose funnel. */
   background: var(--column-wash, var(--surface-sunken));
-  box-shadow: var(--shadow-inset-sm);
   transition: box-shadow var(--dur-fast) var(--ease);
+  border: 1px solid var(--border);
 }
 
-/* The colour is carried by the wash and by a dot beside the name.
+/* The colour is carried by a dot beside the name.
  *
  * There was a 3px band across the top of every column, and it looked like a
  * mistake wherever it was strong enough to see: a full-width rule pinned to
@@ -115,6 +115,7 @@
   box-shadow:
     var(--shadow-inset-sm),
     0 0 0 2px var(--accent);
+  border: 1px solid var(--border);
 }
 
 .column__head {
@@ -186,14 +187,15 @@
   position: relative;
   border-radius: var(--radius-sm);
   background: var(--surface);
-  box-shadow: var(--shadow-xs);
   transition:
     box-shadow var(--dur-fast) var(--ease),
     opacity var(--dur-fast) var(--ease);
+  border: 1px solid var(--border);
 }
 
 .boardcard:hover {
   box-shadow: var(--shadow-sm);
+  border-color: var(--border-strong);
 }
 
 .boardcard__drag {

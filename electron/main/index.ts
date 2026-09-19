@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, nativeTheme, shell } from "electron";
+import { app, BrowserWindow, dialog, nativeTheme } from "electron";
 import { join } from "node:path";
 import { openDatabase, closeDatabase, databasePath } from "./db/connection";
 import { migrate } from "./db/migrations";
@@ -13,13 +13,22 @@ import { heldShortcut, setCaptureShortcut } from "./capture";
 import { shortcutToClaim } from "./popup";
 import { createTray, destroyTray, hasTray, trayNotice } from "./tray";
 import { claimIdentity, registerIdentity } from "./identity";
+import { guardContents } from "./links";
+import { logProblem } from "./log";
 
 // Before anything can notify: a notification is signed with this ID, and
 // without it Windows signs Caulder's reminders "electron.app.Electron".
 claimIdentity();
 import { startNotifications, stopNotifications } from "./services/notify";
 import { startReminders, stopReminders } from "./services/remind";
-import { startSyncing, stopSyncing } from "./services/scheduler";
+import {
+  startBrainSync,
+  startMailWatch,
+  startSyncing,
+  stopBrainSync,
+  stopMailWatch,
+  stopSyncing,
+} from "./services/scheduler";
 
 const isDev = !app.isPackaged;
 
@@ -36,6 +45,27 @@ if (!gotLock) {
   // from the Start menu while it sat in the tray left one behind every time.
   app.exit(0);
 }
+
+// Every window and web view, as it is made: none may navigate away from the
+// app, and a link leaves only as a web page or an email. See links.ts.
+app.on("web-contents-created", (_event, contents) => guardContents(contents));
+
+// Nobody is watching the console of an installed app, so a failure that would
+// otherwise only print there is written to the log instead.
+process.on("unhandledRejection", (reason) => logProblem("main", reason));
+process.on("uncaughtException", (error) => {
+  logProblem("main", error);
+  dialog.showErrorBox(
+    "Caulder hit a problem",
+    `${error.message}\n\nThe details are in the log, which Settings > Your data can open.`,
+  );
+});
+app.on("render-process-gone", (_event, _contents, details) =>
+  logProblem("window", `The window stopped: ${details.reason} (exit ${details.exitCode})`),
+);
+app.on("child-process-gone", (_event, details) =>
+  logProblem("process", `${details.type} stopped: ${details.reason} (exit ${details.exitCode})`),
+);
 
 let mainWindow: BrowserWindow | null = null;
 /** Set on the way out, so closing the window then really closes it. */
@@ -85,14 +115,14 @@ function createWindow(): void {
     // pointing at a path inside the asar here would just fail to load.
     ...(isDev ? { icon: join(app.getAppPath(), "resources", "icon.png") } : {}),
     webPreferences: {
-      // .mjs, not .js: package.json is "type": "module", so electron-vite
-      // emits the preload as ESM. Electron loads an ESM preload only when the
-      // extension says so and the sandbox is off. Pointing at ".js" here fails
-      // silently - the bridge never loads and window.caulder is undefined.
-      preload: join(__dirname, "../preload/index.mjs"),
+      // .cjs: the preload is built as CommonJS (see electron.vite.config.ts)
+      // so this window can run sandboxed. Pointing at a file that is not
+      // there fails silently - the bridge never loads and window.caulder is
+      // undefined.
+      preload: join(__dirname, "../preload/index.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
     },
   });
 
@@ -142,11 +172,8 @@ function createWindow(): void {
     mainWindow = null;
   });
 
-  // Anything trying to open a new window goes to the real browser instead.
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    void shell.openExternal(url);
-    return { action: "deny" };
-  });
+  // New windows and navigation are refused for every window at once, in the
+  // web-contents-created handler above.
 
   const devServer = process.env["ELECTRON_RENDERER_URL"];
   if (isDev && devServer) {
@@ -167,13 +194,13 @@ function createWindow(): void {
 function startDatabase(): void {
   const backup = backupOnLaunch();
   if (backup.kind === "skipped" && backup.reason !== "no database yet") {
-    console.warn(`Backup skipped: ${backup.reason}`);
+    logProblem("backup", `Skipped on launch: ${backup.reason}`);
   }
 
   const db = openDatabase();
   const result = migrate(db);
   if (result.applied.length > 0) {
-    console.warn(`Database migrated ${result.from} -> ${result.to}`);
+    logProblem("database", `Migrated ${result.from} -> ${result.to}: ${result.applied.join(", ")}`);
   }
 }
 
@@ -232,6 +259,8 @@ void app.whenReady().then(() => {
   // either way - the window has just opened and nobody wants a network call
   // competing with it.
   startSyncing();
+  startMailWatch();
+  startBrainSync();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -248,6 +277,8 @@ app.on("before-quit", () => {
   stopNotifications();
   stopReminders();
   stopSyncing();
+  stopMailWatch();
+  stopBrainSync();
 });
 
 // WAL leaves a sidecar file; closing cleanly checkpoints it back into the

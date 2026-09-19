@@ -2,7 +2,7 @@ import { test, expect, _electron as electron, type ElectronApplication, type Pag
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { goTo } from "./nav";
+import { goTo, passSetup } from "./nav";
 
 /**
  * Hardening: shortcuts, backup, restore, export, and the empty states.
@@ -37,12 +37,9 @@ async function ensureCompany(page: Page) {
   if (await page.locator(".firstrun").isVisible()) {
     await page.getByLabel("Company name").fill("Unifloe");
     await page.getByRole("button", { name: "Create company" }).click();
+    await passSetup(page);
     await expect(page.getByRole("button", { name: /Company: Unifloe/ })).toBeVisible();
 
-  // A first run now offers the tour, which sits over everything. Dismissing
-  // it is exactly what somebody starting the app does.
-  await page.waitForTimeout(700);
-  if (await page.locator(".tour").count()) await page.keyboard.press("Escape");
   }
 }
 

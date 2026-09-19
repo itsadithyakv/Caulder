@@ -3,7 +3,7 @@ import type { Board, BoardCard, BoardColumn, StageKind } from "@shared/domain";
 import { listStages } from "../repositories/companies";
 
 /**
- * The pipeline board.
+ * The pipeline board: one card per deal.
  *
  * One query for the cards, then grouping in memory. At this app's scale that is
  * a single pass over a few hundred rows, and it keeps the per-column totals
@@ -22,6 +22,8 @@ const CARDS_PER_COLUMN = 100;
 
 type CardRow = {
   id: string;
+  lead_id: string;
+  title: string;
   stage_id: string | null;
   name: string;
   city: string | null;
@@ -40,14 +42,17 @@ export function buildBoard(db: Db, companyId: string): Board {
     .prepare(
       // The open-task count is what puts the "next step planned" mark on a
       // card, so it is read here rather than in a second query per card.
+      // A card is a deal; what it says about being in touch and what is
+      // planned comes from its contact, which is where calls and tasks live.
       `SELECT
-         l.id, l.stage_id, l.name, l.city, l.contact_person, l.value,
-         l.last_contacted_at, l.updated_at, l.do_not_contact,
+         d.id, d.lead_id, d.title, d.stage_id, l.name, l.city, l.contact_person, d.value,
+         l.last_contacted_at, d.updated_at, l.do_not_contact,
          (SELECT COUNT(*) FROM tasks t
           WHERE t.lead_id = l.id AND t.status = 'open') AS open_tasks
-       FROM leads l
-       WHERE l.company_id = ?
-       ORDER BY l.updated_at DESC`,
+       FROM deals d
+       JOIN leads l ON l.id = d.lead_id
+       WHERE d.company_id = ?
+       ORDER BY d.updated_at DESC`,
     )
     .all(companyId) as CardRow[];
 
@@ -104,6 +109,8 @@ function toColumn(
 function toCard(row: CardRow): BoardCard {
   return {
     id: row.id,
+    leadId: row.lead_id,
+    title: row.title,
     name: row.name,
     city: row.city,
     contactPerson: row.contact_person,

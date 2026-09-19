@@ -2,6 +2,10 @@ import { getDatabase } from "../db/connection";
 import { getSetting } from "../repositories/settings";
 import { isConnected } from "./credentials";
 import { syncNow } from "./gsync";
+import { syncBrain } from "./brainsync";
+import { isFault, logProblem } from "../log";
+import { hasEmailWork } from "../repositories/mail";
+import { syncEmails } from "./mail";
 
 /**
  * Keeping Google in step without being asked.
@@ -61,7 +65,9 @@ let stopped = false;
 export function autoSyncOn(): boolean {
   try {
     return getSetting(getDatabase(), "googleAuto") === "1";
-  } catch {
+  } catch (error) {
+    // "Not open yet" is ordinary at launch; anything else is worth a line.
+    if (isFault(error)) logProblem("sync", error);
     return false;
   }
 }
@@ -77,7 +83,8 @@ function mapped(): string[] {
       )
       .all() as { id: string }[];
     return rows.map((row) => row.id);
-  } catch {
+  } catch (error) {
+    if (isFault(error)) logProblem("sync", error);
     return [];
   }
 }
@@ -172,4 +179,88 @@ export function nudgeSync(): void {
     nudge = null;
     void pass();
   }, NUDGE_MS);
+}
+
+/* ---- Email ---------------------------------------------------------------
+ * Separate from the calendar sync and not behind its switch: somebody who has
+ * sent an email from Caulder has asked to hear what became of it. It runs
+ * only while there is something in play, and a repeated failure is written to
+ * the log once rather than every ten minutes.
+ * ------------------------------------------------------------------------ */
+
+const MAIL_EVERY_MS = 10 * 60 * 1000;
+
+let mailTimer: NodeJS.Timeout | null = null;
+let lastMailProblem: string | null = null;
+
+async function watchMail(): Promise<void> {
+  try {
+    const db = getDatabase();
+    if (isConnected() && hasEmailWork(db)) {
+      await syncEmails(db);
+      lastMailProblem = null;
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message !== lastMailProblem) logProblem("email", error);
+    lastMailProblem = message;
+  } finally {
+    mailTimer = setTimeout(() => void watchMail(), MAIL_EVERY_MS);
+  }
+}
+
+export function startMailWatch(): void {
+  stopMailWatch();
+  // Not at once: the window has just opened, and it comes first.
+  mailTimer = setTimeout(() => void watchMail(), 30_000);
+}
+
+export function stopMailWatch(): void {
+  if (mailTimer) clearTimeout(mailTimer);
+  mailTimer = null;
+}
+
+/* ---- The shared brain ----------------------------------------------------- */
+
+/**
+ * Every few minutes, each company whose brain is shared reads the other
+ * founder's changes and sends its own. On by being shared - sharing is the
+ * asking - and quiet at launch like the rest. A failure is written on the
+ * company, where Brain shows it, and the next pass tries again.
+ */
+const BRAIN_EVERY_MS = 3 * 60 * 1000;
+const BRAIN_FIRST_MS = 20_000;
+let brainTimer: ReturnType<typeof setTimeout> | null = null;
+let brainRunning = false;
+
+async function brainPass(): Promise<void> {
+  if (brainRunning) return;
+  brainRunning = true;
+  try {
+    const shared = getDatabase()
+      .prepare(`SELECT id FROM companies WHERE brain_key IS NOT NULL AND is_archived = 0`)
+      .all() as { id: string }[];
+    for (const { id } of shared) {
+      try {
+        await syncBrain(getDatabase(), id);
+      } catch {
+        // syncBrain has written the reason on the company.
+      }
+    }
+  } catch (error) {
+    if (isFault(error)) logProblem("brain sync", error);
+  } finally {
+    brainRunning = false;
+    brainTimer = setTimeout(() => void brainPass(), BRAIN_EVERY_MS);
+  }
+}
+
+export function startBrainSync(): void {
+  if (brainTimer) clearTimeout(brainTimer);
+  brainTimer = setTimeout(() => void brainPass(), BRAIN_FIRST_MS);
+}
+
+export function stopBrainSync(): void {
+  if (brainTimer) clearTimeout(brainTimer);
+  brainTimer = null;
 }

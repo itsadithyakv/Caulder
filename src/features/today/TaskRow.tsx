@@ -16,6 +16,7 @@ import {
   type TaskKind,
 } from "@shared/domain";
 import { describeDue, shiftDay } from "@shared/dates";
+import { useOpenRef } from "@/lib/navigate";
 
 const ICON: Record<TaskKind, LucideIcon> = {
   call: Phone,
@@ -48,6 +49,7 @@ export function TaskRow({
   onComplete,
   onReschedule,
   onDelete,
+  onCall,
 }: {
   task: Task;
   day: string;
@@ -57,8 +59,11 @@ export function TaskRow({
   onComplete: () => void;
   onReschedule: (dueOn: string) => void;
   onDelete: () => void;
+  /** Given for a call with a contact: opens the prompter, which ticks the task off. */
+  onCall?: () => void;
 }) {
   const Icon = ICON[task.kind];
+  const openRef = useOpenRef();
 
   // Ticking removes the row, and a row that vanishes mid-click leaves you
   // unsure which one you got. So it leaves on its own first, and the parent
@@ -122,6 +127,16 @@ export function TaskRow({
               {task.leadName}
             </button>
           )}
+          {task.pageId && task.pageTitle && (
+            // A playbook's step says which playbook, and opens it.
+            <button
+              type="button"
+              className="taskrow__lead taskrow__page"
+              onClick={() => openRef({ kind: "page", id: task.pageId as string })}
+            >
+              from {task.pageTitle}
+            </button>
+          )}
           <span className={overdue ? "taskrow__due taskrow__due--late" : "taskrow__due"}>
             {describeDue(task.dueOn, day)}
           </span>
@@ -131,6 +146,18 @@ export function TaskRow({
       </div>
 
       <div className="taskrow__actions">
+        {onCall && (
+          <button
+            type="button"
+            className="btn btn--sm btn--primary taskrow__call"
+            onClick={onCall}
+            disabled={busy || leaving}
+            aria-label={`Call for "${task.title}"`}
+          >
+            <Phone size={13} aria-hidden />
+            Call
+          </button>
+        )}
         <button
           type="button"
           className="btn btn--sm btn--ghost"

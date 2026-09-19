@@ -27,6 +27,10 @@ export function quickAdd(
   raw: QuickInput,
 ): { task: Task | null; blocked: boolean; repeats: number } {
   const input = quickInput.parse(raw);
+  // A contact named in the line must be one of this company's.
+  if (input.leadId && !db.prepare(`SELECT 1 FROM leads WHERE id = ? AND company_id = ?`).get(input.leadId, companyId)) {
+    throw new Error("That contact is not in this company.");
+  }
 
   if (input.repeat && input.time !== null) {
     // createBlock writes the series and every occurrence in its own
@@ -61,7 +65,7 @@ export function quickAdd(
         area: input.area,
         priority: input.priority,
         dueOn: input.day,
-        leadId: null,
+        leadId: input.leadId,
         notes: null,
       }),
     );

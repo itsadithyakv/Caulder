@@ -2,7 +2,7 @@ import { test, expect, _electron as electron, type ElectronApplication, type Pag
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { goTo } from "./nav";
+import { goTo, openBrainSection, passSetup } from "./nav";
 
 /**
  * Nothing complains on the way through.
@@ -57,12 +57,9 @@ test("first run says nothing to the console", async () => {
   await page.waitForSelector(".firstrun");
   await page.getByLabel("Company name").fill("Unifloe");
   await page.getByRole("button", { name: "Create company" }).click();
+  await passSetup(page);
   await expect(page.getByRole("button", { name: /Company: Unifloe/ })).toBeVisible();
 
-  // A first run now offers the tour, which sits over everything. Dismissing
-  // it is exactly what somebody starting the app does.
-  await page.waitForTimeout(700);
-  if (await page.locator(".tour").count()) await page.keyboard.press("Escape");
 
   expect(complaints).toEqual([]);
 });
@@ -80,7 +77,7 @@ test("every screen loads without a complaint", async () => {
   // unscoped "Day" now matches two controls.
   const nav = page.getByLabel("Main");
 
-  for (const screen of ["Today", "Calendar", "Contacts", "Deals", "Money", "Import", "Settings"]) {
+  for (const screen of ["Today", "Calendar", "Contacts", "Deals", "Money", "Import", "Brain", "Settings"]) {
     await goTo(page, screen);
     await expect(page.getByRole("heading", { name: screen, exact: true })).toBeVisible();
   }
@@ -96,9 +93,24 @@ test("every screen loads without a complaint", async () => {
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.keyboard.press("Escape");
 
+  // Ctrl+K is search, typed into so the index is read; switching company is
+  // the sidebar header.
   await page.keyboard.press("Control+k");
+  await page.getByRole("combobox", { name: "Search everything" }).fill("uni");
+  await expect(page.getByText(/match|Nothing matches/)).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "Search everything" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: /Company: Unifloe/ }).click();
   await expect(page.locator(".switcher")).toBeVisible();
   await page.keyboard.press("Escape");
+
+  // A brain section and a page, written and read back.
+  await openBrainSection(page, "Decisions");
+  await page.getByRole("button", { name: "Write down a decision" }).click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByRole("button", { name: "History" }).click();
+  await expect(page.getByRole("region", { name: "Page history" })).toBeVisible();
 
   expect(complaints).toEqual([]);
 });

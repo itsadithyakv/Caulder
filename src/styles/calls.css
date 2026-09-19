@@ -1,0 +1,648 @@
+/* ---- The call prompter ------------------------------------------------- *
+ * A working surface, not a dialog to read and dismiss: it takes nearly the
+ * whole window, the script is set a size up so it can be read while
+ * listening, and the notes box never scrolls away. */
+
+.prompter {
+  padding: var(--space-4);
+}
+
+/* A column, not a grid: the rows between the head and the body come and go
+ * (a warning, a confirm, an error), and the body has to take whatever is left
+ * whichever of them is showing. */
+.prompter__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: min(1180px, 100%);
+  height: calc(100vh - 2 * var(--space-4));
+  max-height: none;
+  padding: 0;
+  overflow: hidden;
+}
+
+.prompter__head,
+.prompter__foot,
+.prompter__warn,
+.prompter__confirm {
+  flex: none;
+}
+
+.prompter__body,
+.prompter__loading,
+.wrapup {
+  flex: 1;
+  min-height: 0;
+}
+
+.prompter__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4) var(--space-5);
+  flex-wrap: wrap;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border);
+}
+
+.prompter__who {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 220px;
+}
+
+.prompter__kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--accent-strong);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.prompter__name {
+  margin: 0;
+  font-size: var(--text-lg);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.prompter__sub {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+.prompter__numbers {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+.prompter__number {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.prompter__digits {
+  font-size: var(--text-md);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  user-select: all;
+}
+
+.prompter__number--alt .prompter__digits {
+  font-size: var(--text-base);
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.prompter__copied {
+  color: var(--ok);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.prompter__clock {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink-3);
+}
+
+.prompter__time {
+  min-width: 5ch;
+  color: var(--ink);
+  font-size: var(--text-md);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.prompter__warn,
+.prompter__confirm {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  flex-wrap: wrap;
+  margin: 0;
+  padding: var(--space-2) var(--space-5);
+  font-size: var(--text-sm);
+}
+
+.prompter__warn {
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.prompter__confirm {
+  background: var(--warn-soft);
+  color: var(--ink);
+}
+
+.prompter__panel > .field__error {
+  margin: 0;
+  padding: var(--space-2) var(--space-5) 0;
+}
+
+.prompter__loading {
+  display: grid;
+  place-items: center;
+  color: var(--ink-3);
+}
+
+.prompter__body {
+  display: grid;
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+  min-height: 0;
+}
+
+.prompter__context {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-4);
+  overflow-y: auto;
+  background: var(--surface-sunken);
+  border-right: 1px solid var(--border);
+}
+
+.prompter__block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.prompter__label {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.prompter__remember {
+  min-height: 120px;
+  background: var(--warn-soft);
+  border-color: color-mix(in srgb, var(--warn) 30%, var(--border));
+}
+
+.prompter__deals,
+.prompter__calls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.prompter__deal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+}
+
+button.prompter__deal {
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease);
+}
+
+button.prompter__deal:hover { border-color: var(--border-input); }
+
+.prompter__deal--on,
+button.prompter__deal--on:hover {
+  border-color: var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.prompter__deal:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.prompter__dealTitle { font-weight: 700; overflow-wrap: anywhere; }
+
+.prompter__dealMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.prompter__call {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px var(--space-2);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.prompter__call:last-child { border-bottom: none; }
+
+.prompter__callHead { font-size: var(--text-sm); font-weight: 700; }
+
+.prompter__callWhen { color: var(--ink-3); font-size: var(--text-xs); }
+
+.prompter__callNotes {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  white-space: pre-line;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.prompter__script {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5) var(--space-5);
+  overflow-y: auto;
+}
+
+.prompter__scriptBar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.prompter__scriptBar .picker { min-width: 240px; }
+
+.prompter__foot {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.prompter__notes {
+  flex: 1;
+  min-height: 64px;
+  max-height: 160px;
+  resize: vertical;
+}
+
+.prompter__hangup {
+  align-self: center;
+  white-space: nowrap;
+}
+
+/* ---- Tones: where a script starts -------------------------------------- */
+
+.tones {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.tones__lead { margin: 0; color: var(--ink-2); }
+
+.tones__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-3);
+}
+
+.tone {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease-spring);
+}
+
+.tone:hover:not(:disabled) {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.tone:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.tone:disabled { cursor: default; opacity: 0.6; }
+
+.tone__name { font-weight: 700; }
+
+.tone__hint { color: var(--ink-3); font-size: var(--text-sm); }
+
+/* ---- The script, read out loud ----------------------------------------- */
+
+.script {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.script__part {
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.script__part .prose {
+  font-size: var(--text-md);
+  line-height: 1.55;
+}
+
+.script__part .prose > :last-child { margin-bottom: 0; }
+
+/* What gets said first reads first. */
+.script__part--opening {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.script__label {
+  margin: 0 0 var(--space-2);
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.script__part--voicemail summary {
+  margin: 0;
+  cursor: pointer;
+}
+
+.script__part--voicemail[open] summary { margin-bottom: var(--space-2); }
+
+/* A fill-in: the part of the script still waiting for your words. */
+.script .prose code,
+.objection .prose code {
+  padding: 0 4px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 0.92em;
+  font-weight: 600;
+}
+
+.questions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.question {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: start;
+}
+
+.question__mark {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-top: 2px;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  transition:
+    background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+
+.question--answered .question__mark {
+  background: var(--ok-soft);
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+.question__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.question__body .prose p { margin: 0; }
+
+.question__answer { font-size: var(--text-base); }
+
+.objections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.objection {
+  padding: var(--space-3) var(--space-4);
+  background: var(--accent-soft);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm);
+}
+
+.objection .prose {
+  font-size: var(--text-md);
+  line-height: 1.55;
+}
+
+.objection .prose > :last-child { margin-bottom: 0; }
+
+/* ---- Hanging up -------------------------------------------------------- */
+
+.wrapup {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.wrapup__main,
+.wrapup__side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-4) var(--space-5) var(--space-5);
+  overflow-y: auto;
+}
+
+.wrapup__side {
+  background: var(--surface-sunken);
+  border-left: 1px solid var(--border);
+}
+
+.wrapup__block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.wrapup__title {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-base);
+  font-weight: 700;
+}
+
+.wrapup__notes { min-height: 140px; }
+
+.wrapup__answers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.wrapup__answer dt { color: var(--ink-3); font-size: var(--text-sm); }
+.wrapup__answer dd { margin: 0; font-weight: 600; white-space: pre-line; }
+
+.wrapup__why {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.wrapup__actions {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-top: auto;
+}
+
+/* Interest: a five-step slider whose fill runs from cold to warm. Each step
+ * is also a word under the track, so the colour never carries it alone. */
+.interest {
+  --interest: var(--ink-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.interest--1 { --interest: var(--danger); }
+.interest--2 { --interest: var(--warn); }
+.interest--3 { --interest: var(--ink-2); }
+.interest--4 { --interest: var(--accent); }
+.interest--5 { --interest: var(--ok); }
+
+.interest__range {
+  width: 100%;
+  height: 28px;
+  margin: 0;
+  background: transparent;
+  appearance: none;
+  cursor: pointer;
+}
+
+.interest__range::-webkit-slider-runnable-track {
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(
+    to right,
+    var(--interest) 0,
+    var(--interest) var(--fill, 50%),
+    var(--border) var(--fill, 50%)
+  );
+}
+
+.interest__range::-webkit-slider-thumb {
+  width: 24px;
+  height: 24px;
+  margin-top: -8px;
+  appearance: none;
+  background: var(--surface);
+  border: 3px solid var(--interest);
+  border-radius: 50%;
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--dur-fast) var(--ease-spring);
+}
+
+.interest__range:active::-webkit-slider-thumb { transform: scale(1.15); }
+
+.interest__range:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: var(--radius-pill);
+}
+
+.interest__scale {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--space-1);
+}
+
+.interest__step {
+  padding: 2px 0;
+  background: none;
+  border: none;
+  color: var(--ink-3);
+  font: inherit;
+  font-size: var(--text-xs);
+  text-align: center;
+  cursor: pointer;
+}
+
+.interest__step:first-child { text-align: left; }
+.interest__step:last-child { text-align: right; }
+
+.interest__step--on {
+  color: var(--interest);
+  font-weight: 700;
+}
+
+.taskrow__call { white-space: nowrap; }
+
+@media (max-width: 860px) {
+  .prompter { padding: 0; }
+  .prompter__panel { height: 100vh; border-radius: 0; }
+  .prompter__body,
+  .wrapup {
+    grid-template-columns: minmax(0, 1fr);
+    overflow-y: auto;
+  }
+  .prompter__context,
+  .prompter__script,
+  .wrapup__main,
+  .wrapup__side {
+    overflow: visible;
+  }
+  .prompter__context { border-right: none; border-bottom: 1px solid var(--border); }
+  .wrapup__side { border-left: none; border-top: 1px solid var(--border); }
+}

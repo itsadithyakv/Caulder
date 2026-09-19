@@ -5,6 +5,9 @@ import {
   type LeadInput,
   type LeadSort,
   type PipelineStage,
+  type Relationship,
+  RELATIONSHIPS,
+  RELATIONSHIP_LABEL,
 } from "@shared/domain";
 import { useWorkspace } from "@/lib/workspace";
 import { EMPTY_FILTERS, useLeads, type Filters } from "./useLeads";
@@ -28,6 +31,7 @@ export function LeadsScreen({
   listNonce = 0,
   onGoToImport,
   onGoToMoney,
+  onOpenPage,
 }: {
   /** Set when Today sends the user straight to one lead. */
   openLeadId?: string | null;
@@ -42,6 +46,8 @@ export function LeadsScreen({
   listNonce?: number;
   onGoToImport: () => void;
   onGoToMoney: () => void;
+  /** A brain page linked to a contact, opened on Brain. */
+  onOpenPage: (pageId: string) => void;
 }) {
   const { activeCompany, refresh } = useWorkspace();
   const companyId = activeCompany?.id ?? null;
@@ -74,7 +80,7 @@ export function LeadsScreen({
   useEffect(() => {
     setPicked(new Set());
     setAnchor(null);
-  }, [companyId, filters.search, filters.stageId]);
+  }, [companyId, filters.search, filters.stageId, filters.relationship]);
 
   // Today can hand over a lead to open. Cleared once acted on, so coming back
   // to Leads later lands on the list rather than reopening it.
@@ -237,10 +243,13 @@ export function LeadsScreen({
   if (mode.kind === "detail") {
     return (
       <LeadDetail
+        key={mode.id}
         leadId={mode.id}
         stages={stages}
         onBack={() => setMode({ kind: "list" })}
         onGoToMoney={onGoToMoney}
+        onOpenPage={onOpenPage}
+        onOpenContact={(id) => setMode({ kind: "detail", id })}
         onSaved={patch}
         onDeleted={(id) => {
           remove(id);
@@ -250,7 +259,8 @@ export function LeadsScreen({
     );
   }
 
-  const filtering = filters.search.trim().length > 0 || filters.stageId !== undefined;
+  const filtering =
+    filters.search.trim().length > 0 || filters.stageId !== undefined || filters.relationship !== undefined;
 
   return (
     <div className="leads">
@@ -386,6 +396,20 @@ function Toolbar({
           { value: "", label: "Every stage" },
           ...stages.map((stage) => ({ value: stage.id, label: stage.name })),
           { value: "none", label: "No stage" },
+        ]}
+      />
+
+      <Select
+        compact
+        className="leads__filter"
+        aria-label="Filter by relationship"
+        value={filters.relationship ?? ""}
+        onChange={(raw) =>
+          onChange({ ...filters, relationship: raw === "" ? undefined : (raw as Relationship) })
+        }
+        options={[
+          { value: "", label: "Everybody" },
+          ...RELATIONSHIPS.map((id) => ({ value: id, label: RELATIONSHIP_LABEL[id] })),
         ]}
       />
 

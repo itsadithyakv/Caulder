@@ -60,6 +60,33 @@ export function openWhatsApp(db: Db, leadId: string, message: string): void {
 }
 
 /**
+ * A number as the computer's dialler wants it: as written when it already
+ * carries its country, otherwise with the same default country WhatsApp uses.
+ */
+function dialLink(phone: string | null): string | null {
+  if (phone === null) return null;
+  const written = phone.trim();
+  if (/^\+\d[\d\s().-]{6,}$/.test(written)) return `tel:${written.replace(/[\s().-]/g, "")}`;
+  const digits = phoneKey(written);
+  return digits === null ? null : `tel:+${DEFAULT_COUNTRY}${digits}`;
+}
+
+/**
+ * Hands a contact's number to whatever places calls on this machine - Phone
+ * Link, Teams, a softphone. Same shape as WhatsApp: the renderer names the
+ * contact and which number, never the number itself. Nothing is recorded
+ * here; the prompter asks how the call went.
+ */
+export function openDialler(db: Db, leadId: string, which: "phone" | "alt"): void {
+  const lead = findLead(db, leadId);
+  if (!lead) throw new Error("That contact no longer exists.");
+  if (lead.doNotContact) throw new Error(`${lead.name} is marked do not contact.`);
+  const link = dialLink(which === "alt" ? lead.altPhone : lead.phone);
+  if (link === null) throw new Error(`${lead.name} has no number to dial.`);
+  void shell.openExternal(link);
+}
+
+/**
  * Opens a message to a lead in whatever handles mail on this machine.
  *
  * The same shape as WhatsApp: the renderer never sees the address. Nothing is

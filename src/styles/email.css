@@ -1,11 +1,11 @@
 /* ---------------------------------------------------------------------------
- * Email templates: the editor on Settings. Layout only.
+ * Email: the template editor on Settings, and the messages on a contact.
+ * Layout only.
  * ------------------------------------------------------------------------- */
 
 /* ---- Templates --------------------------------------------------------- */
 
-.templates,
-.sequences {
+.templates {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -21,8 +21,8 @@
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-sm);
-  background: var(--surface-sunken);
-  box-shadow: var(--shadow-inset-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
 }
 
 .templaterow__body {
@@ -49,3 +49,62 @@
   font-family: inherit;
 }
 
+/* ---- On a contact ------------------------------------------------------- */
+
+.mailhead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.mailwhen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.mailwhen__at {
+  width: auto;
+  min-width: 220px;
+}
+
+.maillist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mailrow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.mailrow__main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mailrow__subject {
+  overflow: hidden;
+  color: var(--ink);
+  font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.mailrow__meta {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}

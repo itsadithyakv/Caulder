@@ -5,6 +5,7 @@ import { getDatabase } from "../db/connection";
 import { getSetting } from "../repositories/settings";
 import { listCompanies } from "../repositories/companies";
 import { countOverdue } from "../repositories/tasks";
+import { dueNowCount } from "./deadlines";
 import { today as todayIn } from "@shared/dates";
 
 /**
@@ -88,7 +89,10 @@ function check(getWindow: () => BrowserWindow | null): void {
     if (Number.isFinite(hour) && hour < NOT_BEFORE) continue;
 
     const overdue = countOverdue(getDatabase(), company.id, day);
-    if (overdue === 0) {
+    // Filings, notice dates and expiries due today or late: the ones a missed
+    // day costs money for, so they count as much as a late task.
+    const deadlines = dueNowCount(getDatabase(), company.id, day);
+    if (overdue === 0 && deadlines === 0) {
       // Nothing to say. Marked as told anyway, so a quiet morning does not
       // leave it checking again every five minutes for the rest of the day.
       told.set(company.id, day);
@@ -97,12 +101,18 @@ function check(getWindow: () => BrowserWindow | null): void {
 
     told.set(company.id, day);
 
+    const parts = [
+      overdue === 0 ? null : overdue === 1 ? "One task was due before today." : `${overdue} tasks were due before today.`,
+      deadlines === 0
+        ? null
+        : deadlines === 1
+          ? "One deadline is due today or late."
+          : `${deadlines} deadlines are due today or late.`,
+    ].filter(Boolean);
+
     const notification = new Notification({
-      title: `${overdue} overdue in ${company.name}`,
-      body:
-        overdue === 1
-          ? "One thing was due before today."
-          : `${overdue} things were due before today.`,
+      title: `${overdue + deadlines} to see to in ${company.name}`,
+      body: parts.join(" "),
       // The mark beside the words, so it reads as Caulder at a glance.
       icon: brandFile("notify.png"),
       silent: false,

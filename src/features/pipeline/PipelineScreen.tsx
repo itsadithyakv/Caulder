@@ -50,14 +50,14 @@ export function PipelineScreen({
 
   useEffect(load, [load]);
 
-  /** The lead whose loss is being explained, if any. */
-  const [asking, setAsking] = useState<{ leadId: string; name: string } | null>(null);
+  /** The deal whose loss is being explained, if any. */
+  const [asking, setAsking] = useState<{ dealId: string; name: string } | null>(null);
 
   const move = useCallback(
-    async (leadId: string, stageId: string | null) => {
+    async (dealId: string, stageId: string | null) => {
       setBusy(true);
       try {
-        await window.caulder.leads.setStage(leadId, stageId);
+        await window.caulder.deals.setStage(dealId, stageId);
 
         // Moved to a lost stage: ask why, after the move rather than before
         // it. The move has to land whether or not anybody stops to answer -
@@ -68,8 +68,8 @@ export function PipelineScreen({
         if (lost) {
           const card = board?.columns
             .flatMap((column) => column.cards)
-            .find((candidate) => candidate.id === leadId);
-          setAsking({ leadId, name: card?.name ?? "this contact" });
+            .find((candidate) => candidate.id === dealId);
+          setAsking({ dealId, name: card?.title ?? "this deal" });
         }
 
         load();
@@ -112,8 +112,8 @@ export function PipelineScreen({
         <div className="hintbar">
           <Columns3 size={16} className="hintbar__icon" aria-hidden />
           <p className="hintbar__text">
-            This is your funnel. New contacts land in the first column and you drag them
-            along it, or use the menu on a card.
+            This is your funnel. Every deal is a card: a new contact you sell to starts one
+            in the first column, and you drag it along, or use the menu on a card.
           </p>
           <button type="button" className="btn btn--sm" onClick={onGoToSettings}>
             Edit the stages
@@ -155,7 +155,7 @@ export function PipelineScreen({
           name={asking.name}
           onClose={() => setAsking(null)}
           onSave={async (reason) => {
-            await window.caulder.leads.setLossReason(asking.leadId, reason);
+            await window.caulder.deals.setLoss(asking.dealId, reason);
             setAsking(null);
             load();
           }}
@@ -213,8 +213,8 @@ function Column({
   dragging: string | null;
   isOver: boolean;
   onOpenLead: (leadId: string) => void;
-  onMove: (leadId: string, stageId: string | null) => void;
-  onDragStart: (leadId: string) => void;
+  onMove: (dealId: string, stageId: string | null) => void;
+  onDragStart: (dealId: string) => void;
   onDragEnd: () => void;
   onDragOver: () => void;
 }) {
@@ -227,7 +227,7 @@ function Column({
     <section
       className={`column${active ? " column--over" : ""} column--${tone}`}
       role="listitem"
-      aria-label={`${column.name}, ${column.total} contacts`}
+      aria-label={`${column.name}, ${column.total} ${column.total === 1 ? "deal" : "deals"}`}
       onDragOver={(event) => {
         if (!dragging) return;
         // Without this the drop never fires: the default is to refuse.
@@ -237,8 +237,8 @@ function Column({
       }}
       onDrop={(event) => {
         event.preventDefault();
-        const leadId = event.dataTransfer.getData("text/caulder-lead");
-        if (leadId) onMove(leadId, column.stageId);
+        const dealId = event.dataTransfer.getData("text/caulder-deal");
+        if (dealId) onMove(dealId, column.stageId);
       }}
     >
       <header className="column__head">
@@ -259,7 +259,7 @@ function Column({
             stageId={column.stageId}
             stages={stages}
             busy={busy}
-            onOpen={() => onOpenLead(card.id)}
+            onOpen={() => onOpenLead(card.leadId)}
             onMove={(stageId) => onMove(card.id, stageId)}
             onDragStart={() => onDragStart(card.id)}
             onDragEnd={onDragEnd}

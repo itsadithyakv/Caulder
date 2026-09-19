@@ -15,6 +15,8 @@ function task(over: Partial<Task>): Task {
     companyId: "c",
     leadId: null,
     leadName: null,
+    pageId: null,
+    pageTitle: null,
     title: `Task ${counter}`,
     kind: "todo",
     area: "company",

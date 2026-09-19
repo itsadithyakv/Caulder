@@ -2,6 +2,7 @@ import { test, expect, _electron as electron, type ElectronApplication } from "@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { passSetup } from "./nav";
 
 /**
  * The Phase 2 exit criterion, driven through the real window: create a
@@ -54,8 +55,12 @@ test("first run creates a company and the sidebar shows it", async () => {
   await page.getByRole("radio", { name: "Violet" }).click();
   await page.getByRole("button", { name: "Create company" }).click();
 
-  // The shell replaces the setup screen.
+  // The shell replaces the first-run screen, on the guide for the two things
+  // that are connected in somebody else's console.
   await expect(page.getByRole("button", { name: /Company: Unifloe/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Caulder is yours, Unifloe" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Google: your calendar/ })).toBeVisible();
+  await page.getByRole("button", { name: "Done, take me to Today" }).click();
   await expect(page.getByRole("heading", { name: "Today" })).toBeVisible();
 
   // The chosen accent is applied to the document, which is what re-tints the
@@ -89,6 +94,7 @@ test("a second company can be added and switched between", async () => {
   await page.getByText("Funnel, logo, colour and timezone").click();
   await page.getByRole("radio", { name: "Amber" }).click();
   await page.getByRole("button", { name: "Create company" }).click();
+  await passSetup(page);
 
   // Creating a company moves you into it; staying in the old one is never
   // what was meant.

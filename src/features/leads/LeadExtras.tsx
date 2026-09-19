@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ExternalLink, Paperclip, Trash2 } from "lucide-react";
-import type { Attachment, CustomField } from "@shared/domain";
+import type { CustomField } from "@shared/domain";
+import { DOCUMENT_CATEGORY_LABEL, type CompanyDocument } from "@shared/deadlines";
 import { useWorkspace } from "@/lib/workspace";
 import { Select } from "@/components/Select";
 import { messageOf } from "@/lib/errors";
@@ -16,7 +17,7 @@ import { ErrorLine } from "@/components/ErrorLine";
  */
 
 /** A size a person can read, rather than a number of bytes. */
-function readableSize(bytes: number): string {
+export function readableSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
@@ -24,20 +25,21 @@ function readableSize(bytes: number): string {
 
 export function Attachments({ leadId }: { leadId: string }) {
   const { activeCompany } = useWorkspace();
-  const [files, setFiles] = useState<Attachment[]>([]);
+  const [files, setFiles] = useState<CompanyDocument[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    void window.caulder.attachments.list(leadId).then(setFiles);
-  }, [leadId]);
+    if (!activeCompany) return;
+    void window.caulder.documents.list(activeCompany.id, leadId).then(setFiles);
+  }, [activeCompany, leadId]);
 
   async function attach() {
     if (!activeCompany) return;
     setBusy(true);
     setError(null);
     try {
-      const next = await window.caulder.attachments.add(activeCompany.id, leadId);
+      const next = await window.caulder.documents.add(activeCompany.id, { leadId });
       // Null means the dialog was cancelled, which is not a change and not an
       // error - leaving the list alone is the whole response.
       if (next) setFiles(next);
@@ -61,17 +63,23 @@ export function Attachments({ leadId }: { leadId: string }) {
               <button
                 type="button"
                 className="file__name"
-                onClick={() => void window.caulder.attachments.open(file.id)}
-                title="Open it"
+                onClick={() =>
+                  void window.caulder.documents.open(file.id).catch((cause: unknown) => setError(messageOf(cause)))
+                }
+                title={file.hasFile ? "Open it" : file.location ?? undefined}
+                disabled={!file.hasFile}
               >
                 {file.name}
-                <ExternalLink size={12} aria-hidden />
+                {file.hasFile && <ExternalLink size={12} aria-hidden />}
               </button>
-              <span className="file__size">{readableSize(file.bytes)}</span>
+              <span className="file__size">
+                {file.category !== "other" && `${DOCUMENT_CATEGORY_LABEL[file.category]} · `}
+                {file.bytes !== null ? readableSize(file.bytes) : file.location}
+              </span>
               <button
                 type="button"
                 className="btn btn--sm btn--ghost btn--danger"
-                onClick={async () => setFiles(await window.caulder.attachments.remove(file.id))}
+                onClick={async () => setFiles(await window.caulder.documents.remove(file.id))}
                 aria-label={`Remove ${file.name}`}
               >
                 <Trash2 size={14} aria-hidden />

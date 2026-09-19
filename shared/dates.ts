@@ -60,6 +60,22 @@ export function shiftDay(day: Day, days: number): Day {
   return new Date(at + days * 86_400_000).toISOString().slice(0, 10);
 }
 
+/**
+ * Moves a day by whole months, keeping the day of the month where it can: the
+ * 31st of January plus a month is the last day of February, not the 3rd of
+ * March. What a monthly bill or a yearly renewal means by "the same day".
+ */
+export function addMonths(day: Day, months: number): Day {
+  const [year, month, date] = day.split("-").map(Number) as [number, number, number];
+  const total = year * 12 + (month - 1) + months;
+  const nextYear = Math.floor(total / 12);
+  const nextMonth = total - nextYear * 12;
+  const last = new Date(Date.UTC(nextYear, nextMonth + 1, 0)).getUTCDate();
+  return `${String(nextYear).padStart(4, "0")}-${String(nextMonth + 1).padStart(2, "0")}-${String(
+    Math.min(date, last),
+  ).padStart(2, "0")}`;
+}
+
 /** Whole days from `from` to `to`. Negative when `to` is earlier. */
 export function daysBetween(from: Day, to: Day): number {
   return Math.round(

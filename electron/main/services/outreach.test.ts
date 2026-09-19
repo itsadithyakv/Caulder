@@ -18,7 +18,7 @@ vi.mock("electron", () => ({
   shell: { openExternal: (url: string) => opened.push(url) },
 }));
 
-const { openWhatsApp } = await import("./outreach");
+const { openDialler, openWhatsApp } = await import("./outreach");
 
 let db: Database.Database;
 let companyId: string;
@@ -67,6 +67,23 @@ describe("opening WhatsApp", () => {
   it("says so rather than opening a broken link when there is no number", () => {
     const made = lead({ phone: null });
     expect(() => openWhatsApp(db, made.id, "Hello")).toThrow(/no usable phone number/);
+    expect(opened).toEqual([]);
+  });
+});
+
+describe("handing a number to the dialler", () => {
+  it("keeps a number that carries its country, and gives a bare one the default", () => {
+    const abroad = lead({ phone: "+1 (415) 555-0100", altPhone: "098450 98450" });
+    openDialler(db, abroad.id, "phone");
+    openDialler(db, abroad.id, "alt");
+    expect(opened).toEqual(["tel:+14155550100", "tel:+919845098450"]);
+  });
+
+  it("opens nothing for a contact marked do not contact, or with no number", () => {
+    const flagged = lead({ phone: "9019959088", doNotContact: true });
+    expect(() => openDialler(db, flagged.id, "phone")).toThrow("do not contact");
+    const silent = lead({ phone: "9019959088" });
+    expect(() => openDialler(db, silent.id, "alt")).toThrow("no number to dial");
     expect(opened).toEqual([]);
   });
 });

@@ -20,9 +20,12 @@ export const SHORTCUTS: { group: string; items: Shortcut[] }[] = [
     items: [
       { keys: "T", describes: "Today" },
       { keys: "D", describes: "The calendar" },
+      { keys: "J", describes: "The journal, on today" },
+      { keys: "Y", describes: "Your life: studies, hobbies, goals" },
       { keys: "L", describes: "Contacts" },
       { keys: "P", describes: "Deals" },
       { keys: "M", describes: "Money" },
+      { keys: "B", describes: "The company brain" },
       { keys: "I", describes: "Import" },
       { keys: "S", describes: "Settings" },
     ],
@@ -31,9 +34,9 @@ export const SHORTCUTS: { group: string; items: Shortcut[] }[] = [
     group: "Doing things",
     items: [
       { keys: "A", describes: "Add a task in one line" },
+      { keys: "Ctrl + K", describes: "Search everything" },
       { keys: "/", describes: "Search the contacts" },
       { keys: "N", describes: "Add a contact" },
-      { keys: "Ctrl + K", describes: "Switch company" },
       { keys: "?", describes: "This list" },
       { keys: "Esc", describes: "Close whatever is open" },
     ],
@@ -55,9 +58,12 @@ export const QUICK_WINDOW_SHORTCUTS: { group: string; items: Shortcut[] } = {
 const ROUTE_KEYS: Record<string, RouteId> = {
   t: "today",
   d: "day",
+  j: "journal",
+  y: "life",
   l: "leads",
   p: "pipeline",
   m: "money",
+  b: "brain",
   i: "import",
   s: "settings",
 };
@@ -83,7 +89,8 @@ export function useShortcuts(handlers: {
   onRoute: (route: RouteId) => void;
   onSearch: () => void;
   onNewLead: () => void;
-  onSwitchCompany: () => void;
+  /** Ctrl+K: search everything. Switching company is the sidebar header. */
+  onSearchAll: () => void;
   /** Today's quick-add line, from anywhere. */
   onQuickAdd: () => void;
   onHelp: () => void;
@@ -102,15 +109,17 @@ export function useShortcuts(handlers: {
         return;
       }
 
-      if (isTyping(event.target)) return;
-
-      // Ctrl+K is the one combination, because it is the switcher convention
-      // everywhere else and muscle memory beats consistency here.
+      // Ctrl+K is the one combination, because it is the search-everything
+      // convention everywhere else and muscle memory beats consistency here.
+      // It works from inside a field too: it types nothing, and "find that
+      // page" is a thought people have mid-sentence.
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
-        handlers.onSwitchCompany();
+        handlers.onSearchAll();
         return;
       }
+
+      if (isTyping(event.target)) return;
 
       // Any other modifier means the user is doing something else entirely.
       if (event.ctrlKey || event.metaKey || event.altKey) return;
@@ -120,6 +129,11 @@ export function useShortcuts(handlers: {
         handlers.onHelp();
         return;
       }
+
+      // A dialog has the window: a letter pressed on one of its buttons is not
+      // a request to go to another screen behind it, mid-call or mid-invoice. Help
+      // is above this, so ? still closes the list it opened.
+      if (document.querySelector('[aria-modal="true"]')) return;
 
       if (event.key === "/") {
         event.preventDefault();

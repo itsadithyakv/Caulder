@@ -153,7 +153,7 @@ describe("quotes", () => {
   });
 
   it("does not overwrite a value somebody typed", () => {
-    db.prepare(`UPDATE leads SET value = 99999 WHERE id = ?`).run(leadId);
+    db.prepare(`UPDATE deals SET value = 99999 WHERE lead_id = ?`).run(leadId);
     const quote = saveQuote(db, company.id, null, { leadId, issuedOn: "2026-09-14", notes: null, lines });
     acceptQuote(db, company.id, quote.id, NOW);
     expect(findLead(db, leadId)?.value).toBe(99999);

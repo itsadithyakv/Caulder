@@ -134,6 +134,16 @@ export function WeekGrid({
             <span className="week__planned">
               {entry.planned === 0 ? "nothing" : formatDuration(entry.planned)}
             </span>
+            {/* Filings and notice dates on the heading, not in the lane: they
+                have a day but no hour. */}
+            {entry.deadlines.length > 0 && (
+              <span
+                className={`week__due${entry.deadlines.every((deadline) => deadline.doneOn) ? " week__due--done" : ""}`}
+                title={entry.deadlines.map((deadline) => deadline.title).join(", ")}
+              >
+                {entry.deadlines.length === 1 ? entry.deadlines[0]?.title : `${entry.deadlines.length} deadlines`}
+              </span>
+            )}
           </button>
         ))}
         </div>

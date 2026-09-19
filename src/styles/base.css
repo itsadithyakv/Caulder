@@ -75,8 +75,8 @@ textarea {
   transition: none !important;
 }
 
-/* Focus. A deliberate break from neumorphism: a soft glow is unreadable on a
- * soft surface, so focus is always a solid, offset, high-contrast ring. */
+/* Focus. A solid, offset, high-contrast ring everywhere a field does not draw
+ * its own halo. */
 :focus { outline: none; }
 
 :focus-visible {
@@ -95,7 +95,7 @@ textarea {
 /* Scrollbars, themed rather than left to the platform. */
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
+  scrollbar-color: var(--border-strong) transparent;
 }
 
 *::-webkit-scrollbar {
@@ -108,7 +108,7 @@ textarea {
 }
 
 *::-webkit-scrollbar-thumb {
-  background: var(--border);
+  background: var(--border-strong);
   border: 3px solid transparent;
   border-radius: var(--radius-pill);
   background-clip: content-box;

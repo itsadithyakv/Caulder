@@ -1,8 +1,8 @@
 /* ---------------------------------------------------------------------------
  * The import wizard.
  *
- * Same rule as the leads table: the wells and cards are neumorphic, the data
- * inside them is flat. A preview is read before it is admired.
+ * Same rule as the leads table: the frames and cards are quiet, and the data
+ * inside them carries the contrast. A preview is read before it is admired.
  *
  * Layout only. Colour, radius, spacing and type come from tokens.
  * ------------------------------------------------------------------------- */
@@ -84,12 +84,12 @@
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-sm);
   background: var(--surface-sunken);
-  box-shadow: var(--shadow-inset-sm);
+  border: 1px solid var(--border);
 }
 
 .tally__value {
   font-size: var(--text-lg);
-  font-weight: 900;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
@@ -120,8 +120,8 @@
   gap: var(--space-3);
   padding: var(--space-4);
   border-radius: var(--radius-sm);
-  background: var(--surface-sunken);
-  box-shadow: var(--shadow-inset-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
 }
 
 .dupe__head {
@@ -198,8 +198,8 @@
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-sm);
-  background: var(--surface-sunken);
-  box-shadow: var(--shadow-inset-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
 }
 
 .batch__what {

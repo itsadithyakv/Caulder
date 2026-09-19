@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Db } from "../db/connection";
-import type { Attachment, CustomField, CustomFieldInput, FieldKind } from "@shared/domain";
+import type { CustomField, CustomFieldInput, FieldKind } from "@shared/domain";
 
 /**
  * Files on a lead, and the fields the app could not have known about.
@@ -9,58 +9,6 @@ import type { Attachment, CustomField, CustomFieldInput, FieldKind } from "@shar
  * something else reads - and one rule: a company owns them, and deleting the
  * company takes them with it.
  */
-
-/* ---- Attachments -------------------------------------------------------- */
-
-type AttachmentRow = {
-  id: string;
-  company_id: string;
-  lead_id: string;
-  name: string;
-  file: string;
-  bytes: number;
-  created_at: string;
-};
-
-export function listAttachments(db: Db, leadId: string): Attachment[] {
-  const rows = db
-    .prepare(`SELECT * FROM attachments WHERE lead_id = ? ORDER BY created_at DESC`)
-    .all(leadId) as AttachmentRow[];
-
-  return rows.map((row) => ({
-    id: row.id,
-    leadId: row.lead_id,
-    name: row.name,
-    bytes: row.bytes,
-    createdAt: row.created_at,
-  }));
-}
-
-export function recordAttachment(
-  db: Db,
-  companyId: string,
-  leadId: string,
-  file: { name: string; stored: string; bytes: number },
-): Attachment[] {
-  db.prepare(
-    `INSERT INTO attachments (id, company_id, lead_id, name, file, bytes, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  ).run(randomUUID(), companyId, leadId, file.name, file.stored, file.bytes, new Date().toISOString());
-
-  return listAttachments(db, leadId);
-}
-
-/** The stored filename, so the caller can open or delete the real file. */
-export function attachmentFile(db: Db, id: string): { file: string; leadId: string } | null {
-  const row = db.prepare(`SELECT file, lead_id FROM attachments WHERE id = ?`).get(id) as
-    | { file: string; lead_id: string }
-    | undefined;
-  return row ? { file: row.file, leadId: row.lead_id } : null;
-}
-
-export function forgetAttachment(db: Db, id: string): void {
-  db.prepare(`DELETE FROM attachments WHERE id = ?`).run(id);
-}
 
 /* ---- Custom fields ------------------------------------------------------ */
 

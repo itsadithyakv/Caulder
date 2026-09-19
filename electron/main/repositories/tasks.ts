@@ -13,6 +13,8 @@ type TaskRow = {
   company_id: string;
   lead_id: string | null;
   lead_name: string | null;
+  page_id: string | null;
+  page_title: string | null;
   title: string;
   kind: string;
   area: string | null;
@@ -31,6 +33,8 @@ function toTask(row: TaskRow): Task {
     companyId: row.company_id,
     leadId: row.lead_id,
     leadName: row.lead_name,
+    pageId: row.page_id,
+    pageTitle: row.page_title,
     title: row.title,
     kind: row.kind as TaskKind,
     area: row.area,
@@ -46,12 +50,14 @@ function toTask(row: TaskRow): Task {
 
 /**
  * Every read joins the lead's name. Today lists tasks, and a task that only
- * says "Follow up" without saying who is useless.
+ * says "Follow up" without saying who is useless. The page that made it
+ * comes too, so a playbook's step can say which playbook.
  */
 const SELECT = `
-  SELECT t.*, l.name AS lead_name
+  SELECT t.*, l.name AS lead_name, p.title AS page_title
   FROM tasks t
   LEFT JOIN leads l ON l.id = t.lead_id
+  LEFT JOIN brain_pages p ON p.id = t.page_id
 `;
 
 export function findTask(db: Db, id: string): Task | null {

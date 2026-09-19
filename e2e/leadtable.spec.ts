@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { choose } from "./choose";
+import { passSetup } from "./nav";
 
 /**
  * The leads table as something you work rather than only read.
@@ -37,12 +38,9 @@ async function openLeads(page: Page) {
   if (await page.locator(".firstrun").isVisible()) {
     await page.getByLabel("Company name").fill("Unifloe");
     await page.getByRole("button", { name: "Create company" }).click();
+    await passSetup(page);
     await expect(page.getByRole("button", { name: /Company: Unifloe/ })).toBeVisible();
 
-  // A first run now offers the tour, which sits over everything. Dismissing
-  // it is exactly what somebody starting the app does.
-  await page.waitForTimeout(700);
-  if (await page.locator(".tour").count()) await page.keyboard.press("Escape");
   }
   await page.getByRole("button", { name: "Contacts", exact: true }).click();
 }
@@ -84,7 +82,7 @@ test("a column heading sorts, and sorts back", async () => {
   const page = await app.firstWindow();
   await openLeads(page);
 
-  const name = page.getByRole("button", { name: "Name" });
+  const name = page.getByRole("button", { name: "Name", exact: true });
 
   await name.click();
   await expect.poll(() => names(page)).toEqual([

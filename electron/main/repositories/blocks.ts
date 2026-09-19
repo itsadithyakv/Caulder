@@ -22,6 +22,8 @@ type BlockRow = {
   notes: string | null;
   task_id: string | null;
   task_title: string | null;
+  page_id: string | null;
+  page_title: string | null;
   series_id: string | null;
   priority: string | null;
   outcome: string | null;
@@ -46,6 +48,8 @@ function toBlock(row: BlockRow): Block {
     notes: row.notes,
     taskId: row.task_id,
     taskTitle: row.task_title,
+    pageId: row.page_id,
+    pageTitle: row.page_title,
     seriesId: row.series_id,
     priority: row.priority,
     outcome: row.outcome,
@@ -59,11 +63,12 @@ function toBlock(row: BlockRow): Block {
   };
 }
 
-/** Every read joins the task, so a block can say what it is set aside for. */
+/** Every read joins the task and the page, so a block can say what it is set aside for. */
 const SELECT = `
-  SELECT b.*, t.title AS task_title
+  SELECT b.*, t.title AS task_title, p.title AS page_title
     FROM blocks b
     LEFT JOIN tasks t ON t.id = b.task_id
+    LEFT JOIN brain_pages p ON p.id = b.page_id
 `;
 
 export function listBlocks(db: Db, companyId: string, day: string): Block[] {

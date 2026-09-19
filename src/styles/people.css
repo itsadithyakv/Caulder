@@ -1,0 +1,175 @@
+/* People: the team, hiring and one person's page, in the brain's People
+ * section. Rows are the deadline rows (deadlines.css), so a person and a
+ * filing read alike; what is here is what only people have - a role with
+ * its candidates, the equity line, the vesting bar and onboarding. */
+
+.people,
+.personview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.leadform__row--three {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+@media (max-width: 720px) {
+  .leadform__row--three {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---- The team ------------------------------------------------------------- */
+
+.people__equity {
+  margin: var(--space-3) 0 0;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.people__equity--over {
+  color: var(--danger);
+}
+
+.people__past {
+  width: 100%;
+}
+
+/* ---- Hiring --------------------------------------------------------------- */
+
+.opening {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--soft-line);
+}
+
+.opening:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.opening__head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+}
+
+.opening__title {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+
+.opening__actions {
+  margin-left: auto;
+}
+
+.opening__notes {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  white-space: pre-wrap;
+}
+
+.opening .duelist {
+  margin-top: 0;
+}
+
+/* The stage picker is full width by nature; in a row it sits beside the name. */
+.opening .duerow .picker {
+  flex: none;
+  width: 170px;
+}
+
+.candidate--declined .duerow__title {
+  color: var(--ink-3);
+  text-decoration: line-through;
+  text-decoration-color: var(--ink-3);
+}
+
+/* ---- One person ------------------------------------------------------------ */
+
+.vesting {
+  height: 10px;
+  margin-top: var(--space-3);
+  overflow: hidden;
+  background: var(--surface-sunken);
+  border-radius: var(--radius-pill);
+}
+
+.vesting__bar {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: var(--radius-pill);
+  transition: width var(--dur-slow) var(--ease-spring);
+}
+
+.vesting__words {
+  margin: var(--space-2) 0 0;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.onboarding__progress {
+  margin: var(--space-3) 0 0;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.onboarding {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.onboarding__step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 34px;
+}
+
+.onboarding__tick {
+  flex: none;
+  width: 32px;
+  color: var(--ok);
+}
+
+.onboarding__title {
+  flex: 1;
+  min-width: 0;
+  color: var(--ink);
+}
+
+.onboarding__step--done .onboarding__title {
+  color: var(--ink-3);
+  text-decoration: line-through;
+}
+
+.onboarding__run {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.onboarding__run .card__hint {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.onboarding__run .picker {
+  min-width: 280px;
+}

@@ -201,17 +201,46 @@ describe("the board", () => {
     expect(names).toEqual(["Mine"]);
   });
 
+  it("shows the people you sell to, and not the accountant", () => {
+    lead("Oakridge");
+    lead("Sharma & Co", { relationship: "accountant" });
+    lead("Paper supplier", { relationship: "vendor" });
+
+    const names = buildBoard(db, company.id).columns.flatMap((c) => c.cards.map((card) => card.name));
+    expect(names).toEqual(["Oakridge"]);
+  });
+
+  it("makes a prospect a customer when the deal is won, and nobody else", () => {
+    const prospect = lead("Oakridge");
+    const investor = lead("Angel", { relationship: "investor" });
+
+    setLeadStage(db, prospect.id, stageNamed("Won").id);
+    setLeadStage(db, investor.id, stageNamed("Won").id);
+
+    expect(findLead(db, prospect.id)?.relationship).toBe("customer");
+    expect(findLead(db, investor.id)?.relationship).toBe("investor");
+
+    // Moving a customer back does not make them a prospect again: they bought.
+    setLeadStage(db, prospect.id, stageNamed("New").id);
+    expect(findLead(db, prospect.id)?.relationship).toBe("customer");
+  });
+
   it("counts every lead even where it renders only some", () => {
     // Won and Lost grow without limit; the count above a column is the truth,
     // the cards below it are the first hundred.
     const insert = db.prepare(
-      `INSERT INTO leads (id, company_id, stage_id, name, created_at, updated_at, tags)
-       VALUES (?, ?, ?, ?, ?, ?, '[]')`,
+      `INSERT INTO leads (id, company_id, name, created_at, updated_at, tags)
+       VALUES (?, ?, ?, ?, ?, '[]')`,
+    );
+    const deal = db.prepare(
+      `INSERT INTO deals (id, company_id, lead_id, title, stage_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
     );
     const stageId = listStages(db, company.id)[0]!.id;
     const now = new Date().toISOString();
     for (let i = 0; i < 120; i += 1) {
-      insert.run(`bulk-${i}`, company.id, stageId, `School ${i}`, now, now);
+      insert.run(`bulk-${i}`, company.id, `School ${i}`, now, now);
+      deal.run(`deal-${i}`, company.id, `bulk-${i}`, `School ${i}`, stageId, now, now);
     }
 
     const [first] = buildBoard(db, company.id).columns;

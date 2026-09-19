@@ -55,6 +55,8 @@ type Props = {
   onSkip?: () => Promise<void>;
   /** Offered instead when the block is one of a repeat. */
   onEndSeries?: () => Promise<void>;
+  /** A block set aside for a brain page - a course, a hobby - opens it. */
+  onOpenPage?: (pageId: string) => void;
 };
 
 export function BlockForm({
@@ -69,6 +71,7 @@ export function BlockForm({
   onDelete,
   onSkip,
   onEndSeries,
+  onOpenPage,
 }: Props) {
   const [title, setTitle] = useState(block?.title ?? forTask?.title ?? "");
   const [time, setTime] = useState(block?.startsAt ?? startsAt);
@@ -146,6 +149,14 @@ export function BlockForm({
       <div className="modal" role="dialog" aria-modal="true" aria-label="A block of time">
         <form className="modal__panel anim-modal" onSubmit={(event) => void submit(event)}>
           <h2 className="card__title">{block ? "This block" : "A block of time"}</h2>
+          {block?.pageId && onOpenPage && (
+            <p className="blockform__page">
+              Time for <strong>{block.pageTitle ?? "a page"}</strong>, set aside from the brain.{" "}
+              <button type="button" className="linkbtn" onClick={() => onOpenPage(block.pageId as string)}>
+                Open the page
+              </button>
+            </p>
+          )}
 
           {error && (
             <p className="field__error" role="alert">

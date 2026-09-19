@@ -1,12 +1,25 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, clipboard, ipcMain } from "electron";
 import type { IpcMainEvent, IpcMainInvokeEvent } from "electron";
 import { CHANNELS, type Workspace } from "@shared/ipc";
-import { readableError } from "@shared/errors";
+import { assertId, handle } from "./handle";
+import { registerBrainHandlers } from "./brain";
+import { registerDealHandlers } from "./deals";
+import { registerCallHandlers } from "./calls";
+import { registerAskHandlers, registerCostHandlers } from "./costs";
+import { registerProductHandlers } from "./products";
+import { registerDeadlineHandlers } from "./deadlines";
+import { registerPeopleHandlers } from "./people";
+import { registerMetricHandlers } from "./metrics";
+import { registerShareHandlers } from "./share";
+import { registerRoomHandlers } from "./dataroom";
+import { registerLifeHandlers } from "./life";
 import {
   ACCENT_IDS,
   GOAL_PERIODS,
   customFieldInput,
   LEAD_SORTS,
+  RELATIONSHIPS,
+  type Relationship,
   activityInput,
   companyInput,
   CURRENCIES,
@@ -23,8 +36,8 @@ import {
   type GoogleState,
 } from "@shared/domain";
 import { readFile, writeFile } from "node:fs/promises";
-import { basename, extname, join } from "node:path";
-import { existsSync, rmSync } from "node:fs";
+import { basename, dirname, extname, join } from "node:path";
+import { existsSync, mkdirSync } from "node:fs";
 import { dialog } from "electron";
 import { MAX_BYTES, type ColumnMapping, type Resolution } from "@shared/import";
 import { isDay, isTime } from "@shared/dates";
@@ -96,6 +109,18 @@ import { exportEverything } from "../services/export";
 import { backupNow, listBackups, restoreBackup } from "../db/backup";
 import { backupsDir, closeDatabase, databasePath, openDatabase } from "../db/connection";
 import { shell } from "electron";
+import { logProblem, logsDir } from "../log";
+import {
+  cancelEmail,
+  forgetScript,
+  mailState,
+  rememberScript,
+  scriptInfo,
+  sendEmail,
+  syncEmails,
+} from "../services/mail";
+import { listEmailsForLead } from "../repositories/mail";
+import { checkScriptUrl, normaliseScriptKey } from "@shared/script";
 import {
   createTemplate,
   deleteTemplate,
@@ -132,17 +157,12 @@ import {
 } from "../services/import";
 import { findDemoBatch, seedDemo } from "../services/demo";
 import {
-  attachmentFile,
   createField,
   deleteField,
-  forgetAttachment,
-  listAttachments,
   listFields,
-  recordAttachment,
   setValue,
   valuesFor,
 } from "../repositories/workbench";
-import { attachmentsDir, copyIntoStore } from "../services/files";
 import { notificationsOn, resetNotified } from "../services/notify";
 import {
   createLead,
@@ -153,8 +173,6 @@ import {
   listActivities,
   listLeads,
   logActivity,
-  setLeadStage,
-  setLossReason,
   updateLead,
 } from "../repositories/leads";
 import { getDatabase } from "../db/connection";
@@ -232,10 +250,6 @@ function alsoNudge<A extends unknown[], R>(run: (...args: A) => R) {
   };
 }
 
-function assertId(value: unknown, label: string): string {
-  if (typeof value === "string" && value.length > 0) return value;
-  throw new Error(`Missing ${label}.`);
-}
 
 /**
  * A selection, checked at the boundary like every other input.
@@ -248,23 +262,6 @@ function assertIds(value: unknown): string[] {
   if (!Array.isArray(value)) throw new Error("Missing lead ids.");
   if (value.length > 5000) throw new Error("Too many leads in one action.");
   return value.map((id) => assertId(id, "lead id"));
-}
-
-/**
- * `ipcMain.handle`, with what goes back on failure made fit to read.
- *
- * Whatever a handler throws reaches the window as its `toString()`, so a
- * schema rejecting a field arrived as a page of JSON. Every handler below is
- * registered through this rather than directly, so no single one can forget.
- */
-function handle(channel: string, listener: Parameters<typeof ipcMain.handle>[1]): void {
-  ipcMain.handle(channel, async (event, ...args) => {
-    try {
-      return await listener(event, ...args);
-    } catch (error) {
-      throw readableError(error);
-    }
-  });
 }
 
 export function registerIpc(getWindow: () => BrowserWindow | null): void {
@@ -298,6 +295,11 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
 
 
   handle(CHANNELS.appVersion, () => app.getVersion());
+
+  // A screen that failed to draw reports here, so the log has its stack.
+  ipcMain.on(CHANNELS.appReportError, (_event, detail: unknown) => {
+    if (typeof detail === "string") logProblem("screen", detail.slice(0, 8000));
+  });
 
   /* ---- Companies ---- */
 
@@ -369,14 +371,6 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     updateLead(getDatabase(), assertId(id, "lead id"), leadInput.parse(raw)),
   );
 
-  handle(CHANNELS.leadsSetStage, (_event, id: unknown, stageId: unknown) =>
-    setLeadStage(
-      getDatabase(),
-      assertId(id, "lead id"),
-      typeof stageId === "string" && stageId.length > 0 ? stageId : null,
-    ),
-  );
-
   handle(CHANNELS.leadsDelete, (_event, id: unknown) => {
     deleteLead(getDatabase(), assertId(id, "lead id"));
   });
@@ -412,6 +406,18 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
   registerBoardHandlers();
   registerTemplateHandlers();
   registerMoneyHandlers();
+  registerBrainHandlers();
+  registerRoomHandlers();
+  registerLifeHandlers();
+  registerDealHandlers();
+  registerCallHandlers();
+  registerCostHandlers();
+  registerAskHandlers();
+  registerProductHandlers();
+  registerDeadlineHandlers();
+  registerPeopleHandlers();
+  registerMetricHandlers();
+  registerShareHandlers();
   registerDataHandlers(getWindow);
 }
 
@@ -533,11 +539,24 @@ function registerDataHandlers(getWindow: () => BrowserWindow | null) {
   handle(CHANNELS.dataPaths, () => ({
     database: databasePath(),
     backups: backupsDir(),
+    logs: logsDir(),
   }));
 
-  handle(CHANNELS.dataRevealFolder, async (_event, path: unknown) => {
-    if (typeof path !== "string" || path.length === 0) return;
-    await shell.openPath(path);
+  // A name, not a path: `openPath` runs a program as readily as it opens a
+  // folder, so the window only ever says which of Caulder's own folders.
+  handle(CHANNELS.dataRevealFolder, async (_event, which: unknown) => {
+    const folder =
+      which === "backups"
+        ? backupsDir()
+        : which === "logs"
+          ? logsDir()
+          : which === "database"
+            ? dirname(databasePath())
+            : null;
+    if (!folder) throw new Error("Caulder does not have a folder by that name.");
+    mkdirSync(folder, { recursive: true });
+    const failure = await shell.openPath(folder);
+    if (failure) throw new Error(failure);
   });
 
   /**
@@ -546,9 +565,9 @@ function registerDataHandlers(getWindow: () => BrowserWindow | null) {
    * Everything on screen — the open lead, the board, the cached workspace —
    * describes data that no longer exists.
    */
-  handle(CHANNELS.dataRestore, (_event, path: unknown) => {
+  handle(CHANNELS.dataRestore, (_event, name: unknown) => {
     const result = restoreBackup(
-      assertId(path, "backup path"),
+      assertId(name, "backup name"),
       closeDatabase,
       openDatabase,
     );
@@ -789,6 +808,7 @@ function registerPersonalHandlers() {
       taskListId: row?.google_tasklist_id ?? null,
       auto: autoSyncOn(),
       sync: readSync(db, companyId),
+      script: scriptInfo(db),
     };
   };
 
@@ -799,7 +819,9 @@ function registerPersonalHandlers() {
   handle(CHANNELS.googleRefresh, async (_event, companyId: unknown) => {
     const id = assertId(companyId, "company id");
     if (!isConnected()) return googleState(id);
-    return googleState(id, await hello());
+    const said = await hello();
+    rememberScript(getDatabase(), said);
+    return googleState(id, said);
   });
 
   handle(
@@ -807,13 +829,10 @@ function registerPersonalHandlers() {
     async (_event, companyId: unknown, url: unknown, secret: unknown) => {
       const id = assertId(companyId, "company id");
       const address = typeof url === "string" ? url.trim() : "";
-      const key = typeof secret === "string" ? secret.trim() : "";
+      const key = typeof secret === "string" ? normaliseScriptKey(secret) : "";
 
-      if (!/^https:\/\/script\.google\.com\//.test(address)) {
-        throw new Error(
-          "That does not look like an Apps Script web app URL. It should start with https://script.google.com/ and end in /exec.",
-        );
-      }
+      const wrong = checkScriptUrl(address);
+      if (wrong) throw new Error(wrong);
       if (key.length === 0) throw new Error("Paste the key that setUp printed.");
 
       // Stored only once it has been proved to work. Keeping a URL and key
@@ -822,6 +841,7 @@ function registerPersonalHandlers() {
       saveConnection({ url: address, secret: key });
       try {
         const lists = await hello();
+        rememberScript(getDatabase(), lists);
         return googleState(id, lists);
       } catch (error) {
         forgetConnection();
@@ -833,6 +853,7 @@ function registerPersonalHandlers() {
   handle(CHANNELS.googleDisconnect, (_event, companyId: unknown) => {
     const id = assertId(companyId, "company id");
     forgetConnection();
+    forgetScript(getDatabase());
     getDatabase()
       .prepare(
         `UPDATE companies SET google_calendar_id = NULL, google_tasklist_id = NULL WHERE id = ?`,
@@ -955,6 +976,32 @@ function registerTemplateHandlers() {
     deleteTemplate(getDatabase(), assertId(id, "template id")),
   );
 
+  handle(CHANNELS.googleCopyScript, async () => {
+    clipboard.writeText(await readFile(scriptPath(), "utf8"));
+  });
+
+  /* ---- Email through the script ---- */
+
+  handle(CHANNELS.mailState, () => mailState(getDatabase()));
+
+  handle(CHANNELS.mailForLead, (_event, leadId: unknown) =>
+    listEmailsForLead(getDatabase(), assertId(leadId, "contact id")),
+  );
+
+  // The schema is parsed in the service, which is also where the contact's
+  // own address is read: the renderer never supplies one.
+  handle(CHANNELS.mailSend, (_event, input: unknown) => sendEmail(getDatabase(), input));
+
+  handle(CHANNELS.mailCancel, (_event, emailId: unknown) =>
+    cancelEmail(getDatabase(), assertId(emailId, "email id")),
+  );
+
+  handle(CHANNELS.mailCheck, async (_event, leadId: unknown) => {
+    const id = assertId(leadId, "contact id");
+    await syncEmails(getDatabase());
+    return listEmailsForLead(getDatabase(), id);
+  });
+
   handle(CHANNELS.googleScript, async () => {
     const target = await dialog.showSaveDialog({
       title: "Save the Apps Script file",
@@ -1026,11 +1073,6 @@ function registerBoardHandlers() {
 /* ---- Today and tasks ---- */
 
 function registerTaskHandlers() {
-  handle(CHANNELS.leadsSetLossReason, (_event, id: unknown, reason: unknown) => {
-    const text = typeof reason === "string" ? reason.trim().slice(0, 200) : "";
-    return setLossReason(getDatabase(), assertId(id, "lead id"), text === "" ? null : text);
-  });
-
   handle(CHANNELS.companiesSetGoal, (_event, id: unknown, raw: unknown) => {
     const goal = raw as { value?: unknown; period?: unknown } | null;
     const value = typeof goal?.value === "number" && Number.isFinite(goal.value)
@@ -1062,50 +1104,6 @@ function registerTaskHandlers() {
   });
 
   /* ---- The workbench: files, fields ---- */
-
-  handle(CHANNELS.attachmentsList, (_event, leadId: unknown) =>
-    listAttachments(getDatabase(), assertId(leadId, "lead id")),
-  );
-
-  handle(CHANNELS.attachmentsAdd, async (_event, companyId: unknown, leadId: unknown) => {
-    const picked = await dialog.showOpenDialog({
-      title: "Attach a file",
-      properties: ["openFile", "multiSelections"],
-    });
-    if (picked.canceled || picked.filePaths.length === 0) return null;
-
-    const company = assertId(companyId, "company id");
-    const lead = assertId(leadId, "lead id");
-    let list = listAttachments(getDatabase(), lead);
-
-    for (const source of picked.filePaths) {
-      // Copied rather than linked: a file that lives wherever it was when you
-      // attached it is a file that goes missing the first time you tidy your
-      // Downloads folder.
-      const stored = await copyIntoStore(source);
-      list = recordAttachment(getDatabase(), company, lead, stored);
-    }
-    return list;
-  });
-
-  handle(CHANNELS.attachmentsOpen, (_event, id: unknown) => {
-    const found = attachmentFile(getDatabase(), assertId(id, "attachment id"));
-    if (!found) throw new Error("That file is no longer attached.");
-    return shell.openPath(join(attachmentsDir(), found.file));
-  });
-
-  handle(CHANNELS.attachmentsRemove, (_event, id: unknown) => {
-    const attachmentId = assertId(id, "attachment id");
-    const found = attachmentFile(getDatabase(), attachmentId);
-    if (!found) throw new Error("That file is no longer attached.");
-
-    forgetAttachment(getDatabase(), attachmentId);
-    // The row goes first. A file deleted while the row survived would leave a
-    // list of things that cannot be opened; a row deleted while the file
-    // survived leaves only a stray file.
-    rmSync(join(attachmentsDir(), found.file), { force: true });
-    return listAttachments(getDatabase(), found.leadId);
-  });
 
   handle(CHANNELS.fieldsList, (_event, companyId: unknown) =>
     listFields(getDatabase(), assertId(companyId, "company id")),
@@ -1323,6 +1321,13 @@ function parseQuery(raw: unknown): LeadQuery {
   if (source["stageId"] === null) query.stageId = null;
   else if (typeof source["stageId"] === "string" && source["stageId"].length > 0) {
     query.stageId = source["stageId"];
+  }
+
+  if (
+    typeof source["relationship"] === "string" &&
+    (RELATIONSHIPS as readonly string[]).includes(source["relationship"])
+  ) {
+    query.relationship = source["relationship"] as Relationship;
   }
 
   if (

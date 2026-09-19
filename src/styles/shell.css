@@ -19,7 +19,8 @@
   align-items: center;
   gap: var(--space-3);
   padding-left: var(--space-4);
-  background: var(--bg);
+  background: var(--bg-subtle);
+  border-bottom: 1px solid var(--border);
   -webkit-app-region: drag;
   user-select: none;
 }
@@ -72,7 +73,7 @@
 }
 
 .wincontrol:hover {
-  background: var(--surface-hover);
+  background: var(--hover);
   color: var(--ink);
 }
 
@@ -93,8 +94,12 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  padding: var(--space-3) var(--space-3) var(--space-4);
+  flex: 1;
+  padding: var(--space-4) var(--space-3);
+  min-width: 0;
   min-height: 0;
+  background: var(--bg-subtle);
+  border-right: 1px solid var(--border);
 }
 
 .sidebar__nav {
@@ -119,7 +124,10 @@
   margin-top: var(--space-4);
 }
 
-.navgroup--foot {
+/* Settings, at the foot. Doubled so it outranks the sibling gap above, which
+ * is as specific as a single class plus a combinator and was pinning it under
+ * Brain instead of letting the auto margin push it down. */
+.navgroup.navgroup--foot {
   margin-top: auto;
   padding-top: var(--space-4);
 }
@@ -138,7 +146,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  min-height: 40px;
+  min-height: 36px;
   padding: 0 var(--space-3);
   background: transparent;
   color: var(--ink-2);
@@ -149,24 +157,21 @@
   text-align: left;
   cursor: pointer;
   transition:
-    background var(--dur) var(--ease),
-    box-shadow var(--dur) var(--ease),
-    color var(--dur) var(--ease);
+    background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 
 .navitem:hover {
   color: var(--ink);
-  background: var(--surface-hover);
+  background: var(--hover);
 }
 
-/* Which screen you are on. The raised surface and the weight carry it; there
- * is no accent bar down the left edge. One was tried and removed - against a
- * neumorphic row the flat rule reads as a stray line rather than as a marker,
- * and the row is already unmistakably lifted. */
+/* Which screen you are on: the accent's pale wash, its strong ink, and the
+ * weight. No bar down the edge - the wash already says it, and a second
+ * marker would be saying it twice. */
 .navitem[aria-current="page"] {
-  background: var(--surface);
-  color: var(--ink);
-  box-shadow: var(--shadow-xs);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
   font-weight: 700;
 }
 
@@ -184,7 +189,7 @@
   margin-left: auto;
   padding: 1px var(--space-2);
   border-radius: var(--radius-pill);
-  background: var(--surface-sunken);
+  background: var(--border);
   color: var(--ink-3);
   font-size: var(--text-xs);
   font-weight: 700;
@@ -209,16 +214,15 @@
   min-height: 52px;
   padding: var(--space-2) var(--space-3);
   background: var(--surface);
-  border: none;
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-xs);
   cursor: pointer;
   text-align: left;
-  transition: box-shadow var(--dur) var(--ease);
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 
-.company:hover { box-shadow: var(--shadow-sm); }
-.company:active { box-shadow: var(--shadow-inset-sm); }
+.company:hover { border-color: var(--border-strong); box-shadow: 0 0 0 3px var(--border); }
+.company:active { background: var(--surface-sunken); }
 
 /* ---- The mode toggle ---------------------------------------------------
  * The same segmented shape as the theme control, because it is the same kind
@@ -229,11 +233,11 @@
 
 .modeswitch {
   display: flex;
-  gap: var(--space-1);
-  padding: var(--space-1);
+  gap: 2px;
+  padding: 3px;
   background: var(--surface-sunken);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-inset-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
 }
 
 .modeswitch__seg {
@@ -267,7 +271,7 @@
   background: var(--surface);
   color: var(--ink);
   font-weight: 700;
-  box-shadow: var(--shadow-xs);
+  box-shadow: 0 0 0 1px var(--border-strong);
   cursor: default;
 }
 
@@ -287,11 +291,11 @@
   width: 32px;
   height: 32px;
   flex-shrink: 0;
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-sm);
   background: var(--accent);
   color: var(--ink-on-accent);
-  font-size: var(--text-base);
-  font-weight: 900;
+  font-size: var(--text-sm);
+  font-weight: 700;
 }
 
 .company__text {
@@ -325,7 +329,7 @@
 .main {
   min-width: 0;
   min-height: 0;
-  padding: 0 var(--space-5) var(--space-5) var(--space-2);
+  padding: 0 var(--space-6) var(--space-6);
   overflow-y: auto;
 }
 
@@ -335,12 +339,19 @@
    * screen it left a third of the width empty. */
   max-width: 1680px;
   margin: 0 auto;
-  padding-top: var(--space-2);
+  padding-top: var(--space-5);
 }
 
 /* The look-around banner sits above the title on every screen, because the
- * sample is on every screen. */
-.hintbar--sample { margin-bottom: var(--space-4); }
+ * sample is on every screen. An information banner, in the info colours. */
+.hintbar--sample {
+  margin-bottom: var(--space-5);
+  background: var(--info-soft);
+  border-color: color-mix(in srgb, var(--info) 25%, var(--info-soft));
+}
+
+.hintbar--sample .hintbar__icon { color: var(--info); }
+.hintbar--sample .hintbar__text { color: var(--ink); }
 
 .page-head {
   display: flex;
@@ -353,7 +364,8 @@
 .page-head__title {
   color: var(--ink);
   font-size: var(--text-xl);
-  font-weight: 900;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 .page-head__actions {

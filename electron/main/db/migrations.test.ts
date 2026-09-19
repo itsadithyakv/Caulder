@@ -309,3 +309,13 @@ describe("migration 6 rebuilds two tables, and must not lose a row doing it", ()
     ).run(now, now);
   }
 });
+
+describe("a database from a newer build", () => {
+  it("is refused rather than written to", () => {
+    const db = new Database(":memory:");
+    db.pragma(`user_version = ${LATEST_VERSION + 1}`);
+    expect(() => migrate(db)).toThrow("newer version of Caulder");
+    expect(currentVersion(db)).toBe(LATEST_VERSION + 1);
+    db.close();
+  });
+});

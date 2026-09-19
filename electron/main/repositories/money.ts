@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { Db } from "../db/connection";
 import { shiftDay, today as todayIn } from "@shared/dates";
+import { findDeal, mainDeal, setDealValue } from "./deals";
+import { productInCompany } from "./products";
 import {
   isOverdueInvoice,
   type Invoice,
@@ -38,6 +40,8 @@ type DocRow = {
   company_id: string;
   lead_id: string;
   lead_name: string;
+  deal_id: string | null;
+  deal_title: string | null;
   quote_id?: string | null;
   number: number;
   status: string;
@@ -54,6 +58,8 @@ type LineRow = {
   description: string;
   quantity: number;
   unit_price: number;
+  product_id: string | null;
+  product_name: string | null;
 };
 
 type PaymentRow = {
@@ -73,10 +79,12 @@ function linesFor(db: Db, table: "quote_lines" | "invoice_lines", parentIds: str
   const column = table === "quote_lines" ? "quote_id" : "invoice_id";
   const rows = db
     .prepare(
-      `SELECT id, ${column} AS parent_id, description, quantity, unit_price
-         FROM ${table}
-        WHERE ${column} IN (${parentIds.map(() => "?").join(",")})
-        ORDER BY position`,
+      `SELECT t.id, t.${column} AS parent_id, t.description, t.quantity, t.unit_price,
+              t.product_id, p.name AS product_name
+         FROM ${table} t
+         LEFT JOIN products p ON p.id = t.product_id
+        WHERE t.${column} IN (${parentIds.map(() => "?").join(",")})
+        ORDER BY t.position`,
     )
     .all(...parentIds) as LineRow[];
   for (const row of rows) {
@@ -86,6 +94,8 @@ function linesFor(db: Db, table: "quote_lines" | "invoice_lines", parentIds: str
       description: row.description,
       quantity: row.quantity,
       unitPrice: row.unit_price,
+      productId: row.product_id,
+      productName: row.product_name,
     });
     byParent.set(row.parent_id, list);
   }
@@ -119,10 +129,11 @@ function paymentsFor(db: Db, invoiceIds: string[]): Map<string, Payment[]> {
 /* ---- Quotes ------------------------------------------------------------- */
 
 const QUOTE_SELECT = `
-  SELECT q.id, q.company_id, q.lead_id, l.name AS lead_name, q.number, q.status,
-         q.issued_on, q.notes, q.created_at
+  SELECT q.id, q.company_id, q.lead_id, l.name AS lead_name, q.deal_id, d.title AS deal_title,
+         q.number, q.status, q.issued_on, q.notes, q.created_at
     FROM quotes q
-    JOIN leads l ON l.id = q.lead_id`;
+    JOIN leads l ON l.id = q.lead_id
+    LEFT JOIN deals d ON d.id = q.deal_id`;
 
 function toQuotes(db: Db, rows: DocRow[]): Quote[] {
   const lines = linesFor(db, "quote_lines", rows.map((row) => row.id));
@@ -133,6 +144,8 @@ function toQuotes(db: Db, rows: DocRow[]): Quote[] {
       companyId: row.company_id,
       leadId: row.lead_id,
       leadName: row.lead_name,
+      dealId: row.deal_id,
+      dealTitle: row.deal_title,
       number: row.number,
       status: row.status as QuoteStatus,
       issuedOn: row.issued_on,
@@ -166,17 +179,26 @@ function nextNumber(db: Db, table: "quotes" | "invoices", companyId: string): nu
 function writeLines(
   db: Db,
   table: "quote_lines" | "invoice_lines",
+  companyId: string,
   parentId: string,
   lines: MoneyLineInput[],
 ): void {
   const column = table === "quote_lines" ? "quote_id" : "invoice_id";
   db.prepare(`DELETE FROM ${table} WHERE ${column} = ?`).run(parentId);
   const insert = db.prepare(
-    `INSERT INTO ${table} (id, ${column}, position, description, quantity, unit_price)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO ${table} (id, ${column}, position, description, quantity, unit_price, product_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
   );
   lines.forEach((line, index) =>
-    insert.run(randomUUID(), parentId, index, line.description, line.quantity, line.unitPrice),
+    insert.run(
+      randomUUID(),
+      parentId,
+      index,
+      line.description,
+      line.quantity,
+      line.unitPrice,
+      line.productId ? productInCompany(db, companyId, line.productId) : null,
+    ),
   );
 }
 
@@ -185,28 +207,57 @@ function assertLeadInCompany(db: Db, companyId: string, leadId: string): void {
   if (!row) throw new Error("That contact is not in this company.");
 }
 
+/**
+ * The deal a quote or an invoice is for: the one named, which has to be the
+ * contact's. Failing that, an edit keeps the deal the document already had,
+ * so fixing a typo does not move it onto whichever deal is newest; and a new
+ * document goes on the contact's main deal - or none, for a contact with no
+ * deals at all.
+ */
+function dealFor(
+  db: Db,
+  table: "quotes" | "invoices",
+  id: string | null,
+  leadId: string,
+  dealId: string | null | undefined,
+): string | null {
+  if (dealId) {
+    const deal = findDeal(db, dealId);
+    if (!deal || deal.leadId !== leadId) throw new Error("That deal is not this contact's.");
+    return deal.id;
+  }
+  if (id !== null) {
+    const kept = db
+      .prepare(`SELECT d.id FROM ${table} x JOIN deals d ON d.id = x.deal_id WHERE x.id = ? AND d.lead_id = ?`)
+      .get(id, leadId) as { id: string } | undefined;
+    if (kept) return kept.id;
+  }
+  return mainDeal(db, leadId)?.id ?? null;
+}
+
 export function saveQuote(db: Db, companyId: string, id: string | null, input: QuoteInput): Quote {
   assertLeadInCompany(db, companyId, input.leadId);
   const now = new Date().toISOString();
+  const dealId = dealFor(db, "quotes", id, input.leadId, input.dealId);
 
   const quoteId = db.transaction(() => {
     if (id === null) {
       const created = randomUUID();
       db.prepare(
-        `INSERT INTO quotes (id, company_id, lead_id, number, status, issued_on, notes, created_at, updated_at)
-         VALUES (?, ?, ?, ?, 'draft', ?, ?, ?, ?)`,
-      ).run(created, companyId, input.leadId, nextNumber(db, "quotes", companyId), input.issuedOn, input.notes ?? null, now, now);
-      writeLines(db, "quote_lines", created, input.lines);
+        `INSERT INTO quotes (id, company_id, lead_id, deal_id, number, status, issued_on, notes, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?)`,
+      ).run(created, companyId, input.leadId, dealId, nextNumber(db, "quotes", companyId), input.issuedOn, input.notes ?? null, now, now);
+      writeLines(db, "quote_lines", companyId, created, input.lines);
       return created;
     }
     const changed = db
       .prepare(
-        `UPDATE quotes SET lead_id = ?, issued_on = ?, notes = ?, updated_at = ?
+        `UPDATE quotes SET lead_id = ?, deal_id = ?, issued_on = ?, notes = ?, updated_at = ?
           WHERE id = ? AND company_id = ?`,
       )
-      .run(input.leadId, input.issuedOn, input.notes ?? null, now, id, companyId).changes;
+      .run(input.leadId, dealId, input.issuedOn, input.notes ?? null, now, id, companyId).changes;
     if (changed === 0) throw new Error("That quote no longer exists.");
-    writeLines(db, "quote_lines", id, input.lines);
+    writeLines(db, "quote_lines", companyId, id, input.lines);
     return id;
   })();
 
@@ -241,6 +292,7 @@ export function acceptQuote(db: Db, companyId: string, id: string, now: Date = n
     const day = todayIn(timezone, now);
     const invoice = saveInvoice(db, companyId, null, {
       leadId: quote.leadId,
+      dealId: quote.dealId,
       issuedOn: day,
       dueOn: shiftDay(day, 14),
       notes: quote.notes,
@@ -248,14 +300,12 @@ export function acceptQuote(db: Db, companyId: string, id: string, now: Date = n
         description: line.description,
         quantity: line.quantity,
         unitPrice: line.unitPrice,
+        productId: line.productId,
       })),
     });
     db.prepare(`UPDATE invoices SET quote_id = ? WHERE id = ?`).run(id, invoice.id);
-    db.prepare(`UPDATE leads SET value = ?, updated_at = ? WHERE id = ? AND value IS NULL`).run(
-      quote.total,
-      now.toISOString(),
-      quote.leadId,
-    );
+    const deal = quote.dealId ? findDeal(db, quote.dealId) : null;
+    if (deal && deal.value === null) setDealValue(db, deal.id, quote.total, now.toISOString());
     return { ...invoice, quoteId: id };
   })();
 }
@@ -263,10 +313,11 @@ export function acceptQuote(db: Db, companyId: string, id: string, now: Date = n
 /* ---- Invoices ----------------------------------------------------------- */
 
 const INVOICE_SELECT = `
-  SELECT i.id, i.company_id, i.lead_id, l.name AS lead_name, i.quote_id, i.number, i.status,
-         i.issued_on, i.due_on, i.paid_on, i.notes, i.created_at
+  SELECT i.id, i.company_id, i.lead_id, l.name AS lead_name, i.deal_id, d.title AS deal_title,
+         i.quote_id, i.number, i.status, i.issued_on, i.due_on, i.paid_on, i.notes, i.created_at
     FROM invoices i
-    JOIN leads l ON l.id = i.lead_id`;
+    JOIN leads l ON l.id = i.lead_id
+    LEFT JOIN deals d ON d.id = i.deal_id`;
 
 function toInvoices(db: Db, rows: DocRow[]): Invoice[] {
   const ids = rows.map((row) => row.id);
@@ -280,6 +331,8 @@ function toInvoices(db: Db, rows: DocRow[]): Invoice[] {
       companyId: row.company_id,
       leadId: row.lead_id,
       leadName: row.lead_name,
+      dealId: row.deal_id,
+      dealTitle: row.deal_title,
       quoteId: row.quote_id ?? null,
       number: row.number,
       status: row.status as InvoiceStatus,
@@ -296,7 +349,7 @@ function toInvoices(db: Db, rows: DocRow[]): Invoice[] {
   });
 }
 
-function listInvoices(db: Db, companyId: string): Invoice[] {
+export function listInvoices(db: Db, companyId: string): Invoice[] {
   const rows = db
     .prepare(`${INVOICE_SELECT} WHERE i.company_id = ? ORDER BY i.issued_on DESC, i.number DESC`)
     .all(companyId) as DocRow[];
@@ -311,15 +364,16 @@ export function findInvoice(db: Db, id: string): Invoice | null {
 export function saveInvoice(db: Db, companyId: string, id: string | null, input: InvoiceInput): Invoice {
   assertLeadInCompany(db, companyId, input.leadId);
   const now = new Date().toISOString();
+  const dealId = dealFor(db, "invoices", id, input.leadId, input.dealId);
 
   const invoiceId = db.transaction(() => {
     if (id === null) {
       const created = randomUUID();
       db.prepare(
-        `INSERT INTO invoices (id, company_id, lead_id, number, status, issued_on, due_on, notes, created_at, updated_at)
-         VALUES (?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?)`,
-      ).run(created, companyId, input.leadId, nextNumber(db, "invoices", companyId), input.issuedOn, input.dueOn, input.notes ?? null, now, now);
-      writeLines(db, "invoice_lines", created, input.lines);
+        `INSERT INTO invoices (id, company_id, lead_id, deal_id, number, status, issued_on, due_on, notes, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?)`,
+      ).run(created, companyId, input.leadId, dealId, nextNumber(db, "invoices", companyId), input.issuedOn, input.dueOn, input.notes ?? null, now, now);
+      writeLines(db, "invoice_lines", companyId, created, input.lines);
       return created;
     }
     const existing = findInvoice(db, id);
@@ -328,9 +382,9 @@ export function saveInvoice(db: Db, companyId: string, id: string | null, input:
       throw new Error("A paid or void invoice cannot be edited. Make a new one.");
     }
     db.prepare(
-      `UPDATE invoices SET lead_id = ?, issued_on = ?, due_on = ?, notes = ?, updated_at = ? WHERE id = ?`,
-    ).run(input.leadId, input.issuedOn, input.dueOn, input.notes ?? null, now, id);
-    writeLines(db, "invoice_lines", id, input.lines);
+      `UPDATE invoices SET lead_id = ?, deal_id = ?, issued_on = ?, due_on = ?, notes = ?, updated_at = ? WHERE id = ?`,
+    ).run(input.leadId, dealId, input.issuedOn, input.dueOn, input.notes ?? null, now, id);
+    writeLines(db, "invoice_lines", companyId, id, input.lines);
     settle(db, id);
     return id;
   })();

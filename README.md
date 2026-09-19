@@ -8,9 +8,22 @@ it cost — because that is one Tuesday, not two.
 It tells you what to be at right now, what to chase today, what a campaign
 brought back, and how the weeks actually went.
 
+It also keeps the company's brain - what it is, what it sells, what it pays
+for every month and how long the money lasts - with a call prompter that reads
+you the script and asks how the call went, and an export of the whole company
+as four documents for an AI.
+
+And it keeps the rest of you, apart from the company: a journal a key away,
+habits ticked on Today with their run of days, courses and exams, hobbies and
+goals, a vision board, and a level worked out from what you actually did -
+never from opening the app. One line on Today takes any of it, and says where
+it will go.
+
 Local-only by design: a single SQLite file on this machine, no cloud, no
 account, works offline. Google Calendar and Tasks sync through a script that
-runs in your own account, if you want it.
+runs in your own account, if you want it; Ask the brain uses whichever AI you
+connect - Google's Gemini is free with a Google account - if you connect one.
+A guide after first run walks through both.
 
 ## Running it
 
@@ -66,7 +79,7 @@ Everything about how Caulder works lives in **[reference/](reference/)**:
 | [architecture.md](reference/architecture.md) | The stack, the two processes, and why each choice was made |
 | [data-model.md](reference/data-model.md) | Every table and column, and the rules the schema enforces |
 | [features.md](reference/features.md) | What the app actually does, screen by screen |
-| [design-language.md](reference/design-language.md) | Tokens, the neumorphic rules, both themes |
+| [design-language.md](reference/design-language.md) | Tokens, the flat look and its rules, both themes |
 | [operations.md](reference/operations.md) | Building, packaging, backups, troubleshooting |
 | [product-review.md](reference/product-review.md) | A dated, opinionated review of how well it works as a product |
 

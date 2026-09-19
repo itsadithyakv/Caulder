@@ -13,7 +13,14 @@ export default defineConfig({
   preload: {
     plugins: [externalizeDepsPlugin()],
     resolve: { alias: { '@shared': shared } },
-    build: { rollupOptions: { input: { index: resolve('electron/preload/index.ts') } } }
+    build: {
+      rollupOptions: {
+        input: { index: resolve('electron/preload/index.ts') },
+        // CommonJS, because Electron runs an ESM preload only with the
+        // sandbox off, and both windows run sandboxed.
+        output: { format: 'cjs', entryFileNames: '[name].cjs' }
+      }
+    }
   },
   renderer: {
     root: resolve('src'),

@@ -1,14 +1,14 @@
 /* ---------------------------------------------------------------------------
- * Primitives: the reusable neumorphic surfaces and controls.
+ * Primitives: the reusable surfaces and controls.
  *
- * THE GOVERNING RULE, from the plan: neumorphism is for CHROME, not CONTENT.
- * Buttons, inputs, cards, tabs, the sidebar and section containers get the
- * paired-shadow treatment. Table rows, lead names, numbers and status text
- * stay flat and high-contrast, because a soft low-contrast surface cannot
- * carry two hundred rows of data.
+ * THE GOVERNING RULE: flat surfaces, one hairline, colour for meaning. A card
+ * is white with a border. A control is white with a darker border. A field
+ * you type into has the darkest border of all, because that edge is the
+ * affordance. Hover and focus draw a three-pixel halo outside the edge rather
+ * than moving anything, so nothing on the page shifts under the pointer.
  *
  * Corollary: elevation NEVER encodes meaning. Status is carried by colour and
- * label. A raised card and a flat one differ in depth, not in what they mean.
+ * label. Only what floats above the page - a menu, a dialog - has a shadow.
  *
  * A feature stylesheet may POSITION these; it may not restyle them.
  * ------------------------------------------------------------------------- */
@@ -17,53 +17,45 @@
 
 .nm-raised {
   background: var(--surface);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
 }
 
 .nm-sunken {
   background: var(--surface-sunken);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-inset-sm);
 }
 
-/* The well a data table sits in: ONE sunken container, not N raised rows. */
+/* The frame a data table sits in: ONE bordered container, not N boxed rows. */
 .nm-well {
-  background: var(--surface-sunken);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-inset-md);
   overflow: hidden;
 }
 
 .nm-flat {
   background: var(--surface);
-  border-radius: var(--radius-md);
   border: 1px solid var(--soft-line);
+  border-radius: var(--radius-md);
 }
 
-/* Floating surfaces break neumorphism on purpose - relief cannot separate a
- * menu from the page behind it. */
 .nm-float {
   background: var(--surface);
-  border-radius: var(--radius-md);
   border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-float);
 }
 
 /* ---- Card ------------------------------------------------------------- */
 
 .card {
-  /* Surface plus the face's wash, layered rather than mixed - see base.css
-   * for why a redefinition of --surface would be a cyclic property. */
-  background-color: var(--surface);
-  background-image: linear-gradient(var(--face-wash), var(--face-wash));
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-xs);
   padding: var(--space-5);
-  /* Transparent on the work face, a warm hairline on the personal one. One
-   * rule, two faces, and no condition here - the token carries the whole
-   * difference. */
-  border: 1px solid var(--face-edge);
 }
 
 .card--tight { padding: var(--space-4); }
@@ -78,6 +70,12 @@
 .card__hint {
   color: var(--ink-3);
   font-size: var(--text-sm);
+}
+
+/* Something to act on, in words: the warning colour, never colour alone. */
+.card__hint--warn {
+  color: var(--warn);
+  font-weight: 500;
 }
 
 .card__head { margin-bottom: var(--space-1); }
@@ -124,7 +122,7 @@
 
 .explain[open] > .explain__summary::before { transform: rotate(90deg); }
 
-.explain__summary:hover { color: var(--ink-2); }
+.explain__summary:hover { color: var(--ink); }
 
 .explain__summary:focus-visible {
   outline: 2px solid var(--accent);
@@ -140,8 +138,7 @@
 .explain__body p + p { margin-top: var(--space-2); }
 
 /* ---- A row of controls -------------------------------------------------
- * Buttons, or an input and its buttons, side by side and wrapping. Eleven
- * feature stylesheets each declared one of these under their own name. */
+ * Buttons, or an input and its buttons, side by side and wrapping. */
 .actions {
   display: flex;
   align-items: center;
@@ -153,8 +150,9 @@
 .actions > .input { flex: 1 1 200px; width: auto; }
 
 /* ---- Button ------------------------------------------------------------
- * Rest = raised. Hover = lifted. Active = pressed (inset). That press is the
- * whole point of a neumorphic control; it must feel like a physical key.
+ * Rest = a white key with an edge. Hover = a pale halo outside that edge.
+ * Pressed = the halo darkens. Nothing moves, so a row of buttons never
+ * jiggles as the pointer crosses it.
  * ---------------------------------------------------------------------- */
 
 .btn {
@@ -163,71 +161,89 @@
   justify-content: center;
   gap: var(--space-2);
   min-height: 36px;
-  padding: 0 var(--space-4);
+  padding: 0 var(--space-3);
   background: var(--surface);
-  color: var(--ink-2);
-  border: none;
+  color: var(--ink);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-xs);
-  font-size: var(--text-base);
+  box-shadow: none;
+  font-size: var(--text-sm);
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
   transition:
-    box-shadow var(--dur) var(--ease),
-    color var(--dur) var(--ease),
-    transform var(--dur-fast) var(--ease);
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 
 .btn:hover:not(:disabled) {
-  box-shadow: var(--shadow-sm);
-  color: var(--ink);
+  border-color: var(--border-input);
+  box-shadow: 0 0 0 3px var(--border);
 }
 
 .btn:active:not(:disabled) {
-  box-shadow: var(--shadow-inset-sm);
-  transform: translateY(1px);
+  background: var(--surface-sunken);
+  box-shadow: 0 0 0 3px var(--border-strong);
 }
 
-/* Disabled must be distinguishable WITHOUT relying on shadow alone, so it
- * loses its relief and drops to the tertiary ink at the same time. */
+/* Disabled must be distinguishable without relying on the halo, so it takes
+ * the grey ground and the tertiary ink at the same time. */
 .btn:disabled {
-  box-shadow: none;
   background: var(--surface-sunken);
+  border-color: var(--border);
   color: var(--ink-3);
+  box-shadow: none;
   cursor: not-allowed;
-  opacity: 0.7;
 }
 
 .btn--primary {
   background: var(--accent);
+  border-color: var(--accent);
   color: var(--ink-on-accent);
   font-weight: 700;
 }
 
 .btn--primary:hover:not(:disabled) {
-  background: var(--accent);
-  color: var(--ink-on-accent);
-  box-shadow: var(--shadow-sm);
-  filter: brightness(1.06);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-halo);
+}
+
+.btn--primary:active:not(:disabled) {
+  background: var(--accent-strong);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
 .btn--danger {
   color: var(--danger);
 }
 
+.btn--danger:hover:not(:disabled) {
+  box-shadow: 0 0 0 3px var(--danger-soft);
+}
+
 .btn--ghost {
   background: transparent;
+  border-color: transparent;
+}
+
+/* A ghost that cannot be pressed stays a ghost. A grey fill on a pair of
+ * arrows reads as the one that is selected. */
+.btn--ghost:disabled {
+  background: transparent;
+  border-color: transparent;
+}
+
+.btn--ghost:hover:not(:disabled) {
+  background: var(--hover);
+  border-color: transparent;
   box-shadow: none;
 }
 
-/* A ghost that cannot be pressed stays a ghost. The sunken fill other disabled
- * buttons take reads, on a pair of arrows, as the one that is selected. */
-.btn--ghost:disabled { background: transparent; }
-
-.btn--ghost:hover:not(:disabled) {
-  background: var(--surface-hover);
-  box-shadow: var(--shadow-xs);
+.btn--ghost:active:not(:disabled) {
+  background: var(--hover);
+  box-shadow: none;
 }
 
 .btn--icon {
@@ -237,23 +253,23 @@
 
 .btn--sm {
   min-height: 30px;
-  padding: 0 var(--space-3);
+  padding: 0 var(--space-2);
   font-size: var(--text-sm);
 }
 
 /* ---- Input -------------------------------------------------------------
- * Inputs are SUNKEN. A raised input reads as a button and invites a click
- * rather than typing; the inset is the affordance that says "type here".
+ * White, with the darkest border in the set: the edge is what says "type
+ * here". Focus swaps it for the accent and a halo.
  * ---------------------------------------------------------------------- */
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: 6px;
 }
 
 .field__label {
-  color: var(--ink-2);
+  color: var(--ink);
   font-size: var(--text-sm);
   font-weight: 500;
 }
@@ -261,17 +277,22 @@
 .input,
 .textarea {
   width: 100%;
-  min-height: 38px;
-  padding: var(--space-2) var(--space-3);
-  background: var(--surface-sunken);
+  min-height: 36px;
+  padding: 6px var(--space-3);
+  background: var(--surface);
   color: var(--ink);
-  border: 1px solid transparent;
+  border: 1px solid var(--border-input);
   border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-inset-sm);
+  box-shadow: none;
   font-size: var(--text-base);
   transition:
-    box-shadow var(--dur) var(--ease),
-    border-color var(--dur) var(--ease);
+    box-shadow var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+
+.input:hover:not(:disabled):not(:focus),
+.textarea:hover:not(:disabled):not(:focus) {
+  box-shadow: 0 0 0 3px var(--border);
 }
 
 .input::placeholder,
@@ -281,8 +302,16 @@
 
 .input:focus-visible,
 .textarea:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-halo);
+}
+
+.input:disabled,
+.textarea:disabled {
+  background: var(--surface-sunken);
+  border-color: var(--border);
+  color: var(--ink-3);
 }
 
 .textarea {
@@ -292,13 +321,11 @@
 }
 
 /* ---- Picker: the app's own dropdown -------------------------------------
- * Closed, it is an input like any other: sunken, rounded, the value on the
- * left and a chevron on the right. Open, it is a raised surface floating over
- * the page - the one place a list is allowed to cast a shadow, because it is
- * genuinely above everything else.
+ * Closed, it is an input like any other. Open, it is a floating list - the
+ * one place a list casts a shadow, because it is genuinely above everything.
  *
  * The chosen row is marked with a check and the accent, not a solid bar of
- * colour. A bar is what the operating system drew, and it was the loudest
+ * colour: a bar is what the operating system drew, and it was the loudest
  * thing on every screen that had one.
  * ---------------------------------------------------------------------- */
 
@@ -308,38 +335,46 @@
   justify-content: space-between;
   gap: var(--space-2);
   width: 100%;
-  min-height: 38px;
-  padding: var(--space-2) var(--space-3);
-  background: var(--surface-sunken);
+  min-height: 36px;
+  padding: 6px var(--space-3);
+  background: var(--surface);
   color: var(--ink);
-  border: 1px solid transparent;
+  border: 1px solid var(--border-input);
   border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-inset-sm);
+  box-shadow: none;
   font-size: var(--text-base);
   text-align: left;
   cursor: pointer;
   transition:
-    box-shadow var(--dur) var(--ease),
-    border-color var(--dur) var(--ease);
+    box-shadow var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+
+.picker:hover:not(:disabled) {
+  box-shadow: 0 0 0 3px var(--border);
 }
 
 .picker:disabled {
   cursor: default;
-  opacity: 0.6;
+  background: var(--surface-sunken);
+  border-color: var(--border);
+  color: var(--ink-3);
 }
 
 .picker:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-halo);
 }
 
 .picker--open {
-  border-color: var(--accent-ring);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-halo);
 }
 
 .picker--compact {
-  min-height: 32px;
-  padding: var(--space-1) var(--space-2);
+  min-height: 30px;
+  padding: 2px var(--space-2);
   font-size: var(--text-sm);
 }
 
@@ -380,21 +415,21 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-sm);
+  padding: 6px var(--space-3);
+  border-radius: var(--radius-xs);
   color: var(--ink-2);
   font-size: var(--text-base);
   cursor: pointer;
 }
 
 .picker__option--active {
-  background: var(--surface-hover);
+  background: var(--hover);
   color: var(--ink);
 }
 
 .picker__option--selected {
   color: var(--accent-strong);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .picker__label {
@@ -420,23 +455,24 @@
 }
 
 .chip {
-  padding: var(--space-2) var(--space-3);
-  background: var(--surface-sunken);
+  padding: 5px var(--space-3);
+  background: var(--surface);
   color: var(--ink-2);
-  border: 1px solid transparent;
-  border-radius: 999px;
-  box-shadow: var(--shadow-inset-sm);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  box-shadow: none;
   font-size: var(--text-sm);
   font-weight: 500;
   cursor: pointer;
   transition:
     background var(--dur-fast) var(--ease),
-    color var(--dur-fast) var(--ease),
-    box-shadow var(--dur-fast) var(--ease);
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 
 .chip:hover:not(:disabled) {
   color: var(--ink);
+  border-color: var(--border-input);
 }
 
 .chip:focus-visible {
@@ -444,15 +480,13 @@
   outline-offset: 2px;
 }
 
-/* On is raised and carries the accent in its text, never a filled block: the
-   chosen chip should be the obvious one without being the loudest thing on
-   the form. */
-.chip--on {
-  background: var(--surface);
+/* On takes the accent's pale wash and its edge: the chosen chip is the
+   obvious one without being the loudest thing on the form. */
+.chip--on,
+.chip--on:hover:not(:disabled) {
+  background: var(--accent-soft);
   color: var(--accent-strong);
-  font-weight: 700;
-  border-color: var(--accent-ring);
-  box-shadow: var(--shadow-xs);
+  border-color: var(--accent);
 }
 
 .chip:disabled {
@@ -482,62 +516,85 @@
 
 /* ---- Badge -------------------------------------------------------------
  * Status. Colour plus label, always both - colour alone fails for anyone who
- * cannot separate these hues, and elevation is not allowed to carry meaning.
+ * cannot separate these hues. A pale fill, an edge a step darker, and the
+ * word in the full colour.
  * ---------------------------------------------------------------------- */
 
 .badge {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  padding: 2px var(--space-3);
+  padding: 1px var(--space-2);
   border-radius: var(--radius-pill);
-  /* Transparent by default so a variant can add a border without the pill
-   * changing size against its neighbours. */
   border: 1px solid transparent;
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   font-weight: 500;
+  line-height: 18px;
   white-space: nowrap;
 }
 
-/* A neutral badge has to read on a raised card AND inside the sunken table
- * well, and a fill alone cannot do both: whichever surface colour it takes,
- * it disappears against the other. The hairline is what makes it a pill
- * everywhere. */
 .badge--neutral {
-  background: var(--surface);
-  border-color: var(--border);
+  background: var(--surface-sunken);
+  border-color: var(--border-strong);
   color: var(--ink-2);
 }
-.badge--ok      { background: var(--ok-soft);     color: var(--ok); }
-.badge--warn    { background: var(--warn-soft);   color: var(--warn); }
-.badge--danger  { background: var(--danger-soft); color: var(--danger); }
-.badge--info    { background: var(--info-soft);   color: var(--info); }
-.badge--accent  { background: var(--accent-soft); color: var(--accent-strong); }
+.badge--ok {
+  background: var(--ok-soft);
+  border-color: color-mix(in srgb, var(--ok) 28%, var(--ok-soft));
+  color: var(--ok);
+}
+.badge--warn {
+  background: var(--warn-soft);
+  border-color: color-mix(in srgb, var(--warn) 28%, var(--warn-soft));
+  color: var(--warn);
+}
+.badge--danger {
+  background: var(--danger-soft);
+  border-color: color-mix(in srgb, var(--danger) 28%, var(--danger-soft));
+  color: var(--danger);
+}
+.badge--info {
+  background: var(--info-soft);
+  border-color: color-mix(in srgb, var(--info) 28%, var(--info-soft));
+  color: var(--info);
+}
+.badge--accent {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--accent-soft));
+  color: var(--accent-strong);
+}
 
-/* ---- Tabs ------------------------------------------------------------- */
+/* ---- Tabs --------------------------------------------------------------
+ * Two shapes. The default is a segmented control, for a small choice about
+ * how to show one thing (Day or Week, the theme). .tabs--line is a row of
+ * underlined tabs, for sections of a screen (Invoices, Quotes, Spend).
+ * ---------------------------------------------------------------------- */
 
 .tabs {
   display: inline-flex;
-  gap: var(--space-1);
-  padding: var(--space-1);
+  gap: 2px;
+  padding: 3px;
   background: var(--surface-sunken);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-inset-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
 }
 
 .tab {
-  padding: var(--space-2) var(--space-4);
+  padding: 5px var(--space-3);
   background: transparent;
   color: var(--ink-3);
-  border: none;
-  border-radius: var(--radius-xs);
-  font-size: var(--text-base);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
   font-weight: 500;
   cursor: pointer;
-  transition: all var(--dur) var(--ease);
+  transition:
+    background var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 
-.tab:hover { color: var(--ink-2); }
+.tab:hover { color: var(--ink); }
 
 /* Selected. Three spellings, one rule: tablists say aria-selected, toggle
  * groups say aria-pressed, and the weekday pickers use the modifier. */
@@ -546,7 +603,34 @@
 .tab--on {
   background: var(--surface);
   color: var(--ink);
+  border-color: var(--border-strong);
   box-shadow: var(--shadow-xs);
+}
+
+.tabs--line {
+  display: flex;
+  gap: var(--space-5);
+  padding: 0;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+}
+
+.tabs--line .tab {
+  margin-bottom: -1px;
+  padding: var(--space-2) 0;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  font-size: var(--text-base);
+}
+
+.tabs--line .tab[aria-selected="true"] {
+  background: none;
+  color: var(--accent-strong);
+  border-bottom-color: var(--accent);
+  box-shadow: none;
 }
 
 /* ---- Toggle ----------------------------------------------------------- */
@@ -555,13 +639,13 @@
   position: relative;
   display: inline-flex;
   align-items: center;
-  width: 44px;
-  height: 26px;
+  width: 40px;
+  height: 22px;
   padding: 0;
-  background: var(--surface-sunken);
+  background: var(--border-strong);
   border: none;
   border-radius: var(--radius-pill);
-  box-shadow: var(--shadow-inset-sm);
+  box-shadow: none;
   cursor: pointer;
   transition: background var(--dur) var(--ease);
 }
@@ -570,12 +654,17 @@
   background: var(--accent);
 }
 
+.toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .toggle__thumb {
   position: absolute;
   left: 3px;
-  width: 20px;
-  height: 20px;
-  background: var(--surface);
+  width: 16px;
+  height: 16px;
+  background: var(--knob);
   border-radius: 50%;
   box-shadow: var(--shadow-xs);
   transition: transform var(--dur) var(--ease);
@@ -595,9 +684,6 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-3);
-  /* Was --space-8 top and bottom, which made every empty state a screenful of
-   * nothing wrapped around two lines of text. An empty state should state the
-   * fact and offer the next action, not occupy the page while doing it. */
   padding: var(--space-6) var(--space-5);
   text-align: center;
 }
@@ -609,9 +695,9 @@
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   background: var(--surface-sunken);
-  box-shadow: var(--shadow-inset-sm);
+  border: 1px solid var(--border);
 }
 
 .hintbar__icon { flex: none; color: var(--ink-3); }
@@ -620,7 +706,7 @@
   flex: 1;
   min-width: 0;
   color: var(--ink-2);
-  font-size: var(--text-base);
+  font-size: var(--text-sm);
 }
 
 .empty__icon { color: var(--ink-3); }
@@ -655,13 +741,11 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ---- Modal scrim ------------------------------------------------------- */
+/* ---- Dialogs ------------------------------------------------------------ */
 
-/* A dialog: the same scrim recipe as the shortcut help, with a raised panel
- * centred on it. Three forms - a block of time, the timetable, a campaign -
- * were written against these class names before any rule existed for them,
- * so they rendered in the page flow under whatever screen opened them. Nothing
- * failed; the form simply sat at the bottom of the page. */
+/* A dialog: the scrim, with a panel centred on it. The scrim darkens both
+ * themes rather than tinting: it is not a surface, and deriving it from a
+ * token would make it disappear in one of them. */
 .modal {
   position: fixed;
   inset: 0;
@@ -669,7 +753,7 @@
   display: grid;
   place-items: center;
   padding: var(--space-5);
-  background: rgba(0, 0, 0, 0.45);
+  background: rgba(0, 30, 43, 0.5);
   overflow-y: auto;
 }
 
@@ -682,7 +766,7 @@
   padding: var(--space-5);
   overflow-y: auto;
   background: var(--surface);
-  border: 1px solid var(--face-edge, transparent);
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-float);
 }
@@ -699,21 +783,104 @@
   flex: 1;
 }
 
-
-/* The same thing as .modal under the name two forms were written against.
- * Darkens both themes rather than tinting: a scrim is not a surface, and
- * deriving it from a token would make it disappear in one of them. */
-.scrim { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: var(--space-5); background: rgba(0, 0, 0, 0.45); overflow-y: auto; }
+/* The same thing as .modal under the name two forms were written against. */
+.scrim { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: var(--space-5); background: rgba(0, 30, 43, 0.5); overflow-y: auto; }
 
 .kbd {
   display: inline-block;
   min-width: 22px;
-  padding: 2px var(--space-2);
+  padding: 1px var(--space-2);
   border-radius: var(--radius-xs);
   background: var(--surface-sunken);
-  box-shadow: var(--shadow-inset-sm);
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
   color: var(--ink-2);
   font-family: inherit;
   font-size: var(--text-xs);
   text-align: center;
+}
+
+/* ---- Menu ---------------------------------------------------------------
+ * One button and a short list under it: a section's kinds of page, a page's
+ * less common actions. Lines up under its button, above everything near it.
+ * ---------------------------------------------------------------------- */
+
+.menubtn {
+  position: relative;
+  display: inline-flex;
+}
+
+.menubtn__chevron {
+  margin-left: 2px;
+  opacity: 0.7;
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  max-width: 320px;
+  padding: var(--space-1);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+}
+
+.menu--left { left: 0; }
+.menu--right { right: 0; }
+
+.menu__item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: none;
+  color: var(--ink);
+  border: none;
+  border-radius: var(--radius-xs);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu__item svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--ink-3);
+}
+
+.menu__item:hover,
+.menu__item:focus-visible {
+  background: var(--surface-hover);
+  outline: none;
+}
+
+.menu__item:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.menu__item--danger,
+.menu__item--danger svg {
+  color: var(--danger);
+}
+
+.menu__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.menu__label {
+  font-weight: 600;
+}
+
+.menu__hint {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
 }

@@ -35,6 +35,7 @@ export function LeadMoney({ leadId, onOpenMoney }: { leadId: string; onOpenMoney
       status: isOverdueInvoice(invoice, day) ? "Overdue" : INVOICE_STATUS_LABEL[invoice.status],
       danger: isOverdueInvoice(invoice, day),
       when: invoice.issuedOn,
+      deal: invoice.dealTitle,
     })),
     ...(data?.quotes ?? []).map((quote) => ({
       id: quote.id,
@@ -43,8 +44,11 @@ export function LeadMoney({ leadId, onOpenMoney }: { leadId: string; onOpenMoney
       status: QUOTE_STATUS_LABEL[quote.status],
       danger: false,
       when: quote.issuedOn,
+      deal: quote.dealTitle,
     })),
   ].sort((a, b) => b.when.localeCompare(a.when));
+  // Which deal a document is for only needs saying once there is a choice.
+  const severalDeals = new Set(documents.map((doc) => doc.deal).filter(Boolean)).size > 1;
 
   return (
     <div className="leadtasks">
@@ -63,6 +67,7 @@ export function LeadMoney({ leadId, onOpenMoney }: { leadId: string; onOpenMoney
             <li key={doc.id} className="money__row">
               <span className="money__main money__main--flat">
                 <span className="money__number">{doc.number}</span>
+                {severalDeals && doc.deal && <span className="money__who">{doc.deal}</span>}
                 <span className="money__when">{formatDay(doc.when)}</span>
               </span>
               <span className="money__amount">{formatValue(doc.total, currency)}</span>

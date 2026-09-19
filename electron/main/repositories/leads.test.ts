@@ -446,6 +446,31 @@ describe("the table's columns", () => {
   });
 });
 
+describe("relationships", () => {
+  it("start as prospects, are kept on edit, and filter the list", () => {
+    const school = createLead(db, company.id, leadInput.parse({ name: "School" }));
+    const accountant = createLead(
+      db,
+      company.id,
+      leadInput.parse({ name: "Sharma & Co", relationship: "accountant" }),
+    );
+    expect(school.relationship).toBe("prospect");
+
+    const edited = updateLead(db, accountant.id, leadInput.parse({ name: "Sharma and Co", relationship: "accountant" }));
+    expect(edited.relationship).toBe("accountant");
+    expect(listActivities(db, accountant.id).map((a) => a.body)).toContain("name");
+
+    const names = (relationship: "accountant" | "prospect") =>
+      listLeads(db, { companyId: company.id, relationship }).map((lead) => lead.name);
+    expect(names("accountant")).toEqual(["Sharma and Co"]);
+    expect(names("prospect")).toEqual(["School"]);
+  });
+
+  it("refuses one that is not on the list", () => {
+    expect(() => leadInput.parse({ name: "X", relationship: "friend" })).toThrow();
+  });
+});
+
 describe("sorting a column both ways", () => {
   beforeEach(() => {
     createLead(db, company.id, leadInput.parse({ name: "Alpha", value: 100 }));

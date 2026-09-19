@@ -7,6 +7,9 @@ import { addPayment, saveInvoice, saveQuote, setInvoiceStatus, setQuoteStatus } 
 import { listStages } from "../repositories/companies";
 import { leadInput, taskInput, type PipelineStage } from "@shared/domain";
 import { shiftDay, today as todayIn } from "@shared/dates";
+import { linkToken } from "@shared/links";
+import { createPage } from "../repositories/brain";
+import { entryTitle, makeTime } from "./life";
 
 /**
  * Sample data, so a new company is not six empty screens.
@@ -209,14 +212,14 @@ export function seedDemo(db: Db, companyId: string, now: Date = new Date()): str
 
       // Walked through the funnel rather than dropped at the end of it.
       //
-      // createLead already puts the lead in its target stage, so a single
-      // setLeadStage to that same stage returns early and writes nothing -
-      // the sample data had a Won deal with no record of ever having been
+      // createLead already puts the contact's deal in its target stage, so a
+      // single move to that same stage returns early and writes nothing - the
+      // sample data had a Won deal with no record of ever having been
       // anywhere, and the forecast, which learns from what stages a deal
       // passed through, had nothing at all to count.
       if (stage) {
         const path = walkTo(stages, stage);
-        db.prepare(`UPDATE leads SET stage_id = ? WHERE id = ?`).run(
+        db.prepare(`UPDATE deals SET stage_id = ? WHERE lead_id = ?`).run(
           path[0]?.id ?? null,
           lead.id,
         );
@@ -254,6 +257,7 @@ export function seedDemo(db: Db, companyId: string, now: Date = new Date()): str
         ).toISOString();
 
         db.prepare(`UPDATE leads SET created_at = ? WHERE id = ?`).run(born, lead.id);
+        db.prepare(`UPDATE deals SET created_at = ? WHERE lead_id = ?`).run(born, lead.id);
         db.prepare(
           `UPDATE activities SET occurred_at = ?, created_at = ?
             WHERE lead_id = ? AND occurred_at > ?`,
@@ -346,6 +350,81 @@ export function seedDemo(db: Db, companyId: string, now: Date = new Date()): str
         ],
       });
       setQuoteStatus(db, companyId, quote.id, "sent");
+    }
+
+    // And the half of a student founder's life that is not the company: a
+    // course with an exam coming, a hobby with evenings set aside for it, a
+    // goal part of the way there, and two days of the journal - so the
+    // brain's own sections, Today's journal card and the Calendar's evenings
+    // have something in them too.
+    const at = now.toISOString();
+    const course = createPage(
+      db,
+      companyId,
+      {
+        section: "studies",
+        template: "course",
+        title: "Data structures",
+        body: `## What it covers\n\nTrees, graphs, and how fast things get as they grow.\n\n## Assignments\n\n- [ ] Problem set 3 (by ${shiftDay(day, 6)})\n- [ ] Read chapter 5\n`,
+        fields: { code: "CS2101", term: "Semester 3", credits: 4, status: "taking" },
+      },
+      at,
+    );
+    createPage(
+      db,
+      companyId,
+      {
+        section: "studies",
+        template: "exam",
+        title: "Data structures midterm",
+        body: `For ${linkToken("Data structures", { kind: "page", id: course })}.\n\n## To revise\n\n- [ ] Trees and heaps\n- [ ] Graph search\n`,
+        fields: { examOn: shiftDay(day, 12), at: "09:30, LT-2" },
+      },
+      at,
+    );
+    const hobby = createPage(
+      db,
+      companyId,
+      {
+        section: "hobbies",
+        template: "hobby",
+        title: "Guitar",
+        body: "## Why I do it\n\nIt is the one hour nothing else gets into.\n",
+        fields: { status: "doing-it", hoursWanted: 3, goal: "Five songs, start to finish" },
+      },
+      at,
+    );
+    makeTime(db, hobby, { weekdays: [2, 5], startsAt: "20:00", minutes: 45, until: shiftDay(day, 56) }, now);
+    createPage(
+      db,
+      companyId,
+      {
+        section: "goals",
+        template: "life-goal",
+        title: "Read 12 books this year",
+        body: "## Why it matters\n\nA founder who reads is a founder who borrows other people's mistakes.\n",
+        fields: { area: "personal", target: 12, progress: 4, unit: "books", byOn: `${day.slice(0, 4)}-12-31` },
+      },
+      at,
+    );
+    const entries: [number, string, string][] = [
+      [2, "okay", "Two lectures and a quiet afternoon. Oakridge still has not written back."],
+      [1, "good", "Prajna Vahini paid. Played for forty minutes after dinner without looking at the phone."],
+    ];
+    for (const [ago, mood, words] of entries) {
+      const on = shiftDay(day, -ago);
+      createPage(
+        db,
+        companyId,
+        {
+          section: "journal",
+          template: "entry",
+          title: entryTitle(on),
+          body: `## Today\n\n${words}\n\n## Grateful for\n\n\n## Tomorrow\n\n`,
+          fields: { day: on, mood },
+        },
+        at,
+      );
     }
 
     return batchId;

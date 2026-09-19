@@ -106,8 +106,8 @@ export function moveStage(db: Db, stageId: string, direction: -1 | 1): PipelineS
 /**
  * Removes a stage.
  *
- * Leads in it are not deleted: the foreign key nulls their `stage_id`, and they
- * show on the board in an "Unstaged" column so nobody is lost by tidying the
+ * Deals in it are not deleted: the foreign key nulls their `stage_id`, and they
+ * show on the board in an "Unstaged" column so nothing is lost by tidying the
  * funnel. The last stage cannot go, because a board with no columns has nowhere
  * to put anything.
  */
@@ -118,7 +118,7 @@ export function deleteStage(db: Db, stageId: string): PipelineStage[] {
     .prepare(`SELECT COUNT(*) AS n FROM pipeline_stages WHERE company_id = ?`)
     .get(companyId) as { n: number };
   if (count.n <= 1) {
-    throw new Error("Keep at least one stage. A board needs somewhere to put a lead.");
+    throw new Error("Keep at least one stage. A board needs somewhere to put a deal.");
   }
 
   db.transaction(() => {

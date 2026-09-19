@@ -19,14 +19,21 @@ import { MIGRATIONS, migrate } from "./migrations";
 
 const DOC = readFileSync(join(import.meta.dirname, "../../../reference/data-model.md"), "utf8");
 
+/**
+ * Tables and virtual tables, but not the shadow tables FTS5 keeps behind a
+ * virtual table: those are SQLite's, and the page describes the index once.
+ */
 function tablesInSchema(): string[] {
   const db = new Database(":memory:");
   migrate(db);
   return (
-    db
-      .prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'`)
-      .all() as { name: string }[]
-  ).map((row) => row.name);
+    db.prepare(`SELECT name, type FROM pragma_table_list WHERE schema = 'main'`).all() as {
+      name: string;
+      type: string;
+    }[]
+  )
+    .filter((row) => (row.type === "table" || row.type === "virtual") && !row.name.startsWith("sqlite_"))
+    .map((row) => row.name);
 }
 
 /** Every identifier named in a `## ` heading - "## sequences, sequence_steps" is two. */

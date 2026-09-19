@@ -67,13 +67,13 @@
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-md);
   background: var(--surface);
-  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border);
 }
 
-/* Pinned reads as raised, not as ruled. Same reason as the blocks: a flat
- * coloured bar against a soft surface looks like something went wrong. */
+/* Pinned takes the stronger edge rather than a coloured bar: a bar down one
+ * side of a card looks like something went wrong. */
 .note--pinned {
-  box-shadow: var(--shadow-md);
+  border-color: var(--border-strong);
 }
 
 .note__body {
@@ -95,6 +95,16 @@
   display: flex;
   align-items: center;
   gap: var(--space-1);
+}
+
+/* Filing a note into the brain: where to, then go. */
+.note__file {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--soft-line);
 }
 
 .note__when {
@@ -122,10 +132,10 @@
   padding: var(--space-4) var(--space-4) var(--space-4) var(--space-6);
   border-radius: var(--radius-md);
   background: var(--surface-sunken);
-  box-shadow: var(--shadow-inset-sm);
   color: var(--ink-2);
   font-size: var(--text-sm);
   line-height: 1.55;
+  border: 1px solid var(--border);
 }
 
 .guide strong { color: var(--ink); }
@@ -159,7 +169,6 @@
   border: 0;
   border-radius: var(--radius-md);
   background: var(--surface-sunken);
-  box-shadow: var(--shadow-inset-sm);
   color: var(--ink);
   font: inherit;
   font-size: var(--text-base);

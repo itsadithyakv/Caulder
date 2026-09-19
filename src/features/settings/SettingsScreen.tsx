@@ -9,8 +9,10 @@ import { StageEditor } from "./StageEditor";
 import { DataSafety } from "./DataSafety";
 import { FieldsCard, RemindersCard } from "./Workbench";
 import { GoogleCard } from "./GoogleCard";
+import { AiCard } from "./AiCard";
 import { WordsCard } from "./WordsCard";
 import { TemplatesCard } from "./TemplatesCard";
+import { ThisIsMeCard } from "@/features/sharing/ThisIsMeCard";
 import { getTheme, setTheme, type ThemeChoice } from "@/lib/theme";
 import { CURRENCIES, DEFAULT_CAPTURE_SHORTCUT, type AccentId, type Company } from "@shared/domain";
 import { Select } from "@/components/Select";
@@ -30,13 +32,21 @@ const THEME_OPTIONS: { id: ThemeChoice; label: string }[] = [
 const GROUPS = [
   { id: "workspace", label: "Workspace" },
   { id: "planning", label: "Planning" },
+  { id: "connections", label: "Connections" },
   { id: "desk", label: "Desk" },
   { id: "app", label: "The app" },
 ] as const;
 
 type GroupId = (typeof GROUPS)[number]["id"];
 
-export function SettingsScreen({ onAddCompany }: { onAddCompany: () => void }) {
+export function SettingsScreen({
+  onAddCompany,
+  onOpenSetup,
+}: {
+  onAddCompany: () => void;
+  /** The setup guide, which is these cards with the reasons for them. */
+  onOpenSetup: () => void;
+}) {
   const { companies, activeCompany } = useWorkspace();
 
   function jump(id: GroupId) {
@@ -60,6 +70,7 @@ export function SettingsScreen({ onAddCompany }: { onAddCompany: () => void }) {
 
       <div className="settings__groups">
         <Group id="workspace" label="Workspace">
+          <ThisIsMeCard />
           <Card
             title="Companies"
             actions={
@@ -94,9 +105,23 @@ export function SettingsScreen({ onAddCompany }: { onAddCompany: () => void }) {
           <RemindersCard />
         </Group>
 
+        <Group id="connections" label="Connections">
+          <Card
+            title="The setup guide"
+            hint="Google and an AI, in order, with what each one is for. The same cards as here."
+          >
+            <div className="actions">
+              <button type="button" className="btn btn--sm" onClick={onOpenSetup}>
+                Open the setup guide
+              </button>
+            </div>
+          </Card>
+          <GoogleCard />
+          <AiCard />
+        </Group>
+
         <Group id="desk" label="Desk">
           <CaptureCard />
-          <GoogleCard />
         </Group>
 
         <Group id="app" label="The app">

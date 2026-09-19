@@ -2,6 +2,7 @@ import { test, expect, _electron as electron, type ElectronApplication, type Pag
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { passSetup } from "./nav";
 
 /**
  * One line into a task, in a real window.
@@ -34,13 +35,8 @@ async function openApp(): Promise<Page> {
   if (await page.locator(".firstrun").isVisible()) {
     await page.getByLabel("Company name").fill("Mine");
     await page.getByRole("button", { name: "Create company" }).click();
+    await passSetup(page);
     await expect(page.getByRole("button", { name: /Mine/ })).toBeVisible();
-    // A first run offers a short tour, which sits over everything. Leaving it
-    // is exactly what somebody starting the app does.
-    await page.locator(".tour").waitFor({ timeout: 3000 }).then(
-      () => page.keyboard.press("Escape"),
-      () => undefined,
-    );
   }
   await page.getByLabel("Main").getByRole("button", { name: "Today", exact: true }).click();
   return page;
@@ -60,7 +56,7 @@ test.afterEach(async () => {
 
 test("a line with a time makes the task and sets the hour aside", async () => {
   const page = await openApp();
-  const line = page.getByLabel("Add a task in one line");
+  const line = page.getByLabel("Anything, in one line");
 
   await line.fill("Task at 4pm, tomorrow, Datascience Assignment");
 
@@ -85,7 +81,7 @@ test("a line with a time makes the task and sets the hour aside", async () => {
 
 test("it asks when a task has no day, and Enter does not guess", async () => {
   const page = await openApp();
-  const line = page.getByLabel("Add a task in one line");
+  const line = page.getByLabel("Anything, in one line");
 
   await line.fill("Pay the phone bill");
   await expect(page.locator(".quickadd__question")).toHaveText("When is it due?");
@@ -103,7 +99,7 @@ test("it asks when a task has no day, and Enter does not guess", async () => {
 
 test("typing the answer works as well as pressing it", async () => {
   const page = await openApp();
-  const line = page.getByLabel("Add a task in one line");
+  const line = page.getByLabel("Anything, in one line");
 
   await line.fill("Read chapter four");
   await expect(page.locator(".quickadd__question")).toHaveText("When is it due?");
@@ -113,7 +109,7 @@ test("typing the answer works as well as pressing it", async () => {
 
 test("a word taught in Settings decides the area, and forgetting it undoes that", async () => {
   const page = await openApp();
-  const line = page.getByLabel("Add a task in one line");
+  const line = page.getByLabel("Anything, in one line");
   const reading = page.locator(".quickadd__reading");
 
   // Before: nothing in the line points anywhere, so the workspace fills in
@@ -156,7 +152,7 @@ test("a title main refuses says why, in a sentence", async () => {
   // The schema in main caps a title at 200 characters. Its refusal used to
   // arrive as Electron's wrapper round a ZodError's whole issue list as JSON.
   const page = await openApp();
-  const line = page.getByLabel("Add a task in one line");
+  const line = page.getByLabel("Anything, in one line");
   await line.fill(`${"x".repeat(250)} today`);
   await line.press("Enter");
   await expect(page.locator(".quickadd").getByRole("alert")).toHaveText(
@@ -166,7 +162,7 @@ test("a title main refuses says why, in a sentence", async () => {
 
 test("a repeat asks until when, then sets aside every one of them", async () => {
   const page = await openApp();
-  const line = page.getByLabel("Add a task in one line");
+  const line = page.getByLabel("Anything, in one line");
 
   await line.fill("gym mon wed fri 7am");
   await expect(page.locator(".quickadd__reading")).toContainText("Every Mon, Wed, Fri");
@@ -203,7 +199,7 @@ test("a repeat asks until when, then sets aside every one of them", async () => 
 
 test("a wrong area is one click on the reading to fix", async () => {
   const page = await openApp();
-  const line = page.getByLabel("Add a task in one line");
+  const line = page.getByLabel("Anything, in one line");
 
   await line.fill("hw due tomorrow");
   const area = page.locator(".quickadd__reading").getByRole("button", { name: /^Area:/ });
@@ -227,7 +223,7 @@ test("a wrong area is one click on the reading to fix", async () => {
 
 test("a slip is read as the day it nearly is, and says so", async () => {
   const page = await openApp();
-  await page.getByLabel("Add a task in one line").fill("submit report wensday");
+  await page.getByLabel("Anything, in one line").fill("submit report wensday");
   await expect(page.locator(".quickadd__aside")).toHaveText("Read “wensday” as Wednesday.");
   await expect(page.locator(".quickadd__reading .quickadd__title")).toHaveText("Submit report");
 });
@@ -240,7 +236,7 @@ test("A from another screen lands in the line", async () => {
   await page.keyboard.press("a");
 
   await expect(page.getByRole("heading", { name: "Today", exact: true })).toBeVisible();
-  await expect(page.getByLabel("Add a task in one line")).toBeFocused();
+  await expect(page.getByLabel("Anything, in one line")).toBeFocused();
   // And the A itself did not land in the line.
-  await expect(page.getByLabel("Add a task in one line")).toHaveValue("");
+  await expect(page.getByLabel("Anything, in one line")).toHaveValue("");
 });

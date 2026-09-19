@@ -33,6 +33,8 @@ function block(startsAt: string, minutes: number, kind: string | null = "focus")
     remindMinutes: null,
     remindedAt: null,
     taskTitle: null,
+    pageId: null,
+    pageTitle: null,
     source: "caulder",
     externalId: null,
     isDirty: false,

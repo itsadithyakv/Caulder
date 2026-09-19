@@ -82,7 +82,7 @@ export function FirstRun({
    * leave this screen; without it, adding a second company succeeds but the
    * form stays up, which reads as the button having done nothing.
    */
-  onCreated?: () => void;
+  onCreated?: (sample: boolean) => void;
 }) {
   const { companies, create, remove, refresh } = useWorkspace();
 
@@ -149,7 +149,7 @@ export function FirstRun({
           if (await window.caulder.companies.demoBatch(other.id)) await remove(other.id);
         }
       }
-      onCreated?.();
+      onCreated?.(sample);
     } catch (cause) {
       setError(messageOf(cause));
     } finally {

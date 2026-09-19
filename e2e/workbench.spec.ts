@@ -2,6 +2,7 @@ import { test, expect, _electron as electron, type ElectronApplication } from "@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { passSetup } from "./nav";
 
 /**
  * Your own fields, files and reminders, through the real window.
@@ -23,6 +24,7 @@ async function openApp() {
   if (await page.locator(".firstrun").isVisible()) {
     await page.getByLabel("Company name").fill("Unifloe");
     await page.getByRole("button", { name: "Create company" }).click();
+    await passSetup(page);
     await expect(page.getByRole("button", { name: /Company: Unifloe/ })).toBeVisible();
   }
 

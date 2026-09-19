@@ -2,6 +2,7 @@ import { test, expect, _electron as electron, type ElectronApplication, type Pag
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { passSetup } from "./nav";
 
 /**
  * The pipeline board and the stage editor, through the real window.
@@ -28,12 +29,9 @@ async function ensureCompany(page: Page) {
   if (await page.locator(".firstrun").isVisible()) {
     await page.getByLabel("Company name").fill("Unifloe");
     await page.getByRole("button", { name: "Create company" }).click();
+    await passSetup(page);
     await expect(page.getByRole("button", { name: /Company: Unifloe/ })).toBeVisible();
 
-  // A first run now offers the tour, which sits over everything. Dismissing
-  // it is exactly what somebody starting the app does.
-  await page.waitForTimeout(700);
-  if (await page.locator(".tour").count()) await page.keyboard.press("Escape");
   }
 }
 
@@ -189,6 +187,52 @@ test("a column totals the value of the leads in it", async () => {
   await page.getByRole("button", { name: "Deals" }).click();
   const first = page.locator(".column").first();
   await expect(first.locator(".column__value")).toHaveText("45,000");
+});
+
+test("a contact with two deals has a card for each, and they move apart", async () => {
+  app = await launch();
+  const page = await app.firstWindow();
+  await ensureCompany(page);
+
+  await addLead(page, "Beacon Academy");
+  await page.getByRole("button", { name: "Add a deal" }).click();
+  await page.getByLabel("Deal", { exact: true }).fill("Second campus");
+  await page.getByLabel("Deal value").fill("90000");
+  await page.getByRole("button", { name: "Add deal" }).click();
+  const deals = page.getByRole("list", { name: "Deals with Beacon Academy" });
+  await expect(deals.getByRole("listitem")).toHaveCount(2);
+
+  // With two deals there is no one stage or value for the form to edit.
+  await page.getByRole("button", { name: "Edit details" }).click();
+  await expect(page.getByText("2 deals with this contact")).toBeVisible();
+  await expect(page.getByLabel("Value", { exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Cancel" }).click();
+
+  await page.getByRole("button", { name: "Deals" }).click();
+  // The second card names its contact; the first is named after it.
+  await expect(card(page, "Second campus")).toContainText("Beacon Academy");
+  await page.getByRole("button", { name: "Move Second campus to another stage" }).click();
+  await page.getByRole("menuitem", { name: "Won" }).click();
+  expect(await columnOf(page, "Second campus")).toBe("Won");
+  const main = page
+    .locator(".boardcard")
+    .filter({ has: page.locator(".boardcard__name", { hasText: /^Beacon Academy$/ }) });
+  await expect(
+    main.locator("xpath=ancestor::section[contains(@class,'column')]").locator(".column__name"),
+  ).toHaveText("New");
+
+  // The history says which deal moved, and the header follows the open one.
+  await card(page, "Second campus").getByRole("button").first().click();
+  await expect(page.locator(".entry__text").first()).toHaveText("Second campus: Won");
+  await expect(page.locator(".detail__head")).toContainText("New");
+
+  // Losing the other asks why, and keeps the answer on the deal.
+  await page.getByRole("combobox", { name: "Stage of Beacon Academy" }).click();
+  await page.getByRole("option", { name: "Lost" }).click();
+  await page.getByRole("button", { name: "Went quiet" }).click();
+  await expect(deals.getByRole("listitem").filter({ hasText: "Lost because: Went quiet" })).toHaveCount(1);
+  // Nothing open now, so the contact is summed up by the deal touched last.
+  await expect(page.locator(".detail__head")).toContainText("Lost");
 });
 
 test("stages can be renamed, reordered and added", async () => {

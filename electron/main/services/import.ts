@@ -1,3 +1,4 @@
+import { createDeal, mainDeal, setDealValue } from "../repositories/deals";
 import { randomUUID } from "node:crypto";
 import ExcelJS from "exceljs";
 import type { Db } from "../db/connection";
@@ -593,7 +594,6 @@ const MERGEABLE = [
   "pin",
   "source",
   "website",
-  "value",
   "notes",
 ] as const;
 
@@ -618,6 +618,12 @@ function applyMerge(db: Db, target: Lead, values: ImportValues, overwrite: boole
     params[field] = incoming;
   }
 
+  // The value is the main deal's; a contact with none gets one to carry it.
+  const value = values.value;
+  if (value !== null && (overwrite || target.value === null) && target.value !== value) {
+    putValue(db, target.id, target.name, value);
+  }
+
   if (sets.length === 0) return;
 
   db.prepare(`UPDATE leads SET ${sets.join(", ")}, updated_at = @now WHERE id = @id`).run(
@@ -635,12 +641,17 @@ const COLUMN: Record<(typeof MERGEABLE)[number], string> = {
   pin: "pin",
   source: "source",
   website: "website",
-  value: "value",
   notes: "notes",
 };
 
+function putValue(db: Db, leadId: string, name: string, value: number | null): void {
+  const deal = mainDeal(db, leadId);
+  if (deal) setDealValue(db, deal.id, value, new Date().toISOString());
+  else if (value !== null) createDeal(db, leadId, { title: name, stageId: null, value });
+}
+
 function toLeadInput(values: ImportValues, campaignId: string | null) {
-  return { ...values, stageId: null, campaignId, doNotContact: false };
+  return { ...values, stageId: null, campaignId, doNotContact: false, relationship: "prospect" as const };
 }
 
 /* ---- Undo --------------------------------------------------------------- */
@@ -705,10 +716,11 @@ export function undoImport(db: Db, batchId: string): { deleted: number; restored
         `UPDATE leads SET
            contact_person = @contactPerson, email = @email, phone = @phone,
            alt_phone = @altPhone, location = @location, city = @city, pin = @pin,
-           source = @source, website = @website, value = @value, notes = @notes,
+           source = @source, website = @website, notes = @notes,
            updated_at = @now
          WHERE id = @id`,
       ).run({ ...values, id: leadId, now: new Date().toISOString() });
+      if (existing.value !== values.value) putValue(db, leadId, existing.name, values.value);
       restored += 1;
     }
 
