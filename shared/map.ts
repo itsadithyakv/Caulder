@@ -56,7 +56,20 @@ export type MapNode = {
   pinned: boolean;
 };
 
-export type MapLink = { source: string; target: string; createdAt: string };
+export type MapLink = {
+  source: string;
+  target: string;
+  createdAt: string;
+  /**
+   * Written in a page's text, so it can be taken out on the Map. The lines
+   * Caulder draws itself - a person who is a contact, who bought what - are
+   * not, and cannot.
+   */
+  written?: boolean;
+};
+
+/** What linking two dots on the Map did: the page it was written in, or that it was there already. */
+export type LinkOutcome = { pageId: string; pageTitle: string; already: boolean };
 
 export type MapGraph = { nodes: MapNode[]; links: MapLink[] };
 

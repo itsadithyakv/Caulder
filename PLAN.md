@@ -1075,3 +1075,20 @@ people in any country, not only Indian student founders.
 
 Not done, and why: **code signing** needs a certificate bought in the
 founder's name; **a real send through Google** needs the founder's account.
+
+### After 0.4 - Settings laid out, and links made with the mouse - *done 19 September 2026*
+
+Asked for on 19 September 2026: Settings felt empty, with a lot of space and
+nothing in it; and the Map should link things by dragging, not only by
+typing `[[`.
+
+- **Settings, laid out on purpose.** Each group is a narrow column and a wide
+  one that end on the same line, and a card that is a screen of its own (the
+  AI's, your data) spans the group with its halves side by side. The rail
+  down the left became a row of links along the top that stays in view and
+  shows where you are. *Desk* and *The app* became **This computer**; the
+  setup guide's card became **Two connections**, which says what is
+  connected.
+- **Linking on the Map.** Drag a dot's + (or Alt and the dot) onto another:
+  the link is written at the foot of the page at one end, with Undo. Click a
+  line to take it out; a sentence keeps its words.

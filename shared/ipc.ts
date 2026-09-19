@@ -46,7 +46,7 @@ import type {
   PersonDetail,
   PersonInput,
 } from "./people";
-import type { MapGraph, MapPosition } from "./map";
+import type { LinkOutcome, MapGraph, MapPosition } from "./map";
 import type {
   AccentId,
   Activity,
@@ -257,6 +257,8 @@ export const CHANNELS = {
   brainLocalMap: "brain:local-map",
   brainKeepPositions: "brain:keep-positions",
   brainLetGo: "brain:let-go",
+  brainConnect: "brain:connect",
+  brainDisconnect: "brain:disconnect",
   brainSteps: "brain:steps",
   brainMakeTasks: "brain:make-tasks",
   brainDecisions: "brain:decisions",
@@ -859,6 +861,10 @@ export type BrainApi = {
   keepPositions: (companyId: string, positions: MapPosition[]) => Promise<void>;
   /** Unpins every dot. */
   letGo: (companyId: string) => Promise<void>;
+  /** Links two dots by their keys, written into the page at one end. */
+  connect: (companyId: string, from: string, to: string) => Promise<LinkOutcome>;
+  /** Takes the link between two dots out of the page it is written in. */
+  disconnect: (companyId: string, one: string, other: string) => Promise<void>;
   /** A meeting's action items or a playbook's steps, and the tasks they have become. */
   steps: (pageId: string) => Promise<PageTasks>;
   /** A meeting: its open items not yet tasks. A playbook: every step, again, for a contact if one is named. */

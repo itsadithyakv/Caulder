@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { List, Maximize2, Pause, Pin, Play, Search, SlidersHorizontal, Waypoints, X } from "lucide-react";
+import { List, Maximize2, Pause, Pin, Play, Search, SlidersHorizontal, Unlink, Waypoints, X } from "lucide-react";
 import {
   MAP_KINDS,
   MAP_KIND_LABEL,
@@ -33,7 +33,17 @@ import { MapCanvas } from "./MapCanvas";
  * the top right; replay at the foot. Display holds the forces and the looks,
  * kept on this computer. The list view is the same map for the keyboard and
  * the screen reader: every dot, what it is, and what it is linked to.
+ *
+ * Links can be made here with the mouse as well as typed: drag from a dot's +
+ * onto another dot, and the link is written at the foot of the page at one
+ * end, where it reads and can be edited like any other. Click a line to take
+ * it out. Each says what it did, with a way back.
  */
+
+/** How long a word about a link stays, unless it is acted on. */
+const NOTICE_MS = 9000;
+
+type Notice = { text: string; bad?: boolean; action?: { label: string; run: () => void } };
 
 /** Frames a replay takes, whatever the company's age. */
 const REPLAY_FRAMES = 70;
@@ -82,6 +92,9 @@ export function MapView({
   const [refit, setRefit] = useState(0);
   const [replay, setReplay] = useState<{ step: number; playing: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
+  /** A line clicked, and where: its two ends and a way to take it out. */
+  const [picked, setPicked] = useState<{ source: MapNode; target: MapNode; x: number; y: number } | null>(null);
   const openRef = useOpenRef();
 
   const load = useCallback(() => {
@@ -152,6 +165,50 @@ export function MapView({
     }
   }
 
+  // A notice goes by itself after a while.
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [notice]);
+
+  async function link(from: MapNode, to: MapNode) {
+    setPicked(null);
+    try {
+      const outcome = await window.caulder.brain.connect(companyId, from.key, to.key);
+      const other = from.ref === "page" && from.id === outcome.pageId ? to : from;
+      setNotice(
+        outcome.already
+          ? { text: `${from.label} and ${to.label} are already linked.` }
+          : {
+              text: `Linked ${outcome.pageTitle} to ${other.label}, at the foot of the page.`,
+              action: { label: "Undo", run: () => void unlink(from, to, false) },
+            },
+      );
+      load();
+    } catch (cause) {
+      setNotice({ text: messageOf(cause), bad: true });
+    }
+  }
+
+  async function unlink(a: MapNode, b: MapNode, say = true) {
+    setPicked(null);
+    try {
+      await window.caulder.brain.disconnect(companyId, a.key, b.key);
+      setNotice(
+        say
+          ? {
+              text: `Took the link between ${a.label} and ${b.label} out. The page's history has it as it was.`,
+              action: { label: "Link again", run: () => void link(a, b) },
+            }
+          : null,
+      );
+      load();
+    } catch (cause) {
+      setNotice({ text: messageOf(cause), bad: true });
+    }
+  }
+
   function toggle(kind: MapKind) {
     setKinds((current) => {
       const next = new Set(current);
@@ -178,7 +235,13 @@ export function MapView({
             body="Write a page in the brain, and type [[ in it to link another page, a contact, a product or a person. Each is a dot; each link is a line."
           />
         ) : (
-          <div className="mapview__stage">
+          <div
+            className="mapview__stage"
+            onPointerDownCapture={(event) => {
+              // Anywhere else on the map puts a picked line down.
+              if (picked && !(event.target as Element).closest(".mapview__pick")) setPicked(null);
+            }}
+          >
             {asList ? (
               <MapList graph={shown} onOpen={open} />
             ) : (
@@ -190,8 +253,82 @@ export function MapView({
                 look={look}
                 label={`The map: ${shown.nodes.length} dots and ${shown.links.length} links. The list view reaches them with the keyboard.`}
                 onOpen={open}
-                {...(replay ? {} : { onPositions: keep })}
+                {...(replay
+                  ? {}
+                  : {
+                      onPositions: keep,
+                      onLink: (from: MapNode, to: MapNode) => void link(from, to),
+                      onPickLine: (ends: { source: MapNode; target: MapNode }, at: { x: number; y: number }) =>
+                        setPicked({ ...ends, ...at }),
+                    })}
               />
+            )}
+
+            {picked && !asList && (
+              <div
+                className="mapview__pick anim-menu"
+                role="dialog"
+                aria-label="A link"
+                // Under the pointer, and kept inside the map near its edges.
+                style={{
+                  left: `clamp(170px, ${picked.x}px, calc(100% - 170px))`,
+                  top: `min(${picked.y}px, calc(100% - 128px))`,
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") setPicked(null);
+                }}
+              >
+                <p className="mapview__pickEnds">
+                  <span className={`mapdot mapdot--${picked.source.kind}`} aria-hidden />
+                  <span className="mapview__pickName">{picked.source.label}</span>
+                  <span className="mapview__pickAnd" aria-hidden>
+                    &mdash;
+                  </span>
+                  <span className={`mapdot mapdot--${picked.target.kind}`} aria-hidden />
+                  <span className="mapview__pickName">{picked.target.label}</span>
+                </p>
+                <div className="mapview__pickActions">
+                  <button
+                    type="button"
+                    className="btn btn--sm btn--danger"
+                    autoFocus
+                    onClick={() => void unlink(picked.source, picked.target)}
+                  >
+                    <Unlink size={14} aria-hidden />
+                    Take the link out
+                  </button>
+                  <button type="button" className="btn btn--sm btn--ghost" onClick={() => setPicked(null)}>
+                    Keep it
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {notice && (
+              <div
+                className={`mapview__notice anim-menu${notice.bad ? " mapview__notice--bad" : ""}${
+                  steps.length > 1 ? " mapview__notice--raised" : ""
+                }`}
+                role={notice.bad ? "alert" : "status"}
+              >
+                <span>{notice.text}</span>
+                {notice.action && (
+                  <button
+                    type="button"
+                    className="btn btn--sm btn--ghost"
+                    onClick={() => {
+                      const run = notice.action?.run;
+                      setNotice(null);
+                      run?.();
+                    }}
+                  >
+                    {notice.action.label}
+                  </button>
+                )}
+                <button type="button" className="btn btn--sm btn--ghost btn--icon" aria-label="Close" onClick={() => setNotice(null)}>
+                  <X size={14} aria-hidden />
+                </button>
+              </div>
             )}
 
             {/* Find, and the kinds - which are the legend. */}
@@ -305,8 +442,12 @@ export function MapView({
 
         <ErrorLine>{error}</ErrorLine>
         <p className="card__hint">
-          Hover a dot to light up what it is linked to. Click to open it; drag it and the rest follows, then settles
-          - hold Shift as you let go to pin it there, and double-click a pinned dot to let it go. Scroll to zoom.
+          <strong>To link two things</strong>, hover one and drag its <strong>+</strong> onto the other - or hold Alt
+          and drag the dot itself. The link is written at the foot of the page. Click a line to take it out.
+        </p>
+        <p className="card__hint">
+          Click a dot to open it; drag it and the rest follows, then settles - hold Shift as you let go to pin it there,
+          and double-click a pinned dot to let it go. Scroll to zoom.
         </p>
       </section>
     </div>

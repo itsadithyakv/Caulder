@@ -439,46 +439,50 @@
 }
 
 /* ---- Settings ----------------------------------------------------------
- * Two columns on a wide window. As one column these cards ran to 2400px of
- * scrolling on a screen with 1400px of unused width beside them - a phone
- * layout on a desk monitor.
+ * Four groups, and a row of links to them that stays at the top. It was a
+ * rail down the left, which cost 174px of width beside the cards and was
+ * itself a tall strip of nothing under four words - enough, at 1280 wide, to
+ * drop every group to one long column.
  *
- * The two that hold a table or a list of paths span both, because squeezing
- * them into half the width is how a table starts scrolling sideways.
+ * Each group is laid out rather than poured: a
+ * narrow column (5) and a wide one (7), with the cards shared out so the two
+ * end together, and the last card of each column stretched to meet that line
+ * - so every group is a clean block, not two ragged columns with a hole
+ * under the short one. A card that is a screen of its own spans both columns
+ * underneath (a band), and sets its two halves side by side when it is wide
+ * enough to (the container queries further down).
+ *
+ * Pouring the cards into CSS columns, as before, left 900px of nothing under
+ * Companies: multicol balances by height only until a card will not break.
  * ------------------------------------------------------------------------- */
 
-/* Four groups and a rail.
- *
- * Inside a group the cards still pour into columns, because they differ in
- * height by a lot - Companies is four lines and the stage editor is nine rows
- * - and a grid would leave a hole under the short one. Multicol packs each
- * column on its own. The column width is a minimum, so a narrow window falls
- * back to one column without a media query. Multicol does not apply to a
- * flex container, so `.settings__cards` is a block. */
 .settings {
-  display: grid;
-  grid-template-columns: 150px minmax(0, 1fr);
-  gap: var(--space-5);
-  align-items: start;
-}
-
-.settings__rail {
-  position: sticky;
-  top: var(--space-2);
   display: flex;
   flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* Stuck to the top of the pane while the groups scroll under it. */
+.settings__rail {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: flex;
+  flex-wrap: wrap;
   gap: var(--space-1);
+  padding: var(--space-2) 0;
+  background: var(--bg);
+  border-bottom: 1px solid var(--soft-line);
 }
 
 .settings__jump {
-  padding: var(--space-2) var(--space-3);
+  padding: 6px var(--space-3);
   background: transparent;
   color: var(--ink-3);
-  border: none;
-  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
   font-size: var(--text-sm);
   font-weight: 500;
-  text-align: left;
   cursor: pointer;
   transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
 }
@@ -488,37 +492,194 @@
   background: var(--surface-hover);
 }
 
+.settings__jump--on,
+.settings__jump--on:hover {
+  color: var(--ink);
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 25%, transparent);
+  font-weight: 600;
+}
+
+.settings__jump:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .settings__groups {
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
+  gap: var(--space-7);
   min-width: 0;
+  /* The groups decide their own columns from the room they have, not the window's. */
+  container-type: inline-size;
 }
 
-.settings__group { scroll-margin-top: var(--space-4); }
+/* Clear of the row of links when jumped to. */
+.settings__group { scroll-margin-top: 64px; }
+
+/* The name, and a line about what is in the group, on one baseline. */
+.settings__groupHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-4);
+  margin: 0 0 var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--soft-line);
+}
 
 .settings__groupTitle {
-  margin: 0 0 var(--space-3);
+  margin: 0;
   color: var(--ink);
   font-size: var(--text-lg);
   font-weight: 700;
 }
 
-.settings__cards {
-  display: block;
-  column-width: 420px;
-  column-gap: var(--space-4);
+.settings__groupNote {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: var(--text-sm);
 }
 
-.settings__cards > .card {
-  /* A card split across a column break would be unreadable. */
-  break-inside: avoid;
-  margin: 0 0 var(--space-4);
+.settings__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: var(--space-4);
+  align-items: stretch;
 }
 
-@media (max-width: 900px) {
-  .settings { grid-template-columns: minmax(0, 1fr); }
-  .settings__rail { display: none; }
+.settings__col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/* The last card takes up what is left, so the column ends where its neighbour does. */
+.settings__col > .card:last-child { flex: 1 0 auto; }
+
+.settings__band {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.settings__band > .card { height: 100%; }
+
+@container (max-width: 820px) {
+  .settings__grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ---- Two connections, at a glance -------------------------------------- */
+
+.connections__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.connections__row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--surface-sunken);
+  border-radius: var(--radius-md);
+}
+
+.connections__icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  color: var(--ink-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+}
+
+.connections__icon--on {
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 40%, var(--border));
+}
+
+.connections__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.connections__name {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.connections__what {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+.connections__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.connections__foot .card__hint { margin: 0; }
+
+/* ---- Cards whose two halves sit side by side when there is room --------- */
+
+.aicard,
+.datasafety { container-type: inline-size; }
+
+@container (min-width: 760px) {
+  /* The services on the left; the steps and the key for the one chosen on the right. */
+  .aicard__split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--space-5);
+    align-items: start;
+  }
+
+  .aicard__split .aiservices { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  .aicard__split .aicard__connect {
+    margin-top: var(--space-3);
+    padding-left: var(--space-5);
+    border-left: 1px solid var(--soft-line);
+  }
+
+  /* What to do with your data on the left; the copies Caulder keeps on the right. */
+  .datasafety__split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--space-5);
+    align-items: start;
+  }
+
+  .datasafety__split > .datasafety__part + .datasafety__part {
+    padding-left: var(--space-5);
+    border-left: 1px solid var(--soft-line);
+  }
+
+  /* Beside the first half, the copies start level with it rather than under a rule. */
+  .datasafety__split .datasafety__heading--copies {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+  }
+}
+
+.datasafety__log {
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--soft-line);
 }
 
 /* ---- The setup guide --------------------------------------------------- */

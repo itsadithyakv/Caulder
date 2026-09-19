@@ -1150,6 +1150,75 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* A line clicked on the map: its two ends, and taking it out. Under the pointer. */
+.mapview__pick {
+  position: absolute;
+  z-index: 7;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 320px;
+  padding: var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  translate: -50% 12px;
+}
+
+.mapview__pickEnds {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.mapview__pickName {
+  min-width: 0;
+  overflow: hidden;
+  max-width: 120px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mapview__pickAnd { color: var(--ink-3); }
+
+.mapview__pickActions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* What a link on the map just did, with a way back. Above the replay bar when there is one. */
+.mapview__notice {
+  position: absolute;
+  bottom: var(--space-3);
+  left: 50%;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: min(640px, calc(100% - 32px));
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-md);
+  font-size: var(--text-sm);
+  translate: -50% 0;
+}
+
+.mapview__notice--raised { bottom: 68px; }
+
+.mapview__notice--bad {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 40%, var(--border));
+}
+
 /* Display: the forces and the looks, beside the map rather than over the middle of it. */
 .mapdisplay {
   position: absolute;

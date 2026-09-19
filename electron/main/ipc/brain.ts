@@ -20,7 +20,7 @@ import {
 } from "../services/brain";
 import { exportBrain } from "../services/brain-export";
 import { exportDossier } from "../services/dossier";
-import { backlinks, keepPositions, letGo, linkTargetsFor, localMap, wholeMap } from "../services/map";
+import { backlinks, connect, disconnect, keepPositions, letGo, linkTargetsFor, localMap, wholeMap } from "../services/map";
 import { makeTasks, pageTasks } from "../services/steps";
 import { decisionLog } from "../services/brain";
 
@@ -147,6 +147,19 @@ export function registerBrainHandlers(): void {
 
   handle(CHANNELS.brainLetGo, (_event, companyId: unknown) => {
     letGo(getDatabase(), companyOf(companyId));
+  });
+
+  // Linking on the Map writes into a page, so a journal day goes back under its seal after, as with a save.
+  handle(CHANNELS.brainConnect, (_event, companyId: unknown, from: unknown, to: unknown) => {
+    const outcome = connect(getDatabase(), companyOf(companyId), from, to, new Date());
+    if (!outcome.already) resealIfPast(getDatabase(), outcome.pageId);
+    return outcome;
+  });
+
+  handle(CHANNELS.brainDisconnect, (_event, companyId: unknown, one: unknown, other: unknown) => {
+    for (const pageId of disconnect(getDatabase(), companyOf(companyId), one, other, new Date())) {
+      resealIfPast(getDatabase(), pageId);
+    }
   });
 
   handle(CHANNELS.brainSteps, (_event, id: unknown) => pageTasks(getDatabase(), pageOf(id)));

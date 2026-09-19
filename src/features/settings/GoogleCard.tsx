@@ -6,6 +6,7 @@ import { useWorkspace } from "@/lib/workspace";
 import { messageOf } from "@/lib/errors";
 import { relativeDay } from "@/lib/format";
 import { Select } from "@/components/Select";
+import { announceConnections } from "./Connected";
 
 /**
  * The Google link: Calendar, Tasks and Gmail.
@@ -72,6 +73,7 @@ export function GoogleCard({ startOpen = false }: { startOpen?: boolean }) {
     setError(null);
     try {
       setState(await work());
+      announceConnections();
     } catch (cause) {
       setError(messageOf(cause));
     } finally {

@@ -35,12 +35,20 @@ import {
  * in as you zoom, and the ones that matter show earlier. Under reduced motion
  * the layout is worked out before the first frame and the fades are instant.
  *
+ * Where the map can link (the whole Map, not a page's little one), a hovered
+ * dot shows a small + at its shoulder: drag that onto another dot and they
+ * are linked - or hold Alt and drag the dot itself. A line written in a page
+ * lights up under the pointer and can be clicked, to take it out.
+ *
  * The drawing lives outside React: a frame is a pure function of the
  * simulation and a few refs, and React only hands over the graph and the look.
  */
 
 type Dot = SimulationNodeDatum & { key: string; node: MapNode; r: number };
-type Line = SimulationLinkDatum<Dot> & { source: Dot | string; target: Dot | string };
+type Line = SimulationLinkDatum<Dot> & { source: Dot | string; target: Dot | string; written: boolean };
+
+/** A link being drawn: from one dot, to the one under the pointer or to the pointer itself. */
+type Linking = { from: Dot; to: Dot | null; x: number; y: number };
 
 type Camera = { x: number; y: number; k: number };
 
@@ -71,6 +79,31 @@ function reducedMotion(): boolean {
 /** How far the rest fades while one dot is looked at. */
 const FADED = 0.12;
 
+/**
+ * The + a hovered dot offers to drag a link from: at its upper right, just
+ * clear of it, the same size on screen at any zoom.
+ */
+function handleOf(dot: Dot, k: number): { x: number; y: number; r: number } {
+  const reach = dot.r + 12 / k;
+  return { x: (dot.x ?? 0) + reach * Math.SQRT1_2, y: (dot.y ?? 0) - reach * Math.SQRT1_2, r: 8 / k };
+}
+
+/** A link is written in a page, so a line has to have one at an end. */
+function canJoin(a: Dot, b: Dot): boolean {
+  return a.key !== b.key && (a.node.ref === "page" || b.node.ref === "page");
+}
+
+/** How far a point is from a line segment. */
+function fromSegment(point: { x: number; y: number }, a: Dot, b: Dot): number {
+  const ax = a.x ?? 0;
+  const ay = a.y ?? 0;
+  const dx = (b.x ?? 0) - ax;
+  const dy = (b.y ?? 0) - ay;
+  const length = dx * dx + dy * dy;
+  const t = length === 0 ? 0 : Math.max(0, Math.min(1, ((point.x - ax) * dx + (point.y - ay) * dy) / length));
+  return Math.hypot(point.x - (ax + t * dx), point.y - (ay + t * dy));
+}
+
 export function MapCanvas({
   graph,
   height,
@@ -79,6 +112,8 @@ export function MapCanvas({
   label,
   onOpen,
   onPositions,
+  onLink,
+  onPickLine,
   refit = 0,
   look = MAP_LOOK,
 }: {
@@ -93,6 +128,10 @@ export function MapCanvas({
   onOpen: (node: MapNode) => void;
   /** Given, positions are kept after the map settles or a dot is moved. */
   onPositions?: (positions: MapPosition[]) => void;
+  /** Given, a dot can be dragged onto another to link them. */
+  onLink?: (from: MapNode, to: MapNode) => void;
+  /** Given, a line written in a page can be clicked; `at` is where, in the map's own box. */
+  onPickLine?: (ends: { source: MapNode; target: MapNode }, at: { x: number; y: number }) => void;
   /** Bumped to zoom back out to the whole map. */
   refit?: number;
   /** Forces and looks, from the Display panel. */
@@ -121,12 +160,27 @@ export function MapCanvas({
     height: 0,
     colours: null as null | Record<string, string>,
     frame: 0,
+    byKey: new Map<string, Dot>(),
+    /** A link being dragged out, drawn as a dashed line. */
+    linking: null as Linking | null,
+    /** The written line under the pointer, lit so it reads as clickable. */
+    hoverLine: null as Line | null,
+    /** A dot is being moved or the map panned: no + while that happens. */
+    pressed: false,
+    canLink: false,
+    canPick: false,
   });
 
   const openRef = useRef(onOpen);
   const keepRef = useRef(onPositions);
+  const linkRef = useRef(onLink);
+  const pickRef = useRef(onPickLine);
   openRef.current = onOpen;
   keepRef.current = onPositions;
+  linkRef.current = onLink;
+  pickRef.current = onPickLine;
+  state.current.canLink = onLink !== undefined;
+  state.current.canPick = onPickLine !== undefined;
 
   state.current.search = search;
   state.current.focus = focus;
@@ -220,7 +274,9 @@ export function MapCanvas({
       const lit = s.lit;
       const neighbours = lit ? s.near.get(lit) : null;
       const searching = s.search.trim().length > 0;
-      const inLight = (key: string) => !lit || key === lit || neighbours?.has(key) === true;
+      const linking = s.linking;
+      const inLight = (key: string) =>
+        !lit || key === lit || neighbours?.has(key) === true || key === linking?.to?.key;
       const alphaOf = (dot: Dot) => {
         const byHover = inLight(dot.key) ? 1 : 1 - (1 - FADED) * s.fade;
         const bySearch = searching && !matching(dot.node, s.search) ? 0.18 : 1;
@@ -231,11 +287,12 @@ export function MapCanvas({
       for (const line of s.lines) {
         const a = line.source as Dot;
         const b = line.target as Dot;
-        const on = lit !== null && (a.key === lit || b.key === lit);
+        const picked = line === s.hoverLine;
+        const on = picked || (lit !== null && (a.key === lit || b.key === lit));
         const base = searching ? 0.14 : 0.5;
-        context.globalAlpha = on ? 0.35 + 0.6 * s.fade : base * (1 - (1 - FADED) * s.fade);
+        context.globalAlpha = picked ? 1 : on ? 0.35 + 0.6 * s.fade : base * (1 - (1 - FADED) * s.fade);
         context.strokeStyle = on ? (palette["lit"] ?? "") : (palette["line"] ?? "");
-        context.lineWidth = ((on ? 1.8 : 1) * look.lines) / k;
+        context.lineWidth = ((picked ? 2.8 : on ? 1.8 : 1) * look.lines) / k;
         const ax = a.x ?? 0;
         const ay = a.y ?? 0;
         const bx = b.x ?? 0;
@@ -276,6 +333,35 @@ export function MapCanvas({
         }
       }
 
+      // The link being drawn: dashed from the dot's edge to the pointer, or to
+      // the dot it would join, which is ringed - quietly when it cannot be.
+      if (linking) {
+        const from = linking.from;
+        const to = linking.to;
+        const fx = from.x ?? 0;
+        const fy = from.y ?? 0;
+        const ex = to ? (to.x ?? 0) : linking.x;
+        const ey = to ? (to.y ?? 0) : linking.y;
+        const angle = Math.atan2(ey - fy, ex - fx);
+        const ok = to === null || canJoin(from, to);
+        const short = to ? to.r + 4 / k : 0;
+        context.globalAlpha = 1;
+        context.strokeStyle = ok ? (palette["lit"] ?? "") : (palette["quiet"] ?? "");
+        context.lineWidth = 2 / k;
+        context.setLineDash([6 / k, 4 / k]);
+        context.beginPath();
+        context.moveTo(fx + Math.cos(angle) * from.r, fy + Math.sin(angle) * from.r);
+        context.lineTo(ex - Math.cos(angle) * short, ey - Math.sin(angle) * short);
+        context.stroke();
+        context.setLineDash([]);
+        if (to) {
+          context.lineWidth = 2.5 / k;
+          context.beginPath();
+          context.arc(ex, ey, short, 0, Math.PI * 2);
+          context.stroke();
+        }
+      }
+
       // Labels grow in as you zoom past the chosen point; the busiest dots and
       // whatever is looked at are labelled sooner. They are world-sized, as in
       // Obsidian, but never smaller on screen than can be read.
@@ -283,7 +369,11 @@ export function MapCanvas({
       context.textBaseline = "top";
       const zoomIn = Math.max(0, Math.min(1, (k - look.labelsAt * 0.7) / (look.labelsAt * 0.35)));
       for (const dot of s.dots) {
-        const looked = dot.key === lit || dot.key === s.focus || (lit !== null && inLight(dot.key) && s.fade > 0.3);
+        const looked =
+          dot.key === lit ||
+          dot.key === s.focus ||
+          dot.key === linking?.to?.key ||
+          (lit !== null && inLight(dot.key) && s.fade > 0.3);
         const found = searching && matching(dot.node, s.search);
         const busy = dot.node.degree >= 4 ? Math.max(zoomIn, 0.9) : zoomIn;
         const show = looked || found ? 1 : busy * (lit ? 1 - s.fade : 1);
@@ -299,6 +389,27 @@ export function MapCanvas({
         context.fillStyle = looked ? (palette["ink"] ?? "") : (palette["quiet"] ?? "");
         context.fillText(text, dot.x ?? 0, top);
       }
+      // The + on the dot under the pointer, to drag a link out of.
+      const hovered = s.canLink && !linking && !s.pressed && s.hover ? s.byKey.get(s.hover) : undefined;
+      if (hovered) {
+        const grip = handleOf(hovered, k);
+        context.globalAlpha = 1;
+        context.fillStyle = palette["halo"] ?? "";
+        context.strokeStyle = palette["lit"] ?? "";
+        context.lineWidth = 1.5 / k;
+        context.beginPath();
+        context.arc(grip.x, grip.y, grip.r, 0, Math.PI * 2);
+        context.fill();
+        context.stroke();
+        const arm = 4 / k;
+        context.beginPath();
+        context.moveTo(grip.x - arm, grip.y);
+        context.lineTo(grip.x + arm, grip.y);
+        context.moveTo(grip.x, grip.y - arm);
+        context.lineTo(grip.x, grip.y + arm);
+        context.stroke();
+      }
+
       context.globalAlpha = 1;
       if (moving || fading) draw.current();
     };
@@ -394,7 +505,11 @@ export function MapCanvas({
       }
     });
 
-    const lines: Line[] = graph.links.map((link) => ({ source: link.source, target: link.target }));
+    const lines: Line[] = graph.links.map((link) => ({
+      source: link.source,
+      target: link.target,
+      written: link.written === true,
+    }));
     const known = graph.nodes.filter((node) => node.x !== null).length;
     const settled = graph.nodes.length > 0 && known === graph.nodes.length && previous.size === 0;
 
@@ -418,6 +533,8 @@ export function MapCanvas({
     s.dots = dots;
     s.lines = lines;
     s.near = near;
+    s.byKey = byKey;
+    s.hoverLine = null;
     simulation.current = sim;
 
     const keep = () => {
@@ -498,15 +615,60 @@ export function MapCanvas({
       return best;
     };
 
-    let drag: null | { dot: Dot | null; startX: number; startY: number; moved: boolean; wasPinned: boolean; camera: Camera } =
-      null;
+    /** The hovered dot, when the pointer is on its +. */
+    const onGrip = (point: { x: number; y: number }): Dot | null => {
+      const dot = s.canLink && s.hover ? s.byKey.get(s.hover) : undefined;
+      if (!dot) return null;
+      const grip = handleOf(dot, s.camera.k);
+      return Math.hypot(point.x - grip.x, point.y - grip.y) <= grip.r + 3 / s.camera.k ? dot : null;
+    };
+
+    /** The written line nearest the pointer, if one is close enough to mean it. */
+    const nearLine = (point: { x: number; y: number }): Line | null => {
+      if (!s.canPick) return null;
+      let best: Line | null = null;
+      let bestDistance = 5 / s.camera.k;
+      for (const line of s.lines) {
+        if (!line.written) continue;
+        const distance = fromSegment(point, line.source as Dot, line.target as Dot);
+        if (distance < bestDistance) {
+          best = line;
+          bestDistance = distance;
+        }
+      }
+      return best;
+    };
+
+    let drag: null | {
+      dot: Dot | null;
+      /** A line pressed on: a click on it, not a pan, picks it. */
+      line: Line | null;
+      startX: number;
+      startY: number;
+      moved: boolean;
+      wasPinned: boolean;
+      camera: Camera;
+    } = null;
 
     const down = (event: PointerEvent) => {
       if (event.button !== 0) return;
       element.setPointerCapture(event.pointerId);
-      const dot = hit(world(event));
+      const point = world(event);
+      const grip = onGrip(point);
+      const dot = grip ?? hit(point);
+      if (dot && s.canLink && (grip || event.altKey)) {
+        // Drawing a link, not moving the dot.
+        s.linking = { from: dot, to: null, x: point.x, y: point.y };
+        s.hover = dot.key;
+        s.hoverLine = null;
+        element.style.cursor = "crosshair";
+        draw.current();
+        return;
+      }
+      s.pressed = true;
       drag = {
         dot,
+        line: dot ? null : s.hoverLine,
         startX: event.clientX,
         startY: event.clientY,
         moved: false,
@@ -520,12 +682,25 @@ export function MapCanvas({
     };
 
     const move = (event: PointerEvent) => {
+      if (s.linking) {
+        const point = world(event);
+        const under = hit(point);
+        const to = under && under !== s.linking.from ? under : null;
+        s.linking = { ...s.linking, to, x: point.x, y: point.y };
+        element.style.cursor = to && !canJoin(s.linking.from, to) ? "not-allowed" : to ? "copy" : "crosshair";
+        draw.current();
+        return;
+      }
       if (!drag) {
-        const dot = hit(world(event));
+        const point = world(event);
+        const grip = onGrip(point);
+        const dot = grip ?? hit(point);
+        const line = dot ? null : nearLine(point);
         const key = dot?.key ?? null;
-        element.style.cursor = dot ? "pointer" : "grab";
-        if (key !== s.hover) {
+        element.style.cursor = grip ? "crosshair" : dot || line ? "pointer" : "grab";
+        if (key !== s.hover || line !== s.hoverLine) {
           s.hover = key;
+          s.hoverLine = line;
           draw.current();
         }
         return;
@@ -551,12 +726,30 @@ export function MapCanvas({
     };
 
     const up = (event: PointerEvent) => {
+      if (s.linking) {
+        const { from, to } = s.linking;
+        s.linking = null;
+        element.style.cursor = "grab";
+        draw.current();
+        if (to && event.type === "pointerup") linkRef.current?.(from.node, to.node);
+        return;
+      }
       if (!drag) return;
-      const { dot, moved, wasPinned } = drag;
+      const { dot, line, moved, wasPinned } = drag;
       drag = null;
+      s.pressed = false;
       element.style.cursor = "grab";
       simulation.current?.alphaTarget(0);
-      if (!dot) return;
+      if (!dot) {
+        if (line && !moved && event.type === "pointerup") {
+          const box = element.getBoundingClientRect();
+          pickRef.current?.(
+            { source: (line.source as Dot).node, target: (line.target as Dot).node },
+            { x: event.clientX - box.left, y: event.clientY - box.top },
+          );
+        }
+        return;
+      }
       if (!moved) {
         // A click, not a drag: put the dot back as it was, and open it.
         if (!wasPinned) {
@@ -581,10 +774,20 @@ export function MapCanvas({
     };
 
     const leave = () => {
-      if (s.hover !== null && !drag) {
+      if ((s.hover !== null || s.hoverLine !== null) && !drag && !s.linking) {
         s.hover = null;
+        s.hoverLine = null;
         draw.current();
       }
+    };
+
+    // Escape lets go of a link half drawn.
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || !s.linking) return;
+      event.stopPropagation();
+      s.linking = null;
+      element.style.cursor = "grab";
+      draw.current();
     };
 
     // Double-click a pinned dot to let it go back to the physics.
@@ -615,7 +818,9 @@ export function MapCanvas({
     element.addEventListener("pointerleave", leave);
     element.addEventListener("dblclick", release);
     element.addEventListener("wheel", wheel, { passive: false });
+    window.addEventListener("keydown", escape, true);
     return () => {
+      window.removeEventListener("keydown", escape, true);
       element.removeEventListener("pointerdown", down);
       element.removeEventListener("pointermove", move);
       element.removeEventListener("pointerup", up);

@@ -6,6 +6,8 @@ import {
   openLinkQuery,
   parseLinks,
   refreshLabels,
+  withLink,
+  withoutLink,
 } from "./links";
 
 const PAGE = "3f0c1e2a-1111-4222-8333-944455556666";
@@ -70,5 +72,36 @@ describe("typing a link", () => {
     expect(openLinkQuery("[[Oak]] then", 12)).toBeNull();
     expect(openLinkQuery("[[Oak\nmore", 10)).toBeNull();
     expect(openLinkQuery("no link here", 5)).toBeNull();
+  });
+});
+
+describe("a link made on the Map", () => {
+  const page = { kind: "page" as const, id: PAGE };
+  const contact = { kind: "contact" as const, id: CONTACT };
+  const pricing = `[[Pricing|page:${PAGE}]]`;
+  const oakridge = `[[Oakridge|contact:${CONTACT}]]`;
+
+  it("goes on a line of its own at the foot, and the next one beside it", () => {
+    const once = withLink("Ship the pilot.\n", "Pricing", page);
+    expect(once).toBe(`Ship the pilot.\n\n${pricing}`);
+    expect(withLink(once, "Oakridge", contact)).toBe(`Ship the pilot.\n\n${pricing} · ${oakridge}`);
+    expect(withLink("", "Pricing", page)).toBe(pricing);
+  });
+
+  it("is not written twice, and does not join a line that has words on it", () => {
+    const text = `See ${pricing} first.`;
+    expect(withLink(text, "Pricing", page)).toBe(text);
+    expect(withLink(text, "Oakridge", contact)).toBe(`${text}\n\n${oakridge}`);
+  });
+
+  it("comes out of a line of links with its dot, and the emptied line goes", () => {
+    const both = `Notes.\n\n${pricing} · ${oakridge}`;
+    expect(withoutLink(both, page)).toBe(`Notes.\n\n${oakridge}`);
+    expect(withoutLink(withoutLink(both, page), contact)).toBe("Notes.");
+  });
+
+  it("leaves its words behind in a sentence", () => {
+    expect(withoutLink(`We agreed with ${oakridge} on ${pricing}.`, contact)).toBe(`We agreed with Oakridge on ${pricing}.`);
+    expect(withoutLink("Nothing here.", contact)).toBe("Nothing here.");
   });
 });

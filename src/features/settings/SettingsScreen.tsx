@@ -13,6 +13,7 @@ import { GoogleCard } from "./GoogleCard";
 import { AiCard } from "./AiCard";
 import { WordsCard } from "./WordsCard";
 import { TemplatesCard } from "./TemplatesCard";
+import { ConnectionsCard } from "./Connected";
 import { ThisIsMeCard } from "@/features/sharing/ThisIsMeCard";
 import { getTheme, setTheme, type ThemeChoice } from "@/lib/theme";
 import { DEFAULT_CAPTURE_SHORTCUT, type AccentId, type Company } from "@shared/domain";
@@ -28,16 +29,20 @@ const THEME_OPTIONS: { id: ThemeChoice; label: string }[] = [
 ];
 
 /**
- * Settings, in four groups: this company, how the planner reads you, what
- * sits on the desk, and the app itself. The rail on the left is the table of
- * contents.
+ * Settings, in four groups: this company, how the planner reads you, Google
+ * and an AI, and this computer. The row of links along the top is the table
+ * of contents, and stays in view, showing which group is being read.
+ *
+ * Each group is laid out on purpose rather than poured: a narrow column and a
+ * wide one, with the cards shared between them so the two end together, and
+ * a card that is a whole screen of its own - the AI's, your data - across the
+ * full width underneath, with its two halves side by side.
  */
 const GROUPS = [
-  { id: "workspace", label: "Workspace" },
-  { id: "planning", label: "Planning" },
-  { id: "connections", label: "Connections" },
-  { id: "desk", label: "Desk" },
-  { id: "app", label: "The app" },
+  { id: "workspace", label: "Workspace", note: "Who you are, your companies, and how the board reads them." },
+  { id: "planning", label: "Planning", note: "How the quick-add line reads you, and when Caulder speaks up." },
+  { id: "connections", label: "Connections", note: "Google and an AI, each on its own card." },
+  { id: "computer", label: "This computer", note: "How Caulder looks and opens here, its updates, and your data." },
 ] as const;
 
 type GroupId = (typeof GROUPS)[number]["id"];
@@ -51,8 +56,28 @@ export function SettingsScreen({
   onOpenSetup: () => void;
 }) {
   const { companies, activeCompany } = useWorkspace();
+  const [current, setCurrent] = useState<GroupId>("workspace");
+
+  // The group being read: the first one in the upper part of the window.
+  useEffect(() => {
+    const showing = new Map<string, boolean>();
+    const watch = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) showing.set(entry.target.id, entry.isIntersecting);
+        const first = GROUPS.find((group) => showing.get(`settings-${group.id}`));
+        if (first) setCurrent(first.id);
+      },
+      { rootMargin: "-90px 0px -55% 0px" },
+    );
+    for (const group of GROUPS) {
+      const element = document.getElementById(`settings-${group.id}`);
+      if (element) watch.observe(element);
+    }
+    return () => watch.disconnect();
+  }, []);
 
   function jump(id: GroupId) {
+    setCurrent(id);
     document.getElementById(`settings-${id}`)?.scrollIntoView({ block: "start" });
   }
 
@@ -63,7 +88,8 @@ export function SettingsScreen({
           <button
             key={group.id}
             type="button"
-            className="settings__jump"
+            className={`settings__jump${current === group.id ? " settings__jump--on" : ""}`}
+            aria-current={current === group.id ? "true" : undefined}
             onClick={() => jump(group.id)}
           >
             {group.label}
@@ -72,70 +98,67 @@ export function SettingsScreen({
       </nav>
 
       <div className="settings__groups">
-        <Group id="workspace" label="Workspace">
-          <ThisIsMeCard />
-          <Card
-            title="Companies"
-            actions={
-              <button type="button" className="btn btn--sm" onClick={onAddCompany}>
-                Add a company
-              </button>
-            }
-          >
-            <div className="companies">
-              {companies.map((company) => (
-                <CompanyRow
-                  key={company.id}
-                  company={company}
-                  canArchive={companies.length > 1}
-                />
-              ))}
-            </div>
-          </Card>
-
+        <Group id="workspace">
+          <Column>
+            <ThisIsMeCard />
+            <Card
+              title="Companies"
+              actions={
+                <button type="button" className="btn btn--sm" onClick={onAddCompany}>
+                  Add a company
+                </button>
+              }
+            >
+              <div className="companies">
+                {companies.map((company) => (
+                  <CompanyRow key={company.id} company={company} canArchive={companies.length > 1} />
+                ))}
+              </div>
+            </Card>
+            {activeCompany && <FieldsCard />}
+          </Column>
           {/* The board reads straight from this list. */}
           {activeCompany && (
-            <>
+            <Column>
               <StageEditor key={activeCompany.id} companyId={activeCompany.id} />
-              <FieldsCard />
               <TemplatesCard key={`templates-${activeCompany.id}`} />
-            </>
+            </Column>
           )}
         </Group>
 
-        <Group id="planning" label="Planning">
-          <WordsCard />
-          <RemindersCard />
+        <Group id="planning">
+          <Column>
+            <WordsCard />
+          </Column>
+          <Column>
+            <RemindersCard />
+          </Column>
         </Group>
 
-        <Group id="connections" label="Connections">
-          <Card
-            title="The setup guide"
-            hint="Google and an AI, in order, with what each one is for. The same cards as here."
-          >
-            <div className="actions">
-              <button type="button" className="btn btn--sm" onClick={onOpenSetup}>
-                Open the setup guide
-              </button>
-            </div>
-          </Card>
-          <GoogleCard />
-          <AiCard />
+        <Group id="connections">
+          <Column>
+            <ConnectionsCard onOpenSetup={onOpenSetup} />
+          </Column>
+          <Column>
+            <GoogleCard />
+          </Column>
+          <Band>
+            <AiCard />
+          </Band>
         </Group>
 
-        <Group id="desk" label="Desk">
-          <CaptureCard />
-        </Group>
-
-        <Group id="app" label="The app">
-          <AppearanceCard />
-          <UpdatesCard />
+        <Group id="computer">
+          <Column>
+            <AppearanceCard />
+            <UpdatesCard />
+          </Column>
+          <Column>
+            <CaptureCard />
+          </Column>
           {activeCompany && (
-            <DataSafety
-              key={activeCompany.id}
-              companyId={activeCompany.id}
-              companyName={activeCompany.name}
-            />
+            <Band>
+              <DataSafety key={activeCompany.id} companyId={activeCompany.id} companyName={activeCompany.name} />
+            </Band>
           )}
         </Group>
       </div>
@@ -143,15 +166,33 @@ export function SettingsScreen({
   );
 }
 
-function Group({ id, label, children }: { id: GroupId; label: string; children: ReactNode }) {
+/**
+ * One group: its name and a line about it, then a narrow column and a wide
+ * one side by side - a single column when the window is narrow.
+ */
+function Group({ id, children }: { id: GroupId; children: ReactNode }) {
+  const group = GROUPS.find((each) => each.id === id);
   return (
     <section className="settings__group" id={`settings-${id}`} aria-labelledby={`settings-${id}-title`}>
-      <h2 className="settings__groupTitle" id={`settings-${id}-title`}>
-        {label}
-      </h2>
-      <div className="settings__cards">{children}</div>
+      <header className="settings__groupHead">
+        <h2 className="settings__groupTitle" id={`settings-${id}-title`}>
+          {group?.label}
+        </h2>
+        <p className="settings__groupNote">{group?.note}</p>
+      </header>
+      <div className="settings__grid">{children}</div>
     </section>
   );
+}
+
+/** Cards one under another. The last one stretches, so the columns beside each other end on one line. */
+function Column({ children }: { children: ReactNode }) {
+  return <div className="settings__col">{children}</div>;
+}
+
+/** A card across the whole group, under its columns. */
+function Band({ children }: { children: ReactNode }) {
+  return <div className="settings__band">{children}</div>;
 }
 
 function AppearanceCard() {

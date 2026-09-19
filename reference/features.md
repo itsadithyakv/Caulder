@@ -1018,18 +1018,27 @@ person.
 
 ## Settings
 
-Eight cards in four groups, with a rail on the left to jump between them.
-The groups are the four questions somebody arrives with:
+Four groups, the four questions somebody arrives with, and a row of links
+to them along the top that stays in view and shows which group is being
+read:
 
-| Group | Cards |
-| --- | --- |
-| **Workspace** | Companies (with each one's currency), pipeline stages, your own fields, email templates |
-| **Planning** | Your words, reminders |
-| **Desk** | Quick add from anywhere, Google Calendar and Tasks |
-| **The app** | Appearance, your data |
+| Group | Narrow column | Wide column | Across the foot |
+| --- | --- | --- | --- |
+| **Workspace** | This is me, Companies, your own fields | Pipeline stages, email templates | |
+| **Planning** | Your words | Reminders | |
+| **Connections** | Two connections, at a glance | Google | Ask the brain: connect an AI |
+| **This computer** | Appearance, updates | Quick add from anywhere | Your data |
 
-Inside a group the cards pour into columns, because they differ in height by
-a lot and a grid would leave a hole under the short one.
+Each group is laid out, not poured: a narrow column and a wide one, the cards
+shared between them so the two end on the same line, and the last card in
+each stretched to meet it. A card that is a screen of its own - the AI's, and
+your data - runs across the whole group underneath, with its two halves side
+by side: the services beside the steps for the one chosen; what to do with
+your data beside the backups kept. On a narrow window each group is one
+column.
+
+**Two connections** says whether Google and an AI are connected, keeps up as
+either card beside it changes, and opens the setup guide.
 
 ### Email templates
 
@@ -1490,7 +1499,28 @@ A candidate for a role is on the map only when a page is about them, and a
 sent or received invoice only when a page links it: a map of every PDF is not
 a picture of the company.
 
-It works the way Obsidian's graph does.
+It works the way Obsidian's graph does - and links can be made on it with
+the mouse, not only typed.
+
+- **To link two things, drag one onto the other.** Hover a dot and a small
+  **+** appears at its shoulder; drag from it and a dashed line follows the
+  pointer, and the dot it would join is ringed. Let go on it and they are
+  linked. Holding **Alt** and dragging the dot itself does the same. A link is
+  words in a page, so it is written into one - the page dragged from, or the
+  page dropped on when the drag began at a contact, a product, a person or a
+  document - on a line at the foot of the page, and the next one made there
+  joins that line: `[[Pricing|page:…]] · [[Oakridge|contact:…]]`. It reads and
+  edits like any link, and is a version in the page's history. Two things
+  neither of which is a page cannot be linked - the ring goes grey and the
+  pointer says so - and two already linked, either way round, are left as
+  they are. A journal day that is locked is refused until the journal is
+  opened. What was done is said at the foot of the map, with **Undo**.
+- **Click a line** to take a link out. It lights up under the pointer; a click
+  names its two ends and offers *Take the link out*. On the line at the foot
+  the link goes, with the dot beside it; in a sentence the words stay and only
+  the link goes. The lines Caulder draws itself - a person who is a contact,
+  who bought what, whose a document is - are not written anywhere, and do not
+  light up. *Link again* puts one back.
 
 - **The map fills its pane**, and everything else floats over it: *Find on
   the map* and the kinds top left, *Fit*, *As a list* and *Display* top

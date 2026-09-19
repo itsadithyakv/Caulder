@@ -246,9 +246,15 @@ export function buildGraph(db: Db, companyId: string, options: { allContacts: bo
     add("document", { id: row.id, name: row.name, section: null, created_at: row.created_at });
   }
 
-  const known: { source: string; target: string; createdAt: string }[] = [];
+  // Written ones first, so a line both written and known is kept as written - and can be taken out.
+  const known: { source: string; target: string; createdAt: string; written?: boolean }[] = [];
   for (const row of written) {
-    known.push({ source: `page:${row.from_page}`, target: `${row.to_kind}:${row.to_id}`, createdAt: row.created_at });
+    known.push({
+      source: `page:${row.from_page}`,
+      target: `${row.to_kind}:${row.to_id}`,
+      createdAt: row.created_at,
+      written: true,
+    });
   }
   for (const row of people) {
     if (row.lead_id) known.push({ source: `person:${row.id}`, target: `contact:${row.lead_id}`, createdAt: row.created_at });
@@ -292,7 +298,7 @@ export function buildGraph(db: Db, companyId: string, options: { allContacts: bo
     seen.add(pair);
     source.degree += 1;
     target.degree += 1;
-    links.push({ source: source.key, target: target.key, createdAt: link.createdAt });
+    links.push({ source: source.key, target: target.key, createdAt: link.createdAt, written: link.written === true });
   }
 
   return { nodes: [...byKey.values()], links };
