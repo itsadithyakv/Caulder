@@ -3,19 +3,26 @@
 Run by hand after replacing that file:  python scripts/logo.py
 
 The mark is two flat colours on transparency - a near-black cauldron and an
-orange flame. On the dark canvas the cauldron all but disappears and only the
-flame survives, so dark mode needs its own copy with the ink lifted. That copy
-is generated rather than hand-drawn, so the two can never drift apart.
+orange flame - and every copy of it stays on transparency: no tile, no
+square behind it. On anything dark the cauldron all but disappears and only
+the flame survives, so there is a second copy with the ink lifted. It is
+generated rather than hand-drawn, so the two can never drift apart; the
+window picks between them by theme, and the tray and notifications by
+whether Windows itself is dark.
 
 Writes:
-  src/assets/logo-light.png   the mark as drawn        (--logo-mark, light)
-  src/assets/logo-dark.png    the mark, ink lifted     (--logo-mark, dark)
-  resources/icon.png          the app icon             (electron-builder)
+  src/assets/logo-light.png          the mark as drawn        (--logo-mark, light)
+  src/assets/logo-dark.png           the mark, ink lifted     (--logo-mark, dark)
+  resources/icon.png                 the app icon             (electron-builder)
+  resources/tray/tray*.png           the tray, every scale    (light taskbar)
+  resources/tray/tray-light*.png     the same, ink lifted     (dark taskbar)
+  resources/tray/notify.png          a notification's mark    (light Windows)
+  resources/tray/notify-light.png    the same, ink lifted     (dark Windows)
 
 Needs Pillow, which is not a project dependency:  pip install pillow
 """
 
-from PIL import Image, ImageDraw
+from PIL import Image
 import os
 
 SRC, OUT_SRC, OUT_RES = "assets/caulderLogo.png", "src/assets", "resources"
@@ -62,22 +69,38 @@ for name, img in (("light", light), ("dark", dark)):
     img.resize((width, HEIGHT), Image.LANCZOS).save(path, optimize=True)
     print(f"{path}  {width}x{HEIGHT}  {os.path.getsize(path)} bytes")
 
-# The app icon. A black-on-transparent mark is invisible on a dark Windows
-# taskbar, so it sits on a tile in the app's own --surface colour, which reads
-# on a taskbar of either polarity.
-SIZE = 1024
-tile = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
-corners = Image.new("L", (SIZE, SIZE), 0)
-ImageDraw.Draw(corners).rounded_rectangle(
-    [0, 0, SIZE - 1, SIZE - 1], radius=round(SIZE * 0.176), fill=255
-)
-tile.paste(Image.new("RGBA", (SIZE, SIZE), (238, 241, 247, 255)), (0, 0), corners)
+# The app icon, and every smaller copy: the mark on transparency, centred in
+# a square with a little air so the flame does not touch the edge. Windows
+# cannot swap an executable's icon by theme, so the app icon is the mark as
+# drawn; the tray and notifications can, and get the lifted copy on dark.
 
-mark_h = round(SIZE * 0.66)
-mark_w = round(im.width * mark_h / im.height)
-tile.alpha_composite(
-    light.resize((mark_w, mark_h), Image.LANCZOS),
-    ((SIZE - mark_w) // 2, (SIZE - mark_h) // 2),
-)
-tile.save(f"{OUT_RES}/icon.png", optimize=True)
-print(f"{OUT_RES}/icon.png  {SIZE}x{SIZE}  {os.path.getsize(f'{OUT_RES}/icon.png')} bytes")
+
+def square(mark, size, fill):
+    """The mark in a transparent square, its height `fill` of the side."""
+    out = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    h = max(1, round(size * fill))
+    w = max(1, round(mark.width * h / mark.height))
+    out.alpha_composite(mark.resize((w, h), Image.LANCZOS), ((size - w) // 2, (size - h) // 2))
+    return out
+
+
+def save(img, path):
+    img.save(path, optimize=True)
+    print(f"{path}  {img.width}x{img.height}  {os.path.getsize(path)} bytes")
+
+
+save(square(light, 1024, 0.90), f"{OUT_RES}/icon.png")
+
+# The tray asks for sixteen pixels at 100% and more at each display scale;
+# Electron loads the @Nx siblings of a file by itself. At that size every
+# pixel of height is the mark, so it fills the square.
+TRAY = {"": 16, "@1.25x": 20, "@1.5x": 24, "@2x": 32, "@3x": 48}
+os.makedirs(f"{OUT_RES}/tray", exist_ok=True)
+for scale, size in TRAY.items():
+    save(square(light, size, 1.0), f"{OUT_RES}/tray/tray{scale}.png")
+    save(square(dark, size, 1.0), f"{OUT_RES}/tray/tray-light{scale}.png")
+
+# A notification's mark: the one Windows shows beside the words, and the one
+# registered against Caulder's app ID.
+save(square(light, 128, 0.92), f"{OUT_RES}/tray/notify.png")
+save(square(dark, 128, 0.92), f"{OUT_RES}/tray/notify-light.png")

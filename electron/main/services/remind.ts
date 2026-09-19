@@ -1,7 +1,7 @@
 import { Notification } from "electron";
 import { isFault, logProblem } from "../log";
 import type { BrowserWindow } from "electron";
-import { brandFile } from "../identity";
+import { markFile } from "../identity";
 import { getDatabase } from "../db/connection";
 import { listBlocks, markReminded } from "../repositories/blocks";
 import { dueReminders, startsWording } from "@shared/remind";
@@ -102,7 +102,7 @@ function check(getWindow: () => BrowserWindow | null): void {
         title: `${block.title} ${startsWording(inMinutes)}`,
         body: `${block.startsAt} – ${shiftTime(block.startsAt, block.minutes)} · ${company.name}`,
         // The mark beside the words, so it reads as Caulder at a glance.
-        icon: brandFile("notify.png"),
+        icon: markFile("notify"),
         silent: false,
       });
 

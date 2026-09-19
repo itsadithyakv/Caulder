@@ -1,6 +1,6 @@
-import { Menu, nativeImage, Tray, type MenuItemConstructorOptions } from "electron";
+import { Menu, nativeImage, nativeTheme, Tray, type MenuItemConstructorOptions } from "electron";
 import { heldShortcut, onShortcutChange, openCapture, toggleCapture } from "./capture";
-import { brandFile } from "./identity";
+import { markFile } from "./identity";
 import { trayItems, trayTooltip } from "./popup";
 
 /**
@@ -16,11 +16,15 @@ import { trayItems, trayTooltip } from "./popup";
 
 let tray: Tray | null = null;
 
+/** Windows turned dark or light: the tray follows, so the cauldron stays visible. */
+const followTheme = () => tray?.setImage(nativeImage.createFromPath(markFile("tray")));
+
 export function createTray(actions: { open: () => void; quit: () => void }): void {
   if (tray) return;
   // tray.png and its @Nx siblings, which Electron picks between by the
-  // screen's scale.
-  tray = new Tray(nativeImage.createFromPath(brandFile("tray.png")));
+  // screen's scale - or tray-light.png and its, on a dark taskbar.
+  tray = new Tray(nativeImage.createFromPath(markFile("tray")));
+  nativeTheme.on("updated", followTheme);
 
   const run = (action: "task" | "note" | "open" | "quit") => {
     if (action === "open") actions.open();
@@ -71,6 +75,7 @@ export function trayNotice(title: string, content: string): void {
 }
 
 export function destroyTray(): void {
+  nativeTheme.off("updated", followTheme);
   tray?.destroy();
   tray = null;
 }
