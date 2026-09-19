@@ -1,8 +1,10 @@
+import { useUpdates } from "@/features/settings/UpdatesCard";
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, Sparkles } from "lucide-react";
+import { ArrowLeft, Sparkles, Rocket } from "lucide-react";
 import { TitleBar } from "./TitleBar";
 import { Sidebar } from "./Sidebar";
 import { CompanySwitcher } from "./CompanySwitcher";
+import { Tour } from "@/components/Tour";
 import { DEFAULT_ROUTE, routeById, type RouteId } from "./routes";
 import {
   getTheme,
@@ -58,6 +60,16 @@ function Shell() {
   const [openSectionId, setOpenSectionId] = useState<{ section: BrainSectionId; focus: string | null } | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const updates = useUpdates();
+  /** The first-run tour: asked of the main process, which knows whether it has been. */
+  const [touring, setTouring] = useState(false);
+  useEffect(() => {
+    window.caulder.app.tour().then(setTouring, () => setTouring(false));
+  }, []);
+  const endTour = useCallback(() => {
+    setTouring(false);
+    void window.caulder.app.tourDone();
+  }, []);
   // Whether what is on screen is the look-around sample rather than anything
   // real. Asked of the database, because the sample is an import batch and
   // not a kind of company.
@@ -363,6 +375,16 @@ function Shell() {
 
         <main className="main">
           <div className="main__inner anim-page" key={route}>
+            {/* Only once a newer version is downloaded and waiting: before that there is nothing to do. */}
+            {updates?.status === "ready" && (
+              <div className="hintbar hintbar--sample" role="status">
+                <Rocket size={16} className="hintbar__icon" aria-hidden />
+                <p className="hintbar__text">Caulder {updates.version} is ready. It goes in when you next quit.</p>
+                <button type="button" className="btn btn--sm btn--primary" onClick={() => void window.caulder.app.installUpdate()}>
+                  Restart to update
+                </button>
+              </div>
+            )}
             {sample && (
               <div className="hintbar hintbar--sample">
                 <Sparkles size={16} className="hintbar__icon" aria-hidden />
@@ -506,7 +528,18 @@ function Shell() {
         </main>
       </div>
 
-      {helpOpen && <ShortcutHelp onClose={() => setHelpOpen(false)} />}
+      {helpOpen && (
+        <ShortcutHelp
+          onClose={() => setHelpOpen(false)}
+          onTour={() => {
+            setHelpOpen(false);
+            go("today");
+            setTouring(true);
+          }}
+        />
+      )}
+      {/* After the first run and its setup guide, on Today, where the line is. */}
+      {touring && route === "today" && <Tour onDone={endTour} />}
       {searchOpen && activeCompany && (
         <SearchPalette
           companyId={activeCompany.id}

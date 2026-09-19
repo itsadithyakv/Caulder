@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { invoiceHtml, type InvoiceDocument } from "./invoice-html";
 
 const base: InvoiceDocument = {
-  from: { name: "Unifloe", address: null, gstin: null, email: null, phone: null, payTo: [] },
+  from: { name: "Unifloe", address: null, gstin: null, taxLabel: "GSTIN", email: null, phone: null, payTo: [] },
   number: "INV-0007",
   issuedOn: "2026-09-17",
   dueOn: "2026-09-30",
@@ -22,6 +22,7 @@ describe("the invoice page", () => {
         name: "Unifloe LLP",
         address: "12 MG Road\nBengaluru 560001",
         gstin: "29ABCDE1234F1Z5",
+        taxLabel: "GSTIN",
         email: "hello@unifloe.in",
         phone: "+91 98450 00000",
         payTo: [],

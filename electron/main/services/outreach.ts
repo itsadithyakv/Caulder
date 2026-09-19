@@ -2,6 +2,7 @@ import { shell } from "electron";
 import type { Db } from "../db/connection";
 import { findLead, writeActivity } from "../repositories/leads";
 import { getSetting, setSetting } from "../repositories/settings";
+import { dialCodeOf } from "../repositories/companies";
 import { phoneKey } from "@shared/normalise";
 
 /**
@@ -20,19 +21,23 @@ import { phoneKey } from "@shared/normalise";
  */
 
 /**
- * The country code assumed for a bare ten-digit number.
- *
- * `phoneKey` strips 91 for comparison, which is right for deciding whether two
- * rows are the same person and wrong for dialling: wa.me needs the full
- * international number. The same assumption the importer already makes, made
- * explicit here rather than hidden in a template string.
+ * A number as the world dials it: as written when it carries its own country
+ * ("+44 7700 900123"), otherwise with the calling code of the company's
+ * country in front of the number without its trunk zero ("07700 900123" in
+ * a British company). With no country known, the digits as they are.
  */
-const DEFAULT_COUNTRY = "91";
-
-function whatsAppLink(phone: string | null): string | null {
-  const digits = phoneKey(phone);
+function international(phone: string | null, dial: string | null): string | null {
+  if (phone === null) return null;
+  const written = phone.trim();
+  if (/^\+\d[\d\s().-]{6,}$/.test(written)) return written.replace(/\D/g, "");
+  const digits = phoneKey(written, dial);
   if (digits === null) return null;
-  return `https://wa.me/${DEFAULT_COUNTRY}${digits}`;
+  return dial ? `${dial}${digits}` : digits;
+}
+
+function whatsAppLink(phone: string | null, dial: string | null): string | null {
+  const number = international(phone, dial);
+  return number === null ? null : `https://wa.me/${number}`;
 }
 
 /**
@@ -50,7 +55,7 @@ export function openWhatsApp(db: Db, leadId: string, message: string): void {
     throw new Error(`${lead.name} is marked do not contact.`);
   }
 
-  const link = whatsAppLink(lead.phone);
+  const link = whatsAppLink(lead.phone, dialCodeOf(db, lead.companyId));
   if (link === null) {
     throw new Error(`${lead.name} has no usable phone number.`);
   }
@@ -59,16 +64,10 @@ export function openWhatsApp(db: Db, leadId: string, message: string): void {
   void shell.openExternal(text.length === 0 ? link : `${link}?text=${encodeURIComponent(text)}`);
 }
 
-/**
- * A number as the computer's dialler wants it: as written when it already
- * carries its country, otherwise with the same default country WhatsApp uses.
- */
-function dialLink(phone: string | null): string | null {
-  if (phone === null) return null;
-  const written = phone.trim();
-  if (/^\+\d[\d\s().-]{6,}$/.test(written)) return `tel:${written.replace(/[\s().-]/g, "")}`;
-  const digits = phoneKey(written);
-  return digits === null ? null : `tel:+${DEFAULT_COUNTRY}${digits}`;
+/** A number as the computer's dialler wants it: the same international number WhatsApp gets. */
+function dialLink(phone: string | null, dial: string | null): string | null {
+  const number = international(phone, dial);
+  return number === null ? null : `tel:+${number}`;
 }
 
 /**
@@ -81,7 +80,7 @@ export function openDialler(db: Db, leadId: string, which: "phone" | "alt"): voi
   const lead = findLead(db, leadId);
   if (!lead) throw new Error("That contact no longer exists.");
   if (lead.doNotContact) throw new Error(`${lead.name} is marked do not contact.`);
-  const link = dialLink(which === "alt" ? lead.altPhone : lead.phone);
+  const link = dialLink(which === "alt" ? lead.altPhone : lead.phone, dialCodeOf(db, lead.companyId));
   if (link === null) throw new Error(`${lead.name} has no number to dial.`);
   void shell.openExternal(link);
 }

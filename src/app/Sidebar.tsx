@@ -58,6 +58,7 @@ export function Sidebar({
           <div
             key={entry.group}
             className={`navgroup${entry.group === "app" ? " navgroup--foot" : ""}`}
+            data-tour={entry.group}
           >
             {entry.group === "company" ? (
               <div className="companyhead">

@@ -23,10 +23,24 @@ until asked.
 
 ## First run
 
-One screen: a company name and one button. The funnel shape, the logo, the
-accent and the timezone are folded away under one disclosure, because the
-timezone is already known and the rest is changed in Settings whenever
-wanted.
+One screen: a company name, **the country it is in**, and one button. The
+country is guessed from the computer's language setting (*en-IN* is India),
+then from a timezone only one country uses, and is one pick to correct; it
+decides the currency a company starts on, the calling code a bare phone
+number is dialled with, and whether the filing calendar offers India's
+filings or the general set. The funnel shape, the logo, the company's colour,
+the currency and the timezone are folded away under one disclosure, and all
+of them can be changed in Settings. Any currency in the world can be chosen;
+nothing is ever converted.
+
+### The tour
+
+After the setup guide, on Today, a first run gets **a five-step tour**: your
+day (Today and the Calendar), the line that takes anything - with the key
+that opens it from any app, and the tray icon - your own things under You,
+your company, and where help is. A spotlight on each part and two sentences
+beside it; Next, Back, the arrow keys, or Skip. It is shown once; `?` has
+*Show me around again*.
 
 ### The setup guide
 
@@ -118,16 +132,21 @@ own day, and your level counts what you did in every company.
 ## Today
 
 The home screen, and the reason the app is worth opening: the first screen
-for all of it. One line at the top that takes anything; the work in the order
-it needs attention, each section only when it has something in it; and beside
-it the life half of the day - **your level** in one line (the level, the XP
+for all of it. Under the heading, the day in one line - *Saturday, 19
+September · 2 things to do today, and 1 late*, or *A clear day*. Then one line
+that takes anything, whose hint names the key that opens it from any app; the
+work in the order it needs attention - late money, what is overdue, a deadline
+three days off or less, what is due today, then what the company pays for,
+replies, the contacts going quiet, deadlines further off, what is coming and
+notes - each section only when it has something in it. A task shows its tick
+and, for a call, *Call*; moving it or deleting it comes up when the row is
+pointed at or has the keyboard. Beside the work, the life half of the day - **your level** in one line (the level, the XP
 to the next, a thin bar, and what the last seven days added; it moves the
 moment a task is done or a habit ticked, says *Up to level 4* for a moment
 when one is crossed, and opens Life), **Journal** (how today felt, in one
 press, and its first words), **Habits** (today's ticked in one press, each
 with its run of days) and **Your week** (the next exam, the hobbies' time this
-week against what they are wanted, the goal whose day is nearest) - then
-replies, the contacts going quiet, what is coming, and notes.
+week against what they are wanted, the goal whose day is nearest).
 
 ### The line that takes anything
 
@@ -1262,6 +1281,20 @@ corner says *Writing*, *Keeping it*, *Kept*. Above the text, **how the day
 felt** - Rough, Low, Okay, Good, Great, each a face and a word - is one
 press, and pressing it again takes it back. `[[` links a page, a contact, a
 product, a person or a document, as anywhere in the brain.
+
+**A passcode can lock the days that are over** (*Passcode* in the journal's
+heading). Writing never asks for it: today stays open, and a day written into
+later is locked again as soon as it is kept. Reading a day that is over asks
+once, and stays open for a quarter of an hour of use, or until *Lock now*.
+Locked is real, not a screen over the words: each day is encrypted with the
+journal's public key when it ends, and only the private key - itself
+encrypted with the passcode - opens it, so the words are not in the database,
+its backups or search. The mood stays visible, so the calendar keeps its
+faces. *Change the passcode*, *Take the passcode off* (every day is opened and
+kept as it was) and *I forgot the passcode* are in the same menu; forgetting
+it means those days cannot be read by anyone, which the screen says before
+one is set, and *I forgot the passcode* erases what was locked to take the
+lock off.
 
 - **An entry is made by writing in it**, a word or a face; opening a day does
   not make one. One entry a day.

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import Database from "better-sqlite3";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -21,7 +21,7 @@ const { backupsDir, closeDatabase, databasePath, getDatabase, openDatabase } = a
   "./connection"
 );
 const { LATEST_VERSION, migrate } = await import("./migrations");
-const { backupNow, restoreBackup } = await import("./backup");
+const { backupNow, mirrorFolder, restoreBackup, setMirrorFolder } = await import("./backup");
 const { createCompany } = await import("../repositories/companies");
 
 function companies(): number {
@@ -86,3 +86,36 @@ describe("restoring a backup", () => {
     expect(companies()).toBe(1);
   });
 });
+
+describe("another copy, somewhere else", () => {
+  it("copies every backup to the chosen folder too, and keeps ten there", () => {
+    const elsewhere = join(home, "OneDrive", "Caulder");
+    setMirrorFolder(elsewhere);
+    expect(mirrorFolder()).toBe(elsewhere);
+
+    let last = backupNow(new Date(2026, 8, 17, 9, 0, 0));
+    expect(last.mirrored).toEqual({ folder: elsewhere, error: null });
+    expect(readdirSync(elsewhere)).toEqual([last.name]);
+
+    for (let minute = 1; minute <= 11; minute += 1) last = backupNow(new Date(2026, 8, 17, 9, minute, 0));
+    expect(readdirSync(elsewhere)).toHaveLength(10);
+    expect(readdirSync(elsewhere)).toContain(last.name);
+  });
+
+  it("still takes the backup when the folder cannot be written, and says why", () => {
+    const blocked = join(home, "a-file-not-a-folder");
+    writeFileSync(blocked, "in the way");
+    setMirrorFolder(blocked);
+    const taken = backupNow(new Date(2026, 8, 17, 9, 0, 0));
+    expect(existsSync(taken.path)).toBe(true);
+    expect(taken.mirrored?.error).toBeTruthy();
+  });
+
+  it("stops when asked", () => {
+    setMirrorFolder(join(home, "Drive"));
+    setMirrorFolder(null);
+    expect(mirrorFolder()).toBeNull();
+    expect(backupNow(new Date(2026, 8, 17, 9, 0, 0)).mirrored).toBeUndefined();
+  });
+});
+

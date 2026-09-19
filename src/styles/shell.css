@@ -349,13 +349,14 @@
 
 /* The look-around banner sits above the title on every screen, because the
  * sample is on every screen. An information banner, in the info colours. */
+/* In the app's own coffee, not the blue of an alert: it is an invitation. */
 .hintbar--sample {
   margin-bottom: var(--space-5);
-  background: var(--info-soft);
-  border-color: color-mix(in srgb, var(--info) 25%, var(--info-soft));
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--accent-soft));
 }
 
-.hintbar--sample .hintbar__icon { color: var(--info); }
+.hintbar--sample .hintbar__icon { color: var(--accent-strong); }
 .hintbar--sample .hintbar__text { color: var(--ink); }
 
 .page-head {
@@ -387,4 +388,112 @@
   object-fit: contain;
   background: var(--surface);
   border-radius: inherit;
+}
+
+/* ---- The first-run tour ----------------------------------------------------
+ * A spotlight and a card. The spotlight is a hole cut in the dark by its own
+ * enormous shadow, so the rest of the window dims and the part being talked
+ * about stays exactly as it is. It moves between steps; under reduced motion
+ * it jumps.
+ * ------------------------------------------------------------------------ */
+
+.tour {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+}
+
+.tour__spot,
+.tour__scrim {
+  position: fixed;
+  pointer-events: none;
+}
+
+.tour__spot {
+  border-radius: var(--radius-md);
+  box-shadow:
+    0 0 0 2px var(--accent),
+    0 0 0 100vmax rgba(26, 14, 6, 0.55);
+  transition:
+    top var(--dur-slow) var(--ease-spring),
+    left var(--dur-slow) var(--ease-spring),
+    width var(--dur-slow) var(--ease-spring),
+    height var(--dur-slow) var(--ease-spring);
+}
+
+.tour__scrim {
+  inset: 0;
+  background: rgba(26, 14, 6, 0.55);
+}
+
+.tour__card {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  box-shadow: var(--shadow-float);
+  transition:
+    top var(--dur-slow) var(--ease-spring),
+    left var(--dur-slow) var(--ease-spring);
+}
+
+.tour__count {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tour__title {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-md);
+  font-weight: 800;
+}
+
+.tour__body {
+  margin: 0;
+  color: var(--ink-2);
+  line-height: var(--leading);
+}
+
+.tour__body kbd {
+  padding: 1px 6px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xs);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.tour__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.tour__spacer {
+  flex: 1;
+}
+
+.shortcuts__tour {
+  align-self: flex-start;
+}
+
+/* A problem report, read in full before it goes anywhere. */
+.problemreport {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.problemreport__text {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
 }

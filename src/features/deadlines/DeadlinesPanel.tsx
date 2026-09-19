@@ -337,16 +337,16 @@ function defaultPicks(offers: readonly PresetOffer[]): Set<string> {
   );
 }
 
-/** Where the picks came from: the profile's entity type and GST scheme, or what it does not say. */
+/** Where the picks came from: the profile's entity type and sales-tax scheme, or what it does not say. */
 function profileLine(overview: DeadlinesOverview, set: PresetSetId): string {
   if (set === "generic") return "The shape of a year. Once they are added, set each date to the one your country uses.";
   const entity = ENTITY_TYPES.find((option) => option.value === overview.profile.entityType)?.label;
   const gst = GST_STATUSES.find((option) => option.value === overview.profile.gstStatus)?.label;
-  const missing = [entity ? null : "what kind of company this is", gst ? null : "its GST status"].filter(Boolean);
+  const missing = [entity ? null : "what kind of company this is", gst ? null : "its sales tax, VAT or GST"].filter(Boolean);
   if (missing.length > 0) {
     return `The company profile does not say ${missing.join(" or ")}, so what depends on it is left for you to pick. Fill it in and these picks follow it.`;
   }
-  return `Picked for what the company profile says: ${entity}, GST ${gst?.toLowerCase()}.`;
+  return `Picked for what the company profile says: ${entity}; sales tax ${gst?.toLowerCase()}.`;
 }
 
 function PresetPicker({
@@ -580,7 +580,7 @@ function ObligationForm({
           maxLength={160}
           autoFocus
           disabled={busy}
-          placeholder="GSTR-1"
+          placeholder="VAT return"
           onChange={(event) => setTitle(event.target.value)}
         />
       </div>

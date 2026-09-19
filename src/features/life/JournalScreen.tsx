@@ -9,6 +9,8 @@ import { LinkedTextarea } from "@/features/brain/LinkedTextarea";
 import { MoodPicker } from "./MoodPicker";
 import { DayRecordCard } from "./DayRecordCard";
 import { JournalCalendar } from "./JournalCalendar";
+import type { JournalLockState } from "@shared/life";
+import { LockedDay, PasscodeForm, PasscodeMenu } from "./JournalLock";
 
 /**
  * The journal (PLAN.md, part four): a row of its own, because it is the
@@ -62,6 +64,11 @@ export function JournalScreen({
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
+  /** The passcode: whether there is one and whether it is open, and a form for it when one is open. */
+  const [lock, setLock] = useState<JournalLockState>({ set: false, open: false });
+  const [lockMode, setLockMode] = useState<"set" | "change" | "remove" | "forget" | null>(null);
+  /** Bumped to read the day again: after it is unlocked, locked, or the passcode changes. */
+  const [reread, setReread] = useState(0);
 
   // What the saves read: the newest page for each day, and the day on screen.
   const latest = useRef(new Map<string, BrainPage>());
@@ -131,6 +138,19 @@ export function JournalScreen({
   }, [keep]);
 
   useEffect(() => {
+    window.caulder.life.lockState().then(setLock, () => undefined);
+  }, [reread]);
+
+  /** Anything the passcode changed: what is on screen is read again, and nothing opened is kept. */
+  const afterLock = useCallback((next: JournalLockState) => {
+    setLock(next);
+    setLockMode(null);
+    latest.current.clear();
+    setReread((n) => n + 1);
+    setVersion((n) => n + 1);
+  }, []);
+
+  useEffect(() => {
     if (!companyId) return;
     let live = true;
     setLoaded(false);
@@ -150,7 +170,7 @@ export function JournalScreen({
       live = false;
       flush();
     };
-  }, [companyId, day, flush]);
+  }, [companyId, day, flush, reread]);
 
   if (!companyId) return null;
 
@@ -208,28 +228,42 @@ export function JournalScreen({
               </button>
             )}
             <span className={`journalentry__status journalentry__status--${status}`} role="status">
-              {said[status]}
+              {page?.locked ? "" : said[status]}
             </span>
+            <PasscodeMenu
+              state={lock}
+              onPick={(mode) => (mode === "lock" ? void window.caulder.life.lockNow().then(afterLock) : setLockMode(mode))}
+            />
           </header>
+
+          {lockMode && <PasscodeForm mode={lockMode} companyId={companyId} onDone={afterLock} onCancel={() => setLockMode(null)} />}
 
           <MoodPicker value={mood} busy={!loaded} onPick={feel} label="How the day felt" />
 
-          <label className="visually-hidden" htmlFor="journal-body">
-            The entry
-          </label>
-          <LinkedTextarea
-            id="journal-body"
-            companyId={companyId}
-            exclude={page?.id ?? ""}
-            className="textarea journalentry__body"
-            value={body}
-            disabled={!loaded}
-            onChange={write}
-          />
+          {page?.locked ? (
+            // Its words are sealed: nothing is shown, so nothing can be saved over them.
+            <LockedDay onOpened={afterLock} />
+          ) : (
+            <>
+              <label className="visually-hidden" htmlFor="journal-body">
+                The entry
+              </label>
+              <LinkedTextarea
+                id="journal-body"
+                companyId={companyId}
+                exclude={page?.id ?? ""}
+                className="textarea journalentry__body"
+                value={body}
+                disabled={!loaded}
+                onChange={write}
+              />
+            </>
+          )}
           <p className="journalentry__private">
             <Lock size={12} aria-hidden />
-            Kept on this computer only: never shared with a co-founder, never in an export for an assistant. [[ links a page
-            or a contact.
+            Kept on this computer only: never shared with a co-founder, never in an export for an assistant.
+            {lock.set ? " Days that are over are locked with your passcode." : " A passcode can lock the days that are over."} [[
+            links a page or a contact.
           </p>
           <ErrorLine>{error}</ErrorLine>
         </section>

@@ -1,3 +1,4 @@
+import { dialCodeOf } from "../repositories/companies";
 import { createDeal, mainDeal, setDealValue } from "../repositories/deals";
 import { randomUUID } from "node:crypto";
 import ExcelJS from "exceljs";
@@ -250,9 +251,9 @@ type Candidate = {
  * name to agree costs the case where one lead is listed twice under different
  * names with the same number, which rule 3 usually catches anyway.
  */
-function findDuplicate(values: ImportValues, candidates: Candidate[]): DuplicateMatch | null {
+function findDuplicate(values: ImportValues, candidates: Candidate[], dial: string | null): DuplicateMatch | null {
   const email = values.email;
-  const phone = phoneKey(values.phone);
+  const phone = phoneKey(values.phone, dial);
   const name = labelKey(values.name);
   const city = labelKey(values.city);
 
@@ -269,7 +270,7 @@ function findDuplicate(values: ImportValues, candidates: Candidate[]): Duplicate
     const otherName = labelKey(candidate.values.name);
     if (
       phone &&
-      phoneKey(candidate.values.phone) === phone &&
+      phoneKey(candidate.values.phone, dial) === phone &&
       otherName &&
       name &&
       namesAgree(name, otherName)
@@ -377,6 +378,8 @@ export function previewImport(
   // Existing leads first, then rows accepted earlier in this same file: the
   // file itself repeats schools, so a row can duplicate one three rows above
   // it that does not exist in the database yet.
+  // Numbers compare without the company's own country code in front.
+  const dial = dialCodeOf(db, companyId);
   const candidates: Candidate[] = existingLeads(db, companyId).map((lead) => ({
     leadId: lead.id,
     name: lead.name,
@@ -392,7 +395,7 @@ export function previewImport(
       return { rowNumber, status: "error", errors: ["Name is missing."] };
     }
 
-    const duplicate = findDuplicate(values, candidates);
+    const duplicate = findDuplicate(values, candidates, dial);
     if (duplicate) {
       return { rowNumber, status: "duplicate", errors: [], values, match: duplicate };
     }

@@ -1,5 +1,8 @@
+import { checkForUpdates, installUpdate, updateState } from "../updates";
+import { openIssue, problemReport } from "../problem";
 import { app, BrowserWindow, clipboard, ipcMain } from "electron";
 import type { IpcMainEvent, IpcMainInvokeEvent } from "electron";
+import { isCurrency } from "@shared/countries";
 import { CHANNELS, type Workspace } from "@shared/ipc";
 import { assertId, handle } from "./handle";
 import { registerBrainHandlers } from "./brain";
@@ -22,7 +25,6 @@ import {
   type Relationship,
   activityInput,
   companyInput,
-  CURRENCIES,
   taskInput,
   type QuickInput,
   areaWordInput,
@@ -106,7 +108,7 @@ import {
 } from "@shared/domain";
 import { buildBoard } from "../services/pipeline";
 import { exportEverything } from "../services/export";
-import { backupNow, listBackups, restoreBackup } from "../db/backup";
+import { backupNow, mirrorFolder, setMirrorFolder, listBackups, restoreBackup } from "../db/backup";
 import { backupsDir, closeDatabase, databasePath, openDatabase } from "../db/connection";
 import { shell } from "electron";
 import { logProblem, logsDir } from "../log";
@@ -189,6 +191,8 @@ import {
   setCompanyAccent,
   homeCompanyId,
   withHome,
+  setCompanyCountry,
+  setCompanyTimezone,
 } from "../repositories/companies";
 import { getSetting, resolveActiveCompanyId, setSetting } from "../repositories/settings";
 
@@ -305,6 +309,22 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
 
 
   handle(CHANNELS.appVersion, () => app.getVersion());
+
+  // The tour shows once. A test run never sees it unless it asks: every
+  // window the suite opens is a first run, and a spotlight over each would
+  // stand in front of every click.
+  handle(CHANNELS.appTour, () => {
+    const underTest = process.env["CAULDER_BACKGROUND"] === "1" && process.env["CAULDER_TOUR"] !== "1";
+    return !underTest && getSetting(getDatabase(), "tourDone") !== "1";
+  });
+  handle(CHANNELS.appTourDone, () => {
+    setSetting(getDatabase(), "tourDone", "1");
+  });
+  handle(CHANNELS.appProblemReport, () => problemReport());
+  handle(CHANNELS.appOpenIssue, (_event, text: unknown) => openIssue(text));
+  handle(CHANNELS.updatesState, () => updateState());
+  handle(CHANNELS.updatesCheck, () => checkForUpdates());
+  handle(CHANNELS.updatesInstall, () => installUpdate());
 
   // A screen that failed to draw reports here, so the log has its stack.
   ipcMain.on(CHANNELS.appReportError, (_event, detail: unknown) => {
@@ -545,6 +565,26 @@ function registerDataHandlers(getWindow: () => BrowserWindow | null) {
   handle(CHANNELS.dataBackups, () => listBackups());
 
   handle(CHANNELS.dataBackupNow, () => backupNow());
+
+  handle(CHANNELS.dataMirror, () => mirrorFolder());
+  handle(CHANNELS.dataChooseMirror, async () => {
+    const picked = await dialog.showOpenDialog({
+      title: "Where should backups also go?",
+      buttonLabel: "Copy backups here",
+      properties: ["openDirectory", "createDirectory"],
+    });
+    const folder = picked.canceled ? null : (picked.filePaths[0] ?? null);
+    if (!folder) return null;
+    setMirrorFolder(folder);
+    // One there now, so the folder is proven rather than hoped for.
+    const taken = backupNow();
+    if (taken.mirrored?.error) throw new Error(`Caulder could not copy a backup there: ${taken.mirrored.error}`);
+    return folder;
+  });
+  handle(CHANNELS.dataStopMirror, () => {
+    setMirrorFolder(null);
+    return null;
+  });
 
   handle(CHANNELS.dataPaths, () => ({
     database: databasePath(),
@@ -1152,10 +1192,18 @@ function registerTaskHandlers() {
   handle(CHANNELS.companiesSetCurrency, (_event, companyId: unknown, raw: unknown) => {
     // An unknown code is refused rather than stored: the whole value of the
     // field is that a total is a total of one thing.
-    if (!(CURRENCIES as readonly string[]).includes(String(raw))) {
-      throw new Error("That is not a currency Caulder knows about.");
-    }
-    setCompanyCurrency(getDatabase(), assertId(companyId, "company id"), String(raw));
+    if (!isCurrency(raw)) throw new Error("That is not a currency Caulder knows about.");
+    setCompanyCurrency(getDatabase(), assertId(companyId, "company id"), raw);
+    return workspace();
+  });
+
+  handle(CHANNELS.companiesSetCountry, (_event, companyId: unknown, raw: unknown) => {
+    setCompanyCountry(getDatabase(), assertId(companyId, "company id"), String(raw));
+    return workspace();
+  });
+
+  handle(CHANNELS.companiesSetTimezone, (_event, companyId: unknown, raw: unknown) => {
+    setCompanyTimezone(getDatabase(), assertId(companyId, "company id"), String(raw));
     return workspace();
   });
 

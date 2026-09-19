@@ -648,7 +648,7 @@ function DayJournal({ companyId, day, onOpen }: { companyId: string; day: string
       {entry ? (
         <>
           {entry.mood && <MoodTag mood={entry.mood} />}
-          <span className="dayjournal__excerpt">{entry.excerpt || "Written"}</span>
+          <span className="dayjournal__excerpt">{entry.locked ? "Locked" : entry.excerpt || "Written"}</span>
         </>
       ) : (
         <span className="dayjournal__excerpt">Write about this day</span>

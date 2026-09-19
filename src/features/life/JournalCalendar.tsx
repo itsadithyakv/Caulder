@@ -149,7 +149,11 @@ export function JournalCalendar({
                 <button type="button" className="pagerow" onClick={() => onPick(item.entry.day)}>
                   <span className="pagerow__main">
                     <span className="pagerow__title">{item.label}</span>
-                    {item.entry.excerpt && <span className="pagerow__excerpt">{item.entry.excerpt}</span>}
+                    {item.entry.locked ? (
+                      <span className="pagerow__excerpt">Locked</span>
+                    ) : (
+                      item.entry.excerpt && <span className="pagerow__excerpt">{item.entry.excerpt}</span>
+                    )}
                   </span>
                   <span className="pagerow__meta">{item.entry.mood && <MoodTag mood={item.entry.mood} />}</span>
                 </button>

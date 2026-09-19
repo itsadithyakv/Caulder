@@ -278,7 +278,7 @@ export function QuickAdd({
           ref={input}
           className="quickadd__input"
           value={text}
-          placeholder={smart ? "Anything: a task, a call just made, how today went, guitar 40 min, an idea" : placeholder}
+          placeholder={smart ? "Add anything - a task, a call, how today went, guitar 40 min" : placeholder}
           aria-label={smart ? "Anything, in one line" : "Add a task in one line"}
           aria-describedby={readId}
           autoComplete="off"
@@ -330,7 +330,9 @@ export function QuickAdd({
           ) : (
             <span className="quickadd__hint">
               {smart
-                ? "Type it the way you would say it. It goes where it belongs - a task, today's journal, a contact's history, a hobby, an idea or a note - and says so before it goes."
+                ? `Say it the way you would; it goes where it belongs and says where first. Press A here${
+                    anywhere ? `, or ${anywhere} from any app` : ""
+                  }.`
                 : shownHint}
             </span>
           )

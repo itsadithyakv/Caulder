@@ -44,6 +44,8 @@ type WorkspaceContext = {
   rename: (id: string, name: string) => Promise<void>;
   setAccent: (id: string, accent: AccentId) => Promise<void>;
   setCurrency: (id: string, currency: string) => Promise<void>;
+  setCountry: (id: string, country: string) => Promise<void>;
+  setTimezone: (id: string, timezone: string) => Promise<void>;
   archive: (id: string) => Promise<void>;
   /** Ends a workspace and everything in it. Archiving only hides one. */
   remove: (id: string) => Promise<void>;
@@ -146,6 +148,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       },
       setCurrency: async (id, currency) => {
         await apply(() => window.caulder.companies.setCurrency(id, currency));
+      },
+      setCountry: async (id, country) => {
+        await apply(() => window.caulder.companies.setCountry(id, country));
+      },
+      setTimezone: async (id, timezone) => {
+        await apply(() => window.caulder.companies.setTimezone(id, timezone));
       },
       archive: async (id) => {
         await apply(() => window.caulder.companies.archive(id));

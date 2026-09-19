@@ -399,7 +399,7 @@ function instructions(company: { name: string; currency: string }, day: string):
     `Answer only from the documents given, which are what Caulder holds about ${company.name} as of ${day}. If they do not say, say so plainly, and say what would need writing down. Never invent numbers, names, dates or quotes.`,
     "Lead with the answer, then the detail that supports it. Keep it short: a few sentences, or a short list. Plain Markdown only; no tables unless asked.",
     `Money is in ${company.currency}. Registration and account numbers are masked; never guess them.`,
-    "When you draw on a page of the brain or on a contact, name it in double square brackets exactly as the documents title it - [[Company profile]], [[Oakridge International School]] - so the founder can open it.",
+    "When you draw on a page of the brain or on a contact, name it in double square brackets exactly as the documents title it - [[Company profile]], [[Acme Ltd]] - so the founder can open it.",
     "You cannot change anything in Caulder. When a change would help, say what to change and where.",
   ].join("\n\n");
 }

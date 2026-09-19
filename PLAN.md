@@ -1046,3 +1046,32 @@ the app; it belongs with the company's screens. And the coffee look, kept.
 - **Coffee is the app's face**, set on the page so the first paint wears it;
   a company's colour is its mark. The app icon, tray and notification marks
   are the logo on transparency, with the ink lifted where Windows is dark.
+
+### After 0.3, again — Anywhere, and ready for other people — *done 19 September 2026*
+
+Asked for on 19 September 2026, after the product review: fix what can be
+fixed, a fast tutorial, the quick window easy to find, Today less off, a
+passcode on the journal for reading and not for writing, and a product for
+people in any country, not only Indian student founders.
+
+- **A five-step tour** on a first run, and back from `?`. Kept out of the test
+  suite unless a spec asks for it.
+- **Today, calmer**: the day in one line under the heading; the line's hint
+  names the key for any app; the late things first and a far-off deadline
+  after the day's work; a row's quieter actions on hover and focus; the work
+  column wider and the life column lighter; notes at the foot of the work.
+- **The journal's passcode** (migration 34, `journal_sealed`): a key pair, so
+  a day that is over is sealed without asking and only the passcode opens it.
+  Sealed means gone from the page, its history and search.
+- **A company's country** (migration 35): the currency it starts on - any
+  currency, not seven - the calling code for WhatsApp and the dialler, and
+  India's filing calendar or the general one. India's names (PAN, GSTIN,
+  IFSC, UPI, HSN or SAC, TDS) became general ones with India's in the hints,
+  and invoices and Brain home print India's names for a company in India.
+  The timezone can be changed.
+- **Updates** through electron-updater and GitHub Releases, **another copy of
+  every backup** in a folder that syncs, and **Report a problem**, read in
+  full before it goes anywhere.
+
+Not done, and why: **code signing** needs a certificate bought in the
+founder's name; **a real send through Google** needs the founder's account.

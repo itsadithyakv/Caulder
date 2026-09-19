@@ -116,7 +116,7 @@ export function TaskForm({
           className={`input${error ? " input--invalid" : ""}`}
           value={title}
           onChange={(event) => setTitle(event.target.value)}
-          placeholder="Call the principal about the demo"
+          placeholder="Call Asha about the demo"
           autoFocus
           autoComplete="off"
           maxLength={200}

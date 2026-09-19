@@ -486,7 +486,7 @@ export function OpeningForm({
             value={pay}
             maxLength={120}
             disabled={busy}
-            placeholder="₹15,000 to ₹20,000 a month"
+            placeholder="15,000 to 20,000 a month"
             onChange={(event) => setPay(event.target.value)}
           />
         </div>

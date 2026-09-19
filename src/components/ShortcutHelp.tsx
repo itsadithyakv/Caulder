@@ -11,7 +11,7 @@ import { QUICK_WINDOW_SHORTCUTS, SHORTCUTS } from "@/lib/shortcuts";
  * down here: it can be changed, turned off, or taken by another app, and a
  * list naming a key you do not have would send somebody pressing nothing.
  */
-export function ShortcutHelp({ onClose }: { onClose: () => void }) {
+export function ShortcutHelp({ onClose, onTour }: { onClose: () => void; onTour?: () => void }) {
   const closeButton = useRef<HTMLButtonElement>(null);
   const [anywhere, setAnywhere] = useState<string | null>(null);
 
@@ -72,6 +72,11 @@ export function ShortcutHelp({ onClose }: { onClose: () => void }) {
           Single letters, so they stay out of the way while you are typing. The
           quick window works from any app.
         </p>
+        {onTour && (
+          <button type="button" className="btn btn--sm shortcuts__tour" onClick={onTour}>
+            Show me around again
+          </button>
+        )}
 
         {groups.map((group) => (
           <div key={group.group} className="today__group">

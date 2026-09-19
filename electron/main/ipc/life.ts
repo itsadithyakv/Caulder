@@ -5,6 +5,7 @@ import { newLinkedPage } from "../services/brain";
 import { addHabit, archiveHabit, editHabit, listHabits, removeHabit, tickHabit } from "../services/habits";
 import { addTile, editTile, listTiles, moveTile, removeTile } from "../services/vision";
 import { progress } from "../services/progress";
+import { changePasscode, forgetPasscode, lockNow, lockState, removePasscode, setPasscode, unlock } from "../services/journal-lock";
 import {
   dayRecord,
   findEntry,
@@ -46,6 +47,17 @@ export function registerLifeHandlers(): void {
   );
   handle(CHANNELS.lifeJot, (_event, companyId: unknown, text: unknown) => jot(getDatabase(), companyOf(companyId), text));
   handle(CHANNELS.lifeLogTime, (_event, pageId: unknown, minutes: unknown) => logTime(getDatabase(), pageOf(pageId), minutes));
+
+  /* ---- The journal's passcode ---- */
+  handle(CHANNELS.lifeLockState, () => lockState(getDatabase()));
+  handle(CHANNELS.lifeLockSet, (_event, companyId: unknown, passcode: unknown) => setPasscode(getDatabase(), companyOf(companyId), passcode));
+  handle(CHANNELS.lifeUnlock, (_event, passcode: unknown) => unlock(getDatabase(), passcode));
+  handle(CHANNELS.lifeLockNow, () => lockNow(getDatabase()));
+  handle(CHANNELS.lifeLockChange, (_event, oldPasscode: unknown, newPasscode: unknown) =>
+    changePasscode(getDatabase(), oldPasscode, newPasscode),
+  );
+  handle(CHANNELS.lifeLockRemove, (_event, passcode: unknown) => removePasscode(getDatabase(), passcode));
+  handle(CHANNELS.lifeLockForget, () => forgetPasscode(getDatabase()));
 
   /* ---- Habits ---- */
   const habitOf = (value: unknown) => assertId(value, "habit id");

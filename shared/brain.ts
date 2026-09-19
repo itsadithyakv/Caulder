@@ -110,21 +110,28 @@ function slug(label: string): string {
     .replace(/^-|-$/g, "");
 }
 
-export const ENTITY_TYPES = options(
-  "Sole proprietorship",
-  "Partnership",
-  "LLP",
-  "Private limited company",
-  "One person company",
-  "Public limited company",
-  "Other",
+/**
+ * A choice whose stored value stays put while its words change: the values
+ * are in pages already written and in the filing calendar's rules, and the
+ * words had to stop assuming India.
+ */
+const kept = (...pairs: [value: string, label: string][]): Option[] => pairs.map(([value, label]) => ({ value, label }));
+
+export const ENTITY_TYPES = kept(
+  ["sole-proprietorship", "Sole proprietorship or sole trader"],
+  ["partnership", "Partnership"],
+  ["llp", "LLP"],
+  ["private-limited-company", "Private limited company (Ltd, LLC, GmbH and the like)"],
+  ["one-person-company", "One person company"],
+  ["public-limited-company", "Public limited company or corporation"],
+  ["other", "Other"],
 );
 
-export const GST_STATUSES = options(
-  "Not registered",
-  "Regular, monthly returns",
-  "Regular, quarterly returns (QRMP)",
-  "Composition scheme",
+export const GST_STATUSES = kept(
+  ["not-registered", "Not registered"],
+  ["regular-monthly-returns", "Registered, monthly returns"],
+  ["regular-quarterly-returns-qrmp", "Registered, quarterly returns (QRMP in India)"],
+  ["composition-scheme", "A small-business scheme (Composition in India)"],
 );
 
 const LEVELS = options("Low", "Medium", "High");
@@ -172,12 +179,12 @@ export const BRAIN_TEMPLATES: readonly BrainTemplate[] = [
       { key: "website", label: "Website", kind: "url" },
       { key: "email", label: "Email", kind: "email" },
       { key: "phone", label: "Phone", kind: "text" },
-      { key: "cin", label: "CIN or LLPIN", kind: "text" },
-      { key: "pan", label: "PAN", kind: "secret" },
-      { key: "tan", label: "TAN", kind: "secret" },
-      { key: "gstStatus", label: "GST", kind: "choice", options: GST_STATUSES },
-      { key: "gstin", label: "GSTIN", kind: "text", hint: "Printed on invoices." },
-      { key: "udyam", label: "Udyam number", kind: "text" },
+      { key: "cin", label: "Company number", kind: "text", hint: "As registered: CIN or LLPIN in India, the company number elsewhere." },
+      { key: "pan", label: "Tax ID", kind: "secret", hint: "PAN in India, EIN in the US, UTR in the UK." },
+      { key: "tan", label: "Tax withholding number", kind: "secret", hint: "TAN in India. Leave it empty if there is no such thing where you are." },
+      { key: "gstStatus", label: "Sales tax, VAT or GST", kind: "choice", options: GST_STATUSES },
+      { key: "gstin", label: "Sales tax, VAT or GST number", kind: "text", hint: "GSTIN in India. Printed on invoices." },
+      { key: "udyam", label: "Small-business registration", kind: "text", hint: "Udyam in India." },
     ],
     body: "## The pitch\n\n\n## What makes us different\n\n",
   },
@@ -190,10 +197,10 @@ export const BRAIN_TEMPLATES: readonly BrainTemplate[] = [
     fields: [
       { key: "bankName", label: "Bank", kind: "text" },
       { key: "holder", label: "Account name", kind: "text" },
-      { key: "number", label: "Account number", kind: "secret" },
-      { key: "ifsc", label: "IFSC", kind: "text" },
+      { key: "number", label: "Account number", kind: "secret", hint: "Or the IBAN." },
+      { key: "ifsc", label: "Bank code", kind: "text", hint: "IFSC in India; SWIFT or BIC, sort code or routing number elsewhere." },
       { key: "branch", label: "Branch", kind: "text" },
-      { key: "upi", label: "UPI ID", kind: "text" },
+      { key: "upi", label: "Payment ID", kind: "text", hint: "A UPI ID, or wherever else you are paid." },
       { key: "onInvoices", label: "Print on invoices", kind: "check" },
     ],
     body: PAGE_BODY,
@@ -444,7 +451,7 @@ export const BRAIN_TEMPLATES: readonly BrainTemplate[] = [
         kind: "text",
         hint: "Your name as you say it on the phone. Fills in {{me.name}}.",
       },
-      { key: "audience", label: "For", kind: "text", hint: "Who it is for: new schools, past customers." },
+      { key: "audience", label: "For", kind: "text", hint: "Who it is for: new customers, past customers." },
     ],
     body: scriptPreset("professional").body,
     presets: CALL_TONES.map((tone) => ({ id: tone, label: CALL_TONE_LABEL[tone], hint: CALL_TONE_HINT[tone] })),
@@ -711,7 +718,7 @@ export const BRAIN_SECTION_LIST: readonly BrainSection[] = [
     id: "company",
     label: "Company",
     prompt:
-      "What the company is on paper: names, numbers, addresses, and the account invoices are paid into. The profile's legal name, address and GSTIN print on every invoice.",
+      "What the company is on paper: names, numbers, addresses, and the account invoices are paid into. The profile's legal name, address and tax number print on every invoice.",
     templates: ["profile", "bank", "brand"],
   },
   {
@@ -920,6 +927,8 @@ export type BrainPage = {
    * founders: the other is in History, and nobody has saved since.
    */
   editedTogether: boolean;
+  /** A journal entry sealed behind the passcode, read while the journal is locked: its words are not here. */
+  locked?: boolean;
 };
 
 export type BrainPageSummary = {
@@ -1236,7 +1245,7 @@ export function evaluateChecklist(
       null,
       "catalogue",
     ),
-    item("gst", "GST status", has(profile, "gstStatus"), "company", "profile"),
+    item("gst", "Sales tax, VAT or GST", has(profile, "gstStatus"), "company", "profile"),
     item(
       "bank",
       "The bank account invoices print",

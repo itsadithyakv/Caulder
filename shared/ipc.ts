@@ -32,7 +32,7 @@ import type { LinkKind, LinkTarget } from "./links";
 import type { PageTasks } from "./steps";
 import type { ImportOutcome, InvitationPreview, ShareState } from "./share";
 import type { HandbookInput, HandbookOutcome, RoomChoices, RoomInput, RoomOutcome } from "./dataroom";
-import type { DayRecord, GoalRow, HobbyRow, JournalDay, JournalMonth, PageTime, StudiesOverview, TimeInput } from "./life";
+import type { DayRecord, GoalRow, HobbyRow, JournalDay, JournalLockState, JournalMonth, PageTime, StudiesOverview, TimeInput } from "./life";
 import type { Mood } from "./brain";
 import type { HabitInput, HabitsOverview } from "./habits";
 import type { VisionInput, VisionPicture, VisionTile } from "./vision";
@@ -91,7 +91,7 @@ import type {
   EmailTemplate,
   TemplateInput,
 } from "./email";
-import type { BackupFile, ExportEverything } from "./data";
+import type { BackupFile, ExportEverything, UpdateState } from "./data";
 import type {
   ChosenFile,
   ColumnMapping,
@@ -121,6 +121,13 @@ export const CHANNELS = {
   notifySet: "notify:set",
 
   appVersion: "app:version",
+  appTour: "app:tour",
+  appTourDone: "app:tour-done",
+  appProblemReport: "app:problem-report",
+  appOpenIssue: "app:open-issue",
+  updatesState: "updates:state",
+  updatesCheck: "updates:check",
+  updatesInstall: "updates:install",
   appReportError: "app:report-error",
 
   companiesList: "companies:list",
@@ -190,6 +197,8 @@ export const CHANNELS = {
   todayGet: "today:get",
 
   companiesSetCurrency: "companies:set-currency",
+  companiesSetCountry: "companies:set-country",
+  companiesSetTimezone: "companies:set-timezone",
   moneyGet: "money:get",
   moneyForLead: "money:for-lead",
   quoteSave: "quotes:save",
@@ -289,6 +298,13 @@ export const CHANNELS = {
   lifeLinkedPage: "life:linked-page",
   lifeJot: "life:jot",
   lifeLogTime: "life:log-time",
+  lifeLockState: "life:lock-state",
+  lifeLockSet: "life:lock-set",
+  lifeUnlock: "life:unlock",
+  lifeLockNow: "life:lock-now",
+  lifeLockChange: "life:lock-change",
+  lifeLockRemove: "life:lock-remove",
+  lifeLockForget: "life:lock-forget",
   habitsList: "habits:list",
   habitsAdd: "habits:add",
   habitsUpdate: "habits:update",
@@ -394,6 +410,9 @@ export const CHANNELS = {
 
   dataBackups: "data:backups",
   dataBackupNow: "data:backup-now",
+  dataMirror: "data:mirror",
+  dataChooseMirror: "data:choose-mirror",
+  dataStopMirror: "data:stop-mirror",
   dataRestore: "data:restore",
   dataExportAll: "data:export-all",
   dataRevealFolder: "data:reveal-folder",
@@ -412,6 +431,20 @@ export type WindowApi = {
 
 export type AppApi = {
   version: () => Promise<string>;
+  /** Whether the first-run tour is still to be shown. */
+  tour: () => Promise<boolean>;
+  /** Finished or skipped: not shown again unless asked for from `?`. */
+  tourDone: () => Promise<void>;
+  /** A problem report to read before it goes anywhere: version, Windows, the end of the log with names taken out. */
+  problemReport: () => Promise<string>;
+  /** Opens a GitHub issue with the report filled in, for the person to send. */
+  openIssue: (text: string) => Promise<void>;
+  updates: () => Promise<UpdateState>;
+  checkForUpdates: () => Promise<UpdateState>;
+  /** Quits and puts the downloaded update in. */
+  installUpdate: () => Promise<void>;
+  /** Told whenever an update moves on: found, downloading, ready. Returns the way to stop listening. */
+  onUpdates: (fn: (state: UpdateState) => void) => () => void;
   /** A screen that failed to draw, sent to the log. Fire and forget. */
   reportError: (detail: string) => void;
 };
@@ -432,6 +465,9 @@ export type Workspace = {
 export type CompaniesApi = {
   /** Display only; nothing is converted. */
   setCurrency: (id: string, currency: string) => Promise<Workspace>;
+  /** Where it is: its phone numbers and filing calendar follow. */
+  setCountry: (id: string, country: string) => Promise<Workspace>;
+  setTimezone: (id: string, timezone: string) => Promise<Workspace>;
   list: () => Promise<Workspace>;
   create: (input: CompanyInput) => Promise<Workspace>;
   rename: (id: string, name: string) => Promise<Workspace>;
@@ -892,6 +928,16 @@ export type LifeApi = {
   jot: (companyId: string, text: string) => Promise<BrainPage>;
   /** Time given to a page just now - a hobby, a course - kept on the Calendar as having happened. */
   logTime: (pageId: string, minutes: number) => Promise<PageTime>;
+  /** The journal's passcode: writing needs none; reading a day that is over does. */
+  lockState: () => Promise<JournalLockState>;
+  setPasscode: (companyId: string, passcode: string) => Promise<JournalLockState>;
+  unlock: (passcode: string) => Promise<JournalLockState>;
+  lockNow: () => Promise<JournalLockState>;
+  changePasscode: (oldPasscode: string, newPasscode: string) => Promise<JournalLockState>;
+  /** Opens every sealed day and takes the passcode off. */
+  removePasscode: (passcode: string) => Promise<JournalLockState>;
+  /** The passcode is forgotten: the lock comes off, and what it sealed is gone. */
+  forgetPasscode: () => Promise<JournalLockState>;
 };
 
 /** Habits: ticked on Today, their streaks and weeks worked out from the ticks. */
@@ -1110,6 +1156,11 @@ export type DataApi = {
   /** Opens one of Caulder's own folders. Named, not a path, for the same reason. */
   revealFolder: (which: DataFolder) => Promise<void>;
   paths: () => Promise<{ database: string; backups: string; logs: string }>;
+  /** The folder every backup is also copied to, or null. */
+  mirror: () => Promise<string | null>;
+  /** Asks for a folder, copies a backup there at once, and keeps copying. Null if cancelled. */
+  chooseMirror: () => Promise<string | null>;
+  stopMirror: () => Promise<null>;
 };
 
 export type CaulderApi = {

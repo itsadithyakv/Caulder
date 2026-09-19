@@ -1,3 +1,4 @@
+import { startUpdates } from "./updates";
 import { app, BrowserWindow, dialog, nativeTheme } from "electron";
 import { join } from "node:path";
 import { openDatabase, closeDatabase, databasePath } from "./db/connection";
@@ -239,6 +240,10 @@ void app.whenReady().then(() => {
   // The icon by the clock. Before the key, so the menu can show the key it
   // ends up with.
   createTray({ open: showMain, quit: () => app.quit() });
+
+  // A newer release, looked for a little after starting and every few hours;
+  // the installed app only.
+  startUpdates();
 
   // The quick-add key: Ctrl+Alt+A unless somebody chose another, or none. A
   // refusal is not shown here - another application may have claimed the

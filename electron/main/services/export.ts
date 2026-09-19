@@ -144,7 +144,7 @@ const SHEETS: { file: string; sql: string; shape?: (row: Row) => Row }[] = [
     file: "products.csv",
     sql: `
       SELECT p.name AS "Product", p.kind AS "Kind", p.unit AS "Sold Per", p.status AS "Status",
-             p.cost AS "Costs Us", p.tax_rate AS "GST %", p.code AS "HSN or SAC",
+             p.cost AS "Costs Us", p.tax_rate AS "Tax %", p.code AS "Tax code",
              r.name AS "Price", r.amount AS "Amount", r.recurrence AS "Charged",
              r.valid_from AS "From", r.valid_to AS "Until", p.notes AS "Notes"
       FROM products p

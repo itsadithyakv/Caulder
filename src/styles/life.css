@@ -137,6 +137,16 @@
   font-weight: 600;
 }
 
+/* On Today the faces are a row to press, not tiles to read. */
+.today__side .moods {
+  gap: var(--space-1);
+  margin: var(--space-1) 0 var(--space-2);
+}
+
+.today__side .mood {
+  padding: 6px 2px;
+}
+
 .journalcard__excerpt {
   margin: 0 0 var(--space-3);
   color: var(--ink-2);
@@ -1208,4 +1218,51 @@
 .levelstrip--up {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* ---- The journal's passcode --------------------------------------------- */
+
+.journallock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.journallock__title {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-base);
+  font-weight: 700;
+}
+
+/* A locked day stands where the words would: quiet, and one field to open it. */
+.journallock--day {
+  align-items: center;
+  min-height: 220px;
+  justify-content: center;
+  text-align: center;
+}
+
+.journallock__icon {
+  color: var(--ink-3);
+}
+
+.journallock__words {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.journallock__row {
+  display: flex;
+  gap: var(--space-2);
+  width: min(360px, 100%);
+}
+
+.journallock__row .input {
+  flex: 1;
+  min-width: 0;
 }

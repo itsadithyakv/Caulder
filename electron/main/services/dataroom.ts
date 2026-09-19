@@ -242,7 +242,7 @@ function extrasHtml(db: Db, company: Company, extras: ReadonlySet<RoomExtra>, fo
         if (value === null) return "";
         if (kind === "money") return money(value, company.currency);
         if (kind === "percent") return `${value}%`;
-        return `${value.toLocaleString("en-GB")}${unit ? ` ${unit}` : ""}`;
+        return `${value.toLocaleString()}${unit ? ` ${unit}` : ""}`;
       };
       const rows = overview.metrics.map((metric) => [
         metric.name,

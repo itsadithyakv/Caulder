@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Download, FolderOpen, RotateCcw, Save } from "lucide-react";
+import { Bug, CloudUpload, Download, FolderOpen, RotateCcw, Save } from "lucide-react";
 import type { BackupFile } from "@shared/data";
 import { formatDateTime } from "@/lib/format";
 import { messageOf } from "@/lib/errors";
@@ -20,19 +20,24 @@ export function DataSafety({
   companyName: string;
 }) {
   const [backups, setBackups] = useState<BackupFile[]>([]);
+  /** The folder every backup is also copied to - one that syncs somewhere else - or null. */
+  const [mirror, setMirror] = useState<string | null>(null);
   const [paths, setPaths] = useState<{ database: string; backups: string; logs: string } | null>(
     null,
   );
   const [confirming, setConfirming] = useState<string | null>(null);
+  /** A problem report being read before it goes anywhere. */
+  const [report, setReport] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(() => {
-    Promise.all([window.caulder.data.backups(), window.caulder.data.paths()])
-      .then(([list, where]) => {
+    Promise.all([window.caulder.data.backups(), window.caulder.data.paths(), window.caulder.data.mirror()])
+      .then(([list, where, folder]) => {
         setBackups(list);
         setPaths(where);
+        setMirror(folder);
       })
       .catch((cause: unknown) =>
         setError(messageOf(cause)),
@@ -96,7 +101,13 @@ export function DataSafety({
           onClick={() =>
             void run(async () => {
               const taken = await window.caulder.data.backupNow();
-              setMessage(`Copied to ${taken.name}`);
+              setMessage(
+                taken.mirrored?.error
+                  ? `Copied to ${taken.name} here, but not to ${taken.mirrored.folder}: ${taken.mirrored.error}`
+                  : taken.mirrored
+                    ? `Copied to ${taken.name}, here and in ${taken.mirrored.folder}`
+                    : `Copied to ${taken.name}`,
+              );
               load();
             })
           }
@@ -119,6 +130,48 @@ export function DataSafety({
       </div>
 
       {message && <p className="card__hint">{message}</p>}
+
+      <h3 className="today__groupTitle datasafety__heading">Another copy, somewhere else</h3>
+      <p className={`card__hint${mirror ? "" : " card__hint--warn"}`}>
+        {mirror
+          ? `Every backup is also copied to ${mirror}, and the ten newest are kept there too.`
+          : "A backup on this computer does not survive this computer. Choose a folder that syncs - OneDrive, Google Drive, Dropbox - and every backup is copied there too."}
+      </p>
+      <div className="actions">
+        <button
+          type="button"
+          className="btn"
+          disabled={busy}
+          onClick={() =>
+            void run(async () => {
+              const folder = await window.caulder.data.chooseMirror();
+              if (folder) {
+                setMirror(folder);
+                setMessage(`A backup is in ${folder} now, and every one after it will be.`);
+                load();
+              }
+            })
+          }
+        >
+          <CloudUpload size={15} aria-hidden />
+          {mirror ? "Choose another folder" : "Choose a folder"}
+        </button>
+        {mirror && (
+          <button
+            type="button"
+            className="btn btn--ghost"
+            disabled={busy}
+            onClick={() =>
+              void run(async () => {
+                setMirror(await window.caulder.data.stopMirror());
+                setMessage("Backups stay on this computer only. What is already in the folder is left there.");
+              })
+            }
+          >
+            Stop copying there
+          </button>
+        )}
+      </div>
 
       <h3 className="today__groupTitle datasafety__heading">
         Backups <span className="today__count">{backups.length}</span>
@@ -205,7 +258,43 @@ export function DataSafety({
           <FolderOpen size={14} aria-hidden />
           Open the log folder
         </button>
+        <button
+          type="button"
+          className="btn btn--sm btn--ghost"
+          disabled={busy}
+          onClick={() => void run(async () => setReport(await window.caulder.app.problemReport()))}
+        >
+          <Bug size={14} aria-hidden />
+          Report a problem
+        </button>
       </div>
+
+      {report !== null && (
+        <div className="problemreport">
+          <p className="card__hint">
+            This is everything in the report - nothing goes anywhere until you send it. Emails, phone numbers and your
+            Windows name are taken out. Add what happened, then copy it or open it as an issue.
+          </p>
+          <textarea
+            className="textarea problemreport__text"
+            aria-label="The problem report"
+            value={report}
+            onChange={(event) => setReport(event.target.value)}
+            rows={10}
+          />
+          <div className="actions">
+            <button type="button" className="btn btn--sm" onClick={() => void navigator.clipboard.writeText(report).then(() => setMessage("The report is copied."))}>
+              Copy it
+            </button>
+            <button type="button" className="btn btn--sm btn--primary" onClick={() => void window.caulder.app.openIssue(report)}>
+              Open it as an issue on GitHub
+            </button>
+            <button type="button" className="btn btn--sm btn--ghost" onClick={() => setReport(null)}>
+              Close
+            </button>
+          </div>
+        </div>
+      )}
 
       <p className="card__hint">Exports are per company. This one is {companyName}.</p>
     </section>

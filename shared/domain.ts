@@ -167,6 +167,17 @@ export const companyInput = z.object({
    * Capped so a 12 MP photograph cannot become a row in the database.
    */
   logo: z.string().max(200_000).nullable().default(null),
+  /** Where the company is, as an ISO code. Its money and phone numbers start from it. */
+  country: z
+    .string()
+    .regex(/^[A-Z]{2}$/, "That is not a country.")
+    .nullable()
+    .default(null),
+  /** Its money; when left out, the country's own. */
+  currency: z
+    .string()
+    .regex(/^[A-Z]{3}$/, "That is not a currency.")
+    .optional(),
 });
 
 /** What comes OUT of the schema: every field settled. */
@@ -212,6 +223,8 @@ export type Company = {
   qualifiedStageId: string | null;
   /** ISO 4217, for formatting only. Nothing is ever converted. */
   currency: string;
+  /** ISO 3166 code: where the company is. Null for one made before countries, until one is chosen. */
+  country: string | null;
 };
 
 /* ---- Pipeline stages ----------------------------------------------------
@@ -868,6 +881,14 @@ export const SETTING_KEYS = [
   "aiModel",
   /** How much of the company goes with a question: small, medium, large or whole. */
   "aiContext",
+  /** "1" once the first-run tour has been finished or skipped. */
+  "tourDone",
+  /**
+   * The journal's passcode, as a key pair: the public half, and the private
+   * half encrypted with a key made from the passcode. JSON; empty when none
+   * is set. See services/journal-lock.ts.
+   */
+  "journalLock",
 ] as const;
 export type SettingKey = (typeof SETTING_KEYS)[number];
 

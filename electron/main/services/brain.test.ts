@@ -111,7 +111,7 @@ describe("saving", () => {
     const page = brain.newPage(db, companyId, "company", "profile", NOW);
     save(page.id, { fields: { gstin: "29ABCDE1234F1Z5" } });
     expect(() => brain.revealSecret(db, page.id, "gstin")).toThrow("not a secret");
-    expect(() => brain.revealSecret(db, page.id, "pan")).toThrow("No PAN is saved");
+    expect(() => brain.revealSecret(db, page.id, "pan")).toThrow("No Tax ID is saved");
   });
 
   it("refuses to store a secret when the machine cannot encrypt", () => {
@@ -329,6 +329,8 @@ describe("what an invoice prints", () => {
       name: "Unifloe LLP",
       address: "12 MG Road\nBengaluru",
       gstin: "29ABCDE1234F1Z5",
+      // A company in India prints India's names for its numbers.
+      taxLabel: "GSTIN",
       email: null,
       phone: null,
       payTo: ["Bank: HDFC", "Account name: Unifloe LLP", "Account number: 50200012345678", "IFSC: HDFC0001234"],
@@ -361,13 +363,13 @@ describe("the Markdown export", () => {
       const page = readFileSync(join(masked.folder, "01 Company", "Company profile.md"), "utf8");
       expect(page).toContain("- **Legal name:** Unifloe LLP");
       expect(page).toContain("- **Entity type:** LLP");
-      expect(page).toContain("- **PAN:** •••• 234F");
+      expect(page).toContain("- **Tax ID:** •••• 234F");
       expect(page).not.toContain("ABCDE1234F");
       expect(readFileSync(join(masked.folder, "README.md"), "utf8")).toContain("[Goal](02%20Plan/Goal%20(2).md)");
 
       const full = exportBrain(db, companyId, "Unifloe", join(parent, "full"), { secrets: true }, NOW);
       expect(readFileSync(join(full.folder, "01 Company", "Company profile.md"), "utf8")).toContain(
-        "- **PAN:** ABCDE1234F",
+        "- **Tax ID:** ABCDE1234F",
       );
     } finally {
       rmSync(parent, { recursive: true, force: true });

@@ -1,4 +1,5 @@
 import type { Db } from "../db/connection";
+import { companyCountry } from "../repositories/companies";
 import {
   OBLIGATION_KIND_LABEL,
   PRESET_SETS,
@@ -296,7 +297,8 @@ export function buildDeadlines(db: Db, companyId: string, now: Date = new Date()
     deadlines: dueSoon(db, companyId, today),
     obligations: listObligations(db, companyId, today),
     profile,
-    presetSet: company.currency === "INR" || company.timezone === "Asia/Kolkata" ? "india" : "generic",
+    // The country the company chose, or India for one made before countries whose money or clock says so.
+    presetSet: companyCountry(db, companyId) === "IN" ? "india" : "generic",
     offers,
   };
 }

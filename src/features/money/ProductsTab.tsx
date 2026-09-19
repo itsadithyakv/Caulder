@@ -251,8 +251,8 @@ function ProductView({
               <Fact label="Kind" value={PRODUCT_KIND_LABEL[product.kind]} />
               <Fact label="Sold per" value={product.unit} />
               <Fact label="Costs us" value={product.cost === null ? null : money(product.cost)} />
-              <Fact label="GST rate" value={product.taxRate === null ? null : `${product.taxRate}%`} />
-              <Fact label="HSN or SAC" value={product.code} />
+              <Fact label="Tax rate" value={product.taxRate === null ? null : `${product.taxRate}%`} />
+              <Fact label="Tax code" value={product.code} />
             </dl>
             {product.notes && <p className="detail__notesBody">{product.notes}</p>}
           </>
@@ -479,7 +479,7 @@ function ProductForm({
           maxLength={160}
           autoFocus
           disabled={busy}
-          placeholder="Attendance workshop"
+          placeholder="Onboarding workshop"
           onChange={(event) => setName(event.target.value)}
         />
       </div>
@@ -540,7 +540,7 @@ function ProductForm({
       <div className="leadform__row">
         <div className="field">
           <label className="field__label" htmlFor="product-tax">
-            GST rate, %
+            Tax rate, %
           </label>
           <input
             id="product-tax"
@@ -553,7 +553,7 @@ function ProductForm({
         </div>
         <div className="field">
           <label className="field__label" htmlFor="product-code">
-            HSN or SAC
+            Tax code (HSN or SAC in India)
           </label>
           <input
             id="product-code"
@@ -652,7 +652,7 @@ function PriceForm({
             maxLength={80}
             autoFocus
             disabled={busy}
-            placeholder="Standard, Schools, 500+ students"
+            placeholder="Standard, Teams, 50+ seats"
             onChange={(event) => setName(event.target.value)}
           />
         </div>

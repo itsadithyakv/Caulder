@@ -50,6 +50,8 @@ is nine o'clock, and an instant would move when the machine's timezone did.
 | 31 | habits | `habits`, `habit_checks` |
 | 32 | links to everything | `brain_links` rebuilt without the `to_kind` `CHECK`; links and map places cleared when a product, a person or a document is deleted |
 | 33 | the vision board | `vision_tiles` |
+| 34 | the journal's passcode | `journal_sealed` |
+| 35 | a company's country | `companies.country` |
 
 Each migration is one transaction, gated on `PRAGMA user_version`, with a
 backup taken before any of them runs. Additions use `ALTER TABLE ADD COLUMN`;
@@ -74,6 +76,14 @@ no stages cannot show a board, so the two are never allowed to exist apart.
 
 Archiving is a flag, not a delete. Deleting a company would cascade to every
 lead, task and message it owns.
+
+**`country` is where it is** (migration 35), an ISO 3166 code, null for a
+company made before countries. It decides the currency a new company starts
+on, the calling code a bare phone number is dialled with, and whether the
+filing calendar offers India's filings or the generic set. A company with no
+country is treated as India when its currency is INR or its timezone is
+India's - all Caulder assumed before - and as nowhere in particular
+otherwise. `currency` is any ISO 4217 code, not a short list.
 
 Columns added since, each nullable where "not set" means something different
 from zero:
@@ -719,6 +729,27 @@ the four areas are worked out when read (`services/progress.ts`) from
 `tasks.completed_at`, kept `blocks`, `calls`, won `deals`, paid `invoices`,
 journal entries, `habit_checks` and the revision where a goal was marked
 done. Undo any of those and the points go with it.
+
+## journal_sealed
+
+The words of journal entries for days that are over, once the journal has a
+passcode (after 0.3): `page_id` (cascading), `box` (JSON: ciphertext and what
+opens it), `sealed_at`.
+
+- **Two keys.** Setting a passcode makes an X25519 key pair. The public half
+  is kept as it is in the `journalLock` setting and seals text without
+  asking for anything; the private half is kept there too, encrypted with
+  AES-256-GCM under a key made from the passcode by scrypt. Each entry is
+  sealed with a throwaway key pair and HKDF, then AES-256-GCM.
+- **Sealed means gone from everywhere else**: the page's `body`, every
+  `brain_revisions.body` for it and so the search index are emptied. The
+  title (the date) and the fields - the mood - stay, so the calendar keeps its
+  faces. Links written in the entry stay in `brain_links`.
+- **Today is never sealed**, and neither is a day while it is being written:
+  a past day written into while the journal is open is sealed again as soon
+  as it is saved, and any day that is over is sealed by the next read.
+- Forgetting the passcode means those days cannot be opened; *I forgot the
+  passcode* deletes the boxes and the lock, and leaves the days and moods.
 
 ## notes
 

@@ -2333,6 +2333,31 @@ const M033_VISION = `
   CREATE INDEX vision_tiles_company ON vision_tiles (company_id, position);
 `;
 
+/**
+ * The journal's passcode (PLAN.md, after 0.3). A day that is over is sealed
+ * with the journal's public key: its words move here as ciphertext and leave
+ * the page, its earlier versions and the search index. Opening one needs the
+ * passcode. Deleting the page takes its box with it.
+ */
+const M034_JOURNAL_LOCK = `
+  CREATE TABLE journal_sealed (
+    page_id   TEXT PRIMARY KEY REFERENCES brain_pages (id) ON DELETE CASCADE,
+    box       TEXT NOT NULL,
+    sealed_at TEXT NOT NULL
+  );
+`;
+
+/**
+ * Anywhere, not only India (after 0.3): a company says which country it is
+ * in, as an ISO code, and its money, its phone numbers and its filing
+ * calendar follow. Null for every company made before - they keep what they
+ * had, and the filing calendar's old guess from the currency still holds
+ * for them until a country is chosen.
+ */
+const M035_COUNTRY = `
+  ALTER TABLE companies ADD COLUMN country TEXT;
+`;
+
 export const MIGRATIONS: readonly Migration[] = [
   { version: 1, name: "companies, stages, settings", sql: M001_COMPANIES },
   { version: 2, name: "leads, activities", sql: M002_LEADS },
@@ -2367,6 +2392,8 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 31, name: "habits", sql: M031_HABITS },
   { version: 32, name: "links to everything", sql: M032_LINKS },
   { version: 33, name: "the vision board", sql: M033_VISION },
+  { version: 34, name: "the journal's passcode", sql: M034_JOURNAL_LOCK },
+  { version: 35, name: "a company's country", sql: M035_COUNTRY },
 ];
 
 export function currentVersion(db: Db): number {

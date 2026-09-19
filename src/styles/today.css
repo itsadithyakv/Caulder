@@ -11,7 +11,7 @@
   display: grid;
   /* The work gets the room; what to notice sits beside it rather than under
    * it. One column below 1200, where two would crush both. */
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.65fr) minmax(300px, 1fr);
   gap: var(--space-4);
   align-items: start;
 }
@@ -36,6 +36,35 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+}
+
+/* The day in one line, under the heading: which day, and how much is waiting. */
+.today__day {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  margin: calc(var(--space-2) * -1) 0 0;
+}
+
+.today__date {
+  color: var(--ink);
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+
+.today__summary {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+/* Nothing due is good news, said briefly: not a card-sized hole. */
+.today__clear .empty {
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  text-align: left;
 }
 
 .today__actions {
@@ -217,6 +246,27 @@
   align-items: center;
   gap: var(--space-1);
   flex-wrap: wrap;
+}
+
+/* A row shows its tick and, for a call, Call. Moving it or deleting it is
+ * asked for less, so those come up when the row is pointed at or has the
+ * keyboard - there to use, not there to read past on every row. */
+@media (hover: hover) {
+  .taskrow__actions .btn--ghost {
+    opacity: 0;
+    transition: opacity var(--dur-fast) var(--ease);
+  }
+
+  .taskrow:hover .taskrow__actions .btn--ghost,
+  .taskrow:focus-within .taskrow__actions .btn--ghost {
+    opacity: 1;
+  }
+}
+
+/* Call sits at the end, where the eye leaves the row, with the quieter
+ * actions coming up before it rather than holding an empty gap after it. */
+.taskrow__call {
+  order: 1;
 }
 
 /* ---- Going quiet ------------------------------------------------------- */
@@ -529,9 +579,15 @@
  * ---------------------------------------------------------------------- */
 
 .today__quick {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--space-2) var(--space-3);
+}
+
+/* The full form sits by the line's hint, not beside the line itself. */
+.today__form {
+  margin-bottom: 2px;
 }
 
 .today__quick > .quickadd {
@@ -573,7 +629,7 @@
   background: transparent;
   border: 0;
   color: var(--ink);
-  font-size: var(--text-lg);
+  font-size: var(--text-md);
 }
 
 .quickadd__input::placeholder {

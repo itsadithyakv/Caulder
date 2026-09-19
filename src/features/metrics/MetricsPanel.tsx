@@ -346,7 +346,7 @@ function MetricView({ metricId, onBack, onChanged }: { metricId: string; onBack:
               setError(null);
               const parsed = valueInput.safeParse({
                 onDay,
-                value: value.trim() === "" ? Number.NaN : Number(value.replace(/[,\s%₹$]/g, "")),
+                value: value.trim() === "" ? Number.NaN : Number(value.replace(/[,\s%\p{Sc}]/gu, "")),
                 note: note.trim() === "" ? null : note,
               });
               if (!parsed.success) {
@@ -468,7 +468,7 @@ function MetricForm({
           name,
           kind,
           unitLabel: kind === "count" && unitLabel.trim() !== "" ? unitLabel : null,
-          target: target.trim() === "" ? null : Number(target.replace(/[,\s%₹$]/g, "")),
+          target: target.trim() === "" ? null : Number(target.replace(/[,\s%\p{Sc}]/gu, "")),
           direction,
           notes: notes.trim() === "" ? null : notes,
         });
@@ -497,7 +497,7 @@ function MetricForm({
             maxLength={80}
             autoFocus
             disabled={busy}
-            placeholder="Schools signed"
+            placeholder="Customers signed"
             onChange={(event) => setName(event.target.value)}
           />
         </div>
@@ -539,7 +539,7 @@ function MetricForm({
                 value={unitLabel}
                 maxLength={40}
                 disabled={busy}
-                placeholder="schools, users"
+                placeholder="customers, users"
                 onChange={(event) => setUnitLabel(event.target.value)}
               />
             </div>

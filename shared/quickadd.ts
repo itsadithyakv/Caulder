@@ -184,7 +184,7 @@ const AREA_WORDS: [string, string[]][] = [
     "proposals", "deck", "sales", "customer", "customers", "outreach", "mailshot", "campaign",
     "campaigns", "payroll", "prospect", "prospects", "contract", "contracts", "onboarding",
     "cofounder", "co-founder", "cofounders", "startup", "mvp", "roadmap", "standup", "stand-up",
-    "crm", "leads", "revenue", "gst", "quotation", "vendor", "vendors", "supplier", "marketing",
+    "crm", "leads", "revenue", "gst", "vat", "invoice", "quotation", "vendor", "vendors", "supplier", "marketing",
     "newsletter", "hiring", "sprint planning",
   ]],
   ["college", [

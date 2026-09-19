@@ -1,5 +1,6 @@
 import type { Db } from "../db/connection";
 import { ENTRY_TEMPLATE, isMood, type BrainPage, type Mood } from "@shared/brain";
+import { isSealed, readableBody, sealPast } from "./journal-lock";
 import { addMonths, dayOf, isDay, shiftDay, timeNow, today as todayIn, weekdayOf } from "@shared/dates";
 import { daysLeftOf } from "@shared/deadlines";
 import { plainText } from "@shared/markdown";
@@ -93,7 +94,14 @@ function entryId(db: Db, companyId: string, of: string): string | null {
  * The entry for a day: the one there is, or a new one. One a day, which the
  * database holds to as well. A day that has not happened yet has no entry.
  */
+/** A page as it can be read now: a sealed entry's words, opened or left out. */
+function readable(db: Db, page: BrainPage): BrainPage {
+  const { body, locked } = readableBody(db, page.id, page.body);
+  return locked ? { ...page, body, locked } : { ...page, body };
+}
+
 export function journalEntry(db: Db, companyId: string, of: unknown, now: Date = new Date()): BrainPage {
+  sealPast(db, companyId, now);
   const today = todayIn(companyOf(db, companyId).timezone, now);
   const wanted = of === undefined || of === null ? today : of;
   if (!isDay(wanted)) throw new Error("That is not a day.");
@@ -116,14 +124,16 @@ export function journalEntry(db: Db, companyId: string, of: unknown, now: Date =
   }
   const page = findPage(db, id);
   if (!page) throw new Error("That entry vanished as it was written.");
-  return page;
+  return readable(db, page);
 }
 
 /** The entry for a day if one has been written, without making one: opening the journal is not writing in it. */
-export function findEntry(db: Db, companyId: string, of: unknown): BrainPage | null {
+export function findEntry(db: Db, companyId: string, of: unknown, now: Date = new Date()): BrainPage | null {
   if (!isDay(of)) throw new Error("That is not a day.");
+  sealPast(db, companyId, now);
   const id = entryId(db, companyId, of);
-  return id ? findPage(db, id) : null;
+  const page = id ? findPage(db, id) : null;
+  return page ? readable(db, page) : null;
 }
 
 /** How a day felt, saved at once - the one thing asked of an entry without opening it. */
@@ -134,20 +144,33 @@ export function setMood(db: Db, pageId: string, mood: unknown, now: Date = new D
   const fields = { ...row.stored };
   if (mood === null) delete fields["mood"];
   else fields["mood"] = mood;
-  savePageRow(db, pageId, { title: row.title, body: row.body, fields }, row.revision, now.toISOString());
+  if (isSealed(db, pageId) && row.body === "") {
+    // Sealed: the words are not in the page to save back, and saving an empty
+    // text would drop its links. The mood alone changes.
+    db.prepare(`UPDATE brain_pages SET fields = ?, updated_at = ? WHERE id = ?`).run(JSON.stringify(fields), now.toISOString(), pageId);
+  } else {
+    savePageRow(db, pageId, { title: row.title, body: row.body, fields }, row.revision, now.toISOString());
+  }
   const page = findPage(db, pageId);
   if (!page) throw new Error("That entry no longer exists.");
-  return page;
+  return readable(db, page);
 }
 
 type EntryRow = { id: string; body: string; fields: string };
 
-function toJournalDay(row: EntryRow): JournalDay | null {
+function toJournalDay(db: Db, row: EntryRow): JournalDay | null {
   const fields = fieldsOf(row.fields);
   const on = day(fields["day"]);
   if (!on) return null;
   const mood = fields["mood"];
-  return { day: on, pageId: row.id, mood: isMood(mood) ? (mood as Mood) : null, excerpt: excerptOf(row.body) };
+  const { body, locked } = readableBody(db, row.id, row.body);
+  return {
+    day: on,
+    pageId: row.id,
+    mood: isMood(mood) ? (mood as Mood) : null,
+    excerpt: excerptOf(body),
+    ...(locked ? { locked } : {}),
+  };
 }
 
 function entriesOf(db: Db, companyId: string): JournalDay[] {
@@ -155,13 +178,14 @@ function entriesOf(db: Db, companyId: string): JournalDay[] {
     .prepare(`SELECT id, body, fields FROM brain_pages WHERE company_id = ? AND template = ? AND is_archived = 0`)
     .all(companyId, ENTRY_TEMPLATE) as EntryRow[];
   return rows
-    .map(toJournalDay)
+    .map((row) => toJournalDay(db, row))
     .filter((entry): entry is JournalDay => entry !== null)
     .sort((a, b) => a.day.localeCompare(b.day));
 }
 
 /** A month of the journal, with the run of days written and the same day in earlier times. */
 export function journalMonth(db: Db, companyId: string, month: unknown, now: Date = new Date()): JournalMonth {
+  sealPast(db, companyId, now);
   const today = todayIn(companyOf(db, companyId).timezone, now);
   const wanted = typeof month === "string" && /^\d{4}-\d{2}$/.test(month) ? month : today.slice(0, 7);
   const all = entriesOf(db, companyId);
@@ -188,12 +212,13 @@ export function journalMonth(db: Db, companyId: string, month: unknown, now: Dat
 
 /** Today's entry for the card on Today, if there is one. */
 export function journalToday(db: Db, companyId: string, now: Date = new Date()): { day: string; entry: JournalDay | null } {
+  sealPast(db, companyId, now);
   const today = todayIn(companyOf(db, companyId).timezone, now);
   const id = entryId(db, companyId, today);
   const row = id
     ? (db.prepare(`SELECT id, body, fields FROM brain_pages WHERE id = ?`).get(id) as EntryRow | undefined)
     : undefined;
-  return { day: today, entry: row ? toJournalDay(row) : null };
+  return { day: today, entry: row ? toJournalDay(db, row) : null };
 }
 
 /**

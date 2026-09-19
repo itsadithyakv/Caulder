@@ -14,9 +14,14 @@ export type JournalDay = {
   day: string;
   pageId: string;
   mood: Mood | null;
-  /** The first words written, headings left out. */
+  /** The first words written, headings left out. Empty while the day is locked. */
   excerpt: string;
+  /** Sealed behind the passcode, and the journal is locked. */
+  locked?: boolean;
 };
+
+/** Whether the journal has a passcode, and whether it is open right now. */
+export type JournalLockState = { set: boolean; open: boolean };
 
 export type JournalMonth = {
   /** "2026-09". */

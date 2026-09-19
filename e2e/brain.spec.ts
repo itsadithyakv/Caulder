@@ -86,17 +86,17 @@ test("the profile keeps its numbers masked, and ticks the list as it fills", asy
   await page.getByLabel("One-liner").fill("Timetables for schools");
   await page.getByLabel("Entity type").click();
   await page.getByRole("option", { name: "LLP" }).click();
-  await page.getByLabel("GSTIN").fill("29AAACU9876K1Z5");
-  await page.getByLabel("PAN", { exact: true }).fill("AAACU9876K");
+  await page.getByLabel("Sales tax, VAT or GST number").fill("29AAACU9876K1Z5");
+  await page.getByLabel("Tax ID", { exact: true }).fill("AAACU9876K");
   await shot("profile-editing");
   await page.getByRole("button", { name: "Save", exact: true }).click();
 
   await expect(page.getByText("•••• 876K")).toBeVisible();
   await expect(page.getByText("AAACU9876K", { exact: true })).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Show the PAN" }).click();
+  await page.getByRole("button", { name: "Show the Tax ID" }).click();
   await expect(page.getByText("AAACU9876K", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Hide the PAN" }).click();
+  await page.getByRole("button", { name: "Hide the Tax ID" }).click();
   await expect(page.getByText("AAACU9876K", { exact: true })).toHaveCount(0);
   await shot("profile");
 
@@ -326,8 +326,8 @@ test("the whole brain exports as Markdown, masked unless asked", async () => {
   const root = join(target, folder ?? "");
   expect(existsSync(join(root, "README.md"))).toBe(true);
   const profile = readFileSync(join(root, "01 Company", "Company profile.md"), "utf8");
-  expect(profile).toContain("- **PAN:** •••• 876K");
-  expect(profile).not.toContain("**PAN:** AAACU9876K");
+  expect(profile).toContain("- **Tax ID:** •••• 876K");
+  expect(profile).not.toContain("**Tax ID:** AAACU9876K");
   expect(readdirSync(join(root, "08 Playbooks"))).toEqual(["Onboarding a school.md"]);
 
   // A link is a link in the files too: relative to the page it points at.

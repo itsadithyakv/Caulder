@@ -1,6 +1,6 @@
 {
   "name": "caulder",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Personal CRM and lead manager",
   "main": "./out/main/index.js",
   "author": "PaperKite",
@@ -11,6 +11,7 @@
     "start": "electron-vite preview",
     "build": "electron-vite build",
     "package": "npm run build && electron-builder --win --publish never",
+    "release": "npm run build && electron-builder --win --publish always",
     "smoke:packaged": "node scripts/smoke-packaged.mjs",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
@@ -26,6 +27,7 @@
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
+    "electron-updater": "^6.8.9",
     "exceljs": "^4.4.0",
     "zod": "^4.5.4"
   },

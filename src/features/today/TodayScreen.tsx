@@ -123,8 +123,21 @@ export function TodayScreen({
     />
   );
 
+  // Deadlines are urgent when one is late or three days off: then they sit
+  // with the late things. Otherwise they wait below the day's work - a filing
+  // twelve days away is not more pressing than a call due this morning.
+  const deadlinesSoon = today.deadlines.some((deadline) => deadline.daysLeft <= 3);
+  const late = today.overdue.length + today.unpaid.length + today.deadlines.filter((deadline) => deadline.daysLeft < 0).length;
+  const due = today.dueToday.length;
+
   return (
     <div className="today anim-stagger">
+      {/* The day in one line: which day, and how much of it is waiting. */}
+      <p className="today__day">
+        <span className="today__date">{longDay(today.day)}</span>
+        <span className="today__summary">{summaryOf(due, late)}</span>
+      </p>
+
       <NowLine blocks={today.blocks} timezone={timezone} onOpenDay={onGoToDay} />
 
       <ErrorLine>{error}</ErrorLine>
@@ -139,7 +152,7 @@ export function TodayScreen({
           />
         </Card>
       ) : (
-        // The line first, the form beside it. Most tasks are one sentence,
+        // The line first, the form a click away. Most tasks are one sentence,
         // and the form is for the ones that need a lead attached or a note.
         <section className="card today__quick">
           <QuickAdd
@@ -154,7 +167,7 @@ export function TodayScreen({
               setKept((n) => n + 1);
             }}
           />
-          <button type="button" className="btn btn--sm btn--ghost" onClick={() => setAdding(true)}>
+          <button type="button" className="btn btn--sm btn--ghost today__form" onClick={() => setAdding(true)}>
             <CalendarPlus size={15} aria-hidden />
             Full form
           </button>
@@ -187,6 +200,88 @@ export function TodayScreen({
                   </li>
                 ))}
               </ul>
+            </Card>
+          )}
+          {today.overdue.length > 0 && (
+            <Card
+              tone="alert"
+              title={`${today.overdue.length} ${
+                today.overdue.length === 1 ? "thing is" : "things are"
+              } overdue`}
+            >
+              <ul className="tasks">{today.overdue.map((task) => rowFor(task, true))}</ul>
+            </Card>
+          )}
+
+          {/* Filings, notice dates and expiries, when one is close. A missed one
+              costs a fine or a year's renewal. */}
+          {today.deadlines.length > 0 && deadlinesSoon && (
+            <Card
+              tone={today.deadlines.some((deadline) => deadline.daysLeft < 0) ? "alert" : undefined}
+              icon={<CalendarClock size={15} aria-hidden />}
+              title={today.deadlines.length === 1 ? "1 deadline" : `${today.deadlines.length} deadlines`}
+            >
+              <ul className="cold" aria-label="Deadlines">
+                {today.deadlines.map((deadline) => (
+                  <li key={deadline.key} className="renewrow">
+                    <button type="button" className="coldrow" onClick={() => openDeadline(deadline)}>
+                      <span className="coldrow__name">{deadline.title}</span>
+                      <span className="coldrow__meta">
+                        {deadline.period ? `For ${deadline.period}` : deadline.what}
+                        {deadline.amount !== null && deadline.amount > 0
+                          ? ` · ${formatValue(deadline.amount, activeCompany?.currency)}`
+                          : ""}
+                      </span>
+                      <span className={`coldrow__days${deadline.daysLeft < 0 ? " renewrow__late" : ""}`}>
+                        {describeDeadline(deadline)}
+                      </span>
+                    </button>
+                    {deadline.source === "obligation" && (
+                      <button
+                        type="button"
+                        className="btn btn--sm"
+                        onClick={() => void act(() => window.caulder.deadlines.done(deadline.id, deadline.dueOn))}
+                        disabled={busy}
+                        aria-label={`${deadline.title}${deadline.period ? ` for ${deadline.period}` : ""} is done`}
+                        title="Marks this one done today. The next one comes round on its own."
+                      >
+                        Done
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
+          {today.dueToday.length > 0 && (
+            <Card title="Due today">
+              {groupDue(today.dueToday).map((group) => (
+                <div key={group.key} className="today__group">
+                  <h3 className="today__groupTitle">
+                    {group.title} <span className="today__count">{group.tasks.length}</span>
+                  </h3>
+                  <ul className="tasks">{group.tasks.map((task) => rowFor(task))}</ul>
+                </div>
+              ))}
+            </Card>
+          )}
+
+          {nothingDue && (
+            <Card className="today__clear">
+              <EmptyState
+                icon={<Sunrise size={24} className="empty__icon" aria-hidden />}
+                title="Nothing is due today"
+                body={
+                  today.upcoming.length > 0
+                    ? `Next up: ${today.upcoming[0]?.title} ${describeDue(
+                        today.upcoming[0]?.dueOn ?? today.day,
+                        today.day,
+                      ).toLowerCase()}.`
+                    : today.cold.length > 0
+                      ? "Add a task, or pick someone up from Going quiet."
+                      : "Type one into the line above, the way you would say it."
+                }
+              />
             </Card>
           )}
 
@@ -227,10 +322,61 @@ export function TodayScreen({
               </ul>
             </Card>
           )}
-
-          {/* Filings, notice dates and expiries. A missed one costs a fine or
-              a year's renewal, so they sit with the money, above the tasks. */}
-          {today.deadlines.length > 0 && (
+          {today.replies.length > 0 && (
+            <Card
+              icon={<MailCheck size={15} aria-hidden />}
+              title="Replies"
+              hint="To email sent from Caulder, in the last seven days."
+            >
+              <ul className="cold">
+                {today.replies.map((reply) => (
+                  <li key={reply.emailId}>
+                    <button
+                      type="button"
+                      className="coldrow"
+                      onClick={() => onOpenLead(reply.leadId)}
+                    >
+                      <span className="coldrow__name">{reply.leadName}</span>
+                      <span className="coldrow__meta">Re: {reply.subject}</span>
+                      <span className="coldrow__days">{relativeDay(reply.repliedAt)}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
+          {today.cold.length > 0 && (
+            <Card
+              icon={<Snowflake size={15} aria-hidden />}
+              title="Going quiet"
+              hint={`Still open, nothing planned, and quiet for ${today.coldAfterDays} days or more.`}
+            >
+              <ul className="cold">
+                {today.cold.slice(0, 12).map((lead) => (
+                  <li key={lead.id}>
+                    <button
+                      type="button"
+                      className="coldrow"
+                      onClick={() => onOpenLead(lead.id)}
+                    >
+                      <span className="coldrow__name">{lead.name}</span>
+                      <span className="coldrow__meta">
+                        {lead.stageName ?? "No stage"}
+                        {lead.city ? ` · ${lead.city}` : ""}
+                      </span>
+                      <span className="coldrow__days">{lead.daysQuiet} days</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {today.cold.length > 12 && (
+                <p className="card__hint">
+                  And {today.cold.length - 12} more. The quietest are shown first.
+                </p>
+              )}
+            </Card>
+          )}
+          {today.deadlines.length > 0 && !deadlinesSoon && (
             <Card
               tone={today.deadlines.some((deadline) => deadline.daysLeft < 0) ? "alert" : undefined}
               icon={<CalendarClock size={15} aria-hidden />}
@@ -268,128 +414,44 @@ export function TodayScreen({
               </ul>
             </Card>
           )}
-
-          {today.overdue.length > 0 && (
-            <Card
-              tone="alert"
-              title={`${today.overdue.length} ${
-                today.overdue.length === 1 ? "thing is" : "things are"
-              } overdue`}
-            >
-              <ul className="tasks">{today.overdue.map((task) => rowFor(task, true))}</ul>
-            </Card>
-          )}
-
-          {today.dueToday.length > 0 && (
-            <Card title="Due today">
-              {groupDue(today.dueToday).map((group) => (
-                <div key={group.key} className="today__group">
-                  <h3 className="today__groupTitle">
-                    {group.title} <span className="today__count">{group.tasks.length}</span>
-                  </h3>
-                  <ul className="tasks">{group.tasks.map((task) => rowFor(task))}</ul>
-                </div>
-              ))}
-            </Card>
-          )}
-
-          {nothingDue && (
-            <Card>
-              <EmptyState
-                icon={<Sunrise size={24} className="empty__icon" aria-hidden />}
-                title="Nothing is due today"
-                body={
-                  today.upcoming.length > 0
-                    ? `Next up: ${today.upcoming[0]?.title} ${describeDue(
-                        today.upcoming[0]?.dueOn ?? today.day,
-                        today.day,
-                      ).toLowerCase()}.`
-                    : today.cold.length > 0
-                      ? "Add a task, or pick someone up from Going quiet."
-                      : "Type one into the line above, the way you would say it."
-                }
-              />
-            </Card>
-          )}
-
-        </div>
-
-        <div className="today__side anim-stagger">
-          {/* The life half of the day first: it is the half no other screen puts in front of you. */}
-          <LevelStrip companyId={homeId ?? companyId} version={kept + ticked} watch={today} onOpen={() => onOpenLife()} />
-          <JournalCard key={`journal-${kept}`} companyId={homeId ?? companyId} onOpenJournal={onOpenJournal} />
-          <HabitsCard companyId={homeId ?? companyId} onManage={() => onOpenLife("habits")} onChanged={() => setTicked((n) => n + 1)} />
-          <YourWeekCard companyId={homeId ?? companyId} version={kept} onOpenPage={onOpenPage} onOpenLife={() => onOpenLife()} />
-
-          {today.replies.length > 0 && (
-            <Card
-              icon={<MailCheck size={15} aria-hidden />}
-              title="Replies"
-              hint="To email sent from Caulder, in the last seven days."
-            >
-              <ul className="cold">
-                {today.replies.map((reply) => (
-                  <li key={reply.emailId}>
-                    <button
-                      type="button"
-                      className="coldrow"
-                      onClick={() => onOpenLead(reply.leadId)}
-                    >
-                      <span className="coldrow__name">{reply.leadName}</span>
-                      <span className="coldrow__meta">Re: {reply.subject}</span>
-                      <span className="coldrow__days">{relativeDay(reply.repliedAt)}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </Card>
-          )}
-
-          {today.cold.length > 0 && (
-            <Card
-              icon={<Snowflake size={15} aria-hidden />}
-              title="Going quiet"
-              hint={`Still open, nothing planned, and quiet for ${today.coldAfterDays} days or more.`}
-            >
-              <ul className="cold">
-                {today.cold.slice(0, 12).map((lead) => (
-                  <li key={lead.id}>
-                    <button
-                      type="button"
-                      className="coldrow"
-                      onClick={() => onOpenLead(lead.id)}
-                    >
-                      <span className="coldrow__name">{lead.name}</span>
-                      <span className="coldrow__meta">
-                        {lead.stageName ?? "No stage"}
-                        {lead.city ? ` · ${lead.city}` : ""}
-                      </span>
-                      <span className="coldrow__days">{lead.daysQuiet} days</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              {today.cold.length > 12 && (
-                <p className="card__hint">
-                  And {today.cold.length - 12} more. The quietest are shown first.
-                </p>
-              )}
-            </Card>
-          )}
-
           {today.upcoming.length > 0 && !nothingDue && (
             <Card title="Coming up">
               <ul className="tasks">{today.upcoming.slice(0, 5).map((task) => rowFor(task))}</ul>
             </Card>
           )}
 
-          {/* Notes live here rather than on a row of their own: a thought
-              caught by Ctrl+N lands beside the day it was had on. */}
+          {/* Notes at the foot of the work: a thought caught by Ctrl+N lands
+              beside the day it was had on. */}
           <Card title="Notes">
             <NotesScreen key={`notes-${kept}`} onTasksChanged={reload} onOpenPage={onOpenPage} />
           </Card>
         </div>
+
+        {/* The life half of the day: the half no other screen puts in front of you. */}
+        <div className="today__side anim-stagger">
+          <LevelStrip companyId={homeId ?? companyId} version={kept + ticked} watch={today} onOpen={() => onOpenLife()} />
+          <JournalCard key={`journal-${kept}`} companyId={homeId ?? companyId} onOpenJournal={onOpenJournal} />
+          <HabitsCard companyId={homeId ?? companyId} onManage={() => onOpenLife("habits")} onChanged={() => setTicked((n) => n + 1)} />
+          <YourWeekCard companyId={homeId ?? companyId} version={kept} onOpenPage={onOpenPage} onOpenLife={() => onOpenLife()} />
+        </div>
       </div>
     </div>
   );
+}
+
+/** "Saturday, 19 September": the day as it is said, built from its parts so it is never the day before. */
+function longDay(day: string): string {
+  const [year, month, date] = day.split("-").map(Number);
+  return new Intl.DateTimeFormat(undefined, { weekday: "long", day: "numeric", month: "long" }).format(
+    new Date(year ?? 1970, (month ?? 1) - 1, date ?? 1),
+  );
+}
+
+/** How much of the day is waiting, in words - late things named first, because they are. */
+function summaryOf(due: number, late: number): string {
+  const today = due === 1 ? "1 thing to do today" : `${due} things to do today`;
+  if (late > 0 && due > 0) return `${today}, and ${late} late`;
+  if (late > 0) return late === 1 ? "1 thing is late" : `${late} things are late`;
+  if (due > 0) return today;
+  return "A clear day";
 }

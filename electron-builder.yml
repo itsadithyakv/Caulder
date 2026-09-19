@@ -1,4 +1,12 @@
 appId: app.paperkite.caulder
+# Where the installed app looks for newer releases (electron-updater), and
+# where `npm run release` puts them: the installer, its blockmap and
+# latest.yml, on the repository's Releases page. A private repository would
+# need a token in every copy, so releases are meant for a public one.
+publish:
+  provider: github
+  owner: itsadithyakv
+  repo: Caulder
 productName: Caulder
 directories:
   output: release

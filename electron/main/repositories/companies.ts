@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { countryOf, currencyFor, isCountry } from "@shared/countries";
 import type { Db } from "../db/connection";
 import {
   COMPANY_MODE_STAGES,
@@ -34,6 +35,7 @@ type CompanyRow = {
   remind_minutes: number | null;
   qualified_stage_id: string | null;
   currency: string;
+  country: string | null;
 };
 
 type StageRow = {
@@ -68,6 +70,7 @@ function toCompany(row: CompanyRow): Company {
     remindMinutes: row.remind_minutes,
     qualifiedStageId: row.qualified_stage_id,
     currency: row.currency,
+    country: row.country ?? null,
   };
 }
 
@@ -189,6 +192,46 @@ export function setCompanyRemind(db: Db, companyId: string, minutes: number | nu
  * says "not set" rather than reporting zero qualified leads.
  */
 /** Display only. Nothing is ever converted, so a total is a total of one thing. */
+/**
+ * Where a company is: the country it chose, or - for one made before
+ * countries - India when its money or its clock says so, which is all
+ * Caulder assumed then. Null when nothing says.
+ */
+export function companyCountry(db: Db, companyId: string): string | null {
+  const row = db.prepare(`SELECT country, currency, timezone FROM companies WHERE id = ?`).get(companyId) as
+    | { country: string | null; currency: string; timezone: string }
+    | undefined;
+  if (!row) return null;
+  if (row.country) return row.country;
+  return row.currency === "INR" || row.timezone === "Asia/Kolkata" || row.timezone === "Asia/Calcutta" ? "IN" : null;
+}
+
+/** The calling code a bare number there is dialled with: "91", "44", "1". */
+export function dialCodeOf(db: Db, companyId: string): string | null {
+  return countryOf(companyCountry(db, companyId))?.dial ?? null;
+}
+
+/** Where the company is. Its currency is not changed with it: money already written down stays in what it was. */
+export function setCompanyCountry(db: Db, companyId: string, country: string): void {
+  if (!isCountry(country)) throw new Error("That is not a country Caulder knows.");
+  db.prepare(`UPDATE companies SET country = ?, updated_at = ? WHERE id = ?`).run(country, new Date().toISOString(), companyId);
+}
+
+/** Its clock: the day it is, the hour a block starts. */
+export function setCompanyTimezone(db: Db, companyId: string, timezone: string): void {
+  if (!isTimezone(timezone)) throw new Error("That is not a timezone.");
+  db.prepare(`UPDATE companies SET timezone = ?, updated_at = ? WHERE id = ?`).run(timezone, new Date().toISOString(), companyId);
+}
+
+function isTimezone(value: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function setCompanyCurrency(db: Db, companyId: string, currency: string): Company {
   db.prepare(`UPDATE companies SET currency = ?, updated_at = ? WHERE id = ?`).run(
     currency,
@@ -211,6 +254,12 @@ export function createCompany(db: Db, input: CompanyDraft): Company {
     `INSERT INTO companies (id, name, accent, timezone, kind, logo, is_archived, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)`,
   );
+  // A company made with a country starts on its money; one made without, as
+  // before any of this, on the rupee it always had. Written as its own step so
+  // a database from before countries - an old one being carried forward in a
+  // test - can still take a company made the old way.
+  const place = input.country ?? null;
+  const money = input.currency ?? currencyFor(place);
   const insertStage = db.prepare(
     `INSERT INTO pipeline_stages (id, company_id, name, position, kind, created_at)
      VALUES (?, ?, ?, ?, ?, ?)`,
@@ -238,6 +287,9 @@ export function createCompany(db: Db, input: CompanyDraft): Company {
       now,
       now,
     );
+    if (place || money) {
+      db.prepare(`UPDATE companies SET country = ?, currency = COALESCE(?, currency) WHERE id = ?`).run(place, money, id);
+    }
     stages.forEach((stage, index) => {
       insertStage.run(randomUUID(), id, stage.name, index, stage.kind, now);
     });

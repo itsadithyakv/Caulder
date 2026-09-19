@@ -150,14 +150,16 @@ function hasDigits(value: string): boolean {
 }
 
 /**
- * The comparison form of a phone number: digits only, with an Indian country
- * code dropped so "+91 9019959088" and "9019959088" are recognised as the
- * same number.
+ * The comparison form of a phone number: digits only, with the company's own
+ * country code dropped so "+91 9019959088" and "9019959088" - or "+44 7700
+ * 900123" and "07700 900123" - are recognised as the same number. India's
+ * code when none is given, which is what every number was compared with
+ * before companies had countries; none at all when the country is unknown.
  */
-export function phoneKey(raw: string | null): string | null {
+export function phoneKey(raw: string | null, dial: string | null = "91"): string | null {
   if (raw === null) return null;
   let digits = raw.replace(/\D/g, "");
-  if (digits.length > 10 && digits.startsWith("91")) digits = digits.slice(2);
+  if (dial && digits.length > 10 && digits.startsWith(dial)) digits = digits.slice(dial.length);
   if (digits.length > 10 && digits.startsWith("0")) digits = digits.replace(/^0+/, "");
   return digits.length >= 7 ? digits : null;
 }

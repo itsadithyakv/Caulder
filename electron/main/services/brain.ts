@@ -39,7 +39,7 @@ import {
   setPagePinned,
   type StoredFields,
 } from "../repositories/brain";
-import { withHome } from "../repositories/companies";
+import { companyCountry, withHome } from "../repositories/companies";
 import { searchEverything } from "../repositories/search";
 import { linkLabelsOnly } from "@shared/links";
 import type { DecisionEntry } from "@shared/brain";
@@ -205,11 +205,14 @@ export function brainHome(db: Db, companyId: string, now: Date): BrainHome {
     return typeof value === "string" && value.length > 0 ? value : null;
   };
 
+  // In India, India's own short names: a founder there reads "PAN" faster than "Tax ID".
+  const INDIA_NAMES: Record<string, string> = { cin: "CIN", pan: "PAN", tan: "TAN", gstin: "GSTIN", udyam: "Udyam" };
+  const india = companyCountry(db, companyId) === "IN";
   const numbers: { label: string; value: string }[] = [];
   for (const field of templateOf("profile").fields) {
-    if (!["cin", "pan", "tan", "gstin", "udyam"].includes(field.key)) continue;
+    if (!(field.key in INDIA_NAMES)) continue;
     const shown = field.kind === "secret" ? profile?.secrets[field.key] : text(field.key);
-    if (shown) numbers.push({ label: field.label, value: shown });
+    if (shown) numbers.push({ label: india ? (INDIA_NAMES[field.key] ?? field.label) : field.label, value: shown });
   }
 
   const entity = text("entityType");
@@ -393,6 +396,8 @@ type InvoiceIssuer = {
   name: string;
   address: string | null;
   gstin: string | null;
+  /** What the tax number is called where the company is: GSTIN in India. */
+  taxLabel: string;
   email: string | null;
   phone: string | null;
   payTo: string[];
@@ -400,6 +405,8 @@ type InvoiceIssuer = {
 
 export function invoiceIssuer(db: Db, companyId: string, fallbackName: string): InvoiceIssuer {
   const profile = pagesOf(db, companyId, "profile")[0]?.stored ?? {};
+  // An invoice speaks the language of where the company is: India's names in India.
+  const india = companyCountry(db, companyId) === "IN";
   const text = (fields: StoredFields, key: string): string | null => {
     const value = fields[key];
     return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
@@ -418,14 +425,15 @@ export function invoiceIssuer(db: Db, companyId: string, fallbackName: string): 
     line("Bank", text(bank, "bankName"));
     line("Account name", text(bank, "holder"));
     line("Account number", number);
-    line("IFSC", text(bank, "ifsc"));
-    line("UPI", text(bank, "upi"));
+    line(india ? "IFSC" : "Bank code", text(bank, "ifsc"));
+    line(india ? "UPI" : "Pay by", text(bank, "upi"));
   }
 
   return {
     name: text(profile, "legalName") ?? fallbackName,
     address: text(profile, "registeredAddress") ?? text(profile, "workingAddress"),
     gstin: text(profile, "gstin"),
+    taxLabel: india ? "GSTIN" : "Tax no.",
     email: text(profile, "email"),
     phone: text(profile, "phone"),
     payTo,

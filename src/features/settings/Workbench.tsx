@@ -115,7 +115,7 @@ export function FieldsCard() {
             className="input"
             value={name}
             onChange={(event) => setName(event.target.value)}
-            placeholder="Board"
+            placeholder="Plan"
             maxLength={60}
           />
         </div>
@@ -142,7 +142,7 @@ export function FieldsCard() {
               className="input"
               value={choices}
               onChange={(event) => setChoices(event.target.value)}
-              placeholder="CBSE, ICSE, State, IB"
+              placeholder="Free, Starter, Pro"
             />
           </div>
         )}

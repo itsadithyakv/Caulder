@@ -1,5 +1,6 @@
 import { clipboard, dialog } from "electron";
 import { CHANNELS } from "@shared/ipc";
+import { resealIfPast } from "../services/journal-lock";
 import { getDatabase } from "../db/connection";
 import { assertId, handle } from "./handle";
 import {
@@ -44,9 +45,13 @@ export function registerBrainHandlers(): void {
     newPage(getDatabase(), companyOf(companyId), section, template, new Date(), preset),
   );
 
-  handle(CHANNELS.brainSave, (_event, id: unknown, input: unknown) =>
-    savePage(getDatabase(), pageOf(id), input, new Date()),
-  );
+  handle(CHANNELS.brainSave, (_event, id: unknown, input: unknown) => {
+    const page = savePage(getDatabase(), pageOf(id), input, new Date());
+    // A journal entry for a day that is over goes back under its seal; the
+    // window keeps the words it just saved.
+    resealIfPast(getDatabase(), page.id);
+    return page;
+  });
 
   handle(CHANNELS.brainPin, (_event, id: unknown, pinned: unknown) =>
     pinPage(getDatabase(), pageOf(id), pinned === true),

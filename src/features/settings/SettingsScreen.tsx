@@ -1,3 +1,4 @@
+import { UpdatesCard } from "./UpdatesCard";
 import { useEffect, useState, type ReactNode } from "react";
 import { Archive, Check, Pencil, Trash2, X } from "lucide-react";
 import { AccentPicker } from "@/components/AccentPicker";
@@ -14,7 +15,9 @@ import { WordsCard } from "./WordsCard";
 import { TemplatesCard } from "./TemplatesCard";
 import { ThisIsMeCard } from "@/features/sharing/ThisIsMeCard";
 import { getTheme, setTheme, type ThemeChoice } from "@/lib/theme";
-import { CURRENCIES, DEFAULT_CAPTURE_SHORTCUT, type AccentId, type Company } from "@shared/domain";
+import { DEFAULT_CAPTURE_SHORTCUT, type AccentId, type Company } from "@shared/domain";
+import { countryName } from "@shared/countries";
+import { countryChoices, currencyChoices, timezoneChoices } from "@/lib/places";
 import { Select } from "@/components/Select";
 import { messageOf } from "@/lib/errors";
 
@@ -126,6 +129,7 @@ export function SettingsScreen({
 
         <Group id="app" label="The app">
           <AppearanceCard />
+          <UpdatesCard />
           {activeCompany && (
             <DataSafety
               key={activeCompany.id}
@@ -179,7 +183,7 @@ function AppearanceCard() {
 }
 
 function CompanyRow({ company, canArchive }: { company: Company; canArchive: boolean }) {
-  const { rename, setAccent, setCurrency, archive, remove } = useWorkspace();
+  const { rename, setAccent, setCurrency, setCountry, setTimezone, archive, remove } = useWorkspace();
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(company.name);
@@ -255,7 +259,7 @@ function CompanyRow({ company, canArchive }: { company: Company; canArchive: boo
         ) : (
           <>
             <span className="company-row__name">{company.name}</span>
-            <span className="company-row__meta">{company.timezone}</span>
+            <span className="company-row__meta">{company.country ? countryName(company.country) : "Country not chosen"}</span>
             <button
               type="button"
               className="btn btn--sm btn--ghost btn--icon"
@@ -274,10 +278,24 @@ function CompanyRow({ company, canArchive }: { company: Company; canArchive: boo
           thing; this is which thing. */}
       <Select
         compact
+        aria-label={`Country for ${company.name}`}
+        value={company.country ?? ""}
+        onChange={(code) => (code ? void run(() => setCountry(company.id, code)) : undefined)}
+        options={[...(company.country ? [] : [{ value: "", label: "Choose a country" }]), ...countryChoices()]}
+      />
+      <Select
+        compact
         aria-label={`Currency for ${company.name}`}
         value={company.currency}
         onChange={(code) => void run(() => setCurrency(company.id, code))}
-        options={CURRENCIES.map((code) => ({ value: code as string, label: code as string }))}
+        options={currencyChoices(company.currency)}
+      />
+      <Select
+        compact
+        aria-label={`Timezone for ${company.name}`}
+        value={company.timezone}
+        onChange={(zone) => void run(() => setTimezone(company.id, zone))}
+        options={timezoneChoices(company.timezone)}
       />
 
       {/* Archiving the last company would leave the app with no workspace and

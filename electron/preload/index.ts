@@ -30,10 +30,24 @@ const api: CaulderApi = {
   },
   app: {
     version: () => invoke(CHANNELS.appVersion),
+    tour: () => invoke(CHANNELS.appTour),
+    tourDone: () => invoke(CHANNELS.appTourDone),
+    problemReport: () => invoke(CHANNELS.appProblemReport),
+    openIssue: (text) => invoke(CHANNELS.appOpenIssue, text),
+    updates: () => invoke(CHANNELS.updatesState),
+    checkForUpdates: () => invoke(CHANNELS.updatesCheck),
+    installUpdate: () => invoke(CHANNELS.updatesInstall),
+    onUpdates: (fn) => {
+      const handler = (_event: unknown, state: Parameters<typeof fn>[0]) => fn(state);
+      ipcRenderer.on("updates:changed", handler);
+      return () => ipcRenderer.removeListener("updates:changed", handler);
+    },
     reportError: (detail) => ipcRenderer.send(CHANNELS.appReportError, detail),
   },
   companies: {
     setCurrency: (id, currency) => invoke(CHANNELS.companiesSetCurrency, id, currency),
+    setCountry: (id, country) => invoke(CHANNELS.companiesSetCountry, id, country),
+    setTimezone: (id, timezone) => invoke(CHANNELS.companiesSetTimezone, id, timezone),
     list: () => invoke(CHANNELS.companiesList),
     create: (input) => invoke(CHANNELS.companiesCreate, input),
     rename: (id, name) => invoke(CHANNELS.companiesRename, id, name),
@@ -121,6 +135,13 @@ const api: CaulderApi = {
     linkedPage: (fromPageId, template) => invoke(CHANNELS.lifeLinkedPage, fromPageId, template),
     jot: (companyId, text) => invoke(CHANNELS.lifeJot, companyId, text),
     logTime: (pageId, minutes) => invoke(CHANNELS.lifeLogTime, pageId, minutes),
+    lockState: () => invoke(CHANNELS.lifeLockState),
+    setPasscode: (companyId, passcode) => invoke(CHANNELS.lifeLockSet, companyId, passcode),
+    unlock: (passcode) => invoke(CHANNELS.lifeUnlock, passcode),
+    lockNow: () => invoke(CHANNELS.lifeLockNow),
+    changePasscode: (oldPasscode, newPasscode) => invoke(CHANNELS.lifeLockChange, oldPasscode, newPasscode),
+    removePasscode: (passcode) => invoke(CHANNELS.lifeLockRemove, passcode),
+    forgetPasscode: () => invoke(CHANNELS.lifeLockForget),
   },
   habits: {
     list: (companyId, archived) => invoke(CHANNELS.habitsList, companyId, archived ?? false),
@@ -382,6 +403,9 @@ const api: CaulderApi = {
     exportAll: (companyId) => invoke(CHANNELS.dataExportAll, companyId),
     revealFolder: (which) => invoke(CHANNELS.dataRevealFolder, which),
     paths: () => invoke(CHANNELS.dataPaths),
+    mirror: () => invoke(CHANNELS.dataMirror),
+    chooseMirror: () => invoke(CHANNELS.dataChooseMirror),
+    stopMirror: () => invoke(CHANNELS.dataStopMirror),
   },
 };
 

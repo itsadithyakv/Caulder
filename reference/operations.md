@@ -34,6 +34,27 @@ three TypeScript projects: `node` (main + shared), `web` (renderer + shared),
 and `e2e` — which has its own project because `page.evaluate` bodies run in the
 browser and need DOM types that the main process has no business with.
 
+## Releasing, and updates
+
+```bash
+set GH_TOKEN=<a GitHub token that can publish releases>
+npm run release
+```
+
+Builds the installer and publishes it to the repository's Releases page as a
+draft release, with its blockmap and `latest.yml`; publish the draft to make
+it the newest. The installed app looks there (electron-updater) thirty seconds
+after it starts and every six hours, downloads a newer version quietly and
+puts it in when Caulder is next quit - or at once, from *Restart to update* in
+Settings or the bar that appears when one is ready. Nothing is looked for in
+development or under the tests. A private repository would need a token in
+every copy, so releases belong in a public one.
+
+**The installer is not code-signed yet.** Windows SmartScreen shows *Windows
+protected your PC* until it is, and updates still work unsigned. Signing
+needs a certificate or Microsoft's Trusted Signing, set up in
+`electron-builder.yml` under `win`.
+
 ## Building an installer
 
 ```bash
@@ -100,6 +121,22 @@ is safe without one.
 The launch backup **never throws**: losing access to your leads is worse than
 one missing copy. The on-demand one fails loudly, because you pressed a button
 and silence would be worse.
+
+**Another copy, somewhere else** (Settings → Your data): a folder the person
+chooses - one OneDrive, Google Drive or Dropbox keeps elsewhere - gets a copy
+of every backup too, launch and on demand, with the ten newest kept there.
+Where it is lives in `backup-folder.json` beside the database, because the
+launch backup runs before the database is opened. A folder that cannot be
+written to - a drive not plugged in - never stops a backup; the on-demand one
+says why it was not copied.
+
+## Reporting a problem
+
+Settings → Your data → *Report a problem* shows the whole report before it
+goes anywhere: the version, Windows, and the last sixty lines of
+`logs/caulder.log` with emails, phone numbers and the Windows account name
+taken out. *Copy it*, or *Open it as an issue on GitHub* with it filled in,
+to send or not. Nothing is sent by Caulder itself.
 
 ## Restore
 

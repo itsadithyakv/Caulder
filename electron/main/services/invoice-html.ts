@@ -11,6 +11,8 @@ export type InvoiceDocument = {
     name: string;
     address: string | null;
     gstin: string | null;
+    /** What the tax number is called where the company is: GSTIN in India. */
+    taxLabel: string;
     email: string | null;
     phone: string | null;
     payTo: string[];
@@ -90,7 +92,7 @@ export function invoiceHtml(doc: InvoiceDocument): string {
       <h1>Invoice</h1>
       <strong>${escape(from.name)}</strong>
       ${from.address ? `<div class="address">${escape(from.address)}</div>` : ""}
-      ${lines([from.gstin ? `GSTIN ${from.gstin}` : null, contact || null])}
+      ${lines([from.gstin ? `${from.taxLabel} ${from.gstin}` : null, contact || null])}
     </div>
     <div class="meta">
       <div><strong>${escape(doc.number)}</strong></div>

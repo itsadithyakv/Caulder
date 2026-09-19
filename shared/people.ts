@@ -261,22 +261,22 @@ const step = (title: string, onDay = 0): ChecklistStep => ({ title, day: onDay }
 /**
  * What joining looks like for each kind of person, as a starting point. The
  * paperwork first, then access, then the check-ins people forget. Written for
- * a small Indian company; a playbook page with its own `- [ ]` steps can be
+ * a small company anywhere; a playbook page with its own `- [ ]` steps can be
  * run instead.
  */
 export const ONBOARDING: Record<Exclude<PersonKind, "candidate">, readonly ChecklistStep[]> = {
   founder: [
     step("Founders' agreement signed, with vesting"),
     step("Access to the bank, email and tools"),
-    step("Share certificate or partnership deed updated", 7),
-    step("Added as a director or designated partner, if they will be one", 14),
+    step("Share certificate, cap table or partnership deed updated", 7),
+    step("Registered as a director or partner, if they will be one", 14),
   ],
   employee: [
     step("Offer letter signed"),
     step("Employment agreement and NDA signed"),
-    step("PAN, bank details and address collected"),
+    step("Tax ID, bank details and address collected"),
     step("Laptop, email and the tools they need"),
-    step("Added to payroll, and TDS worked out", 1),
+    step("Added to payroll, and the tax taken from pay worked out", 1),
     step("First week planned with them", 1),
     step("Check in after two weeks", 14),
     step("30-day review", 30),

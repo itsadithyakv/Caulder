@@ -12,7 +12,7 @@ type Exchange = { question: string; answer: AskAnswer | null; error: string | nu
 const EXAMPLES = [
   "Which deals should I chase this week?",
   "How long does the money last?",
-  "What do schools object to on calls?",
+  "What do customers object to on calls?",
 ];
 
 /**

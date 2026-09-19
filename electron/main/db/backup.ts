@@ -6,12 +6,14 @@ import {
   mkdirSync,
   openSync,
   readdirSync,
+  readFileSync,
   readSync,
   statSync,
   unlinkSync,
+  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { LATEST_VERSION } from "./migrations";
 import { backupsDir, checkpoint, databasePath } from "./connection";
 import type { BackupFile } from "@shared/data";
@@ -58,6 +60,7 @@ export function backupOnLaunch(now: Date = new Date()): BackupResult {
 
     const target = join(dir, `${PREFIX}${stamp(now)}${SUFFIX}`);
     copyFileSync(source, target);
+    mirror(target);
 
     return { kind: "created", path: target, pruned: prune(dir) };
   } catch (error) {
@@ -143,13 +146,59 @@ export function backupNow(now: Date = new Date()): BackupFile {
   // useless.
   const stats = statSync(target);
   prune(dir);
+  const mirrored = mirror(target);
 
   return {
     name,
     path: target,
     size: stats.size,
     takenAt: new Date(stats.mtimeMs).toISOString(),
+    ...(mirrored ? { mirrored } : {}),
   };
+}
+
+/* ---- Another copy, somewhere else ------------------------------------------
+ * A backup on this computer does not survive this computer. So every backup
+ * can also be copied to a folder the person chooses - one that OneDrive,
+ * Google Drive or Dropbox keeps somewhere else - with the same ten kept
+ * there. Where it is lives in a small file beside the database, because the
+ * launch backup runs before the database is opened.
+ * ------------------------------------------------------------------------ */
+
+function mirrorFile(): string {
+  return join(dirname(databasePath()), "backup-folder.json");
+}
+
+/** The folder every backup is also copied to, or null. */
+export function mirrorFolder(): string | null {
+  try {
+    const parsed = JSON.parse(readFileSync(mirrorFile(), "utf8")) as { folder?: unknown };
+    return typeof parsed.folder === "string" && parsed.folder.length > 0 ? parsed.folder : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setMirrorFolder(folder: string | null): void {
+  writeFileSync(mirrorFile(), JSON.stringify({ folder }), "utf8");
+}
+
+/**
+ * Copies a backup to the chosen folder too, and keeps the ten newest there.
+ * Never throws - a folder on a drive that is not plugged in must not stop a
+ * backup or a launch - and says where it went, or why not.
+ */
+function mirror(path: string): { folder: string; error: string | null } | null {
+  const folder = mirrorFolder();
+  if (!folder) return null;
+  try {
+    mkdirSync(folder, { recursive: true });
+    copyFileSync(path, join(folder, basename(path)));
+    prune(folder);
+    return { folder, error: null };
+  } catch (error) {
+    return { folder, error: error instanceof Error ? error.message : String(error) };
+  }
 }
 
 /**
