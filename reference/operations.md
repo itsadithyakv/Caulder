@@ -50,6 +50,13 @@ Settings or the bar that appears when one is ready. Nothing is looked for in
 development or under the tests. A private repository would need a token in
 every copy, so releases belong in a public one.
 
+**A copy from the Microsoft Store does not look for updates.** The Store
+keeps it up to date, and a Store app cannot rewrite its own install folder;
+Electron's `process.windowsStore` says which copy is running, and Settings
+says *Updates come from the Microsoft Store*. The two channels do not cross:
+a Store copy never takes a GitHub release, and an installed .exe never
+becomes a Store copy.
+
 **The installer is not code-signed yet.** Windows SmartScreen shows *Windows
 protected your PC* until it is, and updates still work unsigned. Signing
 needs a certificate or Microsoft's Trusted Signing, set up in

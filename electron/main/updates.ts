@@ -12,6 +12,10 @@ import { logProblem } from "./log";
  *
  * Releases are what `npm run release` publishes: the installer, its
  * blockmap and latest.yml, on the repository's Releases page.
+ *
+ * A copy from the Microsoft Store looks for nothing: the Store keeps it up to
+ * date, and a Store app cannot rewrite its own install folder anyway. Electron
+ * says which it is (`process.windowsStore`).
  */
 
 const { autoUpdater } = electronUpdater;
@@ -19,7 +23,15 @@ const { autoUpdater } = electronUpdater;
 const FIRST_LOOK_MS = 30 * 1000;
 const EVERY_MS = 6 * 60 * 60 * 1000;
 
-let state: UpdateState = { status: "off", current: app.getVersion(), version: null, percent: null, error: null };
+const fromStore = process.windowsStore === true;
+
+let state: UpdateState = {
+  status: fromStore ? "store" : "off",
+  current: app.getVersion(),
+  version: null,
+  percent: null,
+  error: null,
+};
 
 function set(next: Partial<UpdateState>): void {
   state = { ...state, ...next };
@@ -30,9 +42,9 @@ export function updateState(): UpdateState {
   return state;
 }
 
-/** The installed app, not a copy run from the project or by the tests. */
+/** The installed app, not a copy run from the project or by the tests, and not the Store's. */
 function eligible(): boolean {
-  return app.isPackaged && process.env["CAULDER_BACKGROUND"] !== "1";
+  return app.isPackaged && !fromStore && process.env["CAULDER_BACKGROUND"] !== "1";
 }
 
 export function startUpdates(): void {

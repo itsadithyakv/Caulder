@@ -28,6 +28,8 @@ function said(state: UpdateState): string {
   switch (state.status) {
     case "off":
       return "Updates are looked for in the installed app.";
+    case "store":
+      return "Updates come from the Microsoft Store, by themselves.";
     case "idle":
       return "Caulder looks for a newer version a little after it starts, and every few hours.";
     case "checking":
@@ -55,7 +57,7 @@ export function UpdatesCard() {
       </p>
       {error && <p className="field__error">{error}</p>}
       <div className="actions">
-        {state.status === "ready" ? (
+        {state.status === "store" ? null : state.status === "ready" ? (
           <button
             type="button"
             className="btn btn--sm btn--primary"

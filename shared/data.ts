@@ -11,7 +11,8 @@
  * and waits for a restart.
  */
 export type UpdateState = {
-  status: "off" | "idle" | "checking" | "current" | "downloading" | "ready" | "failed";
+  /** `store`: installed from the Microsoft Store, which does the updating itself. */
+  status: "off" | "store" | "idle" | "checking" | "current" | "downloading" | "ready" | "failed";
   current: string;
   /** The newer version, while it downloads and once it is ready. */
   version: string | null;
