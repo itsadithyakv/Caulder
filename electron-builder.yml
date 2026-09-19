@@ -33,6 +33,24 @@ win:
   target:
     - target: nsis
       arch: [x64]
+# The Microsoft Store package: npm run package:store. The identity is the one
+# Partner Center reserved for Caulder (Product management > Product identity),
+# and must match it exactly or the upload is refused. It is built unsigned:
+# the Store signs a package itself once it passes certification. The tiles
+# are resources/appx, made by scripts/logo.py.
+appx:
+  identityName: AdithyaKV.Caulder
+  publisher: CN=30ED0224-8255-4781-8ACD-EE3EF146115F
+  publisherDisplayName: PaperKite
+  applicationId: Caulder
+  displayName: Caulder
+  backgroundColor: transparent
+  # Windows 10 1809 and later, which is what Electron and MSIX both need; tested on 11 (24H2).
+  minVersion: 10.0.17763.0
+  maxVersionTested: 10.0.26100.0
+  languages:
+    - en-US
+  artifactName: Caulder-${version}-${arch}.${ext}
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true

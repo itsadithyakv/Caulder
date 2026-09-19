@@ -1,4 +1,5 @@
 import { checkForUpdates, installUpdate, updateState } from "../updates";
+import { isStoreCopy } from "../store-home";
 import { openIssue, problemReport } from "../problem";
 import { app, BrowserWindow, clipboard, ipcMain } from "electron";
 import type { IpcMainEvent, IpcMainInvokeEvent } from "electron";
@@ -590,6 +591,7 @@ function registerDataHandlers(getWindow: () => BrowserWindow | null) {
     database: databasePath(),
     backups: backupsDir(),
     logs: logsDir(),
+    store: isStoreCopy(),
   }));
 
   // A name, not a path: `openPath` runs a program as readily as it opens a

@@ -50,17 +50,62 @@ Settings or the bar that appears when one is ready. Nothing is looked for in
 development or under the tests. A private repository would need a token in
 every copy, so releases belong in a public one.
 
-**A copy from the Microsoft Store does not look for updates.** The Store
-keeps it up to date, and a Store app cannot rewrite its own install folder;
-Electron's `process.windowsStore` says which copy is running, and Settings
-says *Updates come from the Microsoft Store*. The two channels do not cross:
-a Store copy never takes a GitHub release, and an installed .exe never
-becomes a Store copy.
-
 **The installer is not code-signed yet.** Windows SmartScreen shows *Windows
 protected your PC* until it is, and updates still work unsigned. Signing
 needs a certificate or Microsoft's Trusted Signing, set up in
 `electron-builder.yml` under `win`.
+
+## The Microsoft Store
+
+```bash
+npm run package:store
+```
+
+Builds `release/Caulder-<version>-x64.appx` for Partner Center, with the
+identity Partner Center reserved (`appx` in `electron-builder.yml`: name
+`AdithyaKV.Caulder`, publisher `CN=30ED0224-8255-4781-8ACD-EE3EF146115F`,
+PaperKite). It is **unsigned on purpose**: the Store signs a package itself
+once it passes certification, so no certificate is needed to publish.
+electron-builder's own copies of makeappx and makepri no longer start on
+current Windows 11, so `scripts/package-store.mjs` points it at the newest
+Windows SDK installed (the SDK is free). The tiles come from
+`scripts/logo.py`, like every other copy of the logo.
+
+To submit: Partner Center → the app → a new submission → Packages → upload
+the .appx. Each submission needs a higher version than the last, so bump
+`package.json` first.
+
+To try the package on this computer before submitting it, it has to be
+installed, and Windows installs only a signed package - or, with Developer
+Mode on (Settings → System → For developers), an unpacked one:
+
+```powershell
+& "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\makeappx.exe" unpack /p release\Caulder-0.4.1-x64.appx /d $env:TEMP\caulder-appx /o
+Add-AppxPackage -Register $env:TEMP\caulder-appx\AppxManifest.xml
+# and to take it off again:
+Get-AppxPackage AdithyaKV.Caulder | Remove-AppxPackage
+```
+
+**A Store copy is a little different, on purpose:**
+
+- **It looks for no updates of its own.** The Store keeps it current, and a
+  Store app cannot rewrite its install folder. Electron's
+  `process.windowsStore` says which copy is running; Settings says *Updates
+  come from the Microsoft Store*. The channels never cross: a Store copy
+  never takes a GitHub release.
+- **Its data is in the package's own folder**,
+  `%LOCALAPPDATA%\Packages\AdithyaKV.Caulder_dhc63ph4798te\LocalState`,
+  not `%APPDATA%\Caulder`. Windows gives a Store app a private view of
+  AppData that only the app sees, so Explorer - opened from Settings on the
+  backups or the log - would find those folders empty. LocalState is real for
+  everybody. See `electron/main/store-home.ts`.
+- **The first time it starts on a computer that had the desktop Caulder**, it
+  brings that copy's data across once: the database read whole through SQLite,
+  the attached files, and the backup folder. The desktop copy's files are left
+  as they were.
+- **Uninstalling it removes its data**, as Windows does for every Store app.
+  Settings says so beside *Another copy, somewhere else*, which is the way
+  around it.
 
 ## Building an installer
 

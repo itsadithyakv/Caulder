@@ -16,6 +16,12 @@ import { createTray, destroyTray, hasTray, trayNotice } from "./tray";
 import { claimIdentity, registerIdentity } from "./identity";
 import { guardContents } from "./links";
 import { logProblem } from "./log";
+import { useStoreHome } from "./store-home";
+
+// A Store copy keeps its data in its package's own folder, which Explorer can
+// see; this has to come before anything touches the data folder, the
+// single-instance lock below included. See store-home.ts.
+useStoreHome();
 
 // Before anything can notify: a notification is signed with this ID, and
 // without it Windows signs Caulder's reminders "electron.app.Electron".

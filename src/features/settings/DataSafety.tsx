@@ -22,7 +22,7 @@ export function DataSafety({
   const [backups, setBackups] = useState<BackupFile[]>([]);
   /** The folder every backup is also copied to - one that syncs somewhere else - or null. */
   const [mirror, setMirror] = useState<string | null>(null);
-  const [paths, setPaths] = useState<{ database: string; backups: string; logs: string } | null>(
+  const [paths, setPaths] = useState<{ database: string; backups: string; logs: string; store: boolean } | null>(
     null,
   );
   const [confirming, setConfirming] = useState<string | null>(null);
@@ -137,7 +137,9 @@ export function DataSafety({
           <p className={`card__hint${mirror ? "" : " card__hint--warn"}`}>
             {mirror
               ? `Every backup is also copied to ${mirror}, and the ten newest are kept there too.`
-              : "A backup on this computer does not survive this computer. Choose a folder that syncs - OneDrive, Google Drive, Dropbox - and every backup is copied there too."}
+              : paths?.store
+            ? "Uninstalling Caulder removes everything it keeps on this computer, backups too - Windows does that for every Store app. Choose a folder that syncs - OneDrive, Google Drive, Dropbox - and every backup is copied there as well."
+            : "A backup on this computer does not survive this computer. Choose a folder that syncs - OneDrive, Google Drive, Dropbox - and every backup is copied there too."}
           </p>
           <div className="actions">
             <button

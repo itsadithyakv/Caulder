@@ -12,6 +12,7 @@
     "build": "electron-vite build",
     "package": "npm run build && electron-builder --win --publish never",
     "release": "npm run build && electron-builder --win --publish always",
+    "package:store": "node scripts/package-store.mjs",
     "smoke:packaged": "node scripts/smoke-packaged.mjs",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json",

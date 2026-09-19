@@ -1161,7 +1161,8 @@ export type DataApi = {
   exportAll: (companyId: string) => Promise<ExportEverything | null>;
   /** Opens one of Caulder's own folders. Named, not a path, for the same reason. */
   revealFolder: (which: DataFolder) => Promise<void>;
-  paths: () => Promise<{ database: string; backups: string; logs: string }>;
+  /** `store`: a Microsoft Store copy, whose data Windows removes when it is uninstalled. */
+  paths: () => Promise<{ database: string; backups: string; logs: string; store: boolean }>;
   /** The folder every backup is also copied to, or null. */
   mirror: () => Promise<string | null>;
   /** Asks for a folder, copies a backup there at once, and keeps copying. Null if cancelled. */
