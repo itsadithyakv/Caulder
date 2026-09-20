@@ -61,7 +61,7 @@ test("[[ links a product and a person, and each opens where it lives", async () 
   const text = page.getByLabel("Page", { exact: true });
   await text.fill("");
   await text.pressSequentially("They buy the [[Attend");
-  const picker = page.getByRole("listbox", { name: "Link to" });
+  const picker = page.getByRole("listbox", { name: "Suggestions" });
   await expect(picker.getByRole("option", { name: /Attendance workshop/ })).toContainText("Product");
   await text.press("Enter");
   await text.pressSequentially(" after a call from [[Asha");

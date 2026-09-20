@@ -118,6 +118,26 @@ export function DataSafety({
               Back up now
             </button>
 
+            {/* Always offered: without Google connected it says what to connect,
+                which is more use than a button that is not there. */}
+            <button
+              type="button"
+              className="btn"
+              disabled={busy}
+              onClick={() =>
+                void run(async () => {
+                  const sent = await window.caulder.google.backupToDrive();
+                  setMessage(
+                    `Backed up here and to "Caulder backups" in your Google Drive, as ${sent.name}. The newest ${sent.kept} are kept there.`,
+                  );
+                  load();
+                })
+              }
+            >
+              <CloudUpload size={15} aria-hidden />
+              Back up to Google Drive
+            </button>
+
             {paths && (
               <button
                 type="button"

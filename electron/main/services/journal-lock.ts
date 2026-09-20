@@ -221,6 +221,7 @@ export function setPasscode(db: Db, companyId: string, rawPasscode: unknown, now
   // Just set: open for now, so the person who set it is not locked out mid-thought.
   open = { key: pair.privateKey, at: Date.now() };
   sealPast(db, companyId, now);
+  sealPrivateLines(db);
   return lockState(db);
 }
 
@@ -259,6 +260,14 @@ export function removePasscode(db: Db, rawPasscode: unknown): JournalLockState {
       db.prepare(`UPDATE brain_pages SET body = ? WHERE id = ? AND body = ''`).run(body, row.page_id);
     }
     db.prepare(`DELETE FROM journal_sealed`).run();
+    // Private lines come out of their boxes too: no lock means nothing is sealed.
+    const lines = db.prepare(`SELECT id, box FROM journal_private WHERE box IS NOT NULL`).all() as { id: string; box: string }[];
+    for (const line of lines) {
+      db.prepare(`UPDATE journal_private SET body = ?, box = NULL WHERE id = ?`).run(
+        openText(privateKey, JSON.parse(line.box) as SealedBox),
+        line.id,
+      );
+    }
     setSetting(db, "journalLock", "");
   })();
   open = null;
@@ -272,10 +281,42 @@ export function removePasscode(db: Db, rawPasscode: unknown): JournalLockState {
 export function forgetPasscode(db: Db): JournalLockState {
   db.transaction(() => {
     db.prepare(`DELETE FROM journal_sealed`).run();
+    // Sealed private lines cannot be opened by anybody now, so they go as the sealed days do.
+    db.prepare(`DELETE FROM journal_private WHERE box IS NOT NULL`).run();
     setSetting(db, "journalLock", "");
   })();
   open = null;
   return lockState(db);
+}
+
+/* ---- Private lines ------------------------------------------------------- */
+
+/**
+ * A private line, as it is stored: sealed at once when there is a passcode to
+ * seal with - which takes no passcode, only the public half of the key - and
+ * as it is when there is not. Says which, so the screen can.
+ */
+export function keepPrivate(text: string, db: Db): { box: string | null; body: string | null } {
+  const record = lockRecord(db);
+  return record ? { box: JSON.stringify(sealText(record, text)), body: null } : { box: null, body: text };
+}
+
+/** A private line read back: null while the journal is locked. */
+export function readPrivateBox(box: string): string | null {
+  const key = openKey();
+  return key ? openText(key, JSON.parse(box) as SealedBox) : null;
+}
+
+/** A passcode has just been set: every private line written before it is sealed there and then. */
+function sealPrivateLines(db: Db): void {
+  const record = lockRecord(db);
+  if (!record) return;
+  const lines = db.prepare(`SELECT id, body FROM journal_private WHERE body IS NOT NULL`).all() as { id: string; body: string }[];
+  db.transaction(() => {
+    for (const line of lines) {
+      db.prepare(`UPDATE journal_private SET box = ?, body = NULL WHERE id = ?`).run(JSON.stringify(sealText(record, line.body)), line.id);
+    }
+  })();
 }
 
 /** For tests: the process-wide unlocked key, forgotten. */

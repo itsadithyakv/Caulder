@@ -7,7 +7,7 @@ Every table that holds a workspace's data reaches `companies` by cascade, so a
 workspace is a clean partition and deleting a company deletes its world. Most
 carry `company_id` themselves; `custom_values`, `quote_lines` and
 `invoice_lines` reach it through the rows they belong to. Two tables are app-wide
-on purpose and carry no company at all: `settings` and `area_words`.
+on purpose and carry no company at all: `settings`, `area_words` and `line_guesses`.
 
 IDs are UUID text. Timestamps are ISO-8601 UTC strings; due dates are
 `YYYY-MM-DD` calendar days, and times of day are `HH:MM` strings — nine o'clock
@@ -52,6 +52,13 @@ is nine o'clock, and an instant would move when the machine's timezone did.
 | 33 | the vision board | `vision_tiles` |
 | 34 | the journal's passcode | `journal_sealed` |
 | 35 | a company's country | `companies.country` |
+| 36 | tune | `line_guesses` |
+| 37 | contacts to google | `leads.google_contact` |
+| 38 | goals and your week | `goal_checkins`, `day_themes` |
+| 39 | private lines | `journal_private` |
+| 40 | what was measured, and the shelf | `hobby_logs`, `shelf_books` |
+| 41 | book covers | `shelf_books.cover` |
+| 42 | what a quiet day was | `day_checkins` |
 
 Each migration is one transaction, gated on `PRAGMA user_version`, with a
 backup taken before any of them runs. Additions use `ALTER TABLE ADD COLUMN`;
@@ -362,6 +369,98 @@ spacings of one phrase are one row.
 CHECK, for the reason `channel` is free text: a fifth area should not need a
 table rebuild. Not in the CSV export — it is not per-workspace — but in the
 `caulder.db` copy that ships beside it, and in every backup.
+
+## line_guesses
+
+What the quick-add line guessed at, kept so Settings' Tune can ask about it
+later instead of the line stopping to ask there and then. `kind`, `typed`,
+`meant`, `times`, `verdict`, `last_seen`, `created_at`.
+
+Two kinds of row. A **`slip`** is a word read as another - "meetining" as
+"meeting" - with what it was read as in `meant`. A **`name`** is something a
+title named that nothing knew - "ms puc" - and its `meant` is empty. `times`
+counts the lines it has turned up in: a slip is asked about from the first, a
+name only from the second (`worthAsking`, in `shared/tune.ts`), because a card
+that asks about every word ever typed after "for" is a card nobody opens.
+
+`verdict` is null until answered. For a slip, `same` means it is read that way
+from then on without comment, and `keep` means the word is never touched again
+- which is also what "Keep as typed" under the line writes, before any
+question is asked. For a name, `taught` means it became a row in `area_words`
+and `none` means it belongs to no area; either way it is not asked about
+twice. Deleting the row takes an answer back, and leaves the line free to
+guess - and ask - again.
+
+**No `company_id`**, for the reason `area_words` has none: the way somebody's
+fingers slip does not change with the workspace. **`UNIQUE (kind, typed, meant)`
+ignoring case**, so a second sighting adds to the count rather than the list,
+and an answer once given is found again rather than asked again. Not in the CSV
+export; in the `caulder.db` copy and every backup.
+
+## journal_private
+
+The lines the quick line takes as nobody else's business - a crush, a regret
+about how somebody was spoken to (`shared/private.ts`). `company_id`, `day`,
+`box`, `body`, `created_at`.
+
+**Exactly one of `box` and `body` is filled**, which the `CHECK` says. With a
+journal passcode set, the line is in `box`, sealed with the journal's public
+key **the moment it is written** - not at midnight, as a day's entry is -
+which needs no passcode, because sealing only ever needs the public half.
+Reading it back takes the passcode, like any day that is over. With no
+passcode there is nothing to seal with, so the line is in `body` until one is
+set, and setting one seals every such row there and then. Removing the
+passcode opens them again; forgetting it deletes the sealed ones, as it does
+the sealed days, because nobody can open them any more.
+
+Inside the box is JSON - the words, who they were about, what kind of feeling
+it was - so none of that is readable either. **`day` is outside the box** on
+purpose: the journal has to be able to say a day has something locked in it
+without being able to say what.
+
+**Joined to nothing.** No `lead_id`, no `page_id`, not in `brain_search`, not
+in the dossier an AI is sent, not in the shared brain, not in the CSV export:
+a line about Julia that is linked to Julia's record is not private. It is in
+the `caulder.db` copy and every backup, sealed as it is here.
+
+## hobby_logs
+
+The numbers under the memories: twenty push ups, five kilometres, forty-five
+kilos three times. `company_id`, `day`, `topic`, `metric`, `value`, `unit`,
+`reps`, `best`, `created_at`. Written by the quick line when what it kept
+measured something (`measuresOf`, in `shared/subjects.ts`), and read for the
+year in numbers.
+
+**One log for every hobby**, not a table each. `topic` is what it is a measure
+of, titled as its page in the brain is ("Push Ups", "Running", "Body Weight"),
+and `metric` says what kind of number: `reps`, `weight` (with `reps` beside
+it), `distance`, `pace` (seconds per unit), `bodyweight`, `change`, `pages`.
+A hobby nobody thought of is counted without a migration. Joined to its page
+by title rather than by id on purpose: the log is written the moment a line
+is kept, which is before the page it belongs on may exist.
+
+## shelf_books
+
+The reading shelf: `title`, `series`, `position` in the series, `status`
+(`to-read`, `reading`, `read`), `finished_on`. **Unique by title within a
+workspace, ignoring case**, so "I am reading Dune", said of a book that was to
+be read, moves it rather than adding it again. A series is added as the books
+in it, in order, from the list in `shared/books.ts` - no lookup, because
+Caulder asks nobody on the internet what somebody is reading.
+
+## day_checkins
+
+What a day with nothing on it turned out to be, asked the day after and
+answered in one press: `rested`, `scrolled`, `unwell`, `elsewhere`, `off`
+(`shared/pulse.ts`). `company_id`, `day`, `answer`, `created_at`; one row a
+day a workspace, and answering again keeps the newer answer.
+
+It is the only thing the reading of how somebody has been keeps for itself.
+Everything else it reads from what is already there - the hours on the
+Calendar, the tasks finished, the journal's mood, the habits, what the line
+logged - and **never from `journal_private`**, which is sealed and which it
+has no key to. Switching the whole thing off (`pulseOff` in `settings`) stops
+the reading; the answers already given stay, as the person's own record.
 
 ## campaigns
 
@@ -729,6 +828,32 @@ the four areas are worked out when read (`services/progress.ts`) from
 `tasks.completed_at`, kept `blocks`, `calls`, won `deals`, paid `invoices`,
 journal entries, `habit_checks` and the revision where a goal was marked
 done. Undo any of those and the points go with it.
+
+## goal_checkins
+
+How your own goals move (after 0.4): `page_id` (a goal in Life, cascading),
+`on_day` (in the workspace's own day), `value` (where the goal stood after
+it), `note`, `is_start`, `created_at`.
+
+- **A check-in is where the goal stands, not how much it moved**, so a goal
+  can count down - a weight to lose - as easily as up, and "set to 79" and
+  "+1" are the same kind of row.
+- **The first check-in keeps a start**: a row with `is_start` on the day the
+  goal was set, at what its *So far* said before, so the line on its chart
+  begins where the goal did. A start is never undone and never listed.
+- **The page's *So far* follows the latest check-in**, saved as an edit of the
+  page like any other (merged with the page's other edits made in the same
+  few minutes), so the page, its history and your level all agree.
+- **Yours alone.** Never synced to a co-founder; in the database copy and
+  every backup, not in the CSV export.
+
+## day_themes
+
+Your week (after 0.4): a `weekday` (1 is Monday), and what it is for -
+`label`, and a `page_id` (a hobby, a course or a goal, `SET NULL` when it
+goes) or an `area`. One per weekday per workspace (the primary key). The
+Calendar heads the day with it, Today says it, and a hobby counts how many of
+its days it got. Yours alone, like `goal_checkins`.
 
 ## journal_sealed
 

@@ -173,6 +173,20 @@
   color: var(--ok);
 }
 
+/* A theme day heads its column with what it is for. */
+.week__theme {
+  max-width: 100%;
+  overflow: hidden;
+  padding: 0 6px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Today is marked once, on the heading. Marking the lane as well would tint a
  * seventh of the screen and make every block in it read as a different kind. */
 .week__day--now .week__date {

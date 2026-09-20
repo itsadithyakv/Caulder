@@ -68,7 +68,7 @@ export function BrainLinks({
         <PageList pages={pages} onOpen={onOpenPage} label="Pages that link here" showSection />
       ) : (
         <p className="card__hint">
-          No page links here yet: on any page, type [[ and the start of this{" "}
+          No page links here yet: on any page, type @ and the start of this{" "}
           {kind === "page" ? "page's title" : `${kind}'s name`}.
           {local && local.nodes.length > 1 ? ` The map shows what this ${kind} links to.` : ""}
         </p>

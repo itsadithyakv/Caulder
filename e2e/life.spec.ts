@@ -78,7 +78,7 @@ test("how today felt, pressed on Today, opens with the journal - and what is typ
     "aria-pressed",
     "true",
   );
-  await page.getByLabel("The entry").fill("## Today\n\nShipped the pricing page. Called two schools.");
+  await page.getByLabel("The entry: Today", { exact: true }).fill("Shipped the pricing page. Called two schools.");
   await expect(page.getByRole("status").filter({ hasText: "Kept" })).toBeVisible();
   await expect(page.getByRole("button", { name: /written, Good$/ })).toBeVisible();
   await expect(page.getByRole("heading", { name: "The day in Caulder" })).toBeVisible();
@@ -88,7 +88,7 @@ test("how today felt, pressed on Today, opens with the journal - and what is typ
   await goTo(page, "Today");
   await expect(card.getByText("Shipped the pricing page. Called two schools.")).toBeVisible();
   await page.keyboard.press("j");
-  await expect(page.getByLabel("The entry")).toHaveValue(/Called two schools/);
+  await expect(page.getByLabel("The entry: Today", { exact: true })).toContainText("Called two schools");
 
   // Yesterday has nothing yet, and looking at it does not write it.
   await page.getByRole("button", { name: "The day before" }).click();

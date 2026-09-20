@@ -3,9 +3,9 @@ import {
   linkLabelsOnly,
   linkTargets,
   linkToken,
-  openLinkQuery,
   parseLinks,
   refreshLabels,
+  unfinishedLinks,
   withLink,
   withoutLink,
 } from "./links";
@@ -61,20 +61,6 @@ describe("writing links", () => {
   });
 });
 
-describe("typing a link", () => {
-  it("knows when the caret is inside an unfinished link", () => {
-    const text = "We agreed with [[Oak";
-    expect(openLinkQuery(text, text.length)).toEqual({ start: 15, query: "Oak" });
-    expect(openLinkQuery("[[", 2)).toEqual({ start: 0, query: "" });
-  });
-
-  it("does not, once the link is closed or the line has ended", () => {
-    expect(openLinkQuery("[[Oak]] then", 12)).toBeNull();
-    expect(openLinkQuery("[[Oak\nmore", 10)).toBeNull();
-    expect(openLinkQuery("no link here", 5)).toBeNull();
-  });
-});
-
 describe("a link made on the Map", () => {
   const page = { kind: "page" as const, id: PAGE };
   const contact = { kind: "contact" as const, id: CONTACT };
@@ -103,5 +89,18 @@ describe("a link made on the Map", () => {
   it("leaves its words behind in a sentence", () => {
     expect(withoutLink(`We agreed with ${oakridge} on ${pricing}.`, contact)).toBe(`We agreed with Oakridge on ${pricing}.`);
     expect(withoutLink("Nothing here.", contact)).toBe("Nothing here.");
+  });
+});
+
+describe("a link begun and never finished", () => {
+  it("is the words after [[, to the end of the line or the first stop", () => {
+    expect(unfinishedLinks("They buy the [[Attend\nafter a call")).toEqual([{ start: 13, end: 21, words: "Attend" }]);
+    expect(unfinishedLinks("Ask [[Asha]] today.")).toEqual([{ start: 4, end: 12, words: "Asha" }]);
+    expect(unfinishedLinks("See [[Oak, then lunch")).toEqual([{ start: 4, end: 9, words: "Oak" }]);
+  });
+
+  it("is never a finished link, and nothing without words", () => {
+    expect(unfinishedLinks(`[[Pricing|page:${PAGE}]] and [[`)).toEqual([]);
+    expect(unfinishedLinks("[[ ]]")).toEqual([]);
   });
 });

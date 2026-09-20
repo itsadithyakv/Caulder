@@ -1287,9 +1287,28 @@ never in a data room, a handbook or an export for an assistant.
 **Journal** (key **J**) opens on today, ready to write. There is no Edit and
 no Save: what is typed is kept a moment after the typing stops, and the
 corner says *Writing*, *Keeping it*, *Kept*. Above the text, **how the day
-felt** - Rough, Low, Okay, Good, Great, each a face and a word - is one
-press, and pressing it again takes it back. `[[` links a page, a contact, a
-product, a person or a document, as anywhere in the brain.
+felt** is one quiet row - *How was it?* and five faces, the chosen one with
+its word - one press, and pressing it again takes it back.
+
+**Two ways to write it**, one switch in the heading, remembered on this
+computer:
+
+- **Guided** asks three things, a box each - what happened, something to be
+  glad of, tomorrow's one thing - and what each asks changes from day to day
+  (*Who made today easier?*, *What went better than expected?*); the same day
+  always asks the same. Tab moves to the next box. Under Tomorrow, **Make it
+  tomorrow's task** puts each line on tomorrow's list in the company chosen,
+  and says when it has.
+- **Free** is the whole page at once.
+
+Both write the same text underneath - `## Today`, `## Grateful for`,
+`## Tomorrow` - so switching never loses a word. A day written before the
+parts, or with more on it (another heading, lines above Today), reads its
+loose words as its Today, and Guided says when there is more than its three
+parts and offers to show it all. It is written like any page (see *Writing a
+page*): `@` links a page or contact, `/` offers lists and steps and, here,
+*What I did today* - the tasks ticked and calls made, from Caulder - and *A
+question* to write to.
 
 **A passcode can lock the days that are over** (*Passcode* in the journal's
 heading). Writing never asks for it: today stays open, and a day written into
@@ -1327,8 +1346,9 @@ lock off.
 
 **Life** (key **Y**) is habits, studies, hobbies and goals, a tab each, and an
 **Overview**: the vision board, your level beside the last seven days,
-achievements, and then the exams coming, how far along each goal is, and the
-time the hobbies actually got - or, with none of those yet, where to start.
+achievements, your theme days, and then the exams coming, each goal with its
+line, and the time the hobbies actually got - or, with none of those yet,
+where to start.
 The pages open here, with the way back to their tab; opened from anywhere
 else - search, a link, Today, the Calendar - they come here too.
 
@@ -1377,10 +1397,31 @@ else - search, a link, Today, the Calendar - they come here too.
   a month ahead like a filing, and leaves Today the day after it.
 - **Hobbies**: status, hours a week wanted, what it is working towards. The
   tab sets an average week of the last four against the hours wanted, as a
-  bar, with what is set aside this week.
+  bar, with what is set aside this week; under it the last half year a day at
+  a time, and the last **eight weeks as bars** against a dashed line at the
+  hours wanted - a week over it darker, the week still going lighter.
 - **Goals**: area (college, company, personal, health), a day, and a number
-  to reach with how far along it is - a bar where there is a number, a
-  sentence where there is not. Done ones sink to the bottom.
+  to reach. Each is a small card that is kept up with in a press:
+  - **+1** (or **−1** for a goal that counts down, a weight to lose) moves it;
+    **Update** adds some or says where it stands now, with a word about it if
+    you like ("Dune"). Each is a check-in, kept with its day; the page's *So
+    far* follows the latest. **Undo** takes the last one back.
+  - **How it is doing, in words**: *2 weeks ahead*, *5 days behind*, *On pace*,
+    *Just set* on the day it was made - measured in days of the pace it
+    needs, which is how people think of it - and *at this pace, 14 Nov*.
+  - **Its line**: where it has been (solid, a dot a check-in, each saying its
+    day and value when pointed at), the pace to stay on (dashed, straight from
+    where it started to the target on its day), and where it is heading at
+    the rate so far (dotted). Drawn from the day after the goal was set.
+  - **Reached**, it asks to be **marked reached** - an edit of the page, which
+    is what counts it towards your level. Done ones sink to the bottom, ticked,
+    without a chart.
+- **Theme days** (on the Overview): a day of your week given to one thing -
+  Mondays for studies, Tuesdays for guitar. Press a day and pick a hobby, a
+  course, a goal, an area, or type your own words (*Deep work*, *Rest*); *Free
+  it* takes it off. A focus, not a lock: Today says *Guitar day* beside the
+  date, the Calendar heads the day with it, and a hobby with days of its own
+  counts them - *Tue and Sat are its days · 3 of 4 kept in four weeks*.
 - **Steps become tasks in their area.** `- [ ]` lines on a course, an exam,
   class notes, a hobby or a goal become tasks once each, as a meeting's
   action items do: college for studies, personal for a hobby, the goal's own
@@ -1456,12 +1497,39 @@ old version the newest - so nothing is lost by doing it.
 
 ### Links
 
-**Type `[[` in a page** and a list opens at the cursor: the pages, contacts,
+**Type `@` in a page** - or `[[`, or select some words and press *Link* on
+the bar (Ctrl+K) - and a list opens at the cursor: the pages, contacts,
 products, people and documents whose names contain what follows, each saying
 what it is - *Product*, *Person · CEO*, a section, a city - in the colour of
-its dot. Enter or Tab puts the link in; Escape closes the list and nothing
-else. *Link to something* above the text does the same without typing the
-brackets.
+its dot. Enter or Tab puts the link in, as a chip with its name; Escape closes
+the list and nothing else. `@` counts only at the start of a word, so an
+email address is not a mention.
+
+A link begun and never picked - Enter pressed after the list had closed -
+shows as its words with a dashed line under them, never as brackets; in the
+editor a click on it opens the list again to finish it.
+
+#### Writing a page
+
+A page, and the journal, are written in text that looks like what it will be
+while it is typed, as Obsidian's live preview does: a heading is a heading,
+**bold** is bold, a bullet is a dot, a step is a box to tick, a link is a
+chip. The marks (`##`, `**`, `- [ ]`) come back on the line the cursor is on,
+so they can be edited like any other character; the page is kept as the same
+markdown it always was, so search, links, history, the journal's lock, the
+co-founder's copy and exports read it unchanged.
+
+- **Select words** and a small bar comes up over them: Bold, Italic, Heading,
+  Bullets, Steps to tick, Link. Ctrl+B, Ctrl+I and Ctrl+K do the same.
+- **`/` at the start of a line** offers what a line can be - Heading, Small
+  heading, Bullets, Numbered, Checklist, Quote, Divider, Link - in that order,
+  then whatever the screen adds.
+- **Markdown still works as typed**: `## ` starts a heading, `- ` a list,
+  `- [ ] ` a step; Enter carries a list on, and Backspace at a bullet's start
+  takes the bullet off.
+- **A chip is one character** to the cursor: arrows step over it, Backspace
+  takes it whole, Ctrl+click opens what it points at. The link's id is never
+  on screen.
 
 - **A link is stored by id.** In the text it reads `[[Workshop|product:…]]`;
   renaming what it points at renames the link everywhere it is shown, and

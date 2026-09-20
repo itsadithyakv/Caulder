@@ -2,11 +2,11 @@ import { randomUUID } from "node:crypto";
 import type { Db } from "../db/connection";
 import { createLead, setLeadStage, writeActivity } from "../repositories/leads";
 import { createTask, completeTask } from "../repositories/tasks";
-import { createBlock } from "../repositories/blocks";
+import { createBlock, setOutcome } from "../repositories/blocks";
 import { addPayment, saveInvoice, saveQuote, setInvoiceStatus, setQuoteStatus } from "../repositories/money";
 import { listStages } from "../repositories/companies";
 import { leadInput, taskInput, type PipelineStage } from "@shared/domain";
-import { shiftDay, today as todayIn } from "@shared/dates";
+import { daysBetween, shiftDay, today as todayIn, weekdayOf } from "@shared/dates";
 import { linkToken } from "@shared/links";
 import { createPage } from "../repositories/brain";
 import { entryTitle, makeTime } from "./life";
@@ -395,7 +395,27 @@ export function seedDemo(db: Db, companyId: string, now: Date = new Date()): str
       at,
     );
     makeTime(db, hobby, { weekdays: [2, 5], startsAt: "20:00", minutes: 45, until: shiftDay(day, 56) }, now);
-    createPage(
+    // The evenings it already got, the last eight weeks: Tuesdays and Fridays,
+    // a few skipped, and the odd longer Sunday - so its bars have a shape.
+    for (let ago = 56; ago >= 1; ago -= 1) {
+      const on = shiftDay(day, -ago);
+      const weekday = weekdayOf(on);
+      const sunday = weekday === 7 && ago % 3 === 0;
+      if (weekday !== 2 && weekday !== 5 && !sunday) continue;
+      const block = createBlock(db, companyId, {
+        day: on,
+        startsAt: sunday ? "17:00" : "20:00",
+        minutes: sunday ? 90 : 45,
+        title: "Guitar",
+        kind: "personal",
+      });
+      db.prepare(`UPDATE blocks SET page_id = ? WHERE id = ?`).run(hobby, block.id);
+      if (ago % 7 === 4) setOutcome(db, block.id, "skipped");
+    }
+    // A goal set on the first of the year and checked in on as the books were
+    // finished - so its line, its pace and "at this pace" show on the first look.
+    const yearStart = `${day.slice(0, 4)}-01-01`;
+    const goal = createPage(
       db,
       companyId,
       {
@@ -405,8 +425,24 @@ export function seedDemo(db: Db, companyId: string, now: Date = new Date()): str
         body: "## Why it matters\n\nA founder who reads is a founder who borrows other people's mistakes.\n",
         fields: { area: "personal", target: 12, progress: 4, unit: "books", byOn: `${day.slice(0, 4)}-12-31` },
       },
-      at,
+      `${yearStart}T06:00:00.000Z`,
     );
+    const sinceStart = daysBetween(yearStart, day);
+    if (sinceStart >= 30) {
+      const read: [number, number, string | null, boolean][] = [
+        [0, 0, null, true],
+        [0.22, 1, "The Mom Test", false],
+        [0.48, 2, null, false],
+        [0.71, 3, "Shoe Dog", false],
+        [0.93, 4, null, false],
+      ];
+      const checkin = db.prepare(
+        `INSERT INTO goal_checkins (id, page_id, on_day, value, note, is_start, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      );
+      for (const [share, value, note, start] of read) {
+        checkin.run(randomUUID(), goal, shiftDay(yearStart, Math.round(share * sinceStart)), value, note, start ? 1 : 0, at);
+      }
+    }
     const entries: [number, string, string][] = [
       [2, "okay", "Two lectures and a quiet afternoon. Oakridge still has not written back."],
       [1, "good", "Prajna Vahini paid. Played for forty minutes after dinner without looking at the phone."],

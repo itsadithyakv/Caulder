@@ -62,7 +62,7 @@ describe("where a line goes", () => {
   it("files what it is unsure of as a note, and offers every sensible other", () => {
     const unsure = readCapture("the pricing page", known);
     expect(unsure.kind).toBe("note");
-    expect(unsure.options).toEqual(["task", "journal", "idea", "note"]);
+    expect(unsure.options).toEqual(["task", "journal", "private", "idea", "note"]);
     expect(readCapture("Called Oakridge", known).options).toContain("contact");
     expect(kind("what if schools paid per term")).toBe("idea");
   });

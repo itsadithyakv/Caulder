@@ -12,7 +12,7 @@ import { Markdown } from "./Markdown";
 import { FieldEditor, FieldFacts, draftFrom, type FieldDraft, type SecretDraft } from "./PageFields";
 import { PageHistory } from "./PageHistory";
 import { SECTION_ICON } from "./sections";
-import { LinkedTextarea } from "./LinkedTextarea";
+import { LinkedEditor } from "./LinkedEditor";
 import { BrainLinks } from "./BrainLinks";
 import { PageTasks } from "./PageTasks";
 import { MoodPicker } from "@/features/life/MoodPicker";
@@ -385,22 +385,26 @@ export function PageView({
             />
 
             <div className="field">
-              <label className="field__label" htmlFor="brain-body">
+              <span className="field__label" aria-hidden>
                 Page
-              </label>
-              <LinkedTextarea
-                id="brain-body"
+              </span>
+              <LinkedEditor
+                label="Page"
                 companyId={companyId}
                 exclude={page.id}
-                className="textarea bpage__body"
+                className="bpage__body"
                 value={body}
                 disabled={busy}
                 onChange={setBody}
+                names={page.links}
+                onOpenLink={openLink}
+                hint={
+                  <>
+                    <kbd>@</kbd> links a page or contact · <kbd>/</kbd> for headings, lists and steps · select words to
+                    format them · <kbd>Ctrl</kbd> + <kbd>S</kbd> saves
+                  </>
+                }
               />
-              <span className="field__hint">
-                ## starts a heading, - starts a list, - [ ] a step to tick, **two stars** for bold, [[ a link. Ctrl + S
-                saves.
-              </span>
             </div>
 
             <div className="leadform__actions">

@@ -93,8 +93,11 @@ describe("links into the brain", () => {
     ]);
   });
 
-  it("leaves a plain [[name]] as text", () => {
-    expect(parseInline("See [[Pricing]]")).toEqual([{ kind: "text", text: "See [[Pricing]]" }]);
+  it("reads a plain [[name]] as its words, marked as not linked yet", () => {
+    expect(parseInline("See [[Pricing]]")).toEqual([
+      { kind: "text", text: "See " },
+      { kind: "unlinked", text: "Pricing" },
+    ]);
   });
 
   it("keeps only the words in plain text", () => {
@@ -118,5 +121,18 @@ describe("plain text", () => {
     expect(plainText("## Problem\n\n- [ ] **Schools** lose [time](https://x.y)\n> quoted")).toBe(
       "Problem Schools lose time quoted",
     );
+  });
+});
+
+describe("a link begun and never finished", () => {
+  it("reads as its words, not as brackets", () => {
+    const [block] = parseMarkdown("They buy the [[Attend");
+    expect(block).toEqual({
+      kind: "paragraph",
+      inline: [
+        { kind: "text", text: "They buy the " },
+        { kind: "unlinked", text: "Attend" },
+      ],
+    });
   });
 });

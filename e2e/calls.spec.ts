@@ -163,5 +163,5 @@ test("Playbooks starts a call script from a tone", async () => {
   await newPage(page, "Call script");
   await page.getByRole("button", { name: /^Direct/ }).click();
   await expect(page.getByLabel("Title")).toHaveValue("Direct call script");
-  await expect(page.getByLabel("Page", { exact: true })).toHaveValue(/## If they say…/);
+  await expect(page.getByLabel("Page", { exact: true })).toContainText("If they say…");
 });

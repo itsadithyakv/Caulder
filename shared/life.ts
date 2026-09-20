@@ -93,7 +93,50 @@ export type HobbyRow = {
   keptMinutes: number;
   /** Set aside from today to a week on. */
   plannedMinutes: number;
+  /**
+   * The last half year, Monday first, oldest week first: the minutes kept on
+   * each day, and null for a day that has not come yet. What the grid under a
+   * hobby is drawn from - the shape of showing up, which an average hides.
+   */
+  weeks: (number | null)[][];
 };
+
+/** How many weeks a hobby's grid looks back over. */
+export const HEAT_WEEKS = 26;
+
+/**
+ * How full a day's square is, nought to four. By the time given rather than
+ * against the most ever given, so one long Sunday does not pale every
+ * ordinary evening around it: a quarter of an hour is something, and two
+ * hours is a full square whatever else happened that year.
+ */
+export function heatLevel(minutes: number): 0 | 1 | 2 | 3 | 4 {
+  if (minutes <= 0) return 0;
+  if (minutes < 30) return 1;
+  if (minutes < 60) return 2;
+  if (minutes < 120) return 3;
+  return 4;
+}
+
+/**
+ * Days into weeks for a grid: `count` weeks ending with the one today is in,
+ * Monday first. `monday` is the Monday of today's week, and `shift` moves a
+ * day, so this stays free of the clock and of the calendar both.
+ */
+export function heatWeeks(
+  byDay: ReadonlyMap<string, number>,
+  today: string,
+  monday: string,
+  shift: (day: string, by: number) => string,
+  count: number = HEAT_WEEKS,
+): (number | null)[][] {
+  return Array.from({ length: count }, (_week, column) =>
+    Array.from({ length: 7 }, (_day, row) => {
+      const day = shift(monday, (column - (count - 1)) * 7 + row);
+      return day > today ? null : (byDay.get(day) ?? 0);
+    }),
+  );
+}
 
 export type GoalRow = {
   id: string;

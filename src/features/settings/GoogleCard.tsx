@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Copy, ExternalLink, FileCode2, Link2, RefreshCw, Unlink } from "lucide-react";
 import type { GoogleState } from "@shared/domain";
-import { MAIL_SINCE_VERSION } from "@shared/script";
+import { CONTACTS_SINCE_VERSION, MAIL_SINCE_VERSION } from "@shared/script";
 import { useWorkspace } from "@/lib/workspace";
 import { messageOf } from "@/lib/errors";
 import { relativeDay } from "@/lib/format";
@@ -360,7 +360,9 @@ function ScriptStatus({
           Your script is version {script.version}.{" "}
           {script.version < MAIL_SINCE_VERSION
             ? `Version ${script.latest} sends email from Caulder, notices replies and sends follow-ups, and shares the brain with a co-founder.`
-            : `Version ${script.latest} shares the brain with a co-founder; email goes on working meanwhile.`}{" "}
+            : script.version < CONTACTS_SINCE_VERSION
+              ? `Version ${script.latest} saves a contact to your phone through Google Contacts and keeps a backup in your Drive; your calendar, tasks and email go on working meanwhile.`
+              : `Version ${script.latest} is the newest; what you have goes on working meanwhile.`}{" "}
           To update it, keeping the same URL:
         </p>
         <UpdateSteps />

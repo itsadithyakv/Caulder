@@ -14,6 +14,9 @@ import { TaskRow } from "./TaskRow";
 import { TaskForm } from "./TaskForm";
 import { NotesScreen } from "@/features/notes/NotesScreen";
 import { groupDue } from "./grouping";
+import type { RouteId } from "@/app/routes";
+import { SetupNudge } from "@/features/onboarding/SetupNudge";
+import { PulseCard } from "@/features/life/PulseCard";
 import { QuickAdd } from "./QuickAdd";
 import { useStartCall } from "@/features/calls/CallProvider";
 import { describeRenewal } from "@shared/costs";
@@ -23,6 +26,7 @@ import { JournalCard } from "@/features/life/JournalCard";
 import { HabitsCard } from "@/features/life/HabitsCard";
 import { YourWeekCard } from "@/features/life/YourWeekCard";
 import { LevelStrip } from "@/features/life/LevelStrip";
+import { TodayTheme } from "@/features/life/TodayTheme";
 
 /**
  * The home screen, and the reason the app is worth opening.
@@ -42,6 +46,7 @@ export function TodayScreen({
   onOpenLead,
   onGoToDay,
   onGoToMoney,
+  onGoTo,
   onOpenPage,
   onOpenSection,
   onOpenJournal,
@@ -58,6 +63,8 @@ export function TodayScreen({
   onOpenSection: (section: BrainSectionId, focus?: string) => void;
   onGoToDay: () => void;
   onGoToMoney: () => void;
+  /** "Go to the calendar", said to the line. */
+  onGoTo: (route: RouteId) => void;
   /** Bumped by the A key, to put the cursor in the quick-add line. */
   quickNonce?: number;
 }) {
@@ -104,13 +111,14 @@ export function TodayScreen({
       ? onOpenPage(deadline.id)
       : onOpenSection(sectionForDeadline(deadline.source), deadline.source === "person" ? deadline.id : undefined);
 
-  const rowFor = (task: Today["overdue"][number], overdue = false) => (
+  const rowFor = (task: Today["overdue"][number], overdue = false, hide?: { area?: boolean; kind?: boolean; due?: boolean }) => (
     <TaskRow
       key={task.id}
       task={task}
       day={today.day}
       busy={busy}
       overdue={overdue}
+      {...(hide ? { hide } : {})}
       onOpenLead={onOpenLead}
       onComplete={() => void act(() => window.caulder.tasks.complete(task.id))}
       onReschedule={(dueOn) => void act(() => window.caulder.tasks.reschedule(task.id, dueOn))}
@@ -135,6 +143,7 @@ export function TodayScreen({
       {/* The day in one line: which day, and how much of it is waiting. */}
       <p className="today__day">
         <span className="today__date">{longDay(today.day)}</span>
+        <TodayTheme companyId={homeId} day={today.day} />
         <span className="today__summary">{summaryOf(due, late)}</span>
       </p>
 
@@ -162,6 +171,14 @@ export function TodayScreen({
             focusNonce={quickNonce}
             smart
             homeId={homeId ?? undefined}
+            onGo={onGoTo}
+            onOpenContact={(leadId, how) => {
+              // A call starts the prompter, with their number and the script; anything
+              // else opens the contact - at the email composer, when that was the ask.
+              if (how === "call" && startCall) return startCall(leadId, { onLogged: reload });
+              onOpenLead(leadId);
+              if (how === "email") setTimeout(() => document.getElementById("lead-email")?.scrollIntoView({ block: "start" }), 250);
+            }}
             onAdded={() => {
               reload();
               setKept((n) => n + 1);
@@ -173,6 +190,9 @@ export function TodayScreen({
           </button>
         </section>
       )}
+
+      {/* Whatever was never connected, offered until it is or is waved away. */}
+      <SetupNudge companyId={companyId} onSetUp={() => onGoTo("setup")} />
 
       <div className="today__grid">
         <div className="today__work anim-stagger">
@@ -260,7 +280,9 @@ export function TodayScreen({
                   <h3 className="today__groupTitle">
                     {group.title} <span className="today__count">{group.tasks.length}</span>
                   </h3>
-                  <ul className="tasks">{group.tasks.map((task) => rowFor(task))}</ul>
+                  <ul className="tasks">
+                    {group.tasks.map((task) => rowFor(task, false, { due: true, [group.by]: true }))}
+                  </ul>
                 </div>
               ))}
             </Card>
@@ -431,6 +453,8 @@ export function TodayScreen({
         <div className="today__side anim-stagger">
           <LevelStrip companyId={homeId ?? companyId} version={kept + ticked} watch={today} onOpen={() => onOpenLife()} />
           <JournalCard key={`journal-${kept}`} companyId={homeId ?? companyId} onOpenJournal={onOpenJournal} />
+          {/* How the weeks have been, from your own history - and what yesterday was, if it was quiet. */}
+          <PulseCard companyId={homeId ?? companyId} version={kept + ticked} />
           <HabitsCard companyId={homeId ?? companyId} onManage={() => onOpenLife("habits")} onChanged={() => setTicked((n) => n + 1)} />
           <YourWeekCard companyId={homeId ?? companyId} version={kept} onOpenPage={onOpenPage} onOpenLife={() => onOpenLife()} />
         </div>

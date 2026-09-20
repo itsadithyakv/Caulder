@@ -42,12 +42,360 @@
   font-weight: 700;
 }
 
+/* Free: the whole page, with room to write. */
 .journalentry__body {
-  width: 100%;
-  min-height: 340px;
+  --liveedit-min: 340px;
+}
+
+/* Guided or Free: two words, one chosen. */
+.journalentry__modes {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--surface-sunken);
+  border-radius: var(--radius-md);
+}
+
+.journalentry__mode {
+  padding: 3px var(--space-3);
+  background: transparent;
+  color: var(--ink-3);
+  border: 1px solid transparent;
+  border-radius: calc(var(--radius-md) - 2px);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.journalentry__mode:hover {
+  color: var(--ink);
+}
+
+.journalentry__mode--on {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--border);
+}
+
+.journalentry__mode:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* Guided: three questions, a box each - quiet boxes that read as one page. */
+.journalparts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.journalpart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.journalpart__ask {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.journalpart__editor {
+  --liveedit-min: 3.4em;
+}
+
+.journalpart__tasks {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.journalpart__made {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--ok);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.journalparts__more {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+/* ---- How you have been --------------------------------------------------- */
+
+.pulse__says {
+  margin: 0 0 var(--space-3);
+  color: var(--ink);
   font-size: var(--text-base);
-  line-height: 1.7;
-  resize: vertical;
+  line-height: var(--leading);
+}
+
+.pulse__notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: var(--space-3) 0 0;
+  padding-left: var(--space-4);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+}
+
+.pulse__head {
+  margin: var(--space-4) 0 0;
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Switched off: one quiet line with the way back, and nothing else. */
+.pulse__off {
+  margin: 0;
+  padding: 0 var(--space-2);
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+}
+
+/* ---- A page for each hobby ---------------------------------------------- */
+
+.hobbytiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+}
+
+.hobbytile {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-hover);
+}
+
+.hobbytile__label {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.hobbytile__value {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.hobbytracks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* What it is, what there is to say about it, and the line of it. */
+.hobbytrack {
+  display: grid;
+  grid-template-columns: minmax(96px, 10rem) minmax(0, 1fr) 96px;
+  gap: var(--space-3);
+  align-items: center;
+  font-size: var(--text-sm);
+}
+
+.hobbytrack__topic { color: var(--ink); font-weight: 600; }
+.hobbytrack__says { color: var(--ink-2); }
+.hobbytrack__spark { width: 96px; height: 28px; color: var(--accent); }
+
+.hobbypages {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+}
+
+.hobbypages__label {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* ---- The reading shelf, and the year in numbers ------------------------- */
+
+.shelf + .shelf { margin-top: var(--space-4); }
+
+.shelf__title {
+  margin: 0 0 var(--space-2);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.shelf__count { color: var(--ink-3); font-weight: 600; }
+
+.shelf__books {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.book {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* A cover made rather than fetched: the title's own colour, and its initials.
+ * Lightness from the theme's own surfaces would lose the colour, so it is
+ * fixed, and the ink on it is white in either theme. */
+.book__cover {
+  display: flex;
+  align-items: flex-end;
+  aspect-ratio: 2 / 3;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  background: linear-gradient(160deg, hsl(var(--book-hue) 45% 42%), hsl(calc(var(--book-hue) + 40) 50% 28%));
+  color: #fff;
+  font-size: var(--text-lg);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  box-shadow: inset 4px 0 0 rgb(0 0 0 / 0.18);
+}
+
+.book__cover--real {
+  display: block;
+  width: 100%;
+  padding: 0;
+  object-fit: cover;
+  background: var(--surface-sunken);
+}
+
+/* The switch for real covers, and in its own words what pressing it sends. */
+.shelf__covers {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.shelf__coversNote { color: var(--ink-3); }
+
+.book__title {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.book__series { color: var(--ink-3); font-size: var(--text-xs); }
+
+.book__actions { display: flex; align-items: center; gap: 2px; margin-top: 2px; }
+
+.yearnav { display: inline-flex; gap: 2px; }
+
+.year__lead {
+  margin: 0 0 var(--space-3);
+  color: var(--ink-2);
+  font-size: var(--text-base);
+  line-height: var(--leading);
+}
+
+.year__lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.year__line {
+  display: grid;
+  grid-template-columns: minmax(96px, 9rem) minmax(0, 1fr);
+  gap: var(--space-3);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.year__topic { color: var(--ink); }
+
+/* A day's private lines, under its entry. Set apart by a rule rather than a
+ * box: they are part of the day, and the lock on the heading says the rest. */
+.privatelines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+.privatelines__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.privatelines__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.privateline {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px var(--space-2);
+  align-items: start;
+}
+
+.privateline__what {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.privateline__text {
+  grid-column: 1;
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-base);
+  line-height: var(--leading);
+}
+
+.privateline__remove {
+  grid-column: 2;
+  grid-row: 1 / span 2;
 }
 
 .journalentry__private {
@@ -126,6 +474,41 @@
 .mood__word {
   font-size: var(--text-xs);
   font-weight: 600;
+}
+
+/* One quiet row: the question, then five faces; the chosen one says its word. */
+.moods--compact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  margin: var(--space-1) 0 var(--space-3);
+}
+
+.moods__ask {
+  margin-right: var(--space-2);
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+.moods--compact .mood {
+  flex-direction: row;
+  gap: 6px;
+  padding: 4px 8px;
+  border-color: transparent;
+  border-radius: var(--radius-pill);
+  background: transparent;
+}
+
+.moods--compact .mood:hover:not(:disabled) {
+  background: var(--surface-hover);
+  border-color: transparent;
+}
+
+.moods--compact .mood--on,
+.moods--compact .mood--on:hover:not(:disabled) {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
 .moodtag {
@@ -677,6 +1060,22 @@
 .weeksgrid__day--missed {
   box-shadow: inset 0 0 0 1.5px var(--border-strong);
 }
+
+/* A hobby's half year: the same squares, filled by how much time rather than
+ * whether. Five steps of the one accent, so it reads in either theme and
+ * never needs a legend - fuller is more. Its own row under the bar, and it
+ * scrolls rather than squeezing when the column is narrow. */
+.weeksgrid--heat {
+  grid-column: 1 / -1;
+  margin-top: var(--space-1);
+  overflow-x: auto;
+}
+
+.weeksgrid__day--heat0 { background: var(--surface-hover); }
+.weeksgrid__day--heat1 { background: color-mix(in srgb, var(--accent) 25%, var(--surface-hover)); }
+.weeksgrid__day--heat2 { background: color-mix(in srgb, var(--accent) 50%, var(--surface-hover)); }
+.weeksgrid__day--heat3 { background: color-mix(in srgb, var(--accent) 75%, var(--surface-hover)); }
+.weeksgrid__day--heat4 { background: var(--accent); }
 
 .habitform {
   display: flex;
@@ -1265,4 +1664,337 @@
 .journallock__row .input {
   flex: 1;
   min-width: 0;
+}
+
+/* ---- Goals, kept up with (after 0.4) ------------------------------------
+ * A goal is a small card of its own: a word for how it is doing against its
+ * day, a line it has drawn, and the press that moves it. The chart is lines
+ * in SVG stretched to the box and dots laid over it in HTML, so strokes stay
+ * thin and dots stay round at any width.
+ * ---------------------------------------------------------------------- */
+
+.goalcards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.goalcard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.goalcard--done {
+  padding-block: var(--space-2);
+  background: transparent;
+  border-style: dashed;
+}
+
+.goalcard--reached {
+  border-color: color-mix(in srgb, var(--ok) 50%, var(--border));
+}
+
+.goalcard__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.goalcard__name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0;
+  background: none;
+  color: var(--ink);
+  border: none;
+  font: inherit;
+  font-size: var(--text-md);
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.goalcard__name:hover { text-decoration: underline; }
+.goalcard--done .goalcard__name { color: var(--ink-3); font-size: var(--text-base); }
+
+/* The word for how it is doing: words first, colour second. */
+.goalcard__standing {
+  margin-left: auto;
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.goalcard__standing--good { background: var(--ok-soft); color: var(--ok); }
+.goalcard__standing--warn { background: var(--warn-soft); color: var(--warn); }
+.goalcard__standing--quiet { background: var(--surface-sunken); color: var(--ink-3); }
+
+.goalcard__words {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.goalcard__act {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.goalcard__last {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: auto;
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+}
+
+.goalcard__form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  background: var(--surface-sunken);
+  border-radius: var(--radius-md);
+}
+
+.goalcard__amount { width: 96px; }
+.goalcard__note { flex: 1; min-width: 160px; }
+.goalcard__unit { color: var(--ink-3); font-size: var(--text-sm); }
+
+.goalchart {
+  position: relative;
+  height: 128px;
+  margin: var(--space-2) 0 var(--space-4);
+}
+
+.goalchart__lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.goalchart__lines line,
+.goalchart__lines polyline {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.goalchart__target { stroke: var(--border); stroke-width: 1; }
+.goalchart__pace { stroke: var(--ink-3); stroke-width: 1.5; stroke-dasharray: 5 4; }
+.goalchart__heading { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 2 4; opacity: 0.7; }
+.goalchart__you { stroke: var(--accent); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.goalchart--done .goalchart__you { stroke: var(--ok); }
+
+.goalchart__dot {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: var(--accent);
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  translate: -50% -50%;
+  box-sizing: content-box;
+}
+
+/* Where it stands now: the one dot that is bigger. */
+.goalchart__dot--now {
+  width: 11px;
+  height: 11px;
+}
+
+.goalchart--done .goalchart__dot { background: var(--ok); }
+
+.goalchart__label {
+  position: absolute;
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.goalchart__label--target { right: 0; translate: 0 -120%; font-weight: 700; color: var(--ink-2); }
+.goalchart__label--by { bottom: 0; translate: -100% 120%; }
+.goalchart__label--from { bottom: 0; left: 0; translate: 0 120%; }
+
+/* ---- Theme days --------------------------------------------------------
+ * Seven days in a row, each a button: a theme reads as a filled pill in the
+ * accent, a free day as a dashed outline, today ringed. Pressing one opens
+ * what it can be for underneath.
+ * ---------------------------------------------------------------------- */
+
+.yourweek {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.yourweek__day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: var(--space-2) 4px;
+  background: transparent;
+  color: var(--ink-3);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  font: inherit;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+
+.yourweek__day:hover { background: var(--surface-hover); }
+
+.yourweek__day--set {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.yourweek__day--today { outline: 2px solid var(--accent); outline-offset: 2px; }
+.yourweek__day--open { border-color: var(--accent); }
+
+.yourweek__name {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.yourweek__theme {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.yourweek__pick {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  background: var(--surface-sunken);
+  border-radius: var(--radius-md);
+}
+
+.yourweek__ask { margin: 0; color: var(--ink-2); font-weight: 700; }
+
+.yourweek__choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.yourweek__choice {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 4px var(--space-3);
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.yourweek__choice:hover { border-color: var(--border-strong); }
+
+.yourweek__choice--on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.yourweek__detail { color: var(--ink-3); font-size: var(--text-xs); font-weight: 500; }
+
+.yourweek__own {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.yourweek__own .input { flex: 1; min-width: 200px; }
+
+/* ---- A hobby's weeks -----------------------------------------------------
+ * Eight bars, one a week, against the hours wanted - a dashed line to get
+ * over. The week still going is lighter; a week over the line is darker.
+ * ---------------------------------------------------------------------- */
+
+.hobbyweeks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  grid-column: 1 / -1;
+}
+
+.hobbyweeks__chart {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  align-items: end;
+  gap: 4px;
+  height: 64px;
+  max-width: 360px;
+  margin-top: var(--space-3);
+  padding-right: 88px;
+}
+
+.hobbyweeks__bar {
+  display: block;
+  min-height: 0;
+  background: color-mix(in srgb, var(--accent) 55%, var(--surface));
+  border-radius: 4px 4px 1px 1px;
+}
+
+.hobbyweeks__bar--over { background: var(--accent); }
+.hobbyweeks__bar--now { background: color-mix(in srgb, var(--accent) 25%, var(--surface)); }
+
+.hobbyweeks__wanted {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1.5px dashed var(--ink-3);
+  pointer-events: none;
+}
+
+.hobbyweeks__wantedLabel {
+  position: absolute;
+  right: 0;
+  translate: 0 -50%;
+  padding-left: 6px;
+  background: var(--surface);
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.hobbyweeks__days {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
 }

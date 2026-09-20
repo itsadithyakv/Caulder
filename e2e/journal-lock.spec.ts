@@ -81,7 +81,7 @@ test("a passcode locks the days that are over, and today still needs none", asyn
   await expect(page.getByRole("button", { name: "Locked" })).toBeVisible();
 
   // Today: written in, no passcode asked.
-  await page.getByLabel("The entry").fill("A good day.");
+  await page.getByLabel("The entry: Today", { exact: true }).fill("A good day.");
   await expect(page.getByRole("status").filter({ hasText: "Kept" })).toBeVisible();
 
   // Yesterday: locked.
@@ -100,6 +100,7 @@ test("a wrong passcode is refused, and the right one opens the day", async () =>
 
   await locked.getByLabel("Passcode").fill("tiger lily");
   await locked.getByRole("button", { name: "Unlock" }).click();
-  await expect(page.getByLabel("The entry")).toHaveValue("Told Asha the pilot slipped.");
+  // Written before the day had parts: Guided reads it as the day's Today.
+  await expect(page.getByLabel("The entry: Today", { exact: true })).toHaveText("Told Asha the pilot slipped.");
   await shot("open");
 });

@@ -61,7 +61,7 @@ type Script = {
   tick: () => void;
 };
 
-function harness() {
+function harness(extra: Record<string, unknown> = {}) {
   const clock = { now: Date.parse("2026-09-17T09:00:00.000Z") };
   const props = new Map<string, string>();
   const threads = new Map<string, Message[]>();
@@ -181,6 +181,8 @@ function harness() {
       getAllOwnedCalendars: () => [],
     },
     Tasks: { Tasklists: { list: () => ({ items: [] }) } },
+    // Services a test stands in for itself: People and Drive, which not every script has.
+    ...extra,
   };
 
   runInNewContext(SOURCE, context);
@@ -237,7 +239,7 @@ describe("setting up", () => {
 
   it("says its version and who email goes out as", () => {
     const hello = h.post("hello").data;
-    expect(hello.version).toBe(3);
+    expect(hello.version).toBe(4);
     expect(hello.mail).toEqual({ address: ME, remaining: 100 });
     expect(hello.mailError).toBeNull();
   });
@@ -413,5 +415,131 @@ describe("cancelling and forgetting", () => {
   it("reports the day's remaining sends with every status", () => {
     send();
     expect(h.post("emailStatus", { ids: [], ack: [] }).data.remaining).toBe(99);
+  });
+});
+
+
+describe("contacts and backups", () => {
+  type Person = { resourceName?: string; etag?: string; names: { givenName: string; familyName: string }[]; organizations: { name: string }[] };
+
+  /** Google Contacts, as far as the script is concerned. */
+  function people() {
+    const kept = new Map<string, Person>();
+    let made = 0;
+    return {
+      kept,
+      People: {
+        People: {
+          get: (name: string) => {
+            if (name === "people/me") return { resourceName: name };
+            const found = kept.get(name);
+            if (!found) throw new Error("Requested entity was not found.");
+            return { ...found, etag: "etag-1" };
+          },
+          createContact: (body: Person) => {
+            const resourceName = `people/c${(made += 1)}`;
+            kept.set(resourceName, { ...body, resourceName });
+            return { resourceName };
+          },
+          updateContact: (body: Person, name: string) => {
+            kept.set(name, { ...body, resourceName: name });
+            return { resourceName: name };
+          },
+        },
+      },
+    };
+  }
+
+  /** A Drive with one folder's worth of files in it. */
+  function drive() {
+    const files: { name: string; at: number; trashed: boolean }[] = [];
+    const asFile = (file: (typeof files)[number]) => ({
+      getName: () => file.name,
+      getSize: () => 3,
+      getDateCreated: () => ({ getTime: () => file.at }),
+      setTrashed: (value: boolean) => void (file.trashed = value),
+    });
+    const iterate = <T,>(items: T[]) => {
+      let at = 0;
+      return { hasNext: () => at < items.length, next: () => items[(at += 1) - 1]! };
+    };
+    const folder = {
+      createFile: (blob: { name: string }) => {
+        const file = { name: blob.name, at: files.length + 1, trashed: false };
+        files.push(file);
+        return asFile(file);
+      },
+      getFiles: () => iterate(files.filter((file) => !file.trashed).map(asFile)),
+    };
+    return {
+      files,
+      DriveApp: { getRootFolder: () => ({ getName: () => "My Drive" }), getFoldersByName: () => iterate([folder]), createFolder: () => folder },
+      Utilities: {
+        getUuid: () => "uuid",
+        base64Decode: (data: string) => [...Buffer.from(data, "base64")],
+        newBlob: (_bytes: number[], _type: string, name: string) => ({ name }),
+      },
+    };
+  }
+
+  const loose = (reply: unknown) => reply as { ok: boolean; error?: string; data: Record<string, unknown> };
+  const rahul = { name: "MS PUC", person: "Rahul Nair", phone: "98765 43210", email: "rahul@mspuc.in" };
+
+  it("answers everything else without the People service, and says what saving a contact needs", () => {
+    expect(loose(h.post("hello")).data["contacts"]).toBe(false);
+    const refused = loose(h.post("saveContact", { contact: rahul }));
+    expect(refused.ok).toBe(false);
+    expect(refused.error).toContain("add the People API");
+  });
+
+  it("files a person under their own name, at the company", () => {
+    const google = people();
+    const with_ = harness(google);
+    with_.script.setUp();
+    expect(loose(with_.post("hello")).data["contacts"]).toBe(true);
+
+    const saved = loose(with_.post("saveContact", { contact: rahul }));
+    expect(saved.data).toEqual({ resourceName: "people/c1", made: true });
+    expect(google.kept.get("people/c1")).toMatchObject({
+      names: [{ givenName: "Rahul", familyName: "Nair" }],
+      organizations: [{ name: "MS PUC" }],
+    });
+  });
+
+  it("updates the contact it made rather than making a second, and makes it again if it was deleted", () => {
+    const google = people();
+    const with_ = harness(google);
+    with_.script.setUp();
+    with_.post("saveContact", { contact: rahul });
+
+    const again = loose(with_.post("saveContact", { contact: { ...rahul, person: "Rahul K Nair" }, resourceName: "people/c1" }));
+    expect(again.data).toEqual({ resourceName: "people/c1", made: false });
+    expect(google.kept.size).toBe(1);
+
+    google.kept.clear();
+    const remade = loose(with_.post("saveContact", { contact: rahul, resourceName: "people/c1" }));
+    expect(remade.data).toMatchObject({ made: true });
+  });
+
+  it("keeps the newest ten backups in Drive, and bins the rest", () => {
+    const google = drive();
+    const with_ = harness(google);
+    with_.script.setUp();
+    for (let i = 1; i <= 12; i += 1) {
+      const put = loose(with_.post("backupPut", { name: `caulder-${String(i).padStart(2, "0")}.db`, data: "YWJj" }));
+      expect(put.ok).toBe(true);
+    }
+    expect(google.files.filter((file) => !file.trashed).map((file) => file.name)).toEqual(
+      Array.from({ length: 10 }, (_each, i) => `caulder-${String(i + 3).padStart(2, "0")}.db`),
+    );
+    expect((loose(with_.post("backupList")).data["backups"] as unknown[]).length).toBe(10);
+  });
+
+  it("refuses a name that is not a backup file's", () => {
+    const with_ = harness(drive());
+    with_.script.setUp();
+    const refused = loose(with_.post("backupPut", { name: "../../evil.db", data: "YWJj" }));
+    expect(refused.ok).toBe(false);
+    expect(refused.error).toContain("not a backup file");
   });
 });

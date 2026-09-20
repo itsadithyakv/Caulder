@@ -1,12 +1,14 @@
 import type { Db } from "../db/connection";
 import { ENTRY_TEMPLATE, isMood, type BrainPage, type Mood } from "@shared/brain";
 import { isSealed, readableBody, sealPast } from "./journal-lock";
-import { addMonths, dayOf, isDay, shiftDay, timeNow, today as todayIn, weekdayOf } from "@shared/dates";
+import { addMonths, dayOf, isDay, shiftDay, startOfWeek, timeNow, today as todayIn, weekdayOf } from "@shared/dates";
 import { daysLeftOf } from "@shared/deadlines";
 import { plainText } from "@shared/markdown";
 import {
+  HEAT_WEEKS,
   goalPercent,
   gradeAverage,
+  heatWeeks,
   journalRun,
   timeInput,
   type CourseRow,
@@ -357,6 +359,24 @@ function minutesByPage(db: Db, companyId: string, from: string, through: string)
   return new Map(rows.map((row) => [row.page_id, row.minutes]));
 }
 
+/** The same, a day at a time: what a hobby's grid is drawn from. */
+function minutesByPageDay(db: Db, companyId: string, from: string, through: string): Map<string, Map<string, number>> {
+  const rows = db
+    .prepare(
+      `SELECT page_id, day, SUM(minutes) AS minutes FROM blocks
+        WHERE company_id = ? AND page_id IS NOT NULL AND day BETWEEN ? AND ? AND outcome IS NULL
+        GROUP BY page_id, day`,
+    )
+    .all(companyId, from, through) as { page_id: string; day: string; minutes: number }[];
+  const pages = new Map<string, Map<string, number>>();
+  for (const row of rows) {
+    const days = pages.get(row.page_id) ?? new Map<string, number>();
+    days.set(row.day, row.minutes);
+    pages.set(row.page_id, days);
+  }
+  return pages;
+}
+
 type PageRow = { id: string; company_id: string; section: string; template: string; title: string; fields: string };
 
 function pageRowOf(db: Db, pageId: string): PageRow {
@@ -467,7 +487,14 @@ export function makeTime(db: Db, pageId: string, raw: unknown, now: Date = new D
  * now, so it counts the way time set aside and kept does, and shows on the
  * day it was given.
  */
-export function logTime(db: Db, pageId: string, rawMinutes: unknown, now: Date = new Date()): PageTime {
+export function logTime(
+  db: Db,
+  pageId: string,
+  rawMinutes: unknown,
+  now: Date = new Date(),
+  /** "Went to the gym at 5": when it began, when that was said. Otherwise it ended now. */
+  rawStartsAt: unknown = null,
+): PageTime {
   const minutes = typeof rawMinutes === "number" && Number.isInteger(rawMinutes) ? rawMinutes : NaN;
   if (!(minutes >= 5 && minutes <= 12 * 60)) throw new Error("Between five minutes and twelve hours.");
   const page = pageRowOf(db, pageId);
@@ -475,8 +502,10 @@ export function logTime(db: Db, pageId: string, rawMinutes: unknown, now: Date =
   const today = todayIn(timezone, now);
   const [hours, mins] = timeNow(timezone, now).split(":").map(Number) as [number, number];
   const endedAt = hours * 60 + mins;
-  // Ended now, started that long before - or at midnight, for more time than the day has had.
-  const start = Math.max(0, endedAt - minutes);
+  const said = typeof rawStartsAt === "string" ? /^([01]\d|2[0-3]):([0-5]\d)$/.exec(rawStartsAt) : null;
+  // At the hour it said; otherwise ended now, started that long before - or at
+  // midnight, for more time than the day has had.
+  const start = said ? Number(said[1]) * 60 + Number(said[2]) : Math.max(0, endedAt - minutes);
   const pad = (n: number) => String(n).padStart(2, "0");
   db.transaction(() => {
     const block = createBlock(db, page.company_id, {
@@ -593,6 +622,9 @@ export function hobbiesOverview(db: Db, companyId: string, now: Date = new Date(
   const today = todayIn(companyOf(db, companyId).timezone, now);
   const kept = minutesByPage(db, companyId, shiftDay(today, -LOOK_BACK), shiftDay(today, -1));
   const planned = minutesByPage(db, companyId, today, shiftDay(today, 6));
+  // Today included, unlike the average: a square filled in this evening is the point of the grid.
+  const monday = startOfWeek(today);
+  const daily = minutesByPageDay(db, companyId, shiftDay(monday, -(HEAT_WEEKS - 1) * 7), today);
   const order = ["doing-it", "paused", "someday"];
   return sectionRows(db, companyId, "hobbies")
     .filter((row) => row.template === "hobby")
@@ -606,6 +638,7 @@ export function hobbiesOverview(db: Db, companyId: string, now: Date = new Date(
         hoursWanted: number(fields["hoursWanted"]),
         keptMinutes: kept.get(row.id) ?? 0,
         plannedMinutes: planned.get(row.id) ?? 0,
+        weeks: heatWeeks(daily.get(row.id) ?? new Map(), today, monday, shiftDay),
       };
     })
     .sort((a, b) => {

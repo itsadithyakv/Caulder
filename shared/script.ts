@@ -13,10 +13,13 @@
  * missing and how to update it. A script too old to report a version at all
  * is version 1.
  */
-export const SCRIPT_VERSION = 3;
+export const SCRIPT_VERSION = 4;
 
 /** The first version that sends email. */
 export const MAIL_SINCE_VERSION = 2;
+
+/** The first version that saves contacts to Google Contacts and backups to Drive. */
+export const CONTACTS_SINCE_VERSION = 4;
 
 /**
  * What is wrong with a pasted web app URL, or null when it looks right.

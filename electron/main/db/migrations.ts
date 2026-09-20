@@ -2358,6 +2358,188 @@ const M035_COUNTRY = `
   ALTER TABLE companies ADD COLUMN country TEXT;
 `;
 
+/**
+ * Tune: what the quick-add line guessed at, kept to be asked about later.
+ *
+ * Two kinds of row. A **slip** is a word it read as another - "meetining" as
+ * "meeting" - and \`meant\` is what it was read as. A **name** is something a
+ * title named that nothing knew - "ms puc" - and has no \`meant\`. Either way
+ * \`times\` counts the lines it has turned up in, and \`verdict\` is null until
+ * the person has answered: 'same' or 'keep' for a slip, 'taught' or 'none'
+ * for a name.
+ *
+ * Global, like Your words and for the same reason: the way somebody's fingers
+ * slip does not change with the workspace. Unique on what was typed, ignoring
+ * case, so a second sighting adds to the count rather than the list - and so
+ * an answer, once given, is found again instead of being asked again.
+ */
+const M036_TUNE = `
+  CREATE TABLE line_guesses (
+    id         TEXT PRIMARY KEY,
+    kind       TEXT NOT NULL CHECK (kind IN ('slip', 'name')),
+    typed      TEXT NOT NULL,
+    meant      TEXT NOT NULL DEFAULT '',
+    times      INTEGER NOT NULL DEFAULT 1,
+    verdict    TEXT,
+    last_seen  TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+
+  CREATE UNIQUE INDEX line_guesses_what ON line_guesses (kind, typed COLLATE NOCASE, meant COLLATE NOCASE);
+`;
+
+/**
+ * Contacts into Google Contacts (the script, version 4): which contact there
+ * a contact here became, so saving it again updates that one rather than
+ * making a second. Google's own name for it - "people/c123..." - and null for
+ * a contact never sent, which is every contact until somebody asks.
+ */
+const M037_GOOGLE_CONTACT = `
+  ALTER TABLE leads ADD COLUMN google_contact TEXT;
+`;
+
+/**
+ * Keeping up with your own goals, and your week (after 0.4).
+ *
+ * A goal's check-ins: each time it moved and where it stood after, with a
+ * word about it if one was written. The first one made also keeps where the
+ * goal stood before it, on the day the goal was set (\`is_start\`), so the
+ * line has a beginning. Deleting the goal takes its check-ins with it.
+ *
+ * Your week's themes: a weekday and what it is for - a hobby, a course, a
+ * goal, or just words. One per weekday per workspace.
+ */
+const M038_GOALS_AND_WEEK = `
+  CREATE TABLE goal_checkins (
+    id         TEXT PRIMARY KEY,
+    page_id    TEXT NOT NULL REFERENCES brain_pages (id) ON DELETE CASCADE,
+    on_day     TEXT NOT NULL,
+    value      REAL NOT NULL,
+    note       TEXT,
+    is_start   INTEGER NOT NULL DEFAULT 0 CHECK (is_start IN (0, 1)),
+    created_at TEXT NOT NULL
+  );
+
+  CREATE INDEX goal_checkins_page ON goal_checkins (page_id, on_day, created_at);
+
+  CREATE TABLE day_themes (
+    company_id TEXT NOT NULL REFERENCES companies (id) ON DELETE CASCADE,
+    weekday    INTEGER NOT NULL CHECK (weekday BETWEEN 1 AND 7),
+    label      TEXT NOT NULL,
+    page_id    TEXT REFERENCES brain_pages (id) ON DELETE SET NULL,
+    area       TEXT,
+    PRIMARY KEY (company_id, weekday)
+  );
+`;
+
+/**
+ * Private lines: what the quick line takes as nobody else's business - a
+ * crush, a regret about how somebody was spoken to - kept apart from
+ * everything the rest of the app reads.
+ *
+ * One row a line. With a journal passcode set, the line is in `box`, sealed
+ * with the journal's public key the moment it is written - not at midnight,
+ * as a day is - and `body` is null: the words are nowhere else. With no
+ * passcode there is nothing to seal with, so it is in `body` until one is
+ * set, which seals every such row there and then. Exactly one of the two is
+ * ever filled.
+ *
+ * Inside the box, JSON: the words, who they were about, and what kind of
+ * feeling it was - so none of that is readable either. `day` stays outside,
+ * because the journal's month has to know which days have something in them
+ * without being able to read what.
+ *
+ * Never joined to a contact, a page or the search index, by design: a line
+ * about Julia that is linked to Julia's record is not private.
+ */
+const M039_PRIVATE_LINES = `
+  CREATE TABLE journal_private (
+    id         TEXT PRIMARY KEY,
+    company_id TEXT NOT NULL REFERENCES companies (id) ON DELETE CASCADE,
+    day        TEXT NOT NULL,
+    box        TEXT,
+    body       TEXT,
+    created_at TEXT NOT NULL,
+    CHECK ((box IS NULL) <> (body IS NULL))
+  );
+
+  CREATE INDEX journal_private_day ON journal_private (company_id, day);
+`;
+
+/**
+ * What was measured, and the reading shelf (shared/tracker.ts).
+ *
+ * `hobby_logs` is one row a number: twenty push ups, five kilometres, forty-
+ * five kilos three times. One log for every hobby rather than a table each -
+ * `topic` is what it is a measure of, as its page in the brain is titled, and
+ * `metric` and `unit` say what kind of number it is - so a hobby nobody
+ * thought of is counted without a migration. `reps` is how many times a
+ * weight was lifted; `best` is that it was said to be the best yet.
+ *
+ * `shelf_books` is the reading shelf: a title, the series it is part of and
+ * its place in it, and which pile it is on. Unique by title within a
+ * workspace, ignoring case, so reading a book that was to be read moves it
+ * rather than adding it again.
+ */
+const M040_TRACKER = `
+  CREATE TABLE hobby_logs (
+    id         TEXT PRIMARY KEY,
+    company_id TEXT NOT NULL REFERENCES companies (id) ON DELETE CASCADE,
+    day        TEXT NOT NULL,
+    topic      TEXT NOT NULL,
+    metric     TEXT NOT NULL,
+    value      REAL NOT NULL,
+    unit       TEXT NOT NULL,
+    reps       INTEGER,
+    best       INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+  );
+
+  CREATE INDEX hobby_logs_day ON hobby_logs (company_id, day);
+  CREATE INDEX hobby_logs_topic ON hobby_logs (company_id, topic COLLATE NOCASE, day);
+
+  CREATE TABLE shelf_books (
+    id          TEXT PRIMARY KEY,
+    company_id  TEXT NOT NULL REFERENCES companies (id) ON DELETE CASCADE,
+    title       TEXT NOT NULL,
+    series      TEXT,
+    position    INTEGER NOT NULL DEFAULT 0,
+    status      TEXT NOT NULL CHECK (status IN ('to-read', 'reading', 'read')),
+    finished_on TEXT,
+    created_at  TEXT NOT NULL
+  );
+
+  CREATE UNIQUE INDEX shelf_books_title ON shelf_books (company_id, title COLLATE NOCASE);
+`;
+
+/**
+ * A book's cover, once found (electron/main/services/covers.ts): the picture
+ * itself, as a data URL, so it is asked for once and the window never loads
+ * anything from the internet. Null until looked for; 'none' when Open Library
+ * had no cover for it, so it is not asked about twice. Only ever filled when
+ * covers have been switched on.
+ */
+const M041_COVERS = `
+  ALTER TABLE shelf_books ADD COLUMN cover TEXT;
+`;
+
+/**
+ * What a quiet day was, said the day after (shared/pulse.ts): rested,
+ * scrolled, unwell, busy with life, or just off. One answer a day a
+ * workspace; said again, the newer one is kept. It is the only thing the
+ * watching of how somebody has been keeps for itself - the rest it reads from
+ * what is already there.
+ */
+const M042_CHECKINS = `
+  CREATE TABLE day_checkins (
+    company_id TEXT NOT NULL REFERENCES companies (id) ON DELETE CASCADE,
+    day        TEXT NOT NULL,
+    answer     TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (company_id, day)
+  );
+`;
+
 export const MIGRATIONS: readonly Migration[] = [
   { version: 1, name: "companies, stages, settings", sql: M001_COMPANIES },
   { version: 2, name: "leads, activities", sql: M002_LEADS },
@@ -2394,6 +2576,13 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 33, name: "the vision board", sql: M033_VISION },
   { version: 34, name: "the journal's passcode", sql: M034_JOURNAL_LOCK },
   { version: 35, name: "a company's country", sql: M035_COUNTRY },
+  { version: 36, name: "tune", sql: M036_TUNE },
+  { version: 37, name: "contacts to google", sql: M037_GOOGLE_CONTACT },
+  { version: 38, name: "goals and your week", sql: M038_GOALS_AND_WEEK },
+  { version: 39, name: "private lines", sql: M039_PRIVATE_LINES },
+  { version: 40, name: "what was measured, and the shelf", sql: M040_TRACKER },
+  { version: 41, name: "book covers", sql: M041_COVERS },
+  { version: 42, name: "what a quiet day was", sql: M042_CHECKINS },
 ];
 
 export function currentVersion(db: Db): number {

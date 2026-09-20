@@ -1,3 +1,4 @@
+import { MapView } from "@/features/brain/MapView";
 import { useUpdates } from "@/features/settings/UpdatesCard";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, Sparkles, Rocket } from "lucide-react";
@@ -421,6 +422,7 @@ function Shell() {
                 }}
                 onGoToDay={() => go("day")}
                 onGoToMoney={() => go("money")}
+                onGoTo={go}
                 onOpenPage={openPage}
                 onOpenJournal={() => openJournal()}
                 onOpenLife={(tab) => {
@@ -496,6 +498,16 @@ function Shell() {
                 openTab={lifeTab}
                 onConsumeOpenTab={consumeLifeTab}
                 homeNonce={lifeNonce}
+                onOpenPage={openPage}
+                onOpenContact={(leadId) => {
+                  setOpenLeadId(leadId);
+                  arrive("leads");
+                }}
+              />
+            ) : route === "map" && activeCompany ? (
+              <MapView
+                key={`map-${activeCompany.id}`}
+                companyId={activeCompany.id}
                 onOpenPage={openPage}
                 onOpenContact={(leadId) => {
                   setOpenLeadId(leadId);

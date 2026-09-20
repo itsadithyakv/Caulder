@@ -8,6 +8,7 @@ import { relativeDay } from "@/lib/format";
 import { taskInput } from "@shared/domain";
 import { today as todayIn } from "@shared/dates";
 import { messageOf } from "@/lib/errors";
+import { notesLines } from "./lines";
 
 /**
  * Everything caught, in one place.
@@ -34,6 +35,8 @@ export function NotesScreen({
   const [editing, setEditing] = useState<string | null>(null);
   const [body, setBody] = useState("");
   const [error, setError] = useState<string | null>(null);
+  /** What it says this time: a different line each time Notes is opened. */
+  const [lines] = useState(notesLines);
   /** The last note made into a task, for as long as Undo is offered. */
   const [madeTask, setMadeTask] = useState<{ taskId: string; body: string; pinned: boolean } | null>(
     null,
@@ -168,7 +171,8 @@ export function NotesScreen({
           rows={3}
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
-          placeholder="Anything. It does not have to be about a contact."
+          placeholder={lines.write}
+          aria-label="Write a note"
           onKeyDown={(event) => {
             // Ctrl+Enter saves, the same as the capture window, so the habit
             // learned in one works in the other.
@@ -230,12 +234,12 @@ export function NotesScreen({
       {notes.length === 0 ? (
         <div className="empty">
           <p className="empty__title">
-            {search.length > 0 ? "Nothing matches that" : "Nothing caught yet"}
+            {search.length > 0 ? lines.noMatch : lines.empty}
           </p>
           <p className="empty__body">
             {search.length > 0
               ? "Try a shorter word."
-              : "Press the quick-add key from any app, or click the tray icon, to write one without opening Caulder."}
+              : "Ideas turn up at bad times. The quick-add key catches one from any app, and so does the tray icon."}
           </p>
         </div>
       ) : (

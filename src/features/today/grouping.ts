@@ -30,7 +30,8 @@ import { PRIORITIES } from "@shared/priority";
  * be a screen that rearranged itself under you.
  */
 
-type Group = { key: string; title: string; tasks: Task[] };
+/** `by`: what the heading names, which the rows under it then leave out. */
+type Group = { key: string; title: string; by: "area" | "kind"; tasks: Task[] };
 
 export function groupDue(tasks: readonly Task[]): Group[] {
   // A task with no area is not an area of its own. That is what a task
@@ -61,6 +62,7 @@ function byKind(tasks: readonly Task[]): Group[] {
   return TASK_KINDS.map((kind) => ({
     key: `kind-${kind}`,
     title: TASK_KIND_GROUP[kind],
+    by: "kind" as const,
     tasks: tasks.filter((task) => task.kind === kind),
   })).filter((group) => group.tasks.length > 0);
 }
@@ -79,9 +81,10 @@ function byArea(tasks: readonly Task[]): Group[] {
   const groups: Group[] = [...known, ...typed].map((area) => ({
     key: `area-${area}`,
     title: known.includes(area) ? TASK_AREA_LABEL[area as TaskArea] : area,
+    by: "area" as const,
     tasks: tasks.filter((task) => task.area === area),
   }));
-  groups.push({ key: "area-none", title: "No area", tasks: tasks.filter((task) => !task.area) });
+  groups.push({ key: "area-none", title: "No area", by: "area", tasks: tasks.filter((task) => !task.area) });
 
   return groups.filter((group) => group.tasks.length > 0);
 }

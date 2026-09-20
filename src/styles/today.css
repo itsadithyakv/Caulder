@@ -58,6 +58,16 @@
   font-size: var(--text-sm);
 }
 
+/* What today is for, when your week gives it a theme: a quiet pill between the day and its count. */
+.today__theme {
+  padding: 1px var(--space-2);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
 /* Nothing due is good news, said briefly: not a card-sized hole. */
 .today__clear .empty {
   flex-direction: row;
@@ -80,7 +90,7 @@
 }
 
 .today__group + .today__group {
-  margin-top: var(--space-5);
+  margin-top: var(--space-4);
 }
 
 .today__groupTitle {
@@ -106,13 +116,17 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ---- Task rows --------------------------------------------------------- */
+/* ---- Task rows ---------------------------------------------------------
+ * A list, not a stack of cards: rows divided by a hairline, each one line -
+ * the tick, the title, and after it in quiet type only what the heading
+ * above has not already said. A long title wraps and takes the note with
+ * it; the tick stays level with the first line.
+ * ---------------------------------------------------------------------- */
 
 .tasks {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  margin: var(--space-4) 0 0;
+  margin: var(--space-3) 0 0;
   padding: 0;
   list-style: none;
 }
@@ -121,24 +135,45 @@
   margin-top: 0;
 }
 
+/* Over a list of tasks the heading sits close: the rows carry their own air. */
+.today__group:has(> .tasks) > .today__groupTitle {
+  margin-bottom: var(--space-1);
+}
+
 .taskrow {
+  position: relative;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: var(--space-3);
   align-items: start;
-  padding: var(--space-3) var(--space-4);
+  margin: 0 calc(var(--space-2) * -1);
+  padding: 7px var(--space-2);
   border-radius: var(--radius-sm);
-  background: var(--surface);
-  border: 1px solid var(--border);
+  transition: background var(--dur-fast) var(--ease);
 }
 
-@media (max-width: 760px) {
-  .taskrow {
-    grid-template-columns: auto minmax(0, 1fr);
-  }
-  .taskrow__actions {
-    grid-column: 2;
-  }
+/* Between rows, a hairline that starts where the titles do. */
+.taskrow + .taskrow::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: var(--space-2);
+  left: calc(var(--space-2) + 22px + var(--space-3));
+  height: 1px;
+  background: var(--soft-line);
+}
+
+.taskrow:hover,
+.taskrow:focus-within {
+  background: var(--surface-hover);
+}
+
+/* Not drawn against a lit row, above or below it. */
+.taskrow:hover::before,
+.taskrow:focus-within::before,
+.taskrow:hover + .taskrow::before,
+.taskrow:focus-within + .taskrow::before {
+  opacity: 0;
 }
 
 /* The tick is the primary action, so it is the only outlined control in the
@@ -146,19 +181,23 @@
 .taskrow__tick {
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
-  border: 1px solid var(--border-strong);
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  border: 1.5px solid var(--border-strong);
   border-radius: 50%;
   background: var(--surface);
-  color: var(--ink-3);
+  color: transparent;
   cursor: pointer;
   transition:
     color var(--dur-fast) var(--ease),
-    border-color var(--dur-fast) var(--ease);
+    border-color var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease);
 }
 
-.taskrow__tick:hover:not(:disabled) {
+/* The check shows itself only when it is about to be pressed. */
+.taskrow__tick:hover:not(:disabled),
+.taskrow__tick:focus-visible {
   color: var(--ok);
   border-color: var(--ok);
 }
@@ -171,38 +210,46 @@
 .taskrow__body {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
   min-width: 0;
 }
 
-.taskrow__head {
+.taskrow__line {
   display: flex;
-  align-items: center;
-  gap: var(--space-2);
   flex-wrap: wrap;
-}
-
-.taskrow__kind {
-  flex: none;
-  color: var(--ink-3);
+  align-items: baseline;
+  column-gap: var(--space-3);
+  row-gap: 1px;
+  margin: 0;
+  line-height: 24px;
 }
 
 .taskrow__title {
   color: var(--ink);
-  font-weight: 700;
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
 
-.taskrow__kindLabel {
-  font-size: var(--text-xs);
+/* What the heading has not said, one small thing after another. */
+.taskrow__meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 6px;
+  color: var(--ink-3);
+  font-size: var(--text-sm);
 }
 
-.taskrow__meta {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-  font-size: var(--text-sm);
+.taskrow__meta > * + *::before {
+  content: "·";
+  margin-right: 6px;
+  color: var(--ink-3);
+  font-weight: 400;
+}
+
+.taskrow__must {
+  color: var(--accent-strong);
+  font-weight: 700;
 }
 
 .taskrow__lead {
@@ -236,37 +283,66 @@
 }
 
 .taskrow__notes {
+  margin: 0;
   color: var(--ink-2);
   font-size: var(--text-sm);
   white-space: pre-wrap;
 }
 
 .taskrow__actions {
+  position: relative;
   display: flex;
   align-items: center;
+  align-self: stretch;
   gap: var(--space-1);
-  flex-wrap: wrap;
+}
+
+.taskrow__more {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+@media (max-width: 760px) {
+  .taskrow {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .taskrow__actions {
+    grid-column: 2;
+    flex-wrap: wrap;
+  }
 }
 
 /* A row shows its tick and, for a call, Call. Moving it or deleting it is
- * asked for less, so those come up when the row is pointed at or has the
- * keyboard - there to use, not there to read past on every row. */
-@media (hover: hover) {
-  .taskrow__actions .btn--ghost {
+ * asked for less, so those come up over the end of the row when it is
+ * pointed at or has the keyboard - there to use, but not a column held open
+ * on every row, which is what made titles wrap early. Over whatever is
+ * beneath, on the row's own lit colour, just before Call when there is one. */
+@media (hover: hover) and (min-width: 761px) {
+  .taskrow__more {
+    position: absolute;
+    top: 50%;
+    right: calc(100% + var(--space-1));
+    padding-left: var(--space-4);
+    background: linear-gradient(to right, transparent, var(--surface-hover) var(--space-4));
     opacity: 0;
+    translate: 0 -50%;
     transition: opacity var(--dur-fast) var(--ease);
   }
 
-  .taskrow:hover .taskrow__actions .btn--ghost,
-  .taskrow:focus-within .taskrow__actions .btn--ghost {
+  /* With nothing else in the actions, they sit at the row's own end. */
+  .taskrow__actions:not(:has(.taskrow__call)) .taskrow__more {
+    right: 0;
+  }
+
+  .taskrow:hover .taskrow__more,
+  .taskrow:focus-within .taskrow__more {
     opacity: 1;
   }
 }
 
-/* Call sits at the end, where the eye leaves the row, with the quieter
- * actions coming up before it rather than holding an empty gap after it. */
 .taskrow__call {
-  order: 1;
+  white-space: nowrap;
 }
 
 /* ---- Going quiet ------------------------------------------------------- */
@@ -740,6 +816,84 @@
   flex-wrap: wrap;
   gap: var(--space-2);
 }
+
+/* The rest of the line: the note it will keep, and the second task it will
+ * make. Quieter than the reading above it - that is the task; this is what
+ * comes with it. */
+.quickadd__more {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+}
+
+.quickadd__then,
+.quickadd__noted {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.quickadd__thenLabel {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* What was read as something else, with the way to take that back beside it.
+ * A link-weight button: it is a correction to a correction, not a call to
+ * action, and should not compete with the answers under it. */
+.quickadd__keep {
+  margin-left: var(--space-2);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-style: normal;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.quickadd__keep:hover { text-decoration: underline; }
+
+/* ---- Tune (Settings) ---------------------------------------------------
+ * One question, set off the way the line's own questions are, so the two
+ * read as the same voice asking.
+ * ---------------------------------------------------------------------- */
+
+.tune {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-hover);
+  border: 1px solid var(--border);
+}
+
+.tune__question {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-base);
+}
+
+.tune__answers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.tune__area { cursor: pointer; }
+.tune__area:disabled { opacity: 0.55; cursor: default; }
 
 /* ---- Renewing soon ----------------------------------------------------- */
 

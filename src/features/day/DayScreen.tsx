@@ -15,6 +15,7 @@ import { ErrorLine } from "@/components/ErrorLine";
 import { describeDeadline } from "@shared/deadlines";
 import type { JournalDay } from "@shared/life";
 import { MoodTag } from "@/features/life/MoodPicker";
+import { useDayThemes } from "@/features/life/useDayThemes";
 
 /**
  * The day, as hours you can see.
@@ -49,6 +50,8 @@ export function DayScreen({
   onOpenJournal?: (day: string) => void;
 } = {}) {
   const { activeCompany, home } = useWorkspace();
+  // Your week's theme days head the Calendar's days: they are yours, whichever company is chosen.
+  const themes = useDayThemes(home?.id ?? activeCompany?.id);
   const companyId = activeCompany?.id ?? null;
   const timezone = activeCompany?.timezone ?? "UTC";
 
@@ -259,6 +262,7 @@ export function DayScreen({
           <WeekGrid
             week={week}
             today={currentDay}
+            themes={themes}
             onOpenDay={(chosen) => {
               setDay(chosen);
               setView("day");

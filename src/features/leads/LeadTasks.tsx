@@ -126,37 +126,38 @@ export function LeadTasks({
                 <Check size={14} aria-hidden />
               </button>
 
+              {/* The same line as Today's: the title, then the kind unless it is a plain to-do, then the day. */}
               <div className="taskrow__body">
-                <div className="taskrow__head">
+                <p className="taskrow__line">
                   <span className="taskrow__title">{task.title}</span>
-                  <span className="badge badge--neutral taskrow__kindLabel">
-                    {TASK_KIND_LABEL[task.kind]}
+                  <span className="taskrow__meta">
+                    {task.kind !== "todo" && <span>{TASK_KIND_LABEL[task.kind]}</span>}
+                    <span
+                      className={
+                        task.dueOn < day ? "taskrow__due taskrow__due--late" : "taskrow__due"
+                      }
+                    >
+                      {describeDue(task.dueOn, day)}
+                    </span>
                   </span>
-                </div>
-                <div className="taskrow__meta">
-                  <span
-                    className={
-                      task.dueOn < day ? "taskrow__due taskrow__due--late" : "taskrow__due"
-                    }
-                  >
-                    {describeDue(task.dueOn, day)}
-                  </span>
-                </div>
+                </p>
               </div>
 
               <div className="taskrow__actions">
-                <button
-                  type="button"
-                  className="btn btn--sm btn--ghost"
-                  onClick={() =>
-                    void act(() =>
-                      window.caulder.tasks.reschedule(task.id, shiftDay(day, 7)),
-                    )
-                  }
-                  disabled={busy}
-                >
-                  Next week
-                </button>
+                <div className="taskrow__more">
+                  <button
+                    type="button"
+                    className="btn btn--sm btn--ghost"
+                    onClick={() =>
+                      void act(() =>
+                        window.caulder.tasks.reschedule(task.id, shiftDay(day, 7)),
+                      )
+                    }
+                    disabled={busy}
+                  >
+                    Next week
+                  </button>
+                </div>
               </div>
             </li>
           ))}
@@ -178,9 +179,9 @@ export function LeadTasks({
                 <Undo2 size={13} aria-hidden />
               </button>
               <div className="taskrow__body">
-                <div className="taskrow__head">
+                <p className="taskrow__line">
                   <span className="taskrow__title">{task.title}</span>
-                </div>
+                </p>
               </div>
               <span />
             </li>

@@ -1,5 +1,6 @@
 /**
- * Caulder — the Google bridge: Calendar, Tasks, Gmail and the shared brain.
+ * Caulder — the Google bridge: Calendar, Tasks, Gmail, Contacts, backups in
+ * Drive, and the shared brain.
  *
  * Paste this whole file into a Google Apps Script project and follow the
  * steps below. It runs inside your own Google account and Caulder talks to it
@@ -25,10 +26,15 @@
  *     (script.new opens one). Click "Untitled project" at the top, name it
  *     Caulder, and save.
  *
- * 2.  In the left sidebar, click the + beside **Services** and add BOTH:
+ * 2.  In the left sidebar, click the + beside **Services** and add:
  *         Google Calendar API
  *         Tasks API
- *     Leave the identifiers as the defaults, "Calendar" and "Tasks".
+ *         People API        (optional: only for saving contacts to your phone)
+ *     Leave the identifiers as the defaults: "Calendar", "Tasks", "People".
+ *
+ *     The People API is what puts a contact added in Caulder into Google
+ *     Contacts, which is what your phone's address book syncs with. Leave it
+ *     out and everything else works; Caulder says so where it matters.
  *
  * 3.  Choose `setUp` in the function dropdown at the top and press **Run**,
  *     then **Review permissions** and your account. This is your own script
@@ -77,8 +83,8 @@
  * cancels it.
  * ========================================================================= */
 
-/** Caulder reads this to know what the script can do. Email arrived in 2, the shared brain in 3. */
-var SCRIPT_VERSION = 3;
+/** Caulder reads this to know what the script can do. Email arrived in 2, the shared brain in 3, contacts and Drive backups in 4. */
+var SCRIPT_VERSION = 4;
 
 /** Run once, by hand. Grants permission and prints the key. */
 function setUp() {
@@ -97,6 +103,10 @@ function setUp() {
   Tasks.Tasklists.list();
   GmailApp.getAliases();
   MailApp.getRemainingDailyQuota();
+  // Backups go in a folder in your own Drive. Contacts only if you added the
+  // People API under Services: it is optional, and its absence is not an error.
+  if (typeof DriveApp !== "undefined") DriveApp.getRootFolder().getName();
+  if (typeof People !== "undefined") People.People.get("people/me", { personFields: "names" });
 
   // What sends a scheduled email, and notices a reply, with Caulder closed.
   installTrigger();
@@ -188,6 +198,12 @@ function handle(request) {
       return brainPush(request);
     case "brainPull":
       return brainPull(request);
+    case "saveContact":
+      return saveContact(request);
+    case "backupPut":
+      return backupPut(request);
+    case "backupList":
+      return backupList();
     default:
       throw new Error("Caulder asked for something this script does not do: " + request.action);
   }
@@ -235,7 +251,112 @@ function hello() {
     version: SCRIPT_VERSION,
     mail: mail,
     mailError: mailError,
+    // Contacts need a service that has to be added by hand, so Caulder is told
+    // whether it was rather than finding out from a failure.
+    contacts: typeof People !== "undefined",
+    drive: typeof DriveApp !== "undefined",
   };
+}
+
+/* ---- Contacts ----------------------------------------------------------- */
+
+/**
+ * One contact into Google Contacts - which is what a phone's address book
+ * syncs with, so a contact added in Caulder is one that rings with a name.
+ *
+ * One way only, and on purpose. Caulder writes the contact and remembers which
+ * one it wrote (`resourceName`), so saving again updates it rather than making
+ * a second. It never reads your address book: nothing about the people in it
+ * who are not in Caulder ever leaves Google.
+ *
+ * A contact deleted on the phone and saved again from Caulder is made again,
+ * because a contact you are still working with is one you still want to reach.
+ */
+function saveContact(request) {
+  if (typeof People === "undefined") {
+    throw new Error(
+      "Your Google script cannot save contacts yet. Open it, press + beside Services, add the People API, then run setUp once more.",
+    );
+  }
+  var contact = request.contact || {};
+  var company = String(contact.name || "").trim();
+  var person = String(contact.person || "").trim();
+  if (!company && !person) throw new Error("A contact needs a name.");
+
+  // A person is filed under their own name, at the company; a company with
+  // nobody named on it is filed under the company's.
+  var words = (person || company).split(/\s+/);
+  var body = {
+    names: [{ givenName: words[0], familyName: words.slice(1).join(" ") }],
+    organizations: person && company ? [{ name: company, title: String(contact.role || "") }] : [],
+    phoneNumbers: contact.phone ? [{ value: String(contact.phone), type: "work" }] : [],
+    emailAddresses: contact.email ? [{ value: String(contact.email), type: "work" }] : [],
+  };
+  var fields = "names,organizations,phoneNumbers,emailAddresses";
+
+  if (request.resourceName) {
+    try {
+      var current = People.People.get(request.resourceName, { personFields: fields });
+      body.etag = current.etag;
+      var updated = People.People.updateContact(body, request.resourceName, { updatePersonFields: fields });
+      return { resourceName: updated.resourceName, made: false };
+    } catch (gone) {
+      // Deleted in Google since: made again below.
+    }
+  }
+  var made = People.People.createContact(body);
+  return { resourceName: made.resourceName, made: true };
+}
+
+/* ---- Backups, in Drive -------------------------------------------------- */
+
+var BACKUP_FOLDER = "Caulder backups";
+/** The newest few. Older ones go to Drive's bin, where Google keeps them thirty days more. */
+var BACKUPS_KEPT = 10;
+
+function backupFolder() {
+  var found = DriveApp.getFoldersByName(BACKUP_FOLDER);
+  return found.hasNext() ? found.next() : DriveApp.createFolder(BACKUP_FOLDER);
+}
+
+function backupsIn(folder) {
+  var all = [];
+  var files = folder.getFiles();
+  while (files.hasNext()) {
+    var file = files.next();
+    all.push({ file: file, at: file.getDateCreated().getTime() });
+  }
+  all.sort(function (a, b) {
+    return b.at - a.at;
+  });
+  return all;
+}
+
+/**
+ * One backup file into the folder. Sent whole, as base64, because a web app
+ * takes one request body; Caulder refuses to send one too large for that
+ * before it gets here.
+ */
+function backupPut(request) {
+  var name = String(request.name || "");
+  if (!/^[\w.-]{1,120}$/.test(name)) throw new Error("That is not a backup file's name.");
+  var blob = Utilities.newBlob(Utilities.base64Decode(String(request.data || "")), "application/octet-stream", name);
+  var folder = backupFolder();
+  var file = folder.createFile(blob);
+
+  var all = backupsIn(folder);
+  for (var i = BACKUPS_KEPT; i < all.length; i += 1) all[i].file.setTrashed(true);
+
+  return { name: file.getName(), size: file.getSize(), at: isoOf(file.getDateCreated().getTime()), kept: Math.min(all.length, BACKUPS_KEPT) };
+}
+
+function backupList() {
+  var all = backupsIn(backupFolder()).slice(0, BACKUPS_KEPT);
+  var out = [];
+  for (var i = 0; i < all.length; i += 1) {
+    out.push({ name: all[i].file.getName(), size: all[i].file.getSize(), at: isoOf(all[i].at) });
+  }
+  return { folder: BACKUP_FOLDER, backups: out };
 }
 
 /* ---- The calendar ------------------------------------------------------- */

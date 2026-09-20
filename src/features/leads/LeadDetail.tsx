@@ -14,6 +14,7 @@ import { StageBadge } from "./StageBadge";
 import { LeadTasks } from "./LeadTasks";
 import { LeadEmail } from "./LeadEmail";
 import { LeadWhatsApp } from "./LeadWhatsApp";
+import { SaveToPhone } from "./SaveToPhone";
 import { LeadMoney } from "./LeadMoney";
 import { LeadDeals } from "./LeadDeals";
 import { Attachments, CustomFields } from "./LeadExtras";
@@ -246,6 +247,8 @@ export function LeadDetail({
                   <span className="badge badge--danger">Do not contact</span>
                 )}
               </div>
+
+              <SaveToPhone lead={lead} />
 
               <dl className="facts">
                 <Fact label="Relationship" value={RELATIONSHIP_LABEL[lead.relationship]} />

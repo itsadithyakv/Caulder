@@ -1,4 +1,6 @@
 import { minutesOf, shiftDay, startOfWeek, timeOf, weekdayOf } from "./dates";
+import { expand } from "./slang";
+import { distance, slipAt } from "./slips";
 
 /**
  * One line of text into a task, without a model.
@@ -52,6 +54,13 @@ type QuickTask = {
    * it is added.
    */
   repeat: Repeat | null;
+  /** Whatever was said after the task itself: its second sentence, kept as its note. */
+  notes: string | null;
+  /**
+   * A second task the rest of the line asked for, hung off the first one's
+   * day: "...so i need to remind him 2 days prior".
+   */
+  followUp: { title: string; day: string; kind: QuickKind; notes: string | null } | null;
 };
 
 /** What to show under the box, one question at a time. */
@@ -72,7 +81,19 @@ export type Answers = {
   until?: string;
   /** Picked on the reading, when the words pointed the wrong way. */
   area?: string;
+  /** Words to leave exactly as typed: "Keep “frida”", pressed under the line. */
+  keep?: readonly string[];
 };
+
+/** A word read as the one it nearly is - said under the line, and undone from there. */
+type Correction = { typed: string; as: string };
+
+/**
+ * What Settings' Tune has settled about this person's typing: slips they
+ * confirmed, which are then read without comment, and words they said to
+ * leave alone, which are never touched again.
+ */
+export type Learned = { same: Readonly<Record<string, string>>; keep: readonly string[] };
 
 type Context = {
   /** The workspace's today, `YYYY-MM-DD`. */
@@ -87,6 +108,7 @@ type Context = {
   words?: readonly { word: string; area: string }[];
   /** The last day of the term running now, for "until the end of term". */
   termEnd?: string | null;
+  learned?: Learned;
 };
 
 /** Which part of the day a line mentions - what settles "at 9". */
@@ -127,6 +149,18 @@ const MINUTE_WORDS: Record<string, number> = {
   "forty-five": 45, ninety: 90,
 };
 
+/** "Four thirty", "six forty-five": the minutes, said after the hour. */
+const PAST_THE_HOUR: Record<string, number> = {
+  five: 5, ten: 10, fifteen: 15, twenty: 20, thirty: 30, forty: 40, "forty five": 45, fifty: 50,
+};
+
+/**
+ * What can follow a bare time and still leave it a time: the end of the
+ * phrase, or a word that starts the rest of it. "Today 4 with rahul" is four
+ * o'clock; "today 4 pages" is not.
+ */
+const AFTER_A_TIME = "for|with|at|in|on|re|about|from";
+
 /** Longest first, so an alternation never settles for a prefix. */
 const alternation = (words: readonly string[]) =>
   [...words].sort((a, b) => b.length - a.length).map(escapeRegex).join("|");
@@ -139,25 +173,26 @@ const WD = alternation(Object.keys(WEEKDAYS));
 const WDS = alternation(FULL_WEEKDAYS.map((day) => `${day}s`));
 const HOUR_WORD = alternation(Object.keys(NUMBER_WORDS).filter((w) => w !== "a" && w !== "an"));
 const COUNT = `\\d+|${alternation(Object.keys(NUMBER_WORDS))}`;
+const PAST = alternation(Object.keys(PAST_THE_HOUR)).replace(/ /g, "[\\s-]+");
 
 // "Tom" is deliberately not here: "call Tom friday" is a person.
 const TOMORROW =
-  "tomorrow|tomorow|tommorow|tommorrow|tomorro|tmrw|tmrow|tmr|tmw|tmoro|tomm|2moro|2morro|2morrow|2mrw|2mro";
-const TODAY = "today|tdy|tday|2day";
-const TONIGHT = "tonight|tonite|2nite|2night|tonigt";
+  "tomorrow|tomorow|tommorow|tommorrow|tomorro|tomorw|tomrw|tomoz|tmrw|tmrrw|tmmrw|tmrow|tmro|tmr|tmw|tmoro|tomm|2moro|2morro|2morrow|2mrw|2mro";
+const TODAY = "today|tody|todays|tdy|tday|2day";
+const TONIGHT = "tonight|tonite|tonyt|tnite|2nite|2night|tonigt";
 const DAY_WORD = `${TOMORROW}|${TODAY}|${TONIGHT}|${WD}`;
 
 /** am, pm, a.m., p.m. - but not "am" as the start of "amazing". */
 const MER = String.raw`(a\.?m\.?|p\.?m\.?)(?![a-z])`;
 
-const H = String.raw`(?:hours|hour|hrs|hr|h)`;
-const M = String.raw`(?:minutes|minute|mins|min|m)`;
+const H = String.raw`(?:hours|hourse|huors|hour|huor|hrs|hr|h)`;
+const M = String.raw`(?:minutes|minuets|mintues|minuts|minute|minuet|minut|mins|mnts|min|m)`;
 const LENGTH = [
   String.raw`\d+(?:\.\d+)?[\s-]*${H}\s*(?:and\s+)?\d{1,2}\s*${M}`,
   String.raw`\d+h\d{1,2}m?`,
   String.raw`(?:${COUNT})\s+and\s+a\s+half\s+${H}`,
   String.raw`(?:an?|one)\s+hour\s+and\s+a\s+half`,
-  String.raw`(?:half\s+an?|a\s+half|half)[\s-]*hour`,
+  String.raw`(?:half\s+an?|a\s+half|half)[\s-]*(?:hour|hr)`,
   String.raw`(?:a\s+)?quarter\s+(?:of\s+an\s+)?hour`,
   String.raw`(?:a\s+)?couple\s+(?:of\s+)?${H}`,
   String.raw`\d+(?:\.\d+)?[\s-]*${H}`,
@@ -196,6 +231,10 @@ const AREA_WORDS: [string, string[]][] = [
     "submission", "semester", "syllabus", "pset", "psets", "problem set", "problem sets",
     "worksheet", "textbook", "lecture notes", "attendance", "hod", "dean", "uni", "university",
     "college", "campus", "gpa", "cgpa", "office hours", "study group", "tutor",
+    "retest", "re-test", "reexam", "re-exam", "supplementary", "arrear", "arrears", "classroom",
+    "google classroom", "moodle", "timetable", "time table", "hall ticket", "admit card",
+    "elective", "electives", "lab record", "mini project", "invigilator", "question paper",
+    "answer sheet",
   ]],
   // No "run", "walk" or "work out": "run the numbers", "walk through the
   // demo" and "work out the budget" are not exercise.
@@ -236,6 +275,120 @@ const AREA_TAGS: Record<string, string> = {
   workout: "health",
 };
 
+/**
+ * The area a tag was aiming at: "#colege", "#wrk", "#pers". A tag is the most
+ * direct thing a person can say, so it is read generously - the start of an
+ * area's name, or a letter dropped or swapped - but never into a tag that
+ * brings letters of its own, which is somebody's own area.
+ */
+function tagArea(tag: string): string | null {
+  const exact = AREA_TAGS[tag];
+  if (exact) return exact;
+  let best: { area: string; d: number } | null = null;
+  for (const [name, area] of Object.entries(AREA_TAGS)) {
+    if (tag.length >= 3 && name.startsWith(tag)) return area;
+    if (tag[0] !== name[0] || ![...tag].every((letter) => name.includes(letter))) continue;
+    const d = distance(tag, name);
+    if (d <= (name.length >= 6 ? 2 : 1) && (!best || d < best.d)) best = { area, d };
+  }
+  return best?.area ?? null;
+}
+
+/* ---- Slips, mended before the reading ----------------------------------- */
+
+/** Read with a capital, the way a day is written. */
+const CAPITAL_AS = new Set(["tomorrow", "tonight"]);
+
+/**
+ * The words worth mending: the ones the reading turns on. A slip in any other
+ * word is only a slip in the title, and the title is theirs.
+ *
+ * The days of the week are not here. "Frida" is one letter from Friday and
+ * "mondal" one from Monday, so a day is only ever guessed at when nothing else
+ * in the line said when - further down, and more carefully.
+ */
+const MENDABLE: readonly string[] = [
+  "tomorrow", "tonight", "every", "everyday", "daily", "weekly", "weekdays", "weekends", "weekend",
+  "morning", "afternoon", "evening", "midnight", "fortnight", "minutes", "hours", "urgent",
+  "important", "priority", "meeting", "email", "follow", "remind", "reminder", "remember",
+  "appointment", "interview",
+  ...AREA_WORDS.flatMap(([, words]) => words.filter((word) => word.length >= 7 && /^[a-z]+$/.test(word))),
+];
+
+/** Every word the line already understands, none of which is a slip at another. */
+const UNDERSTOOD = new Set<string>([
+  ...MENDABLE,
+  ...AREA_WORDS.flatMap(([, words]) => words),
+  ...Object.keys(WEEKDAYS),
+  ...Object.keys(MONTHS),
+]);
+
+/**
+ * The line with its slips mended, and what was mended.
+ *
+ * What the person settled in Tune comes first: a slip they confirmed is read
+ * without comment, and a word they said to keep is never touched. A capital
+ * mid-line is a name and is left alone - but not the capital that starts the
+ * line, which is only how sentences start.
+ */
+function mend(
+  text: string,
+  shouting: boolean,
+  learned: Learned | undefined,
+  leave: ReadonlySet<string>,
+): { text: string; corrections: Correction[] } {
+  const corrections: Correction[] = [];
+  const first = text.search(/\p{L}/u);
+  const mended = text.replace(/(?<![\p{L}\p{N}#'/-])\p{L}{4,}(?![\p{L}\p{N}'/-])/gu, (word, at: number) => {
+    const lower = word.toLowerCase();
+    if (leave.has(lower) || UNDERSTOOD.has(lower)) return word;
+    const named = word !== lower && at !== first && !shouting;
+    const settled = learned?.same[lower];
+    const target = settled ?? (named ? null : slipAt(lower, MENDABLE));
+    if (!target) return word;
+    if (!settled) corrections.push({ typed: lower, as: target });
+    if (shouting) return target.toUpperCase();
+    return word === lower ? target : capital(target);
+  });
+  return { text: mended, corrections };
+}
+
+/* ---- Names it does not know yet ----------------------------------------- */
+
+const LEADS_IN = new Set(["for", "with", "from", "at", "@"]);
+const SMALL = new Set([
+  "the", "a", "an", "my", "our", "your", "his", "her", "their", "this", "that", "these", "those",
+  "and", "or", "to", "of", "in", "on", "by", "about", "re", "is", "are", "be", "it", "me", "us",
+  "them", "him", "you", "i", "we", "up", "out", "off", "over", "into", "as", "if", "so", "not",
+  "no", "new", "old", "all", "some", "any", "more", "next", "last", "first", "now", "then",
+]);
+
+/**
+ * Who and what a title names that nothing here knows: "rahul", "ms puc" and
+ * "unifloe" in "meeting with rahul from ms puc for unifloe".
+ *
+ * Only what follows a word that introduces a name - for, with, from, at - and
+ * only up to the next small word, because without a dictionary that is the
+ * one place a run of unfamiliar words is likelier a name than a sentence.
+ * These are what Tune asks about later, once they have come up again.
+ */
+function namesIn(title: string): string[] {
+  const words = title.split(/\s+/);
+  const found = new Set<string>();
+  words.forEach((lead, index) => {
+    if (!LEADS_IN.has(lead.toLowerCase())) return;
+    const run: string[] = [];
+    for (const next of words.slice(index + 1, index + 4)) {
+      const word = next.toLowerCase().replace(/[^\p{L}\p{N}&'-]/gu, "");
+      if (!word || SMALL.has(word) || LEADS_IN.has(word) || UNDERSTOOD.has(word) || /^\d+$/.test(word)) break;
+      run.push(word);
+    }
+    const phrase = run.join(" ");
+    if (phrase.length >= 3) found.add(phrase);
+  });
+  return [...found];
+}
+
 /* ---- Matching ----------------------------------------------------------- */
 
 type Span = { start: number; end: number };
@@ -275,34 +428,10 @@ function claimIf(
 const claim = (text: string, taken: Span[], pattern: RegExp) => claimIf(text, taken, pattern);
 
 /**
- * Edits between two words, counting a swapped pair as one - "firday" is one
- * slip from "friday", not two.
- */
-function distance(a: string, b: string): number {
-  const rows = a.length + 1;
-  const cols = b.length + 1;
-  const d = new Array<number>(rows * cols).fill(0);
-  const at = (i: number, j: number) => d[i * cols + j] ?? 0;
-  for (let i = 0; i < rows; i += 1) d[i * cols] = i;
-  for (let j = 0; j < cols; j += 1) d[j] = j;
-  for (let i = 1; i < rows; i += 1) {
-    for (let j = 1; j < cols; j += 1) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      let best = Math.min(at(i - 1, j) + 1, at(i, j - 1) + 1, at(i - 1, j - 1) + cost);
-      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
-        best = Math.min(best, at(i - 2, j - 2) + 1);
-      }
-      d[i * cols + j] = best;
-    }
-  }
-  return at(a.length, b.length);
-}
-
-/**
  * The word a slip of the keyboard was aiming at, or null.
  *
  * Strict on short targets: a six-letter day gets one slip and must keep its
- * length, so "frida" stays a name rather than becoming Friday. Longer words
+ * length or its ending, so "frida" stays a name rather than becoming Friday. Longer words
  * can carry two - "tommorow" and "wensday" are how those two are usually
  * spelt at speed.
  */
@@ -313,14 +442,15 @@ function nearest(word: string, targets: readonly string[], loose: boolean): stri
     const d = distance(word, target);
     if (d === 0) return target;
     if (d > allowed) continue;
-    if (!loose && target.length <= 6 && word.length !== target.length) continue;
+    // ...unless it still ends like a day: "sundy" and "moday" are nobody's name.
+    if (!loose && target.length <= 6 && word.length !== target.length && !/(?:day|dy)$/.test(word)) continue;
     if (!best || d < best.d) best = { target, d };
   }
   return best?.target ?? null;
 }
 
 /** Real words one slip from a day, which must not be read as one. */
-const NOT_A_DAY = new Set(["sundae", "sundaes"]);
+const NOT_A_DAY = new Set(["sundae", "sundaes", "toddy"]);
 
 function monthOf(word: string): number | null {
   const exact = MONTHS[word];
@@ -448,6 +578,12 @@ function readLength(raw: string): number | null {
   return null;
 }
 
+/** How long a line says, wherever it says it: "guitar 1h30", "an hour and a half of reading". */
+export function lengthIn(line: string): number | null {
+  const match = new RegExp(`\\b(?:${LENGTH})\\b`).exec(expand(line).toLowerCase());
+  return match ? readLength(match[0]) : null;
+}
+
 type Clock = { time: number } | { ask: { hour: number; minute: number } } | null;
 
 /**
@@ -499,43 +635,194 @@ function readDate(rest: string, today: string): DateRead | null {
   if ((m = /^(\d{1,2})(?:st|nd|rd|th)\b/.exec(rest))) {
     return { day: ordinalDay(today, Number(m[1])), length: m[0].length };
   }
+  // A month on its own - "until dec" - is the whole of it: its last day, this
+  // year while that is still to come.
+  if ((m = /^([a-z]{3,})\b/.exec(rest)) && MONTHS[m[1] ?? ""] !== undefined) {
+    const year = Number(today.slice(0, 4));
+    const month = pad(MONTHS[m[1] ?? ""] ?? 1);
+    const end = lastOfMonth(`${year}-${month}-01`);
+    return { day: end >= today ? end : lastOfMonth(`${year + 1}-${month}-01`), length: m[0].length };
+  }
   if ((m = new RegExp(`^(?:(next)\\s+)?(${WD})\\b`).exec(rest))) {
     return { day: weekdayDay(today, WEEKDAYS[m[2] ?? ""] ?? 1, m[1] === "next"), length: m[0].length };
   }
   return null;
 }
 
+/* ---- More than one sentence --------------------------------------------- */
+
+/** A full stop after one of these ends a short form, not a sentence: "prof. sharma", "fri. 4pm". */
+const NOT_THE_END = new Set([
+  "dr", "mr", "mrs", "ms", "prof", "st", "vs", "etc", "eg", "e.g", "ie", "i.e", "no", "nos", "approx",
+  "a.m", "p.m", "a.s.a.p", "dept", "govt", ...Object.keys(WEEKDAYS), ...Object.keys(MONTHS),
+]);
+
+/** What makes the words after a comma a clause of their own rather than the rest of a list. */
+const CLAUSE =
+  /\b(?:is|are|was|were|has|have|had|requires?|needs?|wants?|said|says|asked|will|would|should|must|can|cannot|can't|so|because|since|but|it|it's|its|he|she|they|i|we|also|remind)\b/i;
+
+/** "2 days prior", "a week before", "the day before": a when that hangs off another one. */
+const OFFSET = new RegExp(
+  String.raw`\b(?:(\d+|${alternation(Object.keys(NUMBER_WORDS))}|a\s+couple\s+of|a\s+few)\s+(days?|weeks?)|(?:the|a)\s+(day|night|evening|week))\s+(?:prior|before(?:hand)?|earlier|ahead|in\s+advance|early)\b`,
+  "i",
+);
+
+const wordsIn = (text: string) => text.split(/\s+/).filter((word) => /[\p{L}\p{N}]/u.test(word)).length;
+
+/**
+ * The line as the task, and whatever else was said.
+ *
+ * "I have an exam on monday on the subject DSA. Coursework has to be
+ * downloaded from google classroom" is one task and a note on it, and the
+ * first sentence is the task. A comma only ends the task when what follows
+ * reads as a clause - "..., kiran sir requires permission for the retest" -
+ * because "buy milk, eggs, bread" and "call mom tmrw, 5pm" are each one thing.
+ */
+function splitLine(input: string): { head: string; aside: string | null } {
+  for (const match of input.matchAll(/([.!?]+|;|\n)\s+|,\s+/g)) {
+    const at = match.index ?? 0;
+    const sentence = match[1] !== undefined;
+    const head = input.slice(0, at + (sentence ? (match[1] ?? "").length : 0));
+    const aside = input.slice(at + match[0].length).trim();
+    if (wordsIn(head) < 2 || wordsIn(aside) < (sentence ? 2 : 5)) continue;
+    const last = (head.replace(/[.!?;]+$/, "").split(/\s+/).pop() ?? "").toLowerCase();
+    if (sentence && match[1]?.startsWith(".") && NOT_THE_END.has(last)) continue;
+    if (!sentence && !CLAUSE.test(aside) && !OFFSET.test(aside)) continue;
+    return { head, aside };
+  }
+  return { head: input, aside: null };
+}
+
+/** How many days before: "2 days prior" is two, "a week before" seven, "the night before" one. */
+function offsetDays(match: RegExpExecArray): number {
+  if (match[3]) return match[3].toLowerCase() === "week" ? 7 : 1;
+  const said = (match[1] ?? "").toLowerCase();
+  const count = /couple/.test(said) ? 2 : /few/.test(said) ? 3 : (NUMBER_WORDS[said] ?? Number(said));
+  return count * ((match[2] ?? "").toLowerCase().startsWith("week") ? 7 : 1);
+}
+
+/**
+ * Who "him", "her" or "them" is: the last person named before it, the way
+ * people are named in a line like this - "kiran sir", "prof sharma", or a
+ * name with its capital. Null when nobody was, and the pronoun stays.
+ */
+function lastNamed(before: string): string | null {
+  const found: { at: number; name: string }[] = [];
+  for (const m of before.matchAll(/\b(\p{L}{3,})\s+(sir|ma'?am|mam|madam|miss|teacher)\b/giu)) {
+    found.push({ at: m.index ?? 0, name: m[0] });
+  }
+  for (const m of before.matchAll(/\b(?:mr|mrs|ms|dr|prof|professor)\.?\s+\p{L}{3,}/giu)) {
+    found.push({ at: m.index ?? 0, name: m[0] });
+  }
+  for (const m of before.matchAll(/(?<=[\p{L}\p{N},]\s+)\p{Lu}\p{Ll}{2,}\b/gu)) {
+    const word = m[0].toLowerCase();
+    if (WEEKDAYS[word] === undefined && MONTHS[word] === undefined) found.push({ at: m.index ?? 0, name: m[0] });
+  }
+  return found.sort((a, b) => b.at - a.at)[0]?.name ?? null;
+}
+
 /* ---- The parse ---------------------------------------------------------- */
 
-export function parseQuick(input: string, context: Context, answers: Answers = {}): {
+type Reading = {
   task: QuickTask;
   questions: Question[];
   /** Things worth saying about the reading: a slip corrected, a repeat it cannot do. */
   notes: string[];
-} {
+  /** Each slip it read as something else, so the line can offer to keep the word as typed. */
+  corrections: Correction[];
+  /** Names in the title that nothing here knows, for Tune to ask about another day. */
+  unknown: string[];
+};
+
+/**
+ * The whole line: the task in its first sentence, the rest kept as a note on
+ * it, and - when the rest says "remind him 2 days prior" - the second task
+ * that is, on the day that is.
+ */
+export function parseQuick(input: string, context: Context, answers: Answers = {}): Reading {
+  const { head, aside } = splitLine(input);
+  if (aside === null) return readLine(input, context, answers);
+
+  // Only the rest said when - "Exam on DSA. It's on monday at 10" - so that is
+  // when: handed to the first sentence the way a pressed answer would be.
+  const rest = readLine(aside, context, {});
+  const alone = readLine(head, context, answers);
+  const borrowed: Answers =
+    alone.task.day === null && alone.task.time === null && alone.task.repeat === null && rest.task.day !== null
+      ? { day: rest.task.day, ...(rest.task.time !== null ? { time: rest.task.time } : {}) }
+      : {};
+  const main = Object.keys(borrowed).length > 0 ? readLine(head, context, { ...borrowed, ...answers }) : alone;
+  main.task.notes = aside.slice(0, 2000);
+  if (main.task.priority === null) main.task.priority = rest.task.priority;
+
+  // "...so i need to remind him 2 days prior": its own task, on its own day.
+  const offset = OFFSET.exec(aside);
+  if (offset && main.task.day !== null && main.task.repeat === null) {
+    const starts = Math.max(
+      0,
+      ...[...aside.slice(0, offset.index).matchAll(/[,;.]\s+|\b(?:so|and|also|then|hence|therefore|but)\s+/gi)].map(
+        (m) => (m.index ?? 0) + m[0].length,
+      ),
+    );
+    const clause = aside.slice(starts).replace(OFFSET, " ").replace(/[.!?]+\s*$/, "");
+    const said = readLine(clause, context, { day: main.task.day });
+    const who = lastNamed(`${head} ${aside.slice(0, starts)}`);
+    const title = who ? said.task.title.replace(/\b(?:him|her|them)\b/i, who) : said.task.title;
+    const early = shiftDay(main.task.day, -offsetDays(offset));
+    main.task.followUp = {
+      title: (title || `Reminder: ${main.task.title}`).slice(0, 200),
+      day: early < context.today ? context.today : early,
+      kind: said.task.kind,
+      notes: `Before “${main.task.title}”. ${aside}`.slice(0, 2000),
+    };
+  }
+  return main;
+}
+
+/** One sentence into a task: everything the line understands, read from a single run of words. */
+function readLine(input: string, context: Context, answers: Answers): Reading {
   // Matching is done on a lowercased copy of the same length, so every span
   // found in it maps straight back onto the text as typed. Dashes and curly
   // quotes are straightened first, one character for one.
-  const text = input.replace(/[‒-―]/g, "-").replace(/[‘’]/g, "'").replace(/[“”]/g, '"');
+  //
+  // Before any of that, the line is put the way it would have been said: short
+  // forms written out ("nxt wk", "b4", "w/"), then slips mended ("meetining",
+  // "evry", "tommorow mornign"). Both change the length of the text, which is
+  // why they come first - every span below is a span of the mended line.
+  const straight = expand(input.replace(/[‒-―]/g, "-").replace(/[‘’]/g, "'").replace(/[“”]/g, '"'));
+  const shouting = /\p{L}/u.test(straight) && straight === straight.toUpperCase();
+  const leave = new Set(
+    [
+      ...(answers.keep ?? []),
+      ...(context.learned?.keep ?? []),
+      // A word they taught it is a word, however close to another it sits.
+      ...(context.words ?? []).flatMap(({ word }) => word.split(/\s+/)),
+    ].map((word) => word.toLowerCase()),
+  );
+  const { text, corrections } = mend(straight, shouting, context.learned, leave);
   const lower = text.toLowerCase();
-  const shouting = text === text.toUpperCase();
   const taken: Span[] = [];
-  const notes: string[] = [];
+  const notes: string[] = corrections.map(
+    ({ typed, as }) => `Read “${typed}” as ${CAPITAL_AS.has(as) ? capital(as) : as}.`,
+  );
   const { today } = context;
 
   /* -- What the line says around the task, rather than the task itself -- */
   claim(
     lower,
     taken,
-    /^\s*(?:(?:hey|ok|okay|so|please|pls|plz|kindly|can\s+you|could\s+you|would\s+you|will\s+you)[\s,]+)*(?:(?:add|create|make|new|set)\s+(?:a\s+|an\s+)?(?:new\s+)?(?:task|todo|to-do|reminder)\b[\s:,-]*(?:to\s+|for\s+)?|(?:task|todo|to-do|to\s+do|reminder)\b[\s:,-]*|note\s*[:-]\s*)?(?:(?:remind\s+me\s+to|remind\s+me|don'?t\s+forget\s+(?:to\s+)?|do\s+not\s+forget\s+(?:to\s+)?|remember\s+to|i\s+need\s+to|need\s+to|i\s+have\s+to|have\s+to|i'?ve\s+got\s+to|i\s+got\s+to|got\s+to|i\s+gotta|gotta|i\s+must|i\s+should|i\s+want\s+to|want\s+to|i\s+wanna|wanna|i'll|i\s+will|let\s+me|lemme)\b[\s:,-]*)?/,
+    /^\s*(?:\d{1,2}[.)]\s+(?=[a-z]))?(?:(?:hey|hi|ok|okay|so|also|oh|yo|please|pls|plz|kindly|can\s+you|could\s+you|would\s+you|will\s+you)[\s,]+)*(?:(?:add|create|make|new|set)\s+(?:a\s+|an\s+)?(?:new\s+)?(?:task|todo|to-do|reminder)\b[\s:,-]*(?:to\s+|for\s+)?|(?:task|todo|to-do|to\s+do|reminder)\b[\s:,-]*|note\s*[:-]\s*)?(?:(?:(?:remind|remnd|remid|remin|remimd)\s+me\s+to|(?:remind|remnd|remid|remin|remimd)\s+me|don'?t\s+(?:let\s+me\s+)?forget\s+(?:to\s+)?|do\s+not\s+forget\s+(?:to\s+)?|i\s+don'?t\s+want\s+to\s+forget\s+(?:to\s+)?|(?:remember|rember|remeber|remmber|rmbr|rmb)\s+to|i'?m\s+going\s+to|i\s+am\s+going\s+to|going\s+to|i\s+need\s+to|need\s+to|i\s+have\s+to|have\s+to|i'?ve\s+got\s+to|i\s+got\s+to|got\s+to|i\s+gotta|gotta|i\s+must|i\s+should|i\s+want\s+to|want\s+to|i\s+wanna|wanna|i'll|i\s+will|let\s+me|lemme|(?:i|we)\s+have\s+an?|(?:i|we)'?ve\s+got\s+an?|there'?s\s+an?|there\s+is\s+an?)\b[\s:,-]*)?/,
   );
+  // "An exam on the subject DSA" is an exam on DSA: the words say nothing the
+  // name of the subject does not.
+  claim(lower, taken, /\bthe\s+(?:subject|topic|course|paper)(?:\s+of)?(?=\s+\S)/);
   claim(lower, taken, /[\s,]*\b(?:please|pls|plz|thanks|thank\s+you|thx)\b[\s.!]*$/);
 
   /* -- Area, from a tag -- */
   let area: string | null = null;
   for (const match of claim(lower, taken, /#([a-z][\w-]*)/)) {
     const tag = match[1] ?? "";
-    area = AREA_TAGS[tag] ?? tag;
+    area = tagArea(tag) ?? tag;
   }
 
   /* -- Priority. The negations first, so "not urgent" is never urgent. -- */
@@ -543,7 +830,7 @@ export function parseQuick(input: string, context: Context, answers: Answers = {
   if (claim(
     lower,
     taken,
-    /\b(?:not\s+(?:urgent|important|a\s+priority|priority)|no\s+(?:rush|hurry)|low[\s-]*prio(?:rity)?|if\s+(?:there\s+is\s+|there's\s+|i\s+have\s+|i\s+get\s+)?(?:the\s+)?time|if\s+possible|whenever|some\s?day|sometime|eventually|maybe|optional|nice\s+to\s+have|p[34])\b/,
+    /\b(?:(?:not|isn'?t|ain'?t)\s+(?:(?:that|so|very|too|really)\s+)?(?:urgent|important|a\s+priority|priority)|no\s+(?:rush|hurry|pressure)|(?:low|lo)[\s-]*pri(?:o(?:rity)?)?|if\s+(?:there\s+is\s+|there's\s+|i\s+have\s+|i\s+get\s+)?(?:the\s+)?time|if\s+possible|whenever|some\s?day|sometime|eventually|maybe|optional|nice\s+to\s+have|p[34])\b/,
   ).length) {
     priority = "spare";
   }
@@ -551,7 +838,7 @@ export function parseQuick(input: string, context: Context, answers: Answers = {
   if (asap || claim(
     lower,
     taken,
-    /\b(?:urgent(?:ly)?|important|high[\s-]*prio(?:rity)?|top\s+prio(?:rity)?|priority|critical|must[\s-]do|p[01])\b|(?:^|\s)!{1,3}(?=\s|$)|!{2,}/,
+    /\b(?:(?:(?:very|v|vv|so|super|really|most|extremely)\s+)?(?:urgent(?:ly)?|important)|(?:high|hi|top)[\s-]*pri(?:o(?:rity)?)?|priority|critical|pronto|must[\s-]do|p[01])\b|(?:^|\s)!{1,3}(?=\s|$)|!{2,}/,
   ).length) {
     priority = "must";
   }
@@ -560,15 +847,17 @@ export function parseQuick(input: string, context: Context, answers: Answers = {
   /* -- The part of the day, which settles "at 9" -- */
   // Said outright first; failing that, a meal says it for you - "dinner at 8"
   // is not a question anybody needs asking.
+  // "Eve" only straight after a day - "tmrw eve" - and never in "Christmas eve".
   const hintWord =
-    /\b(morning|afternoon|evening|night|tonight|tonite|2nite|2night)s?\b/.exec(lower)?.[1] ??
+    /\b(morning|afternoon|evening|night|tonight|tonite|tonyt|tnite|2nite|2night)s?\b/.exec(lower)?.[1] ??
+    new RegExp(`\\b(?:${DAY_WORD})\\s+(eve)\\b`).exec(lower)?.[1] ??
     /\b(breakfast|lunch|dinner|supper)\b/.exec(lower)?.[1];
   const hint: Hint | null =
     hintWord === "morning" || hintWord === "breakfast"
       ? "morning"
       : hintWord === "afternoon" || hintWord === "lunch"
         ? "afternoon"
-        : hintWord === "evening" || hintWord === "dinner" || hintWord === "supper"
+        : hintWord === "evening" || hintWord === "eve" || hintWord === "dinner" || hintWord === "supper"
           ? "evening"
           : hintWord
             ? "night"
@@ -595,6 +884,9 @@ export function parseQuick(input: string, context: Context, answers: Answers = {
   for (const _ of claim(lower, taken, /\b(?:every\s*day|everyday|daily|each\s+day|every\s+single\s+day|every\s+(?:morning|afternoon|evening|night))\b/)) repeatOf([1, 2, 3, 4, 5, 6, 7]);
   for (const _ of claim(lower, taken, /\b(?:every\s+week\s?day|(?:on\s+|every\s+)?week\s?days|every\s+working\s+day)\b/)) repeatOf([1, 2, 3, 4, 5]);
   for (const _ of claim(lower, taken, /\b(?:(?:on\s+|every\s+)?weekends|every\s+weekend)\b/)) repeatOf([6, 7]);
+  // A timetable's shorthand, which is no other word.
+  for (const _ of claim(lower, taken, /\bmwf\b/)) repeatOf([1, 3, 5]);
+  for (const _ of claim(lower, taken, /\b(?:tth|tuth)\b/)) repeatOf([2, 4]);
   for (const match of claim(lower, taken, new RegExp(`\\b(?:every\\s+)?(${WD})\\s*(?:-|to|thru|through|till|until)\\s*(${WD})\\b`))) {
     const [from, to] = [WEEKDAYS[match[1] ?? ""] ?? 1, WEEKDAYS[match[2] ?? ""] ?? 5];
     // "mon-fri" is a repeat only where a repeat was plainly meant; a range of
@@ -761,6 +1053,16 @@ export function parseQuick(input: string, context: Context, answers: Answers = {
     range(Number(match[1]), Number(match[2] ?? 0), undefined, Number(match[3]), Number(match[4] ?? 0), undefined);
   }
 
+  // The same, with the day after it - "lecture 4 to 6 tmrw" - and never when it
+  // is counting something: "problems 4 to 6 tmrw".
+  for (const match of claim(
+    lower,
+    taken,
+    new RegExp(String.raw`(?<!\b(?:pages?|problems?|questions?|slides?|chapters?|exercises?|units?|lessons?|parts?|q|ch|ex|nos?)\.?\s*)\b(\d{1,2})(?:[:.](\d{2}))?\s*(?:-|to|until|till)\s*(\d{1,2})(?:[:.](\d{2}))?(?=\s+(?:${DAY_WORD})\b)`),
+  )) {
+    range(Number(match[1]), Number(match[2] ?? 0), undefined, Number(match[3]), Number(match[4] ?? 0), undefined);
+  }
+
   /* -- Length: "for 2h", "1h30", "an hour and a half", "90 mins" -- */
   for (const match of claimIf(lower, taken, new RegExp(`\\b(?:for\\s+)?(?:${LENGTH})\\b`), (m) => readLength(m[0]) !== null)) {
     const length = readLength(match[0]) ?? 0;
@@ -778,7 +1080,7 @@ export function parseQuick(input: string, context: Context, answers: Answers = {
   const PREFIX = String.raw`(?:\b(?:at|around)\s+|@\s*)`;
 
   if (open()) {
-    for (const match of claim(lower, taken, /\b(?:12\s*)?(noon|midday)\b|\b(midnight)\b/)) {
+    for (const match of claim(lower, taken, /\b(?:12\s*)?(noon|midday)\b|\b(midnight|midnite)\b/)) {
       time = match[2] ? 0 : 12 * 60;
       break;
     }
@@ -799,8 +1101,31 @@ export function parseQuick(input: string, context: Context, answers: Answers = {
       (m) => resolveClock(hourOf(m[1]), 0, meridiemOf(m[2]), hint),
     ],
     [
-      new RegExp(String.raw`(?:${PREFIX}|\bby\s+)?\b(\d{1,2})[:.](\d{2})(?:\s*${MER})?`),
+      // "at four thirty", "around six" - a number word is only a time with an
+      // "at" in front and the end of the phrase behind: "at one point" is not one.
+      new RegExp(String.raw`${PREFIX}(${HOUR_WORD})(?:[\s-]+(${PAST}))?(?:\s*${MER})?(?=\s*(?:$|[,;.!?)]|(?:${AFTER_A_TIME}|${DAY_WORD})\b))`),
+      (m) => resolveClock(hourOf(m[1]), PAST_THE_HOUR[(m[2] ?? "").replace(/[\s-]+/g, " ")] ?? 0, meridiemOf(m[3]), hint),
+    ],
+    [
+      new RegExp(String.raw`\b(${HOUR_WORD})\s*${MER}`),
+      (m) => resolveClock(hourOf(m[1]), 0, meridiemOf(m[2]), hint),
+    ],
+    [
+      // The semicolon is the colon with the shift key missed: "4;30pm". And
+      // "a 4.30 pace" is how fast a run was, not when it was.
+      new RegExp(String.raw`(?:${PREFIX}|\bby\s+)?\b(\d{1,2})[:.;](\d{2})(?:\s*${MER})?(?!\s*(?:pace|\/\s?km|\/\s?mi|per\s+(?:km|mile|k)|min\s*\/|min\s+per|splits?\b))`),
       (m) => resolveClock(Number(m[1]), Number(m[2]), meridiemOf(m[3]), hint),
+    ],
+    [
+      // Run together: "430pm", "1130am" - and "at 430", which needs its "at".
+      // Only on the quarter hours without an am or pm: "sell at 250" is a price.
+      new RegExp(String.raw`(?:${PREFIX})?\b(\d{1,2})([0-5]\d)\s*${MER}|(?:\bat\s*|@\s*)(\d)(15|30|45)\b(?![:.]\d|\s*(?:%|percent|pages?|people|marks|points|kg|km|rs|k\b|lakhs?|crores?))`),
+      (m) => resolveClock(Number(m[1] ?? m[4]), Number(m[2] ?? m[5]), meridiemOf(m[3]), hint),
+    ],
+    [
+      // "5ish", "around 5.30ish": nothing but a time ends that way.
+      new RegExp(String.raw`(?:${PREFIX})?\b(\d{1,2})(?:[:.](\d{2}))?\s*-?ish\b`),
+      (m) => resolveClock(Number(m[1]), Number(m[2] ?? 0), undefined, hint),
     ],
     [
       new RegExp(String.raw`(?:${PREFIX}|\bby\s+)?\b(\d{1,2})\s*${MER}`),
@@ -821,8 +1146,10 @@ export function parseQuick(input: string, context: Context, answers: Answers = {
       (m) => resolveClock(Number(m[1]), Number(m[2] ?? 0), undefined, hint),
     ],
     [
-      // A bare number straight after a day, ending the line: "tomorrow 7".
-      new RegExp(String.raw`(?<=\b(?:${DAY_WORD})\s+)(\d{1,2})(?![\d:.]|\s*(?:st|nd|rd|th)\b)(?=\s*(?:$|[,;.!?)]|for\b))`),
+      // A bare number straight after a day, ending the phrase: "tomorrow 7",
+      // "today 4 with rahul". Never "today 4 pages": what follows has to be the
+      // end, or a word that starts the rest of the sentence.
+      new RegExp(String.raw`(?<=\b(?:${DAY_WORD})\s+)(\d{1,2})(?![\d:.]|\s*(?:st|nd|rd|th)\b)(?=\s*(?:$|[,;.!?)]|(?:${AFTER_A_TIME})\b))`),
       (m) => (Number(m[1]) >= 1 && Number(m[1]) <= 12 ? resolveClock(Number(m[1]), 0, undefined, hint) : null),
     ],
   ];
@@ -830,11 +1157,17 @@ export function parseQuick(input: string, context: Context, answers: Answers = {
     if (!open()) break;
     claimIf(lower, taken, pattern, (m) => settle(read(m)), 1);
   }
+  // "At 5 sharp": said about the time, so it goes with the time.
+  if (!open()) {
+    claimIf(lower, taken, /\b(?:sharp|exactly|on\s+the\s+dot)\b/, (m) =>
+      taken.some((span) => span.end <= m.index && lower.slice(span.end, m.index).trim() === ""),
+    );
+  }
 
   /* -- The part of the day, taken out where it is being used as a time -- */
   claim(lower, taken, /\bin\s+the\s+(?:morning|afternoon|evening)\b|\bat\s+night\b/);
   for (const _ of claim(lower, taken, /\bthis\s+(?:morning|afternoon|evening)\b/)) setDay(today);
-  claim(lower, taken, new RegExp(`(?<=\\b(?:${DAY_WORD}|every|each|${WDS})\\s+)(?:morning|afternoon|evening|night)s?\\b`));
+  claim(lower, taken, new RegExp(`(?<=\\b(?:${DAY_WORD}|every|each|${WDS})\\s+)(?:(?:morning|afternoon|evening|night)s?|eve)\\b`));
   // At the end, or before a time - "run tomorrow morning", "morning at 6" -
   // but not "morning run", where it is part of the name of the thing.
   claim(lower, taken, /\b(?:morning|afternoon|evening|night)\b(?=\s*(?:$|[,;.!?)]|\d|at\b|@))/);
@@ -850,6 +1183,10 @@ export function parseQuick(input: string, context: Context, answers: Answers = {
     setDay(weekdayDay(today, WEEKDAYS[match[1] ?? match[2] ?? ""] ?? 1, true));
   }
   for (const _ of claim(lower, taken, new RegExp(`\\b(?:the\\s+)?day\\s+after\\s+(?:${TOMORROW})\\b`))) setDay(shiftDay(today, 2));
+  // "Day after" on its own is the same day, the way it is said here - but
+  // "the day after the exam" is about the exam.
+  for (const _ of claim(lower, taken, new RegExp(`\\b(?:the\\s+)?day\\s+after\\b(?=\\s*(?:$|[,;.!?)]|@|\\d|(?:${AFTER_A_TIME}|by|morning|afternoon|evening|night)\\b))`))) setDay(shiftDay(today, 2));
+  for (const _ of claim(lower, taken, /\bright\s+now\b|\bnow\b(?=\s*(?:$|[,;.!?)]))/)) setDay(today);
   for (const _ of claim(lower, taken, new RegExp(`\\b(?:${TOMORROW})(?:'s)?\\b`))) setDay(shiftDay(today, 1));
   for (const _ of claim(lower, taken, new RegExp(`\\b(?:${TONIGHT})(?:'s)?\\b`))) setDay(today);
   for (const _ of claim(lower, taken, new RegExp(`\\blater(?:\\s+(?:${TODAY}|${TONIGHT}|on))?\\b`))) setDay(today);
@@ -883,7 +1220,8 @@ export function parseQuick(input: string, context: Context, answers: Answers = {
   // Day first, the way dates are written here. Slashes only without a year:
   // "4.30" is a time and "4-5" is a range, and reading either as a date would
   // be the parser arguing with the person.
-  for (const match of claim(lower, taken, /\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/)) {
+  // "24/7" is round the clock, not the 24th of July.
+  for (const match of claimIf(lower, taken, /\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/, (m) => m[0] !== "24/7")) {
     setDay(dayMonth(today, Number(match[1]), Number(match[2]), yearOf(match[3])));
   }
   // "On the 15th", "by the 15th", or a 15th that ends the line. Not "1st year
@@ -891,7 +1229,7 @@ export function parseQuick(input: string, context: Context, answers: Answers = {
   for (const match of claim(
     lower,
     taken,
-    /\b(?:on|by|due|before|until|till)\s+(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)\b|\b(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)\b(?=\s*(?:$|[,;.!?)]|at\b|@|from\b|for\b|\d))/,
+    /\b(?:on|by|due|before|until|till)\s+(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)\b(?:\s+of\s+(?:this|the)\s+month)?|\b(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)\b(?:\s+of\s+(?:this|the)\s+month\b|(?=\s*(?:$|[,;.!?)]|at\b|@|from\b|for\b|\d)))/,
   )) {
     setDay(ordinalDay(today, Number(match[1] ?? match[2])));
   }
@@ -900,19 +1238,30 @@ export function parseQuick(input: string, context: Context, answers: Answers = {
   // day, and only for words typed in lowercase - a capitalised word mid-line is
   // more likely somebody's name than a misspelt day.
   if (day === null) {
-    claimIf(lower, taken, /\b(?:(this|next|on|coming|by)\s+)?([a-z]{5,})\b/, (m) => {
+    const [slip] = claimIf(lower, taken, /\b(?:(this|next|on|coming|by)\s+)?([a-z]{5,})\b/, (m) => {
       const word = m[2] ?? "";
       const at = m.index + m[0].length - word.length;
       const typed = text.slice(at, at + word.length);
-      if (NOT_A_DAY.has(word) || (!shouting && typed !== typed.toLowerCase())) return false;
-      const guess = nearest(word, [...FULL_WEEKDAYS, "tomorrow", "tonight"], false);
+      if (NOT_A_DAY.has(word) || leave.has(word) || (!shouting && typed !== typed.toLowerCase())) return false;
+      const guess = nearest(word, [...FULL_WEEKDAYS, "tomorrow", "tonight", "today"], false);
       if (!guess) return false;
       if (guess === "tomorrow") setDay(shiftDay(today, 1));
-      else if (guess === "tonight") setDay(today);
+      else if (guess === "tonight" || guess === "today") setDay(today);
       else setDay(weekdayDay(today, WEEKDAYS[guess] ?? 1, m[1] === "next"));
-      if (guess !== word) notes.push(`Read “${word}” as ${capital(guess)}.`);
+      if (guess !== word) {
+        notes.push(`Read “${word}” as ${capital(guess)}.`);
+        corrections.push({ typed: word, as: guess });
+      }
       return true;
     }, 1);
+    // "Firday 5 with rahul": the hour that follows a day follows a mended one too.
+    const end = slip ? slip.index + slip[0].length : 0;
+    const hour = slip && open()
+      ? new RegExp(String.raw`^\s+(\d{1,2})(?![\d:.]|\s*(?:st|nd|rd|th)\b)(?=\s*(?:$|[,;.!?)]|(?:${AFTER_A_TIME})\b))`).exec(lower.slice(end))
+      : null;
+    if (hour && Number(hour[1]) >= 1 && Number(hour[1]) <= 12 && !overlapsTaken(taken, end, end + hour[0].length)) {
+      if (settle(resolveClock(Number(hour[1]), 0, undefined, hint))) taken.push({ start: end, end: end + hour[0].length });
+    }
   }
 
   if (before && day !== null) day = shiftDay(day, -1) < today ? today : shiftDay(day, -1);
@@ -1052,9 +1401,15 @@ export function parseQuick(input: string, context: Context, answers: Answers = {
       area,
       priority,
       repeat,
+      notes: null,
+      followUp: null,
     },
     questions,
     notes,
+    corrections,
+    // Only while nothing said which part of life it is: a name beside
+    // "invoice" has already been placed, and needs no question asked about it.
+    unknown: area === null ? namesIn(title) : [],
   };
 }
 
@@ -1123,15 +1478,22 @@ function titleFrom(text: string, taken: Span[]): string {
     .split(/\s+/)
     // Punctuation hugging a word's edges goes; an apostrophe inside one -
     // "mom's" - stays. A word that was only punctuation goes altogether.
-    .map((word) => word.replace(/^[,.;:!?\-–()[\]{}"']+|[,.;:!?\-–()[\]{}"']+$/g, ""))
-    .filter((word) => /[\p{L}\p{N}]/u.test(word));
+    .map((word) => ({
+      word: word.replace(/^[,.;:!?\-–()[\]{}"']+|[,.;:!?\-–()[\]{}"']+$/g, ""),
+      // The comma of a list is part of what was said: "milk, eggs, bread".
+      listed: /[\p{L}\p{N}],$/u.test(word),
+    }))
+    .filter(({ word }) => /[\p{L}\p{N}]/u.test(word));
 
   // Filler is only removed from the ends. "Hand in the form" keeps its "in"
   // and its "the"; "the form due" loses the "due" it was left holding.
-  while (words.length && FILLER.has((words[0] ?? "").toLowerCase())) words = words.slice(1);
-  while (words.length && FILLER.has((words[words.length - 1] ?? "").toLowerCase())) words = words.slice(0, -1);
+  while (words.length && FILLER.has((words[0]?.word ?? "").toLowerCase())) words = words.slice(1);
+  while (words.length && FILLER.has((words[words.length - 1]?.word ?? "").toLowerCase())) words = words.slice(0, -1);
 
-  const title = words.join(" ").trim();
+  const title = words
+    .map(({ word, listed }, index) => (listed && index < words.length - 1 ? `${word},` : word))
+    .join(" ")
+    .trim();
   return title.length === 0 ? "" : title.charAt(0).toUpperCase() + title.slice(1);
 }
 

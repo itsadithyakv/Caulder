@@ -75,6 +75,9 @@ import {
 } from "../services/credentials";
 import { quickAdd } from "../services/quickadd";
 import { addAreaWord, listAreaWords, removeAreaWord } from "../repositories/words";
+import { answerGuess, forgetGuess, keepAsTyped, learnedFrom, recordSeen, tuneState } from "../repositories/tune";
+import { backupToDrive, driveBackups, saveLeadToGoogle } from "../services/gmore";
+import { answerInput, keepInput, seenInput } from "@shared/tune";
 import {
   followUpDays,
   logEmailSent,
@@ -1028,6 +1031,12 @@ function registerTemplateHandlers() {
     deleteTemplate(getDatabase(), assertId(id, "template id")),
   );
 
+  handle(CHANNELS.googleSaveContact, (_event, leadId: unknown) =>
+    saveLeadToGoogle(getDatabase(), assertId(leadId, "contact id")),
+  );
+  handle(CHANNELS.googleBackup, () => backupToDrive());
+  handle(CHANNELS.googleBackups, () => driveBackups());
+
   handle(CHANNELS.googleCopyScript, async () => {
     clipboard.writeText(await readFile(scriptPath(), "utf8"));
   });
@@ -1262,6 +1271,30 @@ function registerTaskHandlers() {
   handle(CHANNELS.wordsRemove, (_event, id: unknown) =>
     removeAreaWord(getDatabase(), assertId(id, "word id")),
   );
+
+  handle(CHANNELS.tuneGet, () => tuneState(getDatabase()));
+  handle(CHANNELS.tuneLearned, () => learnedFrom(getDatabase()));
+
+  // Counting what a line had in it must never be why adding one fails, so
+  // anything that does not parse is simply not counted.
+  handle(CHANNELS.tuneSeen, (_event, raw: unknown) => {
+    const parsed = seenInput.safeParse(raw);
+    if (parsed.success) recordSeen(getDatabase(), parsed.data);
+  });
+
+  handle(CHANNELS.tuneKeep, (_event, raw: unknown) => {
+    const parsed = keepInput.safeParse(raw);
+    if (!parsed.success) throw new Error("That word cannot be kept as it is.");
+    return keepAsTyped(getDatabase(), parsed.data);
+  });
+
+  handle(CHANNELS.tuneAnswer, (_event, raw: unknown) => {
+    const parsed = answerInput.safeParse(raw);
+    if (!parsed.success) throw new Error("That is not an answer to the question.");
+    return answerGuess(getDatabase(), parsed.data);
+  });
+
+  handle(CHANNELS.tuneForget, (_event, id: unknown) => forgetGuess(getDatabase(), assertId(id, "guess id")));
 
   handle(
     CHANNELS.tasksUpdate,

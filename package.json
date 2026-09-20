@@ -27,6 +27,12 @@
     "test:e2e": "npm run build && playwright test"
   },
   "dependencies": {
+    "@codemirror/autocomplete": "^6.20.3",
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/lang-markdown": "^6.5.2",
+    "@codemirror/language": "^6.12.4",
+    "@codemirror/state": "^6.7.5",
+    "@codemirror/view": "^6.43.12",
     "better-sqlite3": "^13.0.3",
     "electron-updater": "^6.8.9",
     "exceljs": "^4.4.0",

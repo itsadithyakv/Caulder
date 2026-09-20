@@ -49,13 +49,16 @@ export function SetupScreen({
       <section className="setup__step">
         <h2 className="setup__title">
           <span className="setup__num">1</span>
-          Google: your calendar, your tasks, your email
+          Google: your calendar, tasks, email, contacts and backups
           <span className="badge badge--neutral">Optional</span>
         </h2>
         <p className="setup__lead">
           Caulder never signs in to Google. Instead you paste a script into your own Google account and Caulder
           talks to that - which is what lets it touch your calendar and send from your Gmail without asking you to
-          trust it with your account. The steps below are in the order Google&rsquo;s own menus say them.
+          trust it with your account. There is no Caulder account to make and nothing for anybody to approve: the
+          script is yours, in your Google account, and you can cut it off from there at any time. The same
+          connection saves a contact to your phone and keeps a backup in your Drive. The steps below are in the
+          order Google&rsquo;s own menus say them.
         </p>
         <GoogleCard startOpen />
       </section>

@@ -29,6 +29,14 @@ import type {
   ProductInput,
 } from "./products";
 import type { LinkKind, LinkTarget } from "./links";
+import type { Learned } from "./quickadd";
+import type { PrivateDay, PrivateInput } from "./private";
+import type { Measure } from "./subjects";
+import type { ShelfStatus } from "./books";
+import type { Shelf, ShelfInput, YearInNumbers } from "./tracker";
+import type { HobbyBoard } from "./hobbies";
+import type { Checkin, Pulse } from "./pulse";
+import type { AnswerInput, SeenInput, TuneState } from "./tune";
 import type { PageTasks } from "./steps";
 import type { ImportOutcome, InvitationPreview, ShareState } from "./share";
 import type { HandbookInput, HandbookOutcome, RoomChoices, RoomInput, RoomOutcome } from "./dataroom";
@@ -47,6 +55,7 @@ import type {
   PersonInput,
 } from "./people";
 import type { LinkOutcome, MapGraph, MapPosition } from "./map";
+import type { CheckInInput, DayTheme, DayThemeInput, GoalDetail } from "./goals";
 import type {
   AccentId,
   Activity,
@@ -91,7 +100,7 @@ import type {
   EmailTemplate,
   TemplateInput,
 } from "./email";
-import type { BackupFile, ExportEverything, UpdateState } from "./data";
+import type { BackupFile, DriveBackup, DriveBackups, ExportEverything, UpdateState } from "./data";
 import type {
   ChosenFile,
   ColumnMapping,
@@ -299,6 +308,22 @@ export const CHANNELS = {
   lifeStopTime: "life:stop-time",
   lifeLinkedPage: "life:linked-page",
   lifeJot: "life:jot",
+  lifeJotPrivate: "life:jot-private",
+  lifePrivateDay: "life:private-day",
+  lifeRemovePrivate: "life:remove-private",
+  lifeLogMeasures: "life:log-measures",
+  lifeYear: "life:year",
+  lifeShelf: "life:shelf",
+  lifeShelfAdd: "life:shelf-add",
+  lifeShelfMove: "life:shelf-move",
+  lifeShelfRemove: "life:shelf-remove",
+  lifeBoards: "life:boards",
+  lifePulse: "life:pulse",
+  lifeQuietDay: "life:quiet-day",
+  lifeSetPulse: "life:set-pulse",
+  lifeCovers: "life:covers",
+  lifeSetCovers: "life:set-covers",
+  lifeFillCovers: "life:fill-covers",
   lifeLogTime: "life:log-time",
   lifeLockState: "life:lock-state",
   lifeLockSet: "life:lock-set",
@@ -307,6 +332,12 @@ export const CHANNELS = {
   lifeLockChange: "life:lock-change",
   lifeLockRemove: "life:lock-remove",
   lifeLockForget: "life:lock-forget",
+  lifeGoalDetails: "life:goal-details",
+  lifeCheckIn: "life:check-in",
+  lifeUndoCheckIn: "life:undo-check-in",
+  lifeGoalDone: "life:goal-done",
+  lifeThemes: "life:themes",
+  lifeSetTheme: "life:set-theme",
   habitsList: "habits:list",
   habitsAdd: "habits:add",
   habitsUpdate: "habits:update",
@@ -387,6 +418,12 @@ export const CHANNELS = {
   wordsList: "words:list",
   wordsAdd: "words:add",
   wordsRemove: "words:remove",
+  tuneGet: "tune:get",
+  tuneLearned: "tune:learned",
+  tuneSeen: "tune:seen",
+  tuneKeep: "tune:keep",
+  tuneAnswer: "tune:answer",
+  tuneForget: "tune:forget",
 
   boardGet: "board:get",
   stagesCreate: "stages:create",
@@ -403,6 +440,9 @@ export const CHANNELS = {
 
 
   googleScript: "google:script",
+  googleSaveContact: "google:save-contact",
+  googleBackup: "google:backup",
+  googleBackups: "google:backups",
   googleCopyScript: "google:copy-script",
   mailState: "mail:state",
   mailForLead: "mail:for-lead",
@@ -932,8 +972,40 @@ export type LifeApi = {
   linkedPage: (fromPageId: string, template: string) => Promise<BrainPage>;
   /** A line into today's journal, under its Today heading; the entry is made if there is none. */
   jot: (companyId: string, text: string) => Promise<BrainPage>;
+  /**
+   * A line that is nobody else's business (shared/private.ts): kept apart from
+   * everything else, and sealed at once when the journal has a passcode -
+   * which takes no passcode to do. `sealed` is false when there is none yet.
+   */
+  jotPrivate: (companyId: string, input: PrivateInput) => Promise<{ sealed: boolean }>;
+  /** A day's private lines: all of them with the journal open, only how many while it is locked. */
+  privateDay: (companyId: string, day: string) => Promise<PrivateDay>;
+  removePrivate: (id: string) => Promise<void>;
+  /** The numbers in a line that was just kept - twenty push ups, five kilometres - for adding up later. */
+  logMeasures: (companyId: string, measures: Measure[]) => Promise<number>;
+  /** A year in numbers, read from what is already there. */
+  year: (companyId: string, year: number) => Promise<YearInNumbers>;
+  shelf: (companyId: string) => Promise<Shelf>;
+  /** Books onto a pile; one already on the shelf is moved rather than added again. */
+  shelfAdd: (companyId: string, input: ShelfInput) => Promise<Shelf>;
+  shelfMove: (id: string, status: ShelfStatus) => Promise<Shelf>;
+  shelfRemove: (id: string) => Promise<Shelf>;
+  /** How somebody has been, from their own history (shared/pulse.ts). Null while it is switched off. */
+  pulse: (companyId: string) => Promise<{ on: boolean; pulse: Pulse | null }>;
+  /** What a quiet day was, said the day after. */
+  quietDay: (companyId: string, day: string, answer: Checkin) => Promise<{ on: boolean; pulse: Pulse | null }>;
+  setPulse: (on: boolean) => Promise<boolean>;
+  /** A page for each hobby, made for what it is: a gym's lifts, a run's pace, a guitar's songs. */
+  boards: (companyId: string) => Promise<HobbyBoard[]>;
+  /** Whether book covers may be looked up at Open Library. Off until switched on. */
+  covers: () => Promise<boolean>;
+  /** On: titles on the shelf are sent to Open Library to find their covers. Off: none are, and the ones kept are dropped. */
+  setCovers: (on: boolean) => Promise<boolean>;
+  /** Finds covers for a few of the books without one. Does nothing while covers are off. */
+  fillCovers: (companyId: string) => Promise<{ shelf: Shelf; error: string | null }>;
   /** Time given to a page just now - a hobby, a course - kept on the Calendar as having happened. */
-  logTime: (pageId: string, minutes: number) => Promise<PageTime>;
+  /** Ended now, unless it says when it began: "went to the gym at 5". */
+  logTime: (pageId: string, minutes: number, startsAt?: string | null) => Promise<PageTime>;
   /** The journal's passcode: writing needs none; reading a day that is over does. */
   lockState: () => Promise<JournalLockState>;
   setPasscode: (companyId: string, passcode: string) => Promise<JournalLockState>;
@@ -944,6 +1016,18 @@ export type LifeApi = {
   removePasscode: (passcode: string) => Promise<JournalLockState>;
   /** The passcode is forgotten: the lock comes off, and what it sealed is gone. */
   forgetPasscode: () => Promise<JournalLockState>;
+  /** Every goal of yours, with its check-ins and how it is doing against its day. */
+  goalDetails: (companyId: string) => Promise<GoalDetail[]>;
+  /** A goal moved: "+1", or where it stands now, and a word about it. */
+  checkIn: (goalId: string, input: CheckInInput) => Promise<GoalDetail>;
+  /** The latest check-in taken back. */
+  undoCheckIn: (checkinId: string) => Promise<GoalDetail>;
+  /** Marked reached, or not; counts towards your level. */
+  goalDone: (goalId: string, done: boolean) => Promise<GoalDetail>;
+  /** Your week: what each weekday is for. */
+  themes: (companyId: string) => Promise<DayTheme[]>;
+  /** A weekday's theme set, or with null taken off. */
+  setTheme: (companyId: string, weekday: number, input: DayThemeInput | null) => Promise<DayTheme[]>;
 };
 
 /** Habits: ticked on Today, their streaks and weeks worked out from the ticks. */
@@ -1028,6 +1112,15 @@ export type GoogleApi = {
    * probably just fixed whatever was wrong.
    */
   setAuto: (companyId: string, on: boolean) => Promise<GoogleState>;
+  /**
+   * One contact into Google Contacts, which a phone's address book syncs
+   * with. Saving it again updates it. Rejects with what to do when the script
+   * is not connected, or has no People service.
+   */
+  saveContact: (leadId: string) => Promise<{ made: boolean }>;
+  /** A fresh backup, copied to the "Caulder backups" folder in the person's own Drive. */
+  backupToDrive: () => Promise<DriveBackup>;
+  driveBackups: () => Promise<DriveBackups>;
   /** Saves the Apps Script file to paste into Google. Null when cancelled. */
   saveScript: () => Promise<string | null>;
   /** Puts the whole Apps Script file on the clipboard, ready to paste. */
@@ -1089,7 +1182,7 @@ export type TasksApi = {
   quick: (
     companyId: string,
     input: QuickInput,
-  ) => Promise<{ task: Task | null; blocked: boolean; repeats: number }>;
+  ) => Promise<{ task: Task | null; blocked: boolean; repeats: number; followUp: Task | null }>;
   update: (id: string, input: TaskInput) => Promise<Task>;
   complete: (id: string) => Promise<Task>;
   reopen: (id: string) => Promise<Task>;
@@ -1107,6 +1200,23 @@ export type WordsApi = {
   list: () => Promise<AreaWord[]>;
   add: (input: { word: string; area: string }) => Promise<AreaWord[]>;
   remove: (id: string) => Promise<AreaWord[]>;
+};
+
+/**
+ * Tune: what the quick-add line guessed at, and the answers given about it
+ * (shared/tune.ts). Global, like Your words.
+ */
+export type TuneApi = {
+  /** The questions worth asking, and the answers that can be taken back. */
+  get: () => Promise<TuneState>;
+  /** What the line reads without comment, and what it never touches. */
+  learned: () => Promise<Learned>;
+  /** What a line that was just added had in it. Counted, nothing more. */
+  seen: (input: SeenInput) => Promise<void>;
+  /** "Keep as typed", pressed under the line. */
+  keep: (input: { typed: string; as: string }) => Promise<Learned>;
+  answer: (input: AnswerInput) => Promise<TuneState>;
+  forget: (id: string) => Promise<TuneState>;
 };
 
 /**
@@ -1205,6 +1315,7 @@ export type CaulderApi = {
   fields: FieldsApi;
   tasks: TasksApi;
   words: WordsApi;
+  tune: TuneApi;
   board: BoardApi;
   email: EmailApi;
   data: DataApi;

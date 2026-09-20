@@ -187,7 +187,7 @@ test("Ctrl+K finds pages and contacts, and opens what it finds", async () => {
 
 test("a caught note can be filed into Ideas, or put back", async () => {
   await goTo(page, "Today");
-  const notes = page.getByPlaceholder("Anything. It does not have to be about a contact.");
+  const notes = page.getByLabel("Write a note");
 
   await notes.fill("Referral bonus for schools");
   await page.getByRole("button", { name: "Keep it" }).click();
@@ -237,7 +237,7 @@ test("[[ links a page to a page and a contact, and both know it", async () => {
   const text = page.getByLabel("Page", { exact: true });
   await text.fill("");
   await text.pressSequentially("We sell the [[Work");
-  const picker = page.getByRole("listbox", { name: "Link to" });
+  const picker = page.getByRole("listbox", { name: "Suggestions" });
   await expect(picker.getByRole("option", { name: /Workshop/ })).toBeVisible();
   await shot("linking");
   await text.press("Enter");

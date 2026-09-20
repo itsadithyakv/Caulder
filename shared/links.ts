@@ -77,6 +77,42 @@ export function linkToken(label: string, ref: LinkRef): string {
   return `[[${safe}|${ref.kind}:${ref.id}]]`;
 }
 
+/**
+ * Links begun and never finished: `[[` and some words, never picked from the
+ * list - Enter pressed before it opened, or after it closed. They are shown
+ * as their words, marked as not linked yet, rather than as brackets; in the
+ * editor a click on one opens the list again to finish it.
+ *
+ * `[[Words]]` is all of Words. `[[Words` with nothing closing it is the words
+ * up to the end of the line or the first stop, as typed as the list's query.
+ */
+export function unfinishedLinks(text: string): { start: number; end: number; words: string }[] {
+  const out: { start: number; end: number; words: string }[] = [];
+  const done = parseLinks(text);
+  let from = 0;
+  for (;;) {
+    const at = text.indexOf("[[", from);
+    if (at === -1) break;
+    const inside = done.find((link) => link.start <= at && at < link.end);
+    if (inside) {
+      from = inside.end;
+      continue;
+    }
+    const rest = text.slice(at + 2);
+    const closed = /^([^[\]\n|]{1,60})\]\]/.exec(rest);
+    const open = /^[^[\]\n|.,;:!?]{1,40}/.exec(rest);
+    const words = (closed?.[1] ?? open?.[0] ?? "").trimEnd();
+    if (!words.trim()) {
+      from = at + 2;
+      continue;
+    }
+    const end = closed ? at + 2 + closed[0].length : at + 2 + words.length;
+    out.push({ start: at, end, words: words.trim() });
+    from = end;
+  }
+  return out;
+}
+
 /** A line with nothing on it but links, the way the Map writes them: `[[A|page:…]] · [[B|contact:…]]`. */
 function linksOnly(line: string): boolean {
   return parseLinks(line).length > 0 && line.replace(tokens(), "").replace(/[\s·]+/g, "") === "";
@@ -141,17 +177,4 @@ export function refreshLabels(text: string, names: Readonly<Record<string, strin
 /** The text with links reduced to their words, for excerpts and exports. */
 export function linkLabelsOnly(text: string, names: Readonly<Record<string, string>> = {}): string {
   return text.replace(tokens(), (_whole, label: string, kind: string, id: string) => names[`${kind}:${id}`] ?? label);
-}
-
-/**
- * Where `[[` is being typed: the text after it up to the caret, when the caret
- * is still inside an unfinished link. Null otherwise.
- */
-export function openLinkQuery(text: string, caret: number): { start: number; query: string } | null {
-  const before = text.slice(0, caret);
-  const start = before.lastIndexOf("[[");
-  if (start === -1) return null;
-  const query = before.slice(start + 2);
-  if (/[\]\n|]/.test(query) || query.length > 60) return null;
-  return { start, query };
 }

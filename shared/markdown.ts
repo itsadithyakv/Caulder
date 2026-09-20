@@ -1,4 +1,4 @@
-import { linkLabelsOnly, parseLinks, type LinkKind } from "./links";
+import { linkLabelsOnly, parseLinks, unfinishedLinks, type LinkKind } from "./links";
 
 /**
  * Just enough Markdown for a page in the brain.
@@ -21,7 +21,9 @@ export type Inline =
   | { kind: "code"; text: string }
   | { kind: "link"; href: string; children: Inline[] }
   /** A link to a page or a contact, by id; drawn with the target's current name. */
-  | { kind: "brainlink"; target: LinkKind; id: string; label: string };
+  | { kind: "brainlink"; target: LinkKind; id: string; label: string }
+  /** `[[` and words never picked from the list: the words, marked as not linked yet. */
+  | { kind: "unlinked"; text: string };
 
 export type ListItem = {
   /** Null for a plain item; true or false for a tick box. */
@@ -216,6 +218,13 @@ export function parseInline(text: string): Inline[] {
         push();
         out.push({ kind: "brainlink", target: brain.kind, id: brain.id, label: brain.label });
         i += brain.end;
+        continue;
+      }
+      const unfinished = unfinishedLinks(rest)[0];
+      if (unfinished && unfinished.start === 0) {
+        push();
+        out.push({ kind: "unlinked", text: unfinished.words });
+        i += unfinished.end;
         continue;
       }
     }

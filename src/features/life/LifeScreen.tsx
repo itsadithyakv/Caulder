@@ -1,3 +1,6 @@
+import { HobbyBoards } from "./HobbyBoards";
+import { ReadingShelf } from "./ReadingShelf";
+import { YourYear } from "./YourYear";
 import { useCallback, useEffect, useState } from "react";
 import { GraduationCap, Mountain, Palette } from "lucide-react";
 import type { BrainSectionId } from "@shared/brain";
@@ -9,6 +12,7 @@ import { PageView } from "@/features/brain/PageView";
 import { StudiesPanel } from "./StudiesPanel";
 import { HobbiesPanel } from "./HobbiesPanel";
 import { GoalsPanel } from "./GoalsPanel";
+import { ThemeDays } from "./ThemeDays";
 import { HabitsPanel } from "./HabitsPanel";
 import { VisionBoard } from "./VisionBoard";
 import { ProgressCards } from "./ProgressCards";
@@ -209,6 +213,10 @@ function Overview({
     <div className="life__overview">
       <VisionBoard companyId={companyId} version={version} onOpenGoal={onOpen} />
       <ProgressCards companyId={companyId} version={version} />
+      <ThemeDays companyId={companyId} />
+      {/* What the quick line was told, as a shelf and as a year added up. */}
+      <ReadingShelf companyId={companyId} version={version} />
+      <YourYear companyId={companyId} version={version} />
       {empty ? (
         <Start onCreate={onCreate} />
       ) : (
@@ -216,6 +224,8 @@ function Overview({
           <StudiesPanel companyId={companyId} version={version} onOpen={onOpen} only="exams" />
           <GoalsPanel companyId={companyId} version={version} onOpen={onOpen} title="Goals" />
           <HobbiesPanel companyId={companyId} version={version} onOpen={onOpen} />
+          {/* A page for each hobby, made for what it is. */}
+          <HobbyBoards companyId={companyId} version={version} onOpen={onOpen} />
         </>
       )}
     </div>

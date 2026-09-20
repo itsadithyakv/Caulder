@@ -138,3 +138,43 @@ describe("what it refuses", () => {
     expect(count("tasks")).toBe(0);
   });
 });
+
+describe("a line that said more than the task", () => {
+  it("keeps the rest as the task's note", () => {
+    const { task, followUp } = quickAdd(db, companyId, {
+      title: "Exam on DSA",
+      day: "2026-09-14",
+      area: "college",
+      notes: "Coursework has to be downloaded from google classroom",
+    });
+
+    expect(task?.notes).toBe("Coursework has to be downloaded from google classroom");
+    expect(followUp).toBeNull();
+    expect(count("tasks")).toBe(1);
+  });
+
+  it("makes the second task it asked for, on its own day, in the same part of life", () => {
+    const { task, followUp } = quickAdd(db, companyId, {
+      title: "Study for ml exam",
+      day: "2026-09-23",
+      area: "college",
+      notes: "kiran sir requires permission for the retest",
+      followUp: { title: "Remind kiran sir", day: "2026-09-21", kind: "todo", notes: "Before the exam." },
+    });
+
+    expect(task).toMatchObject({ title: "Study for ml exam", dueOn: "2026-09-23" });
+    expect(followUp).toMatchObject({ title: "Remind kiran sir", dueOn: "2026-09-21", area: "college" });
+    expect(count("tasks")).toBe(2);
+  });
+
+  it("makes neither when the second one cannot be made", () => {
+    expect(() =>
+      quickAdd(db, companyId, {
+        title: "Study for ml exam",
+        day: "2026-09-23",
+        followUp: { title: "  ", day: "2026-09-21" },
+      }),
+    ).toThrow();
+    expect(count("tasks")).toBe(0);
+  });
+});

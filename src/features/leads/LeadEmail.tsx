@@ -189,7 +189,7 @@ export function LeadEmail({
     (!followUp || followUpTemplate.length > 0);
 
   return (
-    <div className="leadtasks">
+    <div className="leadtasks" id="lead-email">
       <div className="leadtasks__head">
         <h2 className="card__title">Email</h2>
         <div className="mailhead">

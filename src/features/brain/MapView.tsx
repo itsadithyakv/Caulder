@@ -232,7 +232,7 @@ export function MapView({
           <EmptyState
             icon={<Waypoints size={28} className="empty__icon" aria-hidden />}
             title="Nothing on the map yet"
-            body="Write a page in the brain, and type [[ in it to link another page, a contact, a product or a person. Each is a dot; each link is a line."
+            body="Write a page in the brain, and type @ in it to link another page, a contact, a product or a person - or drag between dots here. Each is a dot; each link is a line."
           />
         ) : (
           <div

@@ -740,6 +740,28 @@ export const quickInput = z.object({
   priority: z.enum(["must", "should", "spare"]).nullable().default(null),
   /** The contact it is for, when the line named one: "call Oakridge tmrw". */
   leadId: z.string().nullable().default(null),
+  /** Whatever the line said after the task itself - its second sentence - kept as the task's note. */
+  notes: z
+    .string()
+    .trim()
+    .max(2000)
+    .transform((value) => (value.length === 0 ? null : value))
+    .nullable()
+    .default(null),
+  /**
+   * A second task the line asked for, hung off the first one's day: "...so i
+   * need to remind him 2 days prior". Its own task rather than a reminder on
+   * the first, because it is a thing to do and to tick, on a day of its own.
+   */
+  followUp: z
+    .object({
+      title: z.string().trim().min(1).max(200),
+      day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "That is not a day."),
+      kind: z.enum(TASK_KINDS).default("todo"),
+      notes: z.string().trim().max(2000).nullable().default(null),
+    })
+    .nullable()
+    .default(null),
   /**
    * "Gym every Mon, Wed, Fri" - hours set aside on those days until the last
    * one, rather than a task. A task is done once; a repeat is a habit.
@@ -889,6 +911,10 @@ export const SETTING_KEYS = [
    * is set. See services/journal-lock.ts.
    */
   "journalLock",
+  /** "on" when book covers may be looked up at Open Library; anything else is off. */
+  "shelfCovers",
+  /** "off" when how somebody has been is not to be watched; anything else, it is. */
+  "pulseOff",
 ] as const;
 export type SettingKey = (typeof SETTING_KEYS)[number];
 

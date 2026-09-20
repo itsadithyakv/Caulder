@@ -12,6 +12,7 @@ import { FieldsCard, RemindersCard } from "./Workbench";
 import { GoogleCard } from "./GoogleCard";
 import { AiCard } from "./AiCard";
 import { WordsCard } from "./WordsCard";
+import { TuneCard } from "./TuneCard";
 import { TemplatesCard } from "./TemplatesCard";
 import { ConnectionsCard } from "./Connected";
 import { ThisIsMeCard } from "@/features/sharing/ThisIsMeCard";
@@ -128,7 +129,7 @@ export function SettingsScreen({
 
         <Group id="planning">
           <Column>
-            <WordsCard />
+            <WordsAndTune />
           </Column>
           <Column>
             <RemindersCard />
@@ -560,5 +561,20 @@ function CaptureCard() {
         </p>
       </Explain>
     </Card>
+  );
+}
+
+/**
+ * Your words, and the questions that add to them. A name given an area in
+ * Tune is one of Your words from that press, so the list above is read again
+ * rather than left saying otherwise until the screen is next opened.
+ */
+function WordsAndTune() {
+  const [taught, setTaught] = useState(0);
+  return (
+    <>
+      <WordsCard key={taught} />
+      <TuneCard onTaught={() => setTaught((count) => count + 1)} />
+    </>
   );
 }

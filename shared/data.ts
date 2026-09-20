@@ -30,6 +30,10 @@ export type BackupFile = {
   takenAt: string;
 };
 
+/** A backup as it sits in the "Caulder backups" folder in the person's own Drive. */
+export type DriveBackup = { name: string; size: number; at: string; kept: number };
+export type DriveBackups = { folder: string; backups: { name: string; size: number; at: string }[] };
+
 export type ExportEverything = {
   folder: string;
   files: string[];

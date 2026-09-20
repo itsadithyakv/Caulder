@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  Waypoints,
   Brain,
   CalendarCheck,
   CalendarRange,
@@ -43,6 +44,7 @@ export type RouteId =
   | "money"
   | "import"
   | "brain"
+  | "map"
   | "journal"
   | "life"
   | "settings"
@@ -80,6 +82,10 @@ const ROUTES: readonly Route[] = [
   { id: "pipeline", label: "Deals", icon: KanbanSquare, group: "company" },
   { id: "money", label: "Money", icon: Wallet, group: "company" },
   { id: "brain", label: "Brain", icon: Brain, group: "company" },
+  // The brain drawn: every page, contact and link, as one picture. A place of
+  // its own rather than a view inside Brain, because how things connect is a
+  // question people come with, and not a page they browse to.
+  { id: "map", label: "Map", icon: Waypoints, group: "company" },
   { id: "settings", label: "Settings", icon: Settings, group: "app" },
   // The setup guide: shown once when a company is made, and afterwards from
   // Settings, which is where somebody looks for "connect Google".
