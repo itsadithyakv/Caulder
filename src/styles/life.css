@@ -1838,7 +1838,9 @@
  * what it can be for underneath.
  * ---------------------------------------------------------------------- */
 
-.yourweek {
+/* Its own name. As .yourweek it was also the list in Today's "Your week" card,
+   which it laid out in sevenths: a hobby's name there was squeezed to nothing. */
+.themeweek {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: var(--space-2);

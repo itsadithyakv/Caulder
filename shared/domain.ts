@@ -903,6 +903,13 @@ export const SETTING_KEYS = [
   "aiModel",
   /** How much of the company goes with a question: small, medium, large or whole. */
   "aiContext",
+  /**
+   * "on" when your own pages - journal, goals, hobbies, studies, the lines
+   * you asked to be remembered - may go with a question. Anything else is
+   * off, which is where it starts. A locked or private journal day never
+   * goes, whatever this says. See services/yours.ts.
+   */
+  "aiPersonal",
   /** "1" once the first-run tour has been finished or skipped. */
   "tourDone",
   /**

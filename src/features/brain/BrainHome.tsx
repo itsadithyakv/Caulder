@@ -1,8 +1,15 @@
 import { useEffect, useState, type CSSProperties } from "react";
-import { Check, ChevronDown, ChevronUp, Circle, Waypoints } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, ChevronUp, Circle, Waypoints } from "lucide-react";
 import { AskBox } from "./AskBox";
 import type { MapGraph, MapNode } from "@shared/map";
-import { templateOf, type BrainHome as Home, type BrainSectionId, type ChecklistItem } from "@shared/brain";
+import {
+  CHECKLIST_STEPS,
+  CHECKLIST_STEP_LABEL,
+  templateOf,
+  type BrainHome as Home,
+  type BrainSectionId,
+  type ChecklistItem,
+} from "@shared/brain";
 import { Card } from "@/components/Card";
 import { PageList } from "./SectionView";
 import { MapCanvas } from "./MapCanvas";
@@ -160,20 +167,25 @@ function SmallMap({
   );
 }
 
-/** How many of the list show before "Show all". */
-const FIRST_FEW = 4;
-
 /**
- * The twelve things worth writing down first, folded to the next few not
- * written yet. Gone once they all are: a finished list is not worth a card.
+ * Twelve answers that set the company up, a step at a time.
+ *
+ * It used to be a list of field names - "Entity type and incorporation date" -
+ * that said neither what was being asked nor why anybody should answer. Now
+ * each is a question, with what Caulder does with the answer under it, and
+ * only the step you are on is open: three questions read as a start, where
+ * twelve read as a form. Gone once they are all answered.
  */
 function Checklist({ items, onOpen }: { items: ChecklistItem[]; onOpen: (item: ChecklistItem) => void }) {
   const [all, setAll] = useState(false);
   const done = items.filter((item) => item.done).length;
   if (done === items.length) return null;
 
-  const left = items.filter((item) => !item.done);
-  const shown = all ? items : left.slice(0, FIRST_FEW);
+  const steps = CHECKLIST_STEPS.map((step) => ({ step, items: items.filter((item) => item.step === step) }));
+  // The step you are on: the first with anything left in it.
+  const current = steps.find((each) => each.items.some((item) => !item.done));
+  const shown = all ? steps : current ? [{ step: current.step, items: current.items.filter((item) => !item.done) }] : [];
+  const left = items.length - done;
 
   return (
     <section className="card checklist" aria-labelledby="checklist-title">
@@ -181,42 +193,62 @@ function Checklist({ items, onOpen }: { items: ChecklistItem[]; onOpen: (item: C
         <Ring done={done} all={items.length} />
         <div className="checklist__words">
           <h2 className="card__title" id="checklist-title">
-            Write these down first
+            {done === 0 ? "Tell Caulder about the company" : "Keep going"}
           </h2>
           <p className="card__hint">
-            {left.length === 1 ? "One left." : `${left.length} left, about fifteen minutes all told.`} Each opens the page it
-            fills.
+            {left === 1 ? "One question left." : `${left} short questions, about fifteen minutes in all.`} You answer each once, and
+            Caulder uses it everywhere: on invoices, in reminders, and when you ask it something. In any order.
           </p>
         </div>
       </div>
-      <ul className="checklist__items">
-        {shown.map((item) => (
-          <li key={item.id}>
-            <button
-              type="button"
-              className={`checklist__item${item.done ? " checklist__item--done" : ""}`}
-              aria-label={`${item.label}, ${item.done ? "written" : "not written yet"}${
-                item.progress && !item.done ? `, ${item.progress}` : ""
-              }`}
-              onClick={() => onOpen(item)}
-            >
-              {item.done ? (
-                <Check size={16} className="checklist__mark checklist__mark--done anim-spring-pop" aria-hidden />
-              ) : (
-                <Circle size={16} className="checklist__mark" aria-hidden />
-              )}
-              <span className="checklist__label">{item.label}</span>
-              {item.progress && !item.done && <span className="checklist__progress">{item.progress}</span>}
-            </button>
-          </li>
-        ))}
-      </ul>
-      {left.length > FIRST_FEW || done > 0 ? (
-        <button type="button" className="btn btn--sm btn--ghost checklist__more" aria-expanded={all} onClick={() => setAll((open) => !open)}>
-          {all ? <ChevronUp size={14} aria-hidden /> : <ChevronDown size={14} aria-hidden />}
-          {all ? "Just what is left" : `All ${items.length}`}
-        </button>
-      ) : null}
+
+      {shown.map(({ step, items: inStep }) => {
+        const answered = items.filter((item) => item.step === step && item.done).length;
+        const of = items.filter((item) => item.step === step).length;
+        return (
+          <div key={step} className="checklist__step">
+            <h3 className="checklist__stepName">
+              {CHECKLIST_STEP_LABEL[step]}
+              <span className="checklist__stepCount">
+                {answered} of {of}
+              </span>
+            </h3>
+            <ul className="checklist__items">
+              {inStep.map((item) => (
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    className={`checklist__item${item.done ? " checklist__item--done" : ""}`}
+                    aria-label={`${item.label}, ${item.done ? "written" : "not written yet"}${
+                      item.progress && !item.done ? `, ${item.progress}` : ""
+                    }`}
+                    onClick={() => onOpen(item)}
+                  >
+                    {item.done ? (
+                      <Check size={16} className="checklist__mark checklist__mark--done anim-spring-pop" aria-hidden />
+                    ) : (
+                      <Circle size={16} className="checklist__mark" aria-hidden />
+                    )}
+                    <span className="checklist__text">
+                      <span className="checklist__label">
+                        {item.label}
+                        {item.progress && !item.done && <span className="checklist__progress">{item.progress}</span>}
+                      </span>
+                      {!item.done && <span className="checklist__why">{item.why}</span>}
+                    </span>
+                    {!item.done && <ArrowRight size={15} className="checklist__go" aria-hidden />}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })}
+
+      <button type="button" className="btn btn--sm btn--ghost checklist__more" aria-expanded={all} onClick={() => setAll((open) => !open)}>
+        {all ? <ChevronUp size={14} aria-hidden /> : <ChevronDown size={14} aria-hidden />}
+        {all ? "Just the step I am on" : `All ${items.length}`}
+      </button>
     </section>
   );
 }

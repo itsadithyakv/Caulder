@@ -30,13 +30,13 @@ export function SetupScreen({
     <div className="setup anim-stagger">
       <Card title={`Caulder is yours, ${companyName}`}>
         <p className="setup__lead">
-          Everything in Caulder already works: your day, your contacts, your deals and your money all live in one
-          file on this computer, with nothing to sign in to and nothing sent anywhere.
+          Caulder already works. Your day, your contacts, your deals and your money live in one file
+          on this computer &mdash; nothing to sign in to, nothing sent anywhere.
         </p>
         <p className="setup__lead">
-          Two things are worth connecting, because they belong to somebody else: <strong>Google</strong>, so your
-          day and your tasks are on your phone and email goes from your own Gmail, and an <strong>AI</strong>, so
-          you can ask the brain questions. Both are optional, both are about five minutes, and both can wait.
+          The two below belong to somebody else, which is the only reason they take any setting up:{" "}
+          <strong>Google</strong>, for your calendar, tasks and email, and an <strong>AI</strong>, to
+          ask the brain questions. Both optional, both can wait.
         </p>
         <div className="actions">
           <button type="button" className="btn btn--sm btn--ghost" onClick={onDone}>
@@ -50,16 +50,8 @@ export function SetupScreen({
         <h2 className="setup__title">
           <span className="setup__num">1</span>
           Google: your calendar, tasks, email, contacts and backups
-          <span className="badge badge--neutral">Optional</span>
+          <span className="badge badge--neutral">Optional &middot; 5 min</span>
         </h2>
-        <p className="setup__lead">
-          Caulder never signs in to Google. Instead you paste a script into your own Google account and Caulder
-          talks to that - which is what lets it touch your calendar and send from your Gmail without asking you to
-          trust it with your account. There is no Caulder account to make and nothing for anybody to approve: the
-          script is yours, in your Google account, and you can cut it off from there at any time. The same
-          connection saves a contact to your phone and keeps a backup in your Drive. The steps below are in the
-          order Google&rsquo;s own menus say them.
-        </p>
         <GoogleCard startOpen />
       </section>
 
@@ -67,13 +59,12 @@ export function SetupScreen({
         <h2 className="setup__title">
           <span className="setup__num">2</span>
           An AI, to ask the brain
-          <span className="badge badge--neutral">Optional</span>
+          <span className="badge badge--neutral">Optional &middot; 2 min</span>
         </h2>
         <p className="setup__lead">
-          Ask questions about your own company - <em>which deals should I chase</em>, <em>how long does the money
-          last</em>, <em>what do people object to on calls</em> - answered from everything Caulder holds. Google
-          Gemini is free with a Google account and is the one to start with; a paid key for a frontier model, or a
-          model running on this computer, works the same way.
+          <em>Which deals should I chase</em>, <em>how long does the money last</em> &mdash; answered
+          from everything Caulder holds. Gemini is free with a Google account; a paid key, or a model
+          running on this computer, works the same way.
         </p>
         <AiCard title="Which AI answers" />
       </section>
@@ -85,8 +76,8 @@ export function SetupScreen({
         </h2>
         <Card title="Bring the list you already have">
           <p className="card__hint">
-            Caulder is about a list you have already built. A spreadsheet is matched column by column, with a
-            preview and an undo; a list pasted from anywhere is read the same way.
+            A spreadsheet is matched column by column, with a preview and an undo. A list pasted from
+            anywhere reads the same way.
           </p>
           <div className="actions">
             <button type="button" className="btn" onClick={() => onGoTo("import")}>
@@ -108,10 +99,9 @@ export function SetupScreen({
         </h2>
         <Card title="Write down the things you keep looking up">
           <p className="card__hint">
-            The brain has a list of twelve things worth writing down first - your one-liner, your registration
-            numbers, the bank account invoices print, this quarter&rsquo;s goals - and it ticks itself off as you
-            write them. Call scripts live there too, and what you pay for every month, which is what makes
-            renewals turn up on Today and the runway add up.
+            Twelve things worth writing down first &mdash; your one-liner, your registration numbers,
+            this quarter&rsquo;s goals &mdash; ticked off as you write them. What you pay for every
+            month goes here too, which is what makes renewals turn up on Today and the runway add up.
           </p>
           <div className="actions">
             <button type="button" className="btn" onClick={() => onGoTo("brain")}>

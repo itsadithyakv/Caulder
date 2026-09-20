@@ -5,6 +5,7 @@ import { measuresInput, sayYear, shelfInput, type Shelf, type ShelfBook, type Ye
 import type { ShelfStatus } from "@shared/books";
 import type { Measure } from "@shared/subjects";
 import { buildBoard, type HobbyBoard, type LogRow } from "@shared/hobbies";
+import { underOf } from "@shared/memories";
 
 /**
  * What was measured, the reading shelf, and the year in numbers
@@ -190,13 +191,21 @@ export function hobbyBoards(db: Db, companyId: string, now: Date = new Date()): 
     .prepare(`SELECT page_id, day, SUM(minutes) AS minutes FROM blocks WHERE company_id = ? AND page_id IS NOT NULL AND day BETWEEN ? AND ? AND outcome IS NULL GROUP BY page_id, day`)
     .all(companyId, from, today) as { page_id: string; day: string; minutes: number }[];
   const piles = shelf(db, companyId);
+  // Read once, for every hobby: what hangs under one is found by walking up from each page.
+  const every = db
+    .prepare(`SELECT id, title, body FROM brain_pages WHERE company_id = ? AND is_archived = 0 AND section <> 'journal'`)
+    .all(companyId) as { id: string; title: string; body: string }[];
 
   return hobbies.map((hobby) => {
     const minutes = new Map(blocks.filter((block) => block.page_id === hobby.id).map((block) => [block.day, block.minutes] as const));
-    // A memory page says what it is part of in its first line, as a link: that link is how it is found again.
-    const pages = db
-      .prepare(`SELECT id, title FROM brain_pages WHERE company_id = ? AND is_archived = 0 AND id <> ? AND body LIKE ? ORDER BY title COLLATE NOCASE`)
-      .all(companyId, hobby.id, `%|page:${hobby.id}]]%`) as { id: string; title: string }[];
+    // A memory page says what it is part of in its first line, as a link, and that
+    // link is how it is found again - the whole way down, now that a lift is part
+    // of Chest and Chest is part of the gym. A page that only links here in
+    // passing is still listed, as it always was.
+    const linked = every.filter((page) => page.id !== hobby.id && page.body.includes(`|page:${hobby.id}]]`));
+    const pages = [...new Map([...underOf(every, hobby.id), ...linked.map(({ id, title }) => ({ id, title }))].map((page) => [page.id, page])).values()].sort(
+      (a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: "base" }),
+    );
     return buildBoard(hobby, logs, minutes, pages, `${today.slice(0, 7)}-01`, {
       reading: piles.reading.length,
       toRead: piles.toRead.length,

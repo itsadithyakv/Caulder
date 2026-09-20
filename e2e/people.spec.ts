@@ -97,10 +97,10 @@ test("a founder is written down with what they own, and their equity vests", asy
   // The checklist's founder items are answered from here.
   await page.getByLabel("Brain sections").getByRole("button", { name: "Home" }).click();
   // The list folds to what is left; written ones are under All 12.
-  await expect(page.getByRole("button", { name: /^Founders, and who owns what/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Who the founders are/ })).toHaveCount(0);
   await page.getByRole("button", { name: "All 12" }).click();
-  await expect(page.getByRole("button", { name: "Founders, and who owns what, written" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "The equity split, written" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Who the founders are, and what each looks after, written" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Who owns how much, written" })).toBeVisible();
 });
 
 test("a candidate for a role is hired, the role filled, and onboarding becomes tasks", async () => {

@@ -68,7 +68,7 @@ describe("the lines this was built for", () => {
     const reading = read("Read red rising book today, loved chapter 25");
     expect(reading.kind).toBe("done");
     expect(reading.effects).toEqual([
-      { do: "memory", page: { id: "p2", title: "Red Rising" }, topic: null, branch: null, fact: null },
+      { do: "memory", trail: expect.any(Array), page: { id: "p2", title: "Red Rising" }, topic: null, branch: null, fact: null },
       { do: "journal" },
     ]);
     // Kept as it was said, whole.
@@ -86,7 +86,7 @@ describe("a day reported", () => {
     const run = read("went for a run at 5 for 45 min", nothing).effects;
     expect(run).toContainEqual({ do: "block", title: "Run", startsAt: "05:00", minutes: 45 });
     // And it is a run, so it is kept with the running too.
-    expect(run).toContainEqual(expect.objectContaining({ do: "memory", topic: "Running" }));
+    expect(run).toContainEqual(expect.objectContaining({ do: "memory", trail: expect.any(Array), topic: "Running" }));
   });
 
   it("keeps a hobby's time at the hour it said", () => {
@@ -160,20 +160,21 @@ describe("a memory", () => {
   it("starts a page for a thing said what it is, where it belongs, hung off what it is part of", () => {
     const reading = read("golden son is the second book of the red rising series by pierce brown", {
       ...known,
-      pages: [{ id: "p1", title: "Reading", section: "hobbies" }],
+      // A hobby is its page: the same record, so the same id as in `hobbies` above.
+      pages: [{ id: "h2", title: "Reading", section: "hobbies" }],
     });
     expect(reading).toMatchObject({
       kind: "memory",
       page: null,
       topic: "Golden Son",
-      branch: { section: "hobbies", parent: { id: "p1", title: "Reading" } },
+      branch: expect.objectContaining({ section: "hobbies", parent: { id: "h2", title: "Reading" } }),
     });
   });
 
   it("branches by what the thing is", () => {
-    expect(read("dbms is a course about databases", { contacts: [], hobbies: [] }).branch).toEqual({ section: "studies", parent: null });
-    expect(read("interstellar is a movie by nolan", { contacts: [], hobbies: [] }).branch).toEqual({ section: "hobbies", parent: null });
-    expect(read("zettelkasten is a way of keeping notes", { contacts: [], hobbies: [] }).branch).toEqual({ section: "ideas", parent: null });
+    expect(read("dbms is a course about databases", { contacts: [], hobbies: [] }).branch).toMatchObject({ section: "studies", parent: null });
+    expect(read("interstellar is a movie by nolan", { contacts: [], hobbies: [] }).branch).toMatchObject({ section: "hobbies", parent: null });
+    expect(read("zettelkasten is a way of keeping notes", { contacts: [], hobbies: [] }).branch).toMatchObject({ section: "ideas", parent: null });
   });
 
   it("is not made of a sentence about the day, or about nothing in particular", () => {

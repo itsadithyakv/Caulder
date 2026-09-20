@@ -47,6 +47,35 @@
   margin: calc(var(--space-2) * -1) 0 0;
 }
 
+/* Hello, above the day: the one line on the screen that is not about work.
+   It stands where every other screen has its title, at the title's size. */
+.today__hello {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  min-height: calc(var(--text-xl) * var(--leading-tight));
+}
+
+.today__greeting {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-xl);
+  font-weight: 700;
+  line-height: var(--leading-tight);
+  letter-spacing: -0.01em;
+}
+
+.today__name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.today__name .input {
+  width: 180px;
+}
+
 .today__date {
   color: var(--ink);
   font-size: var(--text-md);
@@ -56,6 +85,41 @@
 .today__summary {
   color: var(--ink-3);
   font-size: var(--text-sm);
+}
+
+/* The aside: a joke under the day. A button, because the thing to do with a joke is ask for another. */
+.today__aside {
+  align-self: flex-start;
+  margin: calc(var(--space-2) * -1) 0 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-3);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-style: italic;
+  line-height: var(--leading);
+  text-align: left;
+  cursor: pointer;
+}
+
+.today__aside:hover {
+  color: var(--ink-2);
+}
+
+.today__aside:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+.today__by {
+  font-style: normal;
+  color: var(--ink-3);
+}
+
+.today__by::before {
+  content: "\2014\00a0";
 }
 
 /* What today is for, when your week gives it a theme: a quiet pill between the day and its count. */
@@ -693,10 +757,93 @@
   box-shadow: 0 0 0 3px var(--accent-halo);
 }
 
+/* ---- The star: which line this is ---------------------------------------
+ *
+ * Grey, and Caulder reads the line itself - a task, a journal line, time on
+ * a hobby. Coloured, and the line is a question for the AI. One control and
+ * one colour, so "where is this going" is answered by looking rather than by
+ * remembering which of two boxes the cursor is in.
+ */
 .quickadd__icon {
   flex-shrink: 0;
-  color: var(--accent-strong);
+  color: var(--ink-3);
 }
+
+.quickadd__star {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+
+.quickadd__star:hover {
+  color: var(--ink);
+  background: var(--hover);
+}
+
+.quickadd__star:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Filled, not tinted: this is the one place on the screen where colour is
+ * the whole message, so it has to be legible at a glance and in both themes. */
+.quickadd__star--on,
+.quickadd__star--on:hover {
+  color: var(--ink-on-accent);
+  background: var(--accent);
+}
+
+/* ---- The answers, under the line they were asked from ------------------- */
+
+.askline__thread {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.askline__turn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* What was asked, kept quiet: it is there to say what the answer answers. */
+.askline__question {
+  margin: 0;
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--border);
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+.askline__answer {
+  color: var(--ink-2);
+}
+
+.askline__answer > :first-child { margin-top: 0; }
+.askline__answer > :last-child { margin-bottom: 0; }
+
+.askline__thinking {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+.askline__examples { margin-top: var(--space-3); }
+
+.askline__foot { margin-top: var(--space-3); }
 
 .quickadd__input {
   flex: 1;
@@ -708,8 +855,10 @@
   font-size: var(--text-md);
 }
 
+/* An example, not an entry: quieter than anything typed, so an empty line looks empty. */
 .quickadd__input::placeholder {
   color: var(--ink-3);
+  opacity: 0.6;
 }
 
 .quickadd__input:focus-visible {

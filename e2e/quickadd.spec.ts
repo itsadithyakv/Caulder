@@ -416,12 +416,12 @@ test("what is said about a lift or a song is kept with it, under the hobby it is
 
   await line.fill("i hit a pr today, 45kg on the bench press for 3 reps");
   const will = page.getByRole("group", { name: "What this will do" });
-  await expect(will.getByRole("button", { name: "New page: Bench Press, part of Gym" })).toHaveAttribute("aria-pressed", "true");
+  await expect(will.getByRole("button", { name: "New page: Bench Press, under Hobbies › Gym › Chest" })).toHaveAttribute("aria-pressed", "true");
   await line.press("Enter");
   await expect(page.locator(".quickadd__added")).toContainText("New page: Bench Press");
 
   await line.fill("i learnt a new song called riptide, the cords are quite difficult and i had fun with it");
-  await expect(will.getByRole("button", { name: "New page: Riptide, part of Guitar" })).toBeVisible();
+  await expect(will.getByRole("button", { name: "New page: Riptide, under Hobbies › Guitar" })).toBeVisible();
   await line.press("Enter");
   await expect(page.locator(".quickadd__added")).toContainText("New page: Riptide");
 
@@ -438,13 +438,15 @@ test("what is said about a lift or a song is kept with it, under the hobby it is
       const found = pages.find((each) => each.title === title);
       return found ? (await window.caulder.brain.page(found.id)).body : "";
     };
-    return { titles: pages.map((each) => each.title).sort(), bench: await body("Bench Press"), riptide: await body("Riptide") };
+    return { titles: pages.map((each) => each.title).sort(), bench: await body("Bench Press"), chest: await body("Chest"), riptide: await body("Riptide") };
   });
   // Other tests share this folder and have pages of their own here; what matters
   // is that these are there, and that the second lift did not start a second page.
   expect(kept.titles).toEqual(expect.arrayContaining(["Bench Press", "Guitar", "Gym", "Riptide"]));
   expect(kept.titles.filter((title) => title === "Bench Press")).toHaveLength(1);
-  expect(kept.bench).toContain("Part of [[Gym|page:");
+  // The lift is part of what it works, and that is part of the gym: two levels, each saying the one above.
+  expect(kept.bench).toContain("Part of [[Chest|page:");
+  expect(kept.chest).toContain("Part of [[Gym|page:");
   expect(kept.bench).toContain("**PR: 45 kg × 3** · i hit a pr today");
   expect(kept.bench).toContain("**3 × 8 at 40 kg** · bench press 3x8 at 40kg, felt strong");
   expect(kept.riptide).toContain("Part of [[Guitar|page:");
@@ -614,6 +616,129 @@ test("how you have been says what it has to go on, and can be switched off and b
 
   await page.getByRole("button", { name: "Turn it on" }).click();
   await expect(card).toContainText("Not enough yet");
+});
+
+test("Today says hello, takes a name in one field, and the line says little", async () => {
+  const page = await openApp();
+  const hello = page.locator(".today__greeting");
+  await expect(hello).toHaveText(/[.?]$/);
+
+  // The empty line: the key, and an invitation. Not a paragraph.
+  await expect(page.locator(".quickadd__hint").first()).toContainText("Text anything you want");
+  await expect(page.locator(".quickadd__hint").first().locator("kbd")).toHaveText(/^(A|.+\+.+)$/);
+
+  // No name yet: it offers to take one here, and then greets by the first of them only.
+  await page.getByRole("button", { name: "What should I call you?" }).click();
+  await page.getByLabel("What to call you").fill("Adi Vinod");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByRole("button", { name: "What should I call you?" })).toHaveCount(0);
+  // Whichever line it is, it names you - and never by your surname.
+  await expect(hello).toContainText("Adi");
+  await expect(hello).not.toContainText("Vinod");
+
+  // And it is the same name Settings has, not a second copy.
+  expect(await page.evaluate(() => window.caulder.share.me())).toBe("Adi Vinod");
+
+  // Under the day, an aside; pressed, it tells another, and never the same one straight after.
+  const aside = page.locator(".today__aside");
+  const told = new Set<string>();
+  for (let turn = 0; turn < 6; turn += 1) {
+    const says = (await aside.innerText()).trim();
+    expect(says.length).toBeGreaterThan(5);
+    expect(told.has(says)).toBe(false);
+    told.add(says);
+    await aside.click();
+    await expect(aside).not.toHaveText(says);
+  }
+
+  // The hello holds still while Today redraws around it: it is this morning's, not this render's.
+  const before = await hello.innerText();
+  await page.getByLabel("Main").getByRole("button", { name: "Settings" }).click();
+  await page.getByLabel("Main").getByRole("button", { name: "Today", exact: true }).click();
+  await expect(hello).toHaveText(before);
+});
+
+test("a fact is kept as random knowledge, and everything remembered can be found again", async () => {
+  const page = await openApp();
+  const line = page.getByLabel("Anything, in one line");
+
+  // Said the way a quizzer would: the fact, and that it was a good one.
+  await line.fill("Shivajinagar was called black pally, interesting question");
+  const read = page.locator(".quickadd__reading");
+  // It shows the fact without the words that only said it was one, and where it will go.
+  await expect(read.locator(".quickadd__title")).toHaveText("Shivajinagar was called black pally");
+  await expect(read).toContainText("Random knowledge");
+  await line.press("Enter");
+  await expect(page.locator(".quickadd__added")).toContainText("Remembered, under Random knowledge");
+
+  // The second goes on the same page rather than starting another.
+  await line.fill("fun fact: honey never spoils");
+  await expect(read).toContainText("remembered under Random knowledge");
+  await line.press("Enter");
+  await expect(page.locator(".quickadd__added")).toContainText("Random knowledge");
+
+  // And there is somewhere to see them: Memories, on the Brain's rail.
+  await page.getByLabel("Main").getByRole("button", { name: "Brain", exact: true }).click();
+  await page.getByLabel("Brain sections").getByRole("button", { name: "Memories" }).click();
+  const pile = page.locator(".card").filter({ has: page.getByRole("heading", { name: "Random knowledge" }) });
+  // A fact opens with what it is about, so nothing is put in front of it to say so again.
+  await expect(pile.locator(".memories__fact")).toHaveCount(0);
+  await expect(pile).toContainText("Shivajinagar was called black pally");
+  await expect(pile).toContainText("Honey never spoils");
+  await expect(pile).not.toContainText("interesting question");
+
+  // Searched, it narrows to what was asked for.
+  await page.getByLabel("Search your memories").fill("honey");
+  await expect(pile).toContainText("Honey never spoils");
+  await expect(pile).not.toContainText("Shivajinagar");
+  await page.getByLabel("Search your memories").fill("");
+
+  // Each pile opens the page it is, and the way back is to Memories.
+  await pile.getByRole("button", { name: "Open the page" }).click();
+  await expect(page.getByRole("heading", { name: "Random knowledge" })).toBeVisible();
+  await page.getByRole("button", { name: /Memories/ }).first().click();
+  await expect(page.getByRole("heading", { name: "Memories", exact: true })).toBeVisible();
+});
+
+test("what is remembered branches the whole way down, and the brain, Memories and the map agree on it", async () => {
+  const page = await openApp();
+  const line = page.getByLabel("Anything, in one line");
+  const read = page.locator(".quickadd__reading");
+
+  // Before it is kept, it says where it will hang - every level, not only the one above.
+  await line.fill("the way of kings is a fantasy book in the stormlight archive series");
+  await expect(read).toContainText("a new page in the brain's hobbies: The Way Of Kings, under Hobbies › Reading › Fantasy books › Stormlight Archive series");
+  await line.press("Enter");
+  await expect(page.locator(".quickadd__added")).toContainText("Remembered, under The Way Of Kings");
+
+  // The second of the series shares every level above it.
+  await line.fill("words of radiance is a book in the stormlight archive series");
+  await expect(read).toContainText("under Hobbies › Reading › Stormlight Archive series");
+  await line.press("Enter");
+  await expect(page.locator(".quickadd__added")).toContainText("Words Of Radiance");
+
+  // Memories says the same chain, read back out of the pages.
+  await page.getByLabel("Main").getByRole("button", { name: "Brain", exact: true }).click();
+  await page.getByLabel("Brain sections").getByRole("button", { name: "Memories" }).click();
+  const first = page.locator(".card").filter({ has: page.getByRole("heading", { name: "The Way Of Kings" }) });
+  await expect(first).toContainText("Hobbies › Reading › Fantasy books › Stormlight Archive series");
+  const second = page.locator(".card").filter({ has: page.getByRole("heading", { name: "Words Of Radiance" }) });
+  await expect(second).toContainText("Hobbies › Reading › Fantasy books › Stormlight Archive series");
+
+  // The brain: each level is a real page that says what it is part of, and lists what is part of it.
+  await first.getByRole("button", { name: "Open the page" }).click();
+  await expect(page.getByRole("heading", { name: "The Way Of Kings" })).toBeVisible();
+  await page.locator(".prose, .bpage__body").getByRole("button", { name: /Stormlight Archive series/ }).first().click();
+  await expect(page.getByRole("heading", { name: "Stormlight Archive series" })).toBeVisible();
+  await expect(page.getByText("Words Of Radiance").first()).toBeVisible();
+
+  // And the map draws it: one way from Memories, and every level a dot.
+  await page.getByLabel("Brain sections").getByRole("button", { name: "Memories" }).click();
+  await page.getByRole("button", { name: "See them on your map" }).click();
+  await page.getByRole("button", { name: "As a list" }).click();
+  for (const level of ["Me", "Hobbies", "Reading", "Fantasy books", "Stormlight Archive series", "The Way Of Kings", "Words Of Radiance"]) {
+    await expect(page.getByRole("button", { name: level, exact: true }).first()).toBeVisible();
+  }
 });
 
 test("A from another screen lands in the line", async () => {

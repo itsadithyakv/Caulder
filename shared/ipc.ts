@@ -55,6 +55,8 @@ import type {
   PersonInput,
 } from "./people";
 import type { LinkOutcome, MapGraph, MapPosition } from "./map";
+import type { Memory } from "./memories";
+import type { RememberInput, Remembered } from "./branches";
 import type { CheckInInput, DayTheme, DayThemeInput, GoalDetail } from "./goals";
 import type {
   AccentId,
@@ -177,6 +179,7 @@ export const CHANNELS = {
   askDisconnect: "ask:disconnect",
   askSetModel: "ask:set-model",
   askSetContext: "ask:set-context",
+  askSetPersonal: "ask:set-personal",
   askRefreshModels: "ask:refresh-models",
   askQuestion: "ask:question",
   productsCatalogue: "products:catalogue",
@@ -263,6 +266,8 @@ export const CHANNELS = {
   brainLinkTargets: "brain:link-targets",
   brainBacklinks: "brain:backlinks",
   brainMap: "brain:map",
+  brainMemories: "brain:memories",
+  brainRemember: "brain:remember",
   brainLocalMap: "brain:local-map",
   brainKeepPositions: "brain:keep-positions",
   brainLetGo: "brain:let-go",
@@ -609,6 +614,8 @@ export type AskApi = {
   disconnect: () => Promise<AskState>;
   setModel: (model: string) => Promise<AskState>;
   setContext: (size: ContextSize) => Promise<AskState>;
+  /** Whether your own pages may go with a question. Locked days never do. */
+  setPersonal: (on: boolean) => Promise<AskState>;
   refreshModels: () => Promise<AskState>;
   question: (companyId: string, input: AskInput) => Promise<AskAnswer>;
 };
@@ -895,6 +902,10 @@ export type BrainApi = {
   /** The pages that link to a page or a contact. */
   backlinks: (kind: LinkKind, id: string) => Promise<BrainPageSummary[]>;
   map: (companyId: string, allContacts: boolean) => Promise<MapGraph>;
+  /** What the line was told to remember, from your own workspace, and which workspace that is. */
+  memories: () => Promise<{ companyId: string | null; memories: Memory[]; trails: Record<string, string[]> }>;
+  /** One dated line on the page it is about, in your own workspace, with every page above it started if it has to be. */
+  remember: (input: RememberInput) => Promise<Remembered>;
   /** What is around one dot, one to three links out: two when not said. */
   localMap: (companyId: string, kind: LinkKind, id: string, depth?: number) => Promise<MapGraph>;
   /** Where the dots were left, and which are pinned. */

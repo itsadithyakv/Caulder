@@ -74,8 +74,8 @@ test("the brain has its own row, a key, and a list of what to write first", asyn
   await page.keyboard.press("b");
   await expect(page.getByRole("heading", { name: "Brain", exact: true })).toBeVisible();
   await expect(page.getByRole("img", { name: "0 of 12 written down" })).toBeVisible();
-  // Home, the Map, All sections and Share and export: a section joins the rail when it holds something.
-  await expect(rail().getByRole("button")).toHaveCount(4);
+  // Home, the Map, Memories, All sections and Share and export: a section joins the rail when it holds something.
+  await expect(rail().getByRole("button")).toHaveCount(5);
   await shot("home-empty");
 });
 
@@ -104,9 +104,9 @@ test("the profile keeps its numbers masked, and ticks the list as it fills", asy
   await expect(page.getByRole("img", { name: "2 of 12 written down" })).toBeVisible();
   await expect(page.getByText("Timetables for schools")).toBeVisible();
   // The list shows what is left; the whole of it is a click away.
-  await expect(page.getByRole("button", { name: /The one-liner/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^What the company does/ })).toHaveCount(0);
   await page.getByRole("button", { name: "All 12" }).click();
-  await expect(page.getByRole("button", { name: /The one-liner, written/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "What the company does, in one sentence, written" })).toBeVisible();
   await expect(rail().getByRole("button", { name: /^Company/ })).toBeVisible();
   await shot("home");
 });

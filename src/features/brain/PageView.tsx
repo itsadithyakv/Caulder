@@ -34,7 +34,6 @@ const STEPPED = new Set(["meetings", "playbooks", "studies", "hobbies", "goals"]
  * ticked while it is being followed, and each tick saves at once.
  */
 export function PageView({
-  companyId,
   pageId,
   startEditing,
   version,
@@ -45,7 +44,7 @@ export function PageView({
   onOpenPage,
   onOpenContact,
 }: {
-  companyId: string;
+  /** The page says which workspace it is in, so nothing here is told: a memory opened from a company's brain is still yours. */
   pageId: string;
   startEditing: boolean;
   /** Bumped when anything in the brain changes, so Linked here is read again. */
@@ -390,7 +389,7 @@ export function PageView({
               </span>
               <LinkedEditor
                 label="Page"
-                companyId={companyId}
+                companyId={page.companyId}
                 exclude={page.id}
                 className="bpage__body"
                 value={body}
@@ -456,7 +455,7 @@ export function PageView({
 
       {/* The day as Caulder saw it, beside the entry about it. */}
       {!editing && page.template === ENTRY_TEMPLATE && typeof page.fields["day"] === "string" && (
-        <DayRecordCard companyId={companyId} day={page.fields["day"]} onOpenPage={onOpenPage} onOpenContact={onOpenContact} />
+        <DayRecordCard companyId={page.companyId} day={page.fields["day"]} onOpenPage={onOpenPage} onOpenContact={onOpenContact} />
       )}
 
       {!editing && TIMED.has(page.template) && <TimeCard page={page} onChanged={onChanged} />}
@@ -468,7 +467,7 @@ export function PageView({
 
       {!editing && (
         <BrainLinks
-          companyId={companyId}
+          companyId={page.companyId}
           kind="page"
           id={page.id}
           version={version}

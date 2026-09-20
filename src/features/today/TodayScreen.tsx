@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { CalendarClock, CalendarPlus, MailCheck, Receipt, RefreshCw, Snowflake, Sunrise } from "lucide-react";
 import { documentNumber } from "@shared/domain";
 import { formatValue, relativeDay } from "@/lib/format";
@@ -18,6 +18,9 @@ import type { RouteId } from "@/app/routes";
 import { SetupNudge } from "@/features/onboarding/SetupNudge";
 import { PulseCard } from "@/features/life/PulseCard";
 import { QuickAdd } from "./QuickAdd";
+import { AskLine } from "./AskLine";
+import type { AskState } from "@shared/ask";
+import { Aside, ClearDay, Hello } from "./Hello";
 import { useStartCall } from "@/features/calls/CallProvider";
 import { describeRenewal } from "@shared/costs";
 import { describeDeadline, sectionForDeadline, type Deadline } from "@shared/deadlines";
@@ -83,6 +86,24 @@ export function TodayScreen({
     companyId ? fetchToday : null,
   );
   const [adding, setAdding] = useState(false);
+  /**
+   * Which line is on the screen: the one Caulder reads itself, or the same
+   * line asked of your AI. The star switches them, and the choice is kept
+   * here rather than in the database because it is a preference of this
+   * screen on this machine, like a collapsed section.
+   */
+  const [asking, setAsking] = useState(() => remembersAsking());
+  const [ai, setAi] = useState<AskState | null>(null);
+  useEffect(() => {
+    let live = true;
+    window.caulder.ask.state().then(
+      (state) => live && setAi(state),
+      () => live && setAi(null),
+    );
+    return () => {
+      live = false;
+    };
+  }, []);
   /** Bumped when the line keeps something, so the cards it may have landed in read again. */
   const [kept, setKept] = useState(0);
   /** Bumped by a habit ticked or taken back: nothing else on Today reads habits, but your level does. */
@@ -140,12 +161,20 @@ export function TodayScreen({
 
   return (
     <div className="today anim-stagger">
+      <Hello day={today.day} timezone={timezone} due={due} late={late} />
+
       {/* The day in one line: which day, and how much of it is waiting. */}
       <p className="today__day">
         <span className="today__date">{longDay(today.day)}</span>
         <TodayTheme companyId={homeId} day={today.day} />
-        <span className="today__summary">{summaryOf(due, late)}</span>
+        {due + late > 0 ? (
+          <span className="today__summary">{summaryOf(due, late)}</span>
+        ) : (
+          <ClearDay day={today.day} timezone={timezone} />
+        )}
       </p>
+
+      <Aside day={today.day} timezone={timezone} />
 
       <NowLine blocks={today.blocks} timezone={timezone} onOpenDay={onGoToDay} />
 
@@ -164,6 +193,17 @@ export function TodayScreen({
         // The line first, the form a click away. Most tasks are one sentence,
         // and the form is for the ones that need a lead attached or a note.
         <section className="card today__quick">
+          {asking && ai?.connected ? (
+            <AskLine
+              companyId={companyId}
+              focusNonce={quickNonce}
+              model={whoAnswers(ai)}
+              onLocal={() => rememberAsking(setAsking, false)}
+              onOpenPage={onOpenPage}
+              onOpenContact={onOpenLead}
+            />
+          ) : (
+            <>
           <QuickAdd
             companyId={companyId}
             timezone={timezone}
@@ -183,11 +223,14 @@ export function TodayScreen({
               reload();
               setKept((n) => n + 1);
             }}
+            {...(ai?.connected ? { onAi: () => rememberAsking(setAsking, true) } : {})}
           />
           <button type="button" className="btn btn--sm btn--ghost today__form" onClick={() => setAdding(true)}>
             <CalendarPlus size={15} aria-hidden />
             Full form
           </button>
+            </>
+          )}
         </section>
       )}
 
@@ -463,6 +506,33 @@ export function TodayScreen({
   );
 }
 
+/** Who is answering, by the name the service gave its model. */
+function whoAnswers(state: AskState): string {
+  return state.models.find((option) => option.id === state.model)?.label ?? state.model ?? "The AI";
+}
+
+/* Which line was last on the screen. Browser storage can throw - a locked
+ * profile, a wiped machine - and a line that does not draw is worse than a
+ * line in the wrong mode, so both ways are caught. */
+const ASKING = "caulder.today.ask";
+
+function remembersAsking(): boolean {
+  try {
+    return localStorage.getItem(ASKING) === "on";
+  } catch {
+    return false;
+  }
+}
+
+function rememberAsking(set: (on: boolean) => void, on: boolean): void {
+  set(on);
+  try {
+    localStorage.setItem(ASKING, on ? "on" : "");
+  } catch {
+    // Not worth a word on the screen: the line still switched.
+  }
+}
+
 /** "Saturday, 19 September": the day as it is said, built from its parts so it is never the day before. */
 function longDay(day: string): string {
   const [year, month, date] = day.split("-").map(Number);
@@ -476,6 +546,5 @@ function summaryOf(due: number, late: number): string {
   const today = due === 1 ? "1 thing to do today" : `${due} things to do today`;
   if (late > 0 && due > 0) return `${today}, and ${late} late`;
   if (late > 0) return late === 1 ? "1 thing is late" : `${late} things are late`;
-  if (due > 0) return today;
-  return "A clear day";
+  return today;
 }

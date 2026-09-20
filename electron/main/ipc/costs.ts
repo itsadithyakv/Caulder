@@ -2,7 +2,7 @@ import { CHANNELS } from "@shared/ipc";
 import { getDatabase } from "../db/connection";
 import { assertId, handle } from "./handle";
 import { buildCosts, forgetBalance, recordBalance, renewCost } from "../services/costs";
-import { askBrain, askState, connect, disconnect, refreshModels, setContext, setModel } from "../services/ask";
+import { askBrain, askState, connect, disconnect, refreshModels, setContext, setModel, setPersonal } from "../services/ask";
 
 /**
  * Running costs and runway from the window. Every change hands back the whole
@@ -33,6 +33,7 @@ export function registerAskHandlers(): void {
   handle(CHANNELS.askDisconnect, () => disconnect(getDatabase()));
   handle(CHANNELS.askSetModel, (_event, model: unknown) => setModel(getDatabase(), model));
   handle(CHANNELS.askSetContext, (_event, size: unknown) => setContext(getDatabase(), size));
+  handle(CHANNELS.askSetPersonal, (_event, on: unknown) => setPersonal(getDatabase(), on));
   handle(CHANNELS.askRefreshModels, () => refreshModels(getDatabase()));
   handle(CHANNELS.askQuestion, (_event, companyId: unknown, raw: unknown) =>
     askBrain(getDatabase(), assertId(companyId, "company id"), raw),

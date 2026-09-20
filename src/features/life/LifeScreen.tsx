@@ -140,7 +140,6 @@ export function LifeScreen({
         {view.kind === "page" ? (
           <PageView
             key={view.id}
-            companyId={companyId}
             pageId={view.id}
             startEditing={view.editing}
             version={version}

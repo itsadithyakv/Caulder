@@ -11,6 +11,7 @@ import {
 import { describeWeekdays, parseQuick, type Answers, type Learned } from "@shared/quickadd";
 import { readCapture, type Ask, type CaptureKind, type Effect, type Known } from "@shared/capture";
 import { thoughtBody } from "@shared/thoughts";
+import { sayTrail, type Step } from "@shared/branches";
 import { measuresOf } from "@shared/subjects";
 import type { BrainSectionId } from "@shared/brain";
 import { occurrencesOf } from "@shared/repeat";
@@ -99,7 +100,7 @@ function sayEffect(effect: Effect): string {
     case "memory":
       return effect.page
         ? `Remember under ${effect.page.title}`
-        : `New page: ${effect.topic ?? ""}${effect.branch?.parent ? `, part of ${effect.branch.parent.title}` : ""}`;
+        : `New page: ${effect.topic ?? ""}${sayTrail(effect.trail) ? `, under ${sayTrail(effect.trail)}` : ""}`;
     case "journal":
       return "Journal";
   }
@@ -116,6 +117,7 @@ export function QuickAdd({
   smart = false,
   onGo,
   onOpenContact,
+  onAi,
 }: {
   companyId: string;
   /** Where your own things go - the journal, a hobby's time - whichever company is chosen. */
@@ -135,6 +137,12 @@ export function QuickAdd({
   onGo?: (place: Extract<Ask, { do: "go" }>["place"]) => void;
   /** "Email rahul": opens the contact, which is where writing and calling are. */
   onOpenContact?: (leadId: string, how: "email" | "call" | "message" | null) => void;
+  /**
+   * Hands the same line to your AI instead (features/today/AskLine.tsx).
+   * Given only where there is one to hand it to, which makes the star a
+   * switch rather than an ornament: grey, Caulder reads the line itself.
+   */
+  onAi?: () => void;
 }) {
   const [text, setText] = useState("");
   const [answers, setAnswers] = useState<Answers>({});
@@ -290,38 +298,21 @@ export function QuickAdd({
 
   /**
    * One more thing known about something, kept with it: a dated line at the
-   * foot of its page in the brain. With no page yet, one is started - in the
-   * section the line said it belongs to, and hung off the page it is part of
-   * ("Red Rising" is a book; books hang off Reading), so the map draws the
-   * branch rather than a page on its own.
+   * foot of its page in your own brain. Main finds or starts every page above
+   * it - Me, Hobbies, Reading, the series - so the map draws the whole branch
+   * (shared/branches.ts says what the chain is; services/remember.ts keeps it).
    */
   async function remember(
     known: { id: string; title: string } | null,
     topic: string | null,
-    branch: { section: BrainSectionId; parent: { id: string; title: string } | null } | null,
+    section: BrainSectionId,
+    trail: Step[],
     said: string,
-    /** The part to read first - "PR: 45 kg × 3" - so a page of these reads down its left edge. */
+    /** The part to read first - "PR: 45 kg x 3" - so a page of these reads down its left edge. */
     fact: string | null,
   ): Promise<string> {
-    const page = known
-      ? await window.caulder.brain.page(known.id)
-      : await window.caulder.brain.create(homeId ?? companyId, branch?.section ?? "ideas", "page");
-    // A page just started still holds its template's empty headings; a memory
-    // page is its memories, so it starts with where it branches from instead.
-    const before = known
-      ? page.body.trimEnd()
-      : branch?.parent
-        ? `Part of [[${branch.parent.title}|page:${branch.parent.id}]].`
-        : "";
-    const title = known ? page.title : (topic ?? "Untitled");
-    await window.caulder.brain.save(page.id, {
-      title,
-      body: `${before}${before ? "\n\n" : ""}- ${fact ? `**${fact}** · ` : ""}${said} _(${today})_\n`,
-      fields: page.fields,
-      secrets: {},
-      baseRevision: page.revision,
-    });
-    return title;
+    const kept = await window.caulder.brain.remember({ pageId: known?.id ?? null, topic, section, trail, said, fact, day: today });
+    return kept.title;
   }
 
   /** Everything that is not a task: kept where the line said, or where it was moved to. */
@@ -360,7 +351,7 @@ export function QuickAdd({
             if (effect.do === "finish") await window.caulder.tasks.complete(effect.task.id);
             else if (effect.do === "tick") await window.caulder.habits.tick(effect.habit.id, null, true);
             else if (effect.do === "time") await window.caulder.life.logTime(effect.hobby.id, effect.minutes, effect.startsAt);
-            else if (effect.do === "memory") await remember(effect.page, effect.topic, effect.branch, said, effect.fact);
+            else if (effect.do === "memory") await remember(effect.page, effect.topic, effect.branch?.section ?? "ideas", effect.trail, said, effect.fact);
             else if (effect.do === "journal") await window.caulder.life.jot(homeId ?? companyId, said);
             else {
               await window.caulder.day.createBlock(companyId, {
@@ -407,7 +398,7 @@ export function QuickAdd({
         }
         summary ||= sayAsk(ask);
       } else if (goesTo === "memory") {
-        const title = await remember(reading.page, reading.topic, reading.branch, said, reading.fact);
+        const title = await remember(reading.page, reading.topic, reading.branch?.section ?? "ideas", reading.trail, said, reading.fact);
         summary = `Remembered, under ${title} in the brain`;
       } else if (goesTo === "idea") {
         const page = await window.caulder.brain.create(companyId, "ideas", "idea");
@@ -505,7 +496,20 @@ export function QuickAdd({
   return (
     <div className="quickadd">
       <div className="quickadd__row">
-        <Sparkles size={17} className="quickadd__icon" aria-hidden />
+        {onAi ? (
+          <button
+            type="button"
+            className="quickadd__star"
+            aria-pressed={false}
+            title="Ask the AI instead"
+            onClick={onAi}
+          >
+            <Sparkles size={17} aria-hidden />
+            <span className="visually-hidden">Ask the AI instead</span>
+          </button>
+        ) : (
+          <Sparkles size={17} className="quickadd__icon" aria-hidden />
+        )}
         <input
           ref={input}
           className="quickadd__input"
@@ -565,11 +569,13 @@ export function QuickAdd({
             <span className="quickadd__added">Added: {added}</span>
           ) : (
             <span className="quickadd__hint">
-              {smart
-                ? `Say it the way you would text it — “mtg w rahul tmrw 4”, “went to the gym, felt good”, “red rising is a book by pierce brown”. It says what it will do first. Press A here${
-                    anywhere ? `, or ${anywhere} from any app` : ""
-                  }.`
-                : shownHint}
+              {smart ? (
+                <>
+                  <kbd className="kbd">{anywhere || "A"}</kbd> Text anything you want. We are ready for you.
+                </>
+              ) : (
+                shownHint
+              )}
             </span>
           )
         ) : !asTask && reading ? (
@@ -610,7 +616,7 @@ export function QuickAdd({
                       ? reading.page
                         ? `remembered under ${reading.page.title}, in the brain`
                         : `a new page in the brain's ${reading.branch?.section ?? "ideas"}: ${reading.topic ?? ""}${
-                            reading.branch?.parent ? `, part of ${reading.branch.parent.title}` : ""
+                            sayTrail(reading.trail) ? `, under ${sayTrail(reading.trail)}` : ""
                           }`
                     : goesTo === "idea" && reading.thought
                       ? `an idea in the brain: “${reading.thought.title}”${reading.thought.detail ? `, ${reading.thought.detail}` : ""}${

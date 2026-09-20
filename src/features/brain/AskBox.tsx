@@ -208,6 +208,7 @@ function Answer({
           {sent.leftOut > 0
             ? `${sent.contacts} contacts in full; ${sent.leftOut} left out to fit, chosen by the question.`
             : `All ${sent.contacts} contacts.`}{" "}
+          {sent.personal && "Your own pages went too, which you allowed in Settings; locked and private journal days never do. "}
           {answer.usage.input.toLocaleString()} tokens in
           {answer.usage.cached > 0 ? ` (${answer.usage.cached.toLocaleString()} from the cache)` : ""},{" "}
           {answer.usage.output.toLocaleString()} out.

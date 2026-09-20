@@ -125,9 +125,10 @@
 /* Numbered, because these are steps in an order and two of them look wrong
  * until you have read the one before. */
 .guide {
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-4);
   margin: var(--space-3) 0;
   padding: var(--space-4) var(--space-4) var(--space-4) var(--space-6);
   border-radius: var(--radius-md);
@@ -139,6 +140,265 @@
 }
 
 .guide strong { color: var(--ink); }
+
+/* A step: what to do, and beside it the screen it happens on. The words come
+ * first in the source, so both a reader and a screen reader get the
+ * instruction before the picture of it. */
+.guide__step {
+  display: grid;
+  gap: var(--space-3);
+}
+
+/* A picture is taller than the sentence beside it, which leaves air under
+ * the words. A hairline makes that air the end of a step rather than a hole. */
+.guide li + li {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--soft-line);
+}
+
+.guide__words {
+  min-width: 0;
+  max-width: 62ch;
+}
+
+.guide__words p { margin: 0; }
+
+.guide__what {
+  margin: 0 0 2px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+@container (min-width: 560px) {
+  .guide__step {
+    grid-template-columns: minmax(0, 1fr) 248px;
+    align-items: start;
+    gap: var(--space-4);
+  }
+}
+
+/* ---- The screens that are not Caulder's --------------------------------
+ *
+ * Drawn rather than photographed. A screenshot of somebody else's console is
+ * stale the week they move a menu, cannot follow the theme - a slab of
+ * bright white in the middle of a dark card - and carries fifty things when
+ * only one is wanted. A drawing keeps what has to be recognised: the shape
+ * of the screen, the exact words, and a ring round the thing to press.
+ *
+ * One accent to a picture. The ring and the words beside it are the same
+ * colour because they are one annotation; everything else is the greys a
+ * control is drawn in.
+ */
+.shot {
+  margin: 0;
+  /* Capped, so that under the words in a narrow card it stays a picture
+   * rather than widening into something that looks like a real panel. */
+  max-width: 340px;
+  /* A picture of another app. Nothing in it is Caulder's to press. */
+  pointer-events: none;
+  user-select: none;
+}
+
+.shot__where {
+  display: block;
+  margin-bottom: var(--space-1);
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+}
+
+.shot__pane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: var(--text-xs);
+  line-height: 1.35;
+}
+
+.shot svg { flex: none; }
+
+/* The strip of chrome along the top of a window. */
+.shot__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--soft-line);
+}
+
+/* Whose app it is does not matter, so the mark is a square. */
+.shot__mark {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  border-radius: var(--radius-xs);
+  background: var(--border-strong);
+}
+
+/* Code, as a reader sees it from across the room: lines of different lengths. */
+.shot__editor {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.shot__codeline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.shot__num {
+  width: 6px;
+  height: 2px;
+  flex: none;
+  border-radius: var(--radius-pill);
+  background: var(--border-strong);
+}
+
+.shot__line {
+  height: 5px;
+  border-radius: var(--radius-pill);
+  background: var(--border-strong);
+  opacity: 0.75;
+}
+
+.shot__codeline:nth-child(1) .shot__line { width: 72%; }
+.shot__codeline:nth-child(2) .shot__line { width: 88%; }
+.shot__codeline:nth-child(3) .shot__line { width: 54%; }
+.shot__codeline:nth-child(4) .shot__line { width: 80%; }
+
+/* The one thing to press, ringed the way it would be ringed on paper. */
+.shot__ring {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px var(--space-2);
+  border: 1.5px solid var(--accent);
+  border-radius: var(--radius-pill);
+  color: var(--accent-strong);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.shot__ring--plus {
+  padding: 2px;
+  margin-left: auto;
+}
+
+.shot__ring--link { text-decoration: underline; }
+
+/* What the ring is for, in as few words as will do, pointing back at it. */
+.shot__note {
+  color: var(--accent-strong);
+  font-family: var(--font);
+  font-size: var(--text-xs);
+}
+
+.shot__note::before {
+  content: "\2190";
+  margin-right: 4px;
+}
+
+.shot__note--up::before { content: "\2191"; }
+
+.shot__note--down::before { content: "\2193"; }
+
+/* The sidebar, and what is added from it. */
+.shot__split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: start;
+}
+
+.shot__side {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-right: var(--space-2);
+  border-right: 1px solid var(--soft-line);
+}
+
+.shot__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 3px var(--space-1);
+  border-radius: var(--radius-xs);
+}
+
+.shot__item--on {
+  background: var(--surface-hover);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.shot__stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+.shot__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  white-space: nowrap;
+}
+
+.shot__btn--go { color: var(--ink); }
+
+/* Google's warning, the shape of it: a title, and the way on. */
+.shot__dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+}
+
+.shot__head {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.shot__row,
+.shot__field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.shot__label { color: var(--ink-3); }
+
+/* A line in a log, or an address: monospace, because its shape is how you
+ * find it again on a screen full of words. */
+.shot__log {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-xs);
+  background: var(--surface-sunken);
+  font-family: var(--font-mono);
+  color: var(--ink-2);
+}
 
 /* ---- The capture window ------------------------------------------------ */
 
@@ -156,6 +416,20 @@
   border-radius: var(--radius-lg);
   background: var(--surface);
   box-shadow: var(--shadow-lg);
+}
+
+/* A task is one line. The window is see-through, so the card is only as tall
+   as what is in it, and grows when the line has something to say back. */
+.capture--task {
+  height: auto;
+  max-height: 100vh;
+  overflow-y: auto;
+}
+
+/* With nothing to say the row under the line is not there at all, so the card
+   is even top and bottom; it comes back the moment a letter is typed. */
+.capture--task .quickadd__read:has(> .quickadd__hint:empty) {
+  display: none;
 }
 
 .capture__modes {

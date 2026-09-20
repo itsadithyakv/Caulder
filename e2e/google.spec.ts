@@ -73,11 +73,26 @@ test("the whole setup is written on the card, not linked to", async () => {
 
   // Five steps, and the three that look wrong until explained are all named:
   // adding two services by hand, running a function to be asked for
-  // permission, and a deployment set to "Anyone".
+  // permission, and a deployment set to "Anyone". The words are checked
+  // inside the steps themselves, because the pictures say them again.
+  const words = page.locator(".guide__words");
   await expect(page.locator(".guide li")).toHaveCount(5);
-  await expect(page.getByText("Google Calendar API")).toBeVisible();
-  await expect(page.getByText("Tasks API")).toBeVisible();
-  await expect(page.locator(".guide").getByText("Anyone")).toBeVisible();
+  await expect(words.getByText("Google Calendar API")).toBeVisible();
+  await expect(words.getByText("Tasks API")).toBeVisible();
+  await expect(words.getByText("Anyone")).toBeVisible();
+});
+
+test("each step in somebody else's console is drawn, with the thing to press ringed", async () => {
+  const page = await openApp();
+
+  await page.getByRole("button", { name: "How to set this up" }).click();
+
+  // Four of the five steps happen in Google's console; the fifth is the two
+  // boxes on this card. A ring on the alarming answer, because that is the
+  // step people stop at.
+  await expect(page.locator(".guide .shot")).toHaveCount(4);
+  await expect(page.locator(".shot__ring", { hasText: "Anyone" })).toBeVisible();
+  await expect(page.locator(".shot__ring", { hasText: "Advanced" })).toBeVisible();
 });
 
 test("a URL that is not an Apps Script deployment is refused, and nothing is kept", async () => {

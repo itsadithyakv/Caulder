@@ -726,6 +726,8 @@
   color: var(--ink-2);
 }
 
+.setup__lead + .setup__lead { margin-top: var(--space-2); }
+
 .setup__foot {
   display: flex;
   align-items: center;

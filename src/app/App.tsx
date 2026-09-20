@@ -1,4 +1,4 @@
-import { MapView } from "@/features/brain/MapView";
+import { MapOf } from "@/features/brain/MapOf";
 import { useUpdates } from "@/features/settings/UpdatesCard";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, Sparkles, Rocket } from "lucide-react";
@@ -402,7 +402,10 @@ function Shell() {
                 </button>
               </div>
             )}
-            <div className="page-head">
+            {/* On Today the hello is the title: two heavy lines, one saying "Today"
+                and one saying hello, read as a stutter. The heading is still there
+                for a screen reader - it is only not drawn. */}
+            <div className={route === "today" ? "visually-hidden" : "page-head"}>
               <h1 className="page-head__title">{meta.label}</h1>
               {route === "import" && (
                 <button type="button" className="btn btn--sm" onClick={() => go("leads")}>
@@ -505,7 +508,7 @@ function Shell() {
                 }}
               />
             ) : route === "map" && activeCompany ? (
-              <MapView
+              <MapOf
                 key={`map-${activeCompany.id}`}
                 companyId={activeCompany.id}
                 onOpenPage={openPage}

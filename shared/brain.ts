@@ -958,7 +958,12 @@ export type BrainRevision = {
 
 export type ChecklistItem = {
   id: string;
+  /** The question, in the words somebody would ask it in - not the name of the field it fills. */
   label: string;
+  /** What Caulder does with the answer. The reason to give it, which a bare label never said. */
+  why: string;
+  /** Which of the four short steps it belongs to. */
+  step: ChecklistStep;
   done: boolean;
   section: BrainSectionId;
   /** The template the item opens: its single page, or a new one. */
@@ -1161,6 +1166,17 @@ export function maskSecret(last4: string): string {
 
 /* ---- Write these down first ------------------------------------------------- */
 
+/** Twelve things in a row read as a form. Four steps of three read as a start. */
+export const CHECKLIST_STEPS = ["basics", "people", "money", "plan"] as const;
+export type ChecklistStep = (typeof CHECKLIST_STEPS)[number];
+
+export const CHECKLIST_STEP_LABEL: Record<ChecklistStep, string> = {
+  basics: "The basics",
+  people: "Who, and what you sell",
+  money: "Money in, money out",
+  plan: "Where it is going",
+};
+
 /** What the checklist needs to know about a page. Secrets only as "has one". */
 export type ChecklistPage = {
   template: string;
@@ -1194,33 +1210,49 @@ export function evaluateChecklist(
 
   const item = (
     id: string,
+    step: ChecklistStep,
     label: string,
+    why: string,
     done: boolean,
     section: BrainSectionId,
     template: string,
     progress: string | null = null,
     goes: ChecklistItem["goes"] = "page",
-  ): ChecklistItem => ({ id, label, done, section, template, progress, goes });
+  ): ChecklistItem => ({ id, step, label, why, done, section, template, progress, goes });
 
   return [
-    item("one-liner", "The one-liner", has(profile, "oneLiner"), "company", "profile"),
+    item(
+      "one-liner",
+      "basics",
+      "What the company does, in one sentence",
+      "It heads this page, and Ask reads it to know what you do.",
+      has(profile, "oneLiner"),
+      "company",
+      "profile",
+    ),
     item(
       "entity",
-      "Entity type and incorporation date",
+      "basics",
+      "What kind of company it is, and since when",
+      "Private limited, LLP, sole proprietor - and the date it was registered. Which filings apply to you is worked out from it.",
       has(profile, "entityType") && has(profile, "incorporatedOn"),
       "company",
       "profile",
     ),
     item(
       "numbers",
-      "Registration numbers",
+      "basics",
+      "Its registration and tax numbers",
+      "Whichever you have - CIN, PAN, GSTIN, Udyam. Your tax number is printed on invoices, and all of them stay hidden on screen until you ask.",
       ["cin", "pan", "gstin", "udyam"].some((key) => has(profile, key)),
       "company",
       "profile",
     ),
     item(
       "founders",
-      "Founders, and who owns what",
+      "people",
+      "Who the founders are, and what each looks after",
+      "Written down now, so who decides what is settled before it matters.",
       founders.count > 0 && founders.withOwns === founders.count,
       "people",
       "page",
@@ -1229,7 +1261,9 @@ export function evaluateChecklist(
     ),
     item(
       "equity",
-      "The equity split",
+      "people",
+      "Who owns how much",
+      "A percentage beside each founder. It is the one number nobody should have to remember differently.",
       founders.count > 0 && founders.withEquity === founders.count,
       "people",
       "page",
@@ -1238,31 +1272,69 @@ export function evaluateChecklist(
     ),
     item(
       "product",
-      "The first product and its price",
+      "people",
+      "What you sell, and what it costs",
+      "One product with a price is enough. Invoices and deals pick from this list.",
       elsewhere.pricedProducts > 0,
       "products",
       "page",
       null,
       "catalogue",
     ),
-    item("gst", "Sales tax, VAT or GST", has(profile, "gstStatus"), "company", "profile"),
+    item(
+      "gst",
+      "money",
+      "Whether you charge GST, VAT or sales tax",
+      "Registered or not. It decides which tax filings you are reminded about.",
+      has(profile, "gstStatus"),
+      "company",
+      "profile",
+    ),
     item(
       "bank",
-      "The bank account invoices print",
+      "money",
+      "The bank account customers pay into",
+      "Printed at the foot of every invoice, so nobody has to ask where to send the money.",
       all("bank").some((page) => has(page, "onInvoices") && has(page, "number")),
       "company",
       "bank",
     ),
-    item("accountant", "The accountant", has(all("accountant")[0], "name"), "tax", "accountant"),
-    item("tools", "The tools you pay for", all("tool").length > 0, "tools", "tool"),
+    item(
+      "accountant",
+      "money",
+      "Who your accountant is",
+      "A name and how to reach them, beside the filings they handle.",
+      has(all("accountant")[0], "name"),
+      "tax",
+      "accountant",
+    ),
+    item(
+      "tools",
+      "money",
+      "The software you pay for",
+      "One is enough to start. Today warns you before each renews, and Money adds up what they cost.",
+      all("tool").length > 0,
+      "tools",
+      "tool",
+    ),
     item(
       "goals",
-      "This quarter's three goals",
+      "plan",
+      "Three goals for this quarter",
+      "Three, not ten: few enough to hold the quarter against.",
       goals.length >= 3,
       "plan",
       "goal",
       goals.length > 0 && goals.length < 3 ? `${goals.length} of 3` : null,
     ),
-    item("risk", "The biggest risk", all("risk").length > 0, "plan", "risk"),
+    item(
+      "risk",
+      "plan",
+      "The biggest risk right now",
+      "The one thing most likely to sink this, written down so it gets looked at instead of worried about.",
+      all("risk").length > 0,
+      "plan",
+      "risk",
+    ),
   ];
 }

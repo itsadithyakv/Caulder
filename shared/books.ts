@@ -73,6 +73,15 @@ function titled(name: string): string {
 }
 
 /** The book a line is about and which pile it goes on, or null when it is not about a book. */
+/** The series a book is of, when it is one Caulder knows: "The Lightning Thief" is Percy Jackson. */
+export function seriesOf(title: string): string | null {
+  const lower = title.trim().toLowerCase().replace(/^the\s+/, "");
+  for (const [key, books] of Object.entries(SERIES)) {
+    if (books.some((each) => each.toLowerCase().replace(/^the\s+/, "") === lower)) return titled(key);
+  }
+  return null;
+}
+
 export function readBook(line: string): BookAsk | null {
   const found: [ShelfStatus, RegExpExecArray | null][] = [["read", READ.exec(line)], ["to-read", TO_READ.exec(line)], ["reading", READING.exec(line)]];
   for (const [status, match] of found) {

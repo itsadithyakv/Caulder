@@ -195,7 +195,7 @@ test("a product is priced, picked onto an invoice, and shows what it brought in"
   await goTo(page, "Brain");
   // The list folds to the next few; the whole twelve are under All 12.
   await page.getByRole("button", { name: "All 12" }).click();
-  await page.getByRole("button", { name: /The first product and its price/ }).click();
+  await page.getByRole("button", { name: /^What you sell, and what it costs/ }).click();
   await expect(page.getByRole("tab", { name: "Products" })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByText("Nothing in the catalogue yet")).toBeVisible();
 

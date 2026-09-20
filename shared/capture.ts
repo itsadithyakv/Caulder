@@ -4,6 +4,8 @@ import { lengthIn, parseQuick } from "./quickadd";
 import { expand } from "./slang";
 import { slipAt } from "./slips";
 import { subjectOf, type Subject } from "./subjects";
+import { ROOT, trailOf, type Is, type Step } from "./branches";
+import { readFact, TRIVIA_PAGE } from "./facts";
 import { readThought, type Thought } from "./thoughts";
 
 /**
@@ -69,7 +71,7 @@ export type Effect =
    * about the bench press - `topic` is the page it starts and `branch` where
    * that goes. `fact` is the part to read first: "PR: 45 kg × 3".
    */
-  | { do: "memory"; page: { id: string; title: string } | null; topic: string | null; branch: Branch | null; fact: string | null }
+  | { do: "memory"; page: { id: string; title: string } | null; topic: string | null; branch: Branch | null; trail: Step[]; fact: string | null }
   | { do: "journal" };
 
 export type Known = {
@@ -101,6 +103,8 @@ type CaptureReading = {
   topic: string | null;
   /** For a page about to be started: the section it belongs in, and the page it hangs off. */
   branch: Branch | null;
+  /** The chain above it, said even for a page the brain has - one that hangs off nothing is hung where it belongs. */
+  trail: Step[];
   /** The part of a memory worth reading first, when there is one: "PR: 45 kg × 3". */
   fact: string | null;
   /** For an idea that is a thing to make: its title, what it should be like, and its links, apart. */
@@ -350,6 +354,9 @@ const NOT_A_TOPIC = new Set([
   "i", "we", "you", "my", "our", "the", "a", "an", "what", "who", "which", "everything", "nothing", "something",
 ]);
 
+/** Said to be a book, a film, a song, a game: the words that make "The ..." a title rather than an article. */
+const SAID_A_KIND = /\b(?:is|was)\s+(?:the|a|an|my|our|one\s+of)\s+(?:[\p{L}-]+\s+){0,3}?(?:books?|novels?|movies?|films?|shows?|series|anime|songs?|albums?|games?|documentar(?:y|ies))\b/iu;
+
 /**
  * "Red rising is the first book of the red rising series": a thing, said what
  * it is. The thing is the topic - up to four words, and not a pronoun - and a
@@ -358,7 +365,11 @@ const NOT_A_TOPIC = new Set([
 function newTopic(text: string): string | null {
   const match = /^\s*(?:remember\s+that\s+|note\s+that\s+|fyi\s+)?((?:[\p{L}\p{N}'&-]+\s+){0,3}[\p{L}\p{N}'&-]+)\s+(?:is|was|are|were)\s+(?:the|a|an|my|our|one\s+of)\s+\S/iu.exec(text);
   const topic = (match?.[1] ?? "").trim();
-  if (!topic || NOT_A_TOPIC.has((words(topic)[0] ?? "").toLowerCase())) return null;
+  const opens = (words(topic)[0] ?? "").toLowerCase();
+  // "The meeting was a mess" names nothing; "The Two Towers is a movie" names a film
+  // whose title happens to start that way, and says so by saying what it is.
+  const aTitle = opens === "the" && words(topic).length > 1 && SAID_A_KIND.test(text);
+  if (!topic || (NOT_A_TOPIC.has(opens) && !aTitle)) return null;
   return topic.replace(/(^|[\s-])(\p{Ll})/gu, (_whole, lead: string, letter: string) => lead + letter.toUpperCase());
 }
 
@@ -371,21 +382,32 @@ function fallbackTopic(text: string): string {
 /** Where what was done stops and what it was like begins: "gym | hit legs, feel good". */
 const CUT_SHORT = /,|\b(?:and|then|hit|feel|feeling|felt|was|loved)\b/i;
 
-type Branch = { section: "hobbies" | "studies" | "ideas"; parent: { id: string; title: string } | null };
+type Branch = {
+  section: "hobbies" | "studies" | "ideas";
+  /** The page it hangs off, when the brain already has it. */
+  parent: { id: string; title: string } | null;
+  /** The whole way down to it, from Me: every level, whether or not it exists yet. See shared/branches.ts. */
+  trail: Step[];
+};
 
 /**
  * Where a new memory belongs, from what it said it is. A book is a hobby and
  * hangs off the page about reading; a course is a study. Anything else starts
  * in Ideas, which is where a page with no better home has always gone.
  */
-const BRANCHES: readonly { says: RegExp; section: Branch["section"]; parent: RegExp | null }[] = [
-  { says: /\b(?:books?|novels?|trilogy|author|chapters?|audiobooks?|manga|comics?)\b/i, section: "hobbies", parent: /read|book|novel|literature/i },
-  { says: /\b(?:movies?|films?|shows?|anime|documentar(?:y|ies)|episodes?|seasons?)\b/i, section: "hobbies", parent: /movie|film|watch|cinema|show|anime|tv/i },
-  { says: /\b(?:songs?|albums?|bands?|artists?|playlists?|chords?|riffs?)\b/i, section: "hobbies", parent: /music|guitar|piano|sing|song|drum/i },
-  { says: /\b(?:games?|gaming|bosses|levels?|quests?)\b/i, section: "hobbies", parent: /gam/i },
-  { says: /\b(?:recipes?|dish(?:es)?|cuisine|baking)\b/i, section: "hobbies", parent: /cook|bak|food|recipe/i },
-  { says: /\b(?:workouts?|exercises?|lifts?|squats?|deadlifts?|bench|yoga|running)\b/i, section: "hobbies", parent: /gym|fitness|workout|run|yoga|sport|lift/i },
-  { says: /\b(?:courses?|subjects?|professors?|textbooks?|syllabus|lectures?|exams?|semesters?|theorems?|algorithms?)\b/i, section: "studies", parent: null },
+/**
+ * `trunk` is the hobby a thing of this kind is part of, by the name it is
+ * started under when the brain has no page for it yet: somebody keeping track
+ * of the books they read has Reading for a hobby, whether or not they said so.
+ */
+const BRANCHES: readonly { says: RegExp; is: Is; section: Branch["section"]; parent: RegExp | null; trunk: string | null }[] = [
+  { says: /\b(?:books?|novels?|trilogy|author|chapters?|audiobooks?|manga|comics?)\b/i, is: "book", section: "hobbies", parent: /\b(?:read|book|novel|literature)/i, trunk: "Reading" },
+  { says: /\b(?:movies?|films?|shows?|anime|documentar(?:y|ies)|episodes?|seasons?)\b/i, is: "film", section: "hobbies", parent: /\b(?:movie|film|watch|cinema|show|anime|tv)/i, trunk: "Films and shows" },
+  { says: /\b(?:songs?|albums?|bands?|artists?|playlists?|chords?|riffs?)\b/i, is: "song", section: "hobbies", parent: /\b(?:music|guitar|piano|sing(?:ing)?\b|song|drum)/i, trunk: "Music" },
+  { says: /\b(?:games?|gaming|bosses|levels?|quests?)\b/i, is: "game", section: "hobbies", parent: /\bgam/i, trunk: "Gaming" },
+  { says: /\b(?:recipes?|dish(?:es)?|cuisine|baking)\b/i, is: "recipe", section: "hobbies", parent: /\b(?:cook|bak|food|recipe)/i, trunk: "Cooking" },
+  { says: /\b(?:workouts?|exercises?|lifts?|squats?|deadlifts?|bench|yoga|running)\b/i, is: "exercise", section: "hobbies", parent: /\b(?:gym|fitness|workout|run|yoga|sport|lift)/i, trunk: "Gym" },
+  { says: /\b(?:courses?|subjects?|professors?|textbooks?|syllabus|lectures?|exams?|semesters?|theorems?|algorithms?)\b/i, is: "course", section: "studies", parent: null, trunk: null },
 ];
 
 /** A word of each kind of subject, in the terms the branches are told apart by. */
@@ -393,16 +415,47 @@ const SAYS_KIND: Record<Subject["kind"], string> = {
   exercise: "workout", song: "song", book: "book", film: "movie", game: "game", recipe: "recipe", course: "course", thing: "",
 };
 
-function branchOf(text: string, pages: NonNullable<Known["pages"]>, kind?: Subject["kind"]): Branch {
+/** A level the line made - "Fantasy books", "Red Rising series" - which is never the hobby itself, whatever word is in it. */
+const A_LEVEL = /\s(?:books|films|series)$/i;
+
+function branchOf(
+  text: string,
+  pages: NonNullable<Known["pages"]>,
+  hobbies: Known["hobbies"],
+  topic: string,
+  kind?: Subject["kind"],
+): Branch {
   // What the subject was found to be says more than any word that happens to be in the line.
   const told = kind ? SAYS_KIND[kind] : "";
-  const branch = BRANCHES.find(({ says }) => says.test(told || text));
-  if (!branch) return { section: "ideas", parent: null };
-  const among = branch.parent ? pages.filter((page) => page.section === branch.section && branch.parent?.test(page.title)) : [];
+  // Said first wins: "a movie in the ... trilogy" is a film, though a trilogy is usually books.
+  const heard = told || text;
+  const branch = BRANCHES.map((each) => ({ each, at: heard.search(each.says) }))
+    .filter(({ at }) => at >= 0)
+    .sort((a, b) => a.at - b.at)[0]?.each;
+  // Nothing it is part of: it hangs off you, which is still somewhere.
+  if (!branch) return { section: "ideas", parent: null, trail: [ROOT] };
+  // The hobby it is part of is one of your hobbies, when you have one that fits:
+  // "Fantasy books" has "book" in it too, and is a shelf in Reading, not Reading.
+  const yours = branch.parent ? hobbies.filter((hobby) => branch.parent?.test(hobby.title) && !A_LEVEL.test(hobby.title)) : [];
+  const others = branch.parent
+    ? pages.filter((page) => page.section === branch.section && branch.parent?.test(page.title) && !A_LEVEL.test(page.title))
+    : [];
+  // Your hobbies first, so with nothing named in the line it is a hobby that is chosen and not a page that merely fits.
+  const among = [...yours, ...others.filter((page) => !yours.some((hobby) => hobby.id === page.id))];
   // Guitar and Piano are both where a song could hang: the one the line names, when it names one.
   const lower = ` ${words(text).join(" ")} `;
   const parent = among.find((page) => lower.includes(` ${words(page.title).join(" ")} `)) ?? among[0];
-  return { section: branch.section, parent: parent ? { id: parent.id, title: parent.title } : null };
+  // The hobby itself: the page there is, by its own name, or the one to start.
+  const trunk: Step | null = parent
+    ? { title: parent.title, section: branch.section, template: "hobby" }
+    : branch.trunk
+      ? { title: branch.trunk, section: branch.section, template: "hobby" }
+      : null;
+  return {
+    section: branch.section,
+    parent: parent ? { id: parent.id, title: parent.title } : null,
+    trail: trailOf({ section: branch.section, trunk, is: branch.is, text, topic }),
+  };
 }
 
 /** "Lateral raise" and "Lateral Raises" are one page: a title, with its plurals taken off. */
@@ -447,7 +500,7 @@ export function readCapture(
     const kept = line.slice(hush[0].length).trim();
     return {
       kind: "private", text: kept, contact: null, hobby: null, minutes: null, effects: [], page: null, topic: null,
-      branch: null, fact: null, thought: null, ask: null, logged: "note", because: "you said it was private",
+      branch: null, trail: [], fact: null, thought: null, ask: null, logged: "note", because: "you said it was private",
       secret: readPrivate(kept, false) ?? { feeling: "other", people: [], because: "you said it was private" },
       options: ["private", "journal", "note"],
     };
@@ -479,9 +532,14 @@ export function readCapture(
   // when it does not - rather than whatever other page the line happens to name.
   const pages = known.pages ?? [];
   const subject = subjectOf(said);
-  const page = subject ? pageTitled(subject.topic, pages) : namedPage(said, pages);
-  const topic = page ? null : (newTopic(said) ?? subject?.topic ?? null);
-  const branch = branchOf(said, pages, subject?.kind);
+  const opensWith = subject ? null : newTopic(said);
+  // "Golden Son is a book in the Red Rising series" is about Golden Son. The
+  // series it names is where it hangs, not the page it goes on.
+  const page = subject ? pageTitled(subject.topic, pages) : opensWith ? pageTitled(opensWith, pages) : namedPage(said, pages);
+  const named = page ? null : (opensWith ?? subject?.topic ?? null);
+  const branch = branchOf(said, pages, known.hobbies, page?.title ?? named ?? "", subject?.kind);
+  // A course called by its letters is written in them: DBMS, not Dbms.
+  const topic = named !== null && branch.section === "studies" && /^[A-Za-z]{2,4}$/.test(named) ? named.toUpperCase() : named;
   // A page hangs off what it is part of, and talking about the one is doing
   // the other: a PR on the bench press is a day at the gym.
   const implied = branch.parent?.title ?? (subject?.kind === "exercise" ? "gym" : "");
@@ -524,7 +582,7 @@ export function readCapture(
       const at = began ?? Math.max(0, Math.floor((clock.now - length) / 5) * 5);
       effects.push({ do: "block", title: title.charAt(0).toUpperCase() + title.slice(1), startsAt: clockOf(at), minutes: length });
     }
-    if (page || topic) effects.push({ do: "memory", page, topic, branch: page ? null : branch, fact: subject?.fact ?? null });
+    if (page || topic) effects.push({ do: "memory", page, topic, branch: page ? null : branch, trail: branch.trail, fact: subject?.fact ?? null });
     // The feeling goes in the journal - but only alongside something else: a
     // line that is nothing but the feeling is simply a journal line.
     if (effects.length > 0 && (FELT.test(said) || LOOKED_BACK.test(said))) effects.push({ do: "journal" });
@@ -563,12 +621,17 @@ export function readCapture(
   // a word that is also a verb, and is not an instruction for all that.
   const thought = prefix || MEANT.test(said) || later ? null : readThought(text);
 
+  // Something learnt, of the kind a quizzer collects. All of them go on one
+  // page; a line about a page the brain has, or about something with a page
+  // of its own to start (a song, a lift), is that page's and not this one's.
+  const trivia = prefix || page || subject || MEANT.test(said) || later ? null : readFact(text);
+
   // Private is always one press away, whatever the line was read as.
   const options: CaptureKind[] = ask ? ["command", "task", "journal", "private"] : ["task", "journal", "private"];
   if (contact) options.push("contact");
   if (hobby) options.push("hobby");
   if (effects.length > 0) options.push("done");
-  if (page || topic) options.push("memory");
+  if (page || topic || trivia) options.push("memory");
   options.push("idea", "note");
 
   const reading = (kind: CaptureKind, because: string): CaptureReading => ({
@@ -581,6 +644,7 @@ export function readCapture(
     page,
     topic: page ? null : (topic ?? fallbackTopic(text)),
     branch: page ? null : branch,
+    trail: branch.trail,
     fact: subject?.fact ?? null,
     // Read from the line as typed: a link is not something to write out the short forms of.
     thought,
@@ -625,6 +689,23 @@ export function readCapture(
   if (hobby && (minutes !== null || DID_IT.test(said)) && !ahead && !MEANT.test(said)) {
     return reading("hobby", `time given to ${hobby.title}`);
   }
+  // Kept as the fact alone, led by what it is about, on the one page they share.
+  const learnt = (): CaptureReading => {
+    const kept = pageTitled(TRIVIA_PAGE, pages);
+    return {
+      ...reading("memory", "it is a fact worth keeping"),
+      text: trivia?.says ?? text,
+      page: kept,
+      topic: kept ? null : TRIVIA_PAGE,
+      branch: kept ? null : { section: "ideas", parent: null, trail: [ROOT] },
+      // Not led by its subject, as a lift is by its numbers: a fact opens with
+      // what it is about, and "Bangalore · Bangalore was founded..." says it twice.
+      fact: null,
+      trail: [ROOT],
+    };
+  };
+  // Said to be one - "fun fact", "interesting question" - so nothing below gets to doubt it.
+  if (trivia?.marked) return learnt();
   if (thought) return reading("idea", "it is something to make");
   if (IDEA.test(said)) return reading("idea", "it is an idea");
   // Looked back on, with nothing of Caulder's to update: the day, in the journal
@@ -634,6 +715,12 @@ export function readCapture(
   if (ahead) return reading("task", "it says when");
   // Something said about a page the brain has, or a thing said what it is.
   if (page) return reading("memory", `it is about ${page.title}`);
+  // Only shaped like one, so after everything that is surer of itself - and
+  // not when the line says what kind of thing it is: "Red Rising is the first
+  // book of the series" is a book, which has a page of its own to start and
+  // somewhere to hang it, not one more line on the pile.
+  const hasAHome = topic !== null && branch.section !== "ideas";
+  if (trivia && !hasAHome) return learnt();
   if (topic) return reading("memory", `it says what ${topic} is`);
   // Before "today" gets a say: "felt great today" is about today, not due today.
   if (FELT.test(said) || doneWord(first)) return reading("journal", "it is about your day");

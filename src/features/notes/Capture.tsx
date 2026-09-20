@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { QuickAdd } from "@/features/today/QuickAdd";
 import { messageOf } from "@/lib/errors";
+import { taskExample } from "@shared/voice";
+import { sayOnce } from "@/features/today/said";
 
 /**
  * The quick window - opened from the tray icon or with Ctrl+Alt+A.
@@ -142,7 +144,7 @@ export function Capture() {
   }
 
   return (
-    <div className="capture">
+    <div className={`capture${mode === "task" ? " capture--task" : ""}`}>
       <div className="capture__modes" role="radiogroup" aria-label="What this is">
         {(["task", "note"] as const).map((option) => (
           <button
@@ -192,8 +194,10 @@ export function Capture() {
           timezone={workspace.timezone}
           personal={workspace.personal}
           focusNonce={nonce}
-          placeholder="Datascience assignment at 4pm today"
-          hint="“tmrw 4pm”, “fri for 2h”, “gym every mon 6am”, “not urgent”. Enter adds it · Ctrl+N for a note · Esc closes."
+          // A different example each time the window is opened: it shows what
+          // the line reads by being it, which a sentence of hints under it never did.
+          placeholder={sayOnce("task-example", String(nonce), taskExample).says}
+          hint=""
           // Long enough to read "Added", then out of the way of whatever you
           // were doing - which is the whole point of this window.
           onAdded={() => {

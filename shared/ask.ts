@@ -21,10 +21,10 @@ export const CONTEXT_LABEL: Record<ContextSize, string> = {
 };
 
 export const CONTEXT_HINT: Record<ContextSize, string> = {
-  small: "About 15,000 tokens. For a model on this computer, or a free tier with a tight limit.",
+  small: "About 15,000 tokens. For a model on this computer, or a tight free tier.",
   medium: "About 50,000 tokens.",
-  large: "About 120,000 tokens: a whole company, for most. Contacts are trimmed to fit past that.",
-  whole: "Up to about 800,000 tokens, for models with a million-token window. Can be slow and costly.",
+  large: "About 120,000 tokens: a whole company. Contacts are trimmed past that.",
+  whole: "Up to 800,000 tokens, for million-token models. Slow, and costly if paid.",
 };
 
 /** Characters sent for each size, and how many contacts are written in full when the list is cut. */
@@ -75,7 +75,7 @@ export const AI_SERVICES = [
       "Copy the key - it starts with *AIza* - paste it below and press **Connect**.",
     ],
     privacy:
-      "Free, with limits: a handful of questions a minute and a daily cap, which is plenty for asking about one company. On the free tier Google may use what is sent to improve its products, and what is sent includes your contacts' details. Turning on billing for the key in AI Studio stops that.",
+      "Free: a few questions a minute, and a daily cap. On the free tier Google may train on what is sent, which includes your contacts' details - turning on billing for the key in AI Studio stops that.",
   },
   {
     id: "openai",
@@ -217,7 +217,25 @@ export type AskState = {
   context: ContextSize;
   /** Whether this machine will encrypt a key at all. */
   canEncrypt: boolean;
+  /**
+   * Whether your own pages - journal, goals, hobbies, studies - may go with a
+   * question. Off until you turn it on, and never a locked or private
+   * journal day whatever it says.
+   */
+  personal: boolean;
 };
+
+/**
+ * How much goes with a question.
+ *
+ * - **company**: the whole dossier, within the size chosen. Asking the brain.
+ * - **line**: today, what the question is about, and your own pages - a few
+ *   thousand characters rather than a hundred thousand, because the line on
+ *   Today is answered while you are standing at it, on a free tier, forty
+ *   times a day.
+ */
+export const ASK_SCOPES = ["company", "line"] as const;
+export type AskScope = (typeof ASK_SCOPES)[number];
 
 export const connectInput = z
   .object({
@@ -255,6 +273,7 @@ export const askInput = z.object({
   question: z.string().trim().min(1, "Ask something.").max(4000, "Keep the question under 4,000 characters."),
   /** The conversation so far, oldest first, so a follow-up can say "and them?". */
   history: z.array(turn).max(20).default([]),
+  scope: z.enum(ASK_SCOPES).default("company"),
 });
 export type AskInput = z.input<typeof askInput>;
 
@@ -273,6 +292,8 @@ export type AskAnswer = {
     /** How many contacts were written out in full, and how many were left out to fit. */
     contacts: number;
     leftOut: number;
+    /** Whether your own pages went too. */
+    personal: boolean;
   };
   references: AskReference[];
   usage: { input: number; output: number; cached: number };

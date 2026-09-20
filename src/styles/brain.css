@@ -148,9 +148,10 @@
   gap: var(--space-3);
 }
 
+/* A step below the screen's title, as the thing inside a screen is everywhere else: two lines at one size read as a stutter. */
 .brainhome__name {
   color: var(--ink);
-  font-size: var(--text-xl);
+  font-size: var(--text-lg);
   font-weight: 700;
   line-height: var(--leading-tight);
 }
@@ -160,6 +161,89 @@
   font-size: var(--text-md);
 }
 
+/* ---- Memories: what the line was told to remember ------------------------- */
+
+.memories,
+.memories__groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.memories__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: 720px;
+}
+
+.memories__search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink-3);
+}
+
+.memories__search:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-halo);
+}
+
+.memories__input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+}
+
+.memories__input:focus-visible {
+  outline: none;
+}
+
+.memories__list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.memories__item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--border);
+}
+
+.memories__item:first-child {
+  border-top: 0;
+}
+
+.memories__says {
+  color: var(--ink-2);
+  line-height: var(--leading);
+}
+
+.memories__fact {
+  color: var(--ink);
+}
+
+.memories__day {
+  flex-shrink: 0;
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
 .checklist__head {
   display: flex;
   align-items: center;
@@ -167,22 +251,78 @@
   margin-bottom: var(--space-3);
 }
 
+/* A step of the list: its name, how far through it, then its questions. */
+.checklist__step {
+  margin-top: var(--space-4);
+}
+
+.checklist__stepName {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-1);
+  padding: 0 var(--space-2);
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.checklist__stepCount {
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* One to a row now: a question and what its answer is for do not fit in half a card. */
 .checklist__items {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 2px var(--space-3);
+  display: flex;
+  flex-direction: column;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+.checklist__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.checklist__why {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+  font-weight: 400;
+  line-height: var(--leading);
+}
+
+.checklist__go {
+  flex-shrink: 0;
+  align-self: center;
+  color: var(--ink-3);
+  opacity: 0;
+  transition:
+    opacity var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease);
+}
+
+.checklist__item:hover .checklist__go,
+.checklist__item:focus-visible .checklist__go {
+  opacity: 1;
+  transform: translateX(2px);
+}
+
 .checklist__item {
   display: flex;
-  align-items: center;
-  gap: var(--space-2);
+  /* A question over what it is for: the mark sits by the question, not between the two. */
+  align-items: flex-start;
+  gap: var(--space-3);
   width: 100%;
   min-height: 34px;
-  padding: var(--space-1) var(--space-2);
+  padding: var(--space-2);
   background: transparent;
   color: var(--ink);
   border: none;
@@ -217,12 +357,18 @@
 }
 
 .checklist__label {
-  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
   min-width: 0;
+  font-weight: 600;
 }
 
 .checklist__mark {
   flex-shrink: 0;
+  /* Level with the first line of the question. */
+  margin-top: 2px;
   color: var(--ink-3);
   transition: transform var(--dur-bounce) var(--ease-bounce);
 }
@@ -445,9 +591,10 @@
   margin-left: auto;
 }
 
+/* A step below the screen's title, as the thing inside a screen is everywhere else: two lines at one size read as a stutter. */
 .bpage__title {
   color: var(--ink);
-  font-size: var(--text-xl);
+  font-size: var(--text-lg);
   font-weight: 700;
   line-height: var(--leading-tight);
   overflow-wrap: anywhere;
@@ -1111,6 +1258,17 @@
 }
 
 /* The map fills what it is given; everything else floats over it. */
+/* Whose map: the company's, or yours. Above the map rather than in its toolbar - it changes what the map is of. */
+.mapof {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.mapof__whose {
+  align-self: flex-start;
+}
+
 .mapview__stage {
   position: relative;
   height: max(460px, calc(100vh - 250px));

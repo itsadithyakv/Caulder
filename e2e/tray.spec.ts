@@ -103,6 +103,16 @@ test("the tray icon opens the quick window on a task, and the task goes in", asy
   await expect(quick.getByRole("radio", { name: "Task" })).toHaveAttribute("aria-checked", "true");
 
   const line = quick.getByLabel("Add a task in one line");
+
+  // One line and nothing under it: the card is as tall as the line, not as the
+  // window, and the example in it is a task - shown faintly, as an example is.
+  await expect(quick.locator(".quickadd__hint")).toHaveText("");
+  const card = await quick.locator(".capture").boundingBox();
+  expect(card?.height ?? 999).toBeLessThan(150);
+  expect((await line.getAttribute("placeholder"))?.length ?? 0).toBeGreaterThan(5);
+  expect(await line.evaluate((input) => Number(getComputedStyle(input, "::placeholder").opacity))).toBeLessThan(1);
+  await quick.screenshot({ path: process.env.CAULDER_SHOT ?? "test-results/quick-window.png", omitBackground: true });
+
   await line.fill("water the plants tomorrow");
   await line.press("Enter");
 

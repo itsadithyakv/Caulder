@@ -34,10 +34,10 @@ describe("the lines this was built for", () => {
       { do: "finish", task: { id: "t-gym", title: "Gym" } },
       { do: "tick", habit: { id: "b-gym", name: "Gym" } },
       {
-        do: "memory",
+        do: "memory", trail: expect.any(Array),
         page: null,
         topic: "Bench Press",
-        branch: { section: "hobbies", parent: { id: "gym", title: "Gym" } },
+        branch: expect.objectContaining({ section: "hobbies", parent: { id: "gym", title: "Gym" } }),
         fact: "PR: 45 kg × 3",
       },
       { do: "journal" },
@@ -48,10 +48,10 @@ describe("the lines this was built for", () => {
     const reading = read("tried a new varient of lateral raises, my arms are burning");
     expect(reading.kind).toBe("done");
     expect(reading.effects).toContainEqual({
-      do: "memory",
+      do: "memory", trail: expect.any(Array),
       page: null,
       topic: "Lateral Raises",
-      branch: { section: "hobbies", parent: { id: "gym", title: "Gym" } },
+      branch: expect.objectContaining({ section: "hobbies", parent: { id: "gym", title: "Gym" } }),
       fact: null,
     });
     expect(reading.effects).toContainEqual({ do: "journal" });
@@ -63,7 +63,7 @@ describe("the lines this was built for", () => {
     );
     expect(reading.kind).toBe("done");
     expect(reading.effects).toEqual([
-      { do: "memory", page: null, topic: "Riptide", branch: { section: "hobbies", parent: { id: "guitar", title: "Guitar" } }, fact: null },
+      { do: "memory", trail: expect.any(Array), page: null, topic: "Riptide", branch: expect.objectContaining({ section: "hobbies", parent: { id: "guitar", title: "Guitar" } }), fact: null },
       { do: "journal" },
     ]);
     // Kept whole, as it was said.
@@ -79,7 +79,7 @@ describe("kept in one place", () => {
 
   it("adds to the page there is, rather than starting a second", () => {
     expect(read("bench press 3x8 at 40kg, felt strong", withPages).effects).toContainEqual({
-      do: "memory",
+      do: "memory", trail: expect.any(Array),
       page: { id: "bp", title: "Bench Press" },
       topic: null,
       branch: null,
@@ -89,7 +89,7 @@ describe("kept in one place", () => {
 
   it("knows a page by its name said another way", () => {
     expect(read("did a lateral raise dropset, was brutal", withPages).effects).toContainEqual(
-      expect.objectContaining({ do: "memory", page: { id: "lr", title: "Lateral Raises" } }),
+      expect.objectContaining({ do: "memory", trail: expect.any(Array), page: { id: "lr", title: "Lateral Raises" } }),
     );
   });
 
@@ -114,10 +114,10 @@ describe("kept in one place", () => {
 
   it("starts the page in Hobbies on its own when there is nothing to hang it off", () => {
     expect(read("hit a pr on deadlift, 100kg", { contacts: [], hobbies: [] }).effects).toContainEqual({
-      do: "memory",
+      do: "memory", trail: expect.any(Array),
       page: null,
       topic: "Deadlift",
-      branch: { section: "hobbies", parent: null },
+      branch: expect.objectContaining({ section: "hobbies", parent: null }),
       fact: "PR: 100 kg",
     });
   });
@@ -127,14 +127,14 @@ describe("a run, the scale, and a thing to make", () => {
   it("keeps a run with the running, numbers first - and the pace is not taken for a time", () => {
     const reading = read("i went for a run today, 5kms. I rant at a 4.30 pace which burnt me out");
     expect(reading.kind).toBe("done");
-    expect(reading.effects).toContainEqual(expect.objectContaining({ do: "memory", topic: "Running", fact: "5 km · 4:30 /km" }));
+    expect(reading.effects).toContainEqual(expect.objectContaining({ do: "memory", trail: expect.any(Array), topic: "Running", fact: "5 km · 4:30 /km" }));
     // Nothing put on the Calendar at half past four: that was how fast, not when.
     expect(reading.effects.some((effect) => effect.do === "block")).toBe(false);
   });
 
   it("keeps what the scale said under Body Weight", () => {
     expect(read("I lost 5kg this month")).toMatchObject({ topic: "Body Weight", fact: "−5 kg" });
-    expect(read("gained 2kg, feeling strong").effects).toContainEqual(expect.objectContaining({ do: "memory", topic: "Body Weight", fact: "+2 kg" }));
+    expect(read("gained 2kg, feeling strong").effects).toContainEqual(expect.objectContaining({ do: "memory", trail: expect.any(Array), topic: "Body Weight", fact: "+2 kg" }));
   });
 
   it("catches something to make as an idea, its parts apart - not as an instruction to edit", () => {

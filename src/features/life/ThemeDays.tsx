@@ -88,7 +88,7 @@ export function ThemeDays({ companyId }: { companyId: string }) {
       title="Theme days"
       hint="Give a day to one thing - Mondays for studies, Tuesdays for guitar. A focus, not a lock."
     >
-      <ol className="yourweek" aria-label="Theme days">
+      <ol className="themeweek" aria-label="Theme days">
         {DAYS.map((name, index) => {
           const weekday = index + 1;
           const theme = byDay.get(weekday);

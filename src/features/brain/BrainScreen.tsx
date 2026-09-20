@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import { House, LayoutGrid, Share2, Waypoints } from "lucide-react";
+import { House, LayoutGrid, Share2, Sparkles, Waypoints } from "lucide-react";
 import { BRAIN_SECTION_LIST, isPersonalSection, sectionOf, type BrainHome as Home, type BrainSectionId } from "@shared/brain";
 import { ErrorLine } from "@/components/ErrorLine";
 import { messageOf } from "@/lib/errors";
 import { useWorkspace } from "@/lib/workspace";
 import { BrainHome } from "./BrainHome";
+import { Memories } from "./Memories";
 import { PageView } from "./PageView";
 import { SectionView } from "./SectionView";
-import { MapView } from "./MapView";
+import { MapOf } from "./MapOf";
 import { BrainShare } from "./BrainShare";
 import { SectionsIndex } from "./SectionsIndex";
 import { SECTION_ICON } from "./sections";
@@ -23,22 +24,24 @@ import { SECTION_ICON } from "./sections";
  * pages too, so a link reaches them, but they live under You, not here.
  */
 
-type From = BrainSectionId | "home" | "map";
+type From = BrainSectionId | "home" | "map" | "memories";
 
 function backLabelOf(from: From): string {
   if (from === "home") return "Brain home";
   if (from === "map") return "The map";
+  if (from === "memories") return "Memories";
   return sectionOf(from).label;
 }
 
 function backTo(from: From): View {
-  if (from === "home" || from === "map") return { kind: from };
+  if (from === "home" || from === "map" || from === "memories") return { kind: from };
   return { kind: "section", section: from };
 }
 
 type View =
   | { kind: "home" }
-  | { kind: "map" }
+  | { kind: "map"; yours?: boolean }
+  | { kind: "memories" }
   | { kind: "all" }
   | { kind: "share" }
   | { kind: "section"; section: BrainSectionId; focus?: string }
@@ -178,6 +181,16 @@ export function BrainScreen({
           <Waypoints size={15} aria-hidden />
           <span className="brain__railLabel">Map</span>
         </button>
+        {/* What the line on Today was told to remember. Yours, so it is here whichever company is open. */}
+        <button
+          type="button"
+          className="brain__railItem"
+          aria-current={current === "memories" ? "page" : undefined}
+          onClick={() => setView({ kind: "memories" })}
+        >
+          <Sparkles size={15} aria-hidden />
+          <span className="brain__railLabel">Memories</span>
+        </button>
         <span className="brain__railRule" aria-hidden />
         {BRAIN_SECTION_LIST.filter(
           (section) => !isPersonalSection(section.id) && (section.id === current || (home?.counts[section.id] ?? 0) > 0),
@@ -246,8 +259,10 @@ export function BrainScreen({
           home && <SectionsIndex counts={home.counts} onOpen={(section) => setView({ kind: "section", section })} />
         ) : view.kind === "share" ? (
           <BrainShare companyId={companyId} version={version} onGoToSettings={onGoToSettings} onChanged={changed} />
+        ) : view.kind === "memories" ? (
+          <Memories version={version} onOpenPage={(id) => openPage(id, "memories")} onOpenMap={() => setView({ kind: "map", yours: true })} />
         ) : view.kind === "map" ? (
-          <MapView companyId={companyId} onOpenPage={(id) => openPage(id, "map")} onOpenContact={onOpenContact} />
+          <MapOf companyId={companyId} startYours={view.yours === true} onOpenPage={(id) => openPage(id, "map")} onOpenContact={onOpenContact} />
         ) : view.kind === "section" ? (
           <SectionView
             key={`${view.section}:${view.focus ?? ""}`}
@@ -264,7 +279,6 @@ export function BrainScreen({
         ) : (
           <PageView
             key={view.id}
-            companyId={companyId}
             pageId={view.id}
             startEditing={view.editing}
             version={version}

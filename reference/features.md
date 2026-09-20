@@ -49,14 +49,17 @@ itself needs no setting up - one file on this machine, nothing to sign in to -
 so the guide is about the two things that live in somebody else's console,
 and it says so first:
 
-1. **Google: your calendar, your tasks, your email.** Why it is a script in
-   your own account rather than a sign-in, then the steps in the order
-   Google's own menus say them - copy the script, open Apps Script, add the
-   Calendar and Tasks services, run *setUp* and allow it, deploy as a web app
-   *Execute as me / Anyone*, paste the URL and the key. The same card as
-   Settings, with its steps already open.
+1. **Google: your calendar, your tasks, your email.** The same card as
+   Settings, with its steps already open: copy the script, open Apps Script,
+   add the Calendar and Tasks services, run *setUp* and allow it, deploy as a
+   web app *Execute as me / Anyone*, paste the URL and the key - each step a
+   sentence beside a drawing of the screen it happens on.
 2. **An AI, to ask the brain.** The services, what each costs, and the steps
    for the one picked. Gemini is free and first.
+
+Each of the two says how long it takes on its heading - *Optional - 5 min*,
+*Optional - 2 min* - because the question somebody skipping has is not whether
+it is worth it but whether it is worth it now.
 3. **Your contacts.** Import a spreadsheet or paste a list, or add one by
    hand.
 4. **What the company knows.** The brain's *write these down first*, and what
@@ -169,6 +172,21 @@ away; **Keep** (or Enter) puts it there.
 - **The journal** - the first person, a feeling, a day looked back on: *rough
   morning but shipped the pricing page* goes under *Today* in today's entry,
   made if there is none.
+- **Something to remember** - a thing said what it is, or something about a
+  page the brain has: *red rising is a book by pierce brown* starts a page for
+  it, and later lines about it are added there as dated lines. A lift's
+  numbers lead its line. The page is hung the whole way down - see
+  **Brain, memories and the map** below. A line that opens by saying what a
+  new thing is (*golden son is a book in the red rising series*) starts that
+  thing, whatever page it goes on to mention; a title may begin with *The*
+  when the line says what kind of thing it is.
+- **A fact** - said to be one (*fun fact:*, *did you know*, *TIL*, a closing
+  *interesting question* or *who knew*) or shaped like one (*Shivajinagar was
+  called Blackpally*, *NASA stands for…*, *Canberra is the capital of…*). All
+  of them go on one page, **Random knowledge**, in Ideas, kept without the
+  words that only said it was a fact (`shared/facts.ts`). Never a line that
+  opens with *I*, *my*, *it* or *this*, and never ahead of a task, a contact,
+  or a page the fact is about.
 - **An idea** - *what if…*, or *idea:* - is a page in the brain's Ideas.
 - **A note** - anything it is unsure of, kept at the foot of Today to file
   later: nothing is lost by the line being unsure.
@@ -1026,7 +1044,7 @@ read:
 | --- | --- | --- | --- |
 | **Workspace** | This is me, Companies, your own fields | Pipeline stages, email templates | |
 | **Planning** | Your words | Reminders | |
-| **Connections** | Two connections, at a glance | Google | Ask the brain: connect an AI |
+| **Connections** | Two connections, at a glance | Google | Ask the brain: connect an AI, and whether it may read your own pages |
 | **This computer** | Appearance, updates | Quick add from anywhere | Your data |
 
 Each group is laid out, not poured: a narrow column and a wide one, the cards
@@ -1630,15 +1648,75 @@ the mouse, not only typed.
 - **As a list** is the same map for the keyboard and a screen reader: every
   dot, what it is, and what it is linked to, each one a button that opens it.
 
+### Brain, memories and the map
+
+Three words for three things. The **brain** is the pages. A **memory** is a
+dated line the quick line writes on one of them. The **map** is the shape the
+pages make - and the shape is nothing but *Part of* links, one from each page
+to the page above it. Memories are kept in your own workspace whichever
+company is open, so this is your brain and your map, not a company's.
+
+What the line is told is hung the whole way down, and every level is a real
+page that can be opened, written on, renamed and linked (`shared/branches.ts`
+works the chain out; `services/remember.ts` keeps it, in one transaction):
+
+    Me > Hobbies > Reading > Fantasy books > Stormlight Archive series > The Way Of Kings
+
+- **Me**, then the hub of the section (**Hobbies**, **Studies**); what is part
+  of nothing - a fact, an idea - hangs off Me.
+- The **hobby** it is part of: one of your hobbies when one fits (a song named
+  with *on the piano* hangs off Piano), otherwise one is started under its
+  plain name - Reading, Films and shows, Music, Gaming, Cooking, Gym - as a
+  hobby, so Life counts its hours. A level the line made is never taken for
+  the hobby, whatever word is in its title.
+- Then only what the line gives grounds for: a **genre** it names, kept to its
+  hobby (*Sci-fi books* and *Sci-fi films* are two pages); a **series** it
+  names or that Caulder knows the book is of (*The Lightning Thief* is Percy
+  Jackson); who a **song** is by; the part of the body a **lift** works (Bench
+  Press is part of Chest, which is part of Gym). The word said first decides
+  what a thing is: *a movie in the ... trilogy* is a film.
+- Levels are found by title and started only when missing, and never above a
+  level that is already there - a genre mentioned after the series exists is
+  not given a page with nothing under it. A page that already says what it is
+  part of is never moved; one that hangs off nothing is hung the next time
+  something is said about it. The journal is never a level and never written
+  on.
+
+The quick line says the chain before it keeps anything (*under Hobbies >
+Reading > Red Rising series*), Memories says it on each group, a hobby's page
+on Life lists everything under it however far down, and the map draws it.
+
+### Memories
+
+On the Brain's rail, under Map. Everything the line on Today was told to
+remember, read back out of the pages it was written on (a memory is a dated
+line at the foot of a page, `shared/memories.ts`): grouped by what each is
+about, the most recently added to first, searchable, and each group says where
+its page hangs and opens it. **See them on your map** goes straight to your
+side of the map. Memories are kept in your own workspace whichever company is open, so
+this shows the same thing in every company's brain, and says so. The journal
+is never read for it.
+
+The **Map** has the same two sides. With a company open, a pair of tabs above
+it chooses between the company's map and **Yours** - your own workspace's
+pages, where Red Rising hangs off Reading. With your own workspace open they
+are one map and the tabs are not drawn. A page opened from either knows which
+workspace it is in, so its links and what links to it are its own.
+
 ### Brain home
 
 **Ask the brain** first (see below), then the company in one card (name, one-liner, entity, registration numbers
-masked), then **Write these down first**: twelve things, about fifteen
-minutes, with a ring that fills as they are written - the one-liner; entity
-type and incorporation date; registration numbers; founders and who owns
-what; the equity split; the first product and its price; GST status; the bank
-account the invoices print; the accountant; the tools you pay for; this
-quarter's three goals; the biggest risk. Each is ticked by the page that
+masked), then **Tell Caulder about the company**: twelve questions, about
+fifteen minutes, with a ring that fills as they are answered. Each is a
+question in plain words with what Caulder does with the answer under it, and
+they come in four steps - the basics (what it does; what kind of company and
+since when; registration and tax numbers), who and what you sell (founders and
+what each looks after; who owns how much; what you sell and its price), money
+in and out (GST or VAT status; the bank account customers pay into; the
+accountant; the software you pay for) and where it is going (three goals for
+the quarter; the biggest risk). Only the step you are on is open; **All 12**
+shows the rest. What each line says Caulder does with an answer is checked
+against the code, not hoped. Each is ticked by the page that
 answers it, never by pressing a box, and each opens that page. Beside it:
 **Coming up** (the next five deadlines, or the way to set up the filing
 calendar), pinned pages, the recently written ones, a small live map, and
@@ -1874,7 +1952,42 @@ or a tight free tier, up to all of it however big for a million-token window.
   a page's links are, and open them.
 - **Every answer says what was sent**: the documents, how many characters,
   whether every contact went or only those the question was about (for a
-  company too big to send whole), and the tokens in, out and from the cache.
+  company too big to send whole), whether your own pages went, and the tokens
+  in, out and from the cache.
+
+#### Your own pages, only if you say so
+
+The dossier is the company. The other half of Caulder - the journal, goals,
+habits, hobbies, courses, and the lines you asked it to remember - is **off**
+until a switch on the AI card turns it on, because it is the half you would
+mind a stranger reading. On, a question about you gets an answer about you:
+*how am I doing on my goals*, *what did I say I would do about the invoice*.
+
+**Two things never leave, whatever the switch says.** A journal day that is
+locked - sealing empties the page, and the page is checked again anyway - and
+anything the line took as private, which lives in a table of its own that
+nothing in the AI path reads. That second one matters most: until a passcode
+exists those lines are plain text, so a guard written as "skip what is sealed"
+would hand them over. The day's own readings - what a quiet day was, the pulse
+- stay out too, because the screen that collects them says they never leave
+this computer. `electron/main/services/yours.test.ts` is mostly about this.
+
+#### The same line on Today
+
+The line on Today has a **star at its left, and the star is a switch**. Grey,
+and Caulder reads the line itself - a task, a journal line, time on a hobby.
+Coloured, and the line is a question, answered by the AI underneath it. One
+control, because two boxes on one screen is a choice nobody wants to make
+twice a minute; and colour is the whole signal, so where a line is going is
+answered by looking.
+
+A question from the line is **not** the whole company. It goes with today -
+what is in the hours, what is late, what is due, the dates coming - and with
+whatever the words point at, found the same way Ctrl+K finds it and written
+out in full. Plus your own pages, if you have allowed them. A few thousand
+characters rather than a hundred thousand, so it is quick and costs nothing
+on a free tier asked forty times a day. The answer is a sentence or two, links
+to what it drew on, and says what went. The switch stays where it was put.
 - **It only answers from what is written.** When the documents do not say,
   it says so. It cannot change anything.
 - Nothing is sent until a question is asked, and without a key the card says
@@ -1941,14 +2054,27 @@ through one script that runs inside your own Google account.
 **Setting it up is five steps and they are written on the card**, in Google's
 own words, rather than linked to. *Copy the script* puts the whole file on the
 clipboard and *Open Apps Script* starts a new project, so step one is a paste.
-Four steps have a correct answer that looks wrong, which is exactly why they
-are spelled out: you add two services by hand; you run a function in order to
-be *asked* for permission; Google says *Google hasn't verified this app*,
-because nobody at Google has reviewed a script you made for yourself, and the
-way on is *Advanced* then *Go to Caulder (unsafe)*; and you set the deployment's
-access to "Anyone" — which is safe because the URL is unguessable and nothing
-happens without the key, and which is necessary because Caulder is not signed
-in to Google at all.
+
+**Each step is a sentence and a picture.** The sticking point was never the
+instruction - it is finding one word on a screen built for programmers - so
+the four steps that happen in Google's console each carry a small drawing of
+that screen with the one thing to press ringed and named: *Untitled project*,
+the **+** beside *Services*, the *setUp* dropdown, *Advanced* inside the
+warning, *Who has access: Anyone*, and the line the key is printed on. They
+are drawn in Caulder's own tokens rather than photographed, because a
+screenshot is stale the week Google moves a menu and cannot follow the theme.
+Nothing in them is read aloud: the step beside each says the same thing in a
+sentence.
+
+**Two answers look wrong, and are answered under the steps** rather than
+inside them, so that following the guide stays short and stopping to worry has
+somewhere to go. Google says *Google hasn't verified this app* because nobody
+at Google has reviewed a script you made for yourself, and the way on is
+*Advanced* then *Go to Caulder (unsafe)*. The deployment's access is set to
+"Anyone" because Caulder is not signed in to Google at all - the URL is
+unguessable and nothing happens without the key. Adding two services by hand
+and running a function in order to be *asked* for permission are spelled out
+in the steps themselves.
 
 Pasting is forgiving where people actually slip: the key box takes the whole
 log line and keeps the key, and a URL ending in `/dev` — the test link, which

@@ -14,6 +14,7 @@ import {
   type AiServiceId,
   type AskAnswer,
   type AskReference,
+  type AskScope,
   type AskState,
   type ContextSize,
 } from "@shared/ask";
@@ -22,6 +23,12 @@ import { listLeads } from "../repositories/leads";
 import { searchEverything } from "../repositories/search";
 import { encryptionAvailable } from "./credentials";
 import { buildDossier, type DossierDocument } from "./dossier";
+import { buildYours } from "./yours";
+import { buildToday } from "./today";
+import { pagesOf } from "../repositories/brain";
+import { linkLabelsOnly } from "@shared/links";
+import { MARK_CLOSE, MARK_OPEN } from "@shared/search";
+import { describeDue, today as todayIn } from "@shared/dates";
 
 /**
  * Ask the brain, through whichever AI service the founder connects.
@@ -38,6 +45,9 @@ import { buildDossier, type DossierDocument } from "./dossier";
  */
 
 const TIMEOUT_MS = 180_000;
+
+/** The most the line on Today ever sends, whatever size is set for the brain. */
+const LINE_BUDGET = 60_000;
 
 type Connection = { service: AiServiceId; key: string; baseUrl: string };
 
@@ -85,7 +95,17 @@ export function askState(db: Db): AskState {
     models: connection ? readModels(db) : [],
     context: contextOf(db, service),
     canEncrypt: encryptionAvailable(),
+    personal: getSetting(db, "aiPersonal") === "on",
   };
+}
+
+/**
+ * Whether your own pages may go with a question. Off until this says
+ * otherwise; a locked or private journal day never goes either way.
+ */
+export function setPersonal(db: Db, on: unknown): AskState {
+  setSetting(db, "aiPersonal", on === true ? "on" : "");
+  return askState(db);
 }
 
 /**
@@ -393,6 +413,71 @@ function fit(documents: DossierDocument[], budget: number): DossierDocument[] {
   );
 }
 
+/**
+ * What the question is about: the pages and contacts the search index finds
+ * for it, written out.
+ *
+ * The dossier is everything within a budget; this is the opposite - a handful
+ * of things, in full, chosen by the words that were typed. It is what makes a
+ * short question on Today worth asking without sending a hundred thousand
+ * characters to answer it.
+ */
+function about(db: Db, companyId: string, question: string): DossierDocument | null {
+  const hits = searchEverything(db, companyId, question, 10);
+  if (hits.length === 0) return null;
+  const pages = new Map(pagesOf(db, companyId).map((page) => [page.id, page]));
+  const lines: string[] = [];
+
+  for (const hit of hits) {
+    if (hit.kind === "page") {
+      const page = pages.get(hit.id);
+      if (!page || page.is_archived === 1) continue;
+      const body = linkLabelsOnly(page.body).trim().slice(0, 2500);
+      lines.push(`## ${page.title}`, "", body.length > 0 ? body : "*(Nothing written on it yet.)*", "");
+    } else {
+      // A contact, a note, a line of history, an invoice: the matched words
+      // with their marks taken off, which is what the window shows too.
+      // The snippet carries the marks the window draws its highlights from.
+      const said = hit.detail.split(MARK_OPEN).join("").split(MARK_CLOSE).join("");
+      lines.push(`## ${hit.title}`, "", said, "");
+    }
+  }
+  if (lines.length === 0) return null;
+  return {
+    file: "about.md",
+    title: "What you asked about",
+    text: ["# What you asked about", "", "The pages and people this question seems to be about, in full.", "", ...lines].join("\n"),
+  };
+}
+
+/** The day itself: what is in the hours, what is late, what is due. */
+function todayDocument(db: Db, companyId: string, now: Date): DossierDocument {
+  const today = buildToday(db, companyId, now);
+  const task = (item: { title: string; dueOn: string; leadName: string | null; area: string | null }) =>
+    `- ${item.title}${item.leadName ? ` (${item.leadName})` : ""}${item.area ? ` #${item.area}` : ""} - ${describeDue(item.dueOn, today.day)}`;
+
+  const lines: string[] = [`# Today, ${today.day}`, ""];
+  if (today.blocks.length > 0) {
+    lines.push("## In the hours today", "");
+    for (const block of today.blocks) lines.push(`- ${block.startsAt} for ${block.minutes} minutes: ${block.title}`);
+    lines.push("");
+  }
+  for (const [heading, items] of [
+    ["Late", today.overdue],
+    ["Due today", today.dueToday],
+    ["Coming up", today.upcoming.slice(0, 10)],
+  ] as const) {
+    if (items.length === 0) continue;
+    lines.push(`## ${heading}`, "", ...items.map(task), "");
+  }
+  if (today.deadlines.length > 0) {
+    lines.push("## Dates coming", "", ...today.deadlines.map((deadline) => `- ${deadline.title}: ${deadline.daysLeft} days`), "");
+  }
+  if (today.unpaid.length > 0) lines.push(`## Money`, "", `- ${today.unpaid.length} invoices are overdue.`, "");
+  if (lines.length === 2) lines.push("Nothing is due and nothing is in the hours.", "");
+  return { file: "today.md", title: "Today", text: lines.join("\n") };
+}
+
 function instructions(company: { name: string; currency: string }, day: string): string {
   return [
     `You are the company brain of ${company.name}, answering the founder's questions inside Caulder, their own app for contacts, deals, money and company notes.`,
@@ -404,6 +489,22 @@ function instructions(company: { name: string; currency: string }, day: string):
   ].join("\n\n");
 }
 
+/**
+ * The line on Today, which is a different question from "ask the brain": it
+ * is asked standing up, about now, and answered in a sentence.
+ */
+function lineInstructions(company: { name: string; currency: string }, day: string): string {
+  return [
+    `You are ${company.name}'s own assistant, answering on the Today screen of Caulder - the founder's app for their work and their life. It is ${day}.`,
+    "Answer only from the documents given. If they do not say, say so in one line and say what would need writing down. Never invent numbers, names, dates or quotes.",
+    "Answer in one or two sentences. No preamble, no heading, no sign-off. A list only when the answer is genuinely a list, and then three or four items at most.",
+    `Money is in ${company.currency}. Registration and account numbers are masked; never guess them.`,
+    "When you name a page of the brain or a contact, write it in double square brackets exactly as the documents title it - [[Guitar]], [[Acme Ltd]] - so it can be opened.",
+    "A document titled You is the founder's own life - their journal, goals, habits, hobbies and courses. Use it when the question is about them. Never repeat it back unasked, and never quote the journal at them unless they asked what they wrote.",
+    "You cannot change anything. When a change would help, say what to change and where, in the same sentence.",
+  ].join("\n\n");
+}
+
 export async function askBrain(db: Db, companyId: string, raw: unknown, now: Date = new Date()): Promise<AskAnswer> {
   const input = askInput.parse(raw);
   const connection = readConnection(db);
@@ -411,25 +512,52 @@ export async function askBrain(db: Db, companyId: string, raw: unknown, now: Dat
   const service = serviceOf(connection.service) as AiService;
   const model = getSetting(db, "aiModel");
   if (!model) throw new Error(`Pick a ${service.label} model in Settings.`);
-  const company = db.prepare(`SELECT name, currency FROM companies WHERE id = ?`).get(companyId) as
-    | { name: string; currency: string }
+  const company = db.prepare(`SELECT name, currency, timezone FROM companies WHERE id = ?`).get(companyId) as
+    | { name: string; currency: string; timezone: string }
     | undefined;
   if (!company) throw new Error("That company no longer exists.");
+  const scope: AskScope = input.scope;
   const budget = CONTEXT_BUDGET[contextOf(db, service)];
+  // The line is answered standing up: a few thousand characters, whatever
+  // size is set for asking the brain, so it is quick and costs nothing on a
+  // free tier even asked forty times a day.
+  const room = scope === "line" ? Math.min(budget.characters, LINE_BUDGET) : budget.characters;
+  const day = todayIn(company.timezone, now);
+
+  // Your own side goes only if you have said it may, and never carries a
+  // locked or private journal day. See services/yours.ts.
+  const yours = getSetting(db, "aiPersonal") === "on" ? buildYours(db, companyId, now) : null;
 
   const allContacts = (db.prepare(`SELECT COUNT(*) AS n FROM leads WHERE company_id = ?`).get(companyId) as { n: number }).n;
-  let documents = buildDossier(db, companyId, { secrets: false }, now);
-  let contacts = allContacts;
-  if (size(documents) > budget.characters) {
-    const chosen = contactsFor(db, companyId, input.question, budget.contacts);
-    documents = buildDossier(db, companyId, { secrets: false, contacts: chosen }, now);
-    contacts = chosen.size;
-  }
-  if (size(documents) > budget.characters) documents = fit(documents, budget.characters);
+  let documents: DossierDocument[];
+  let contacts: number;
 
-  const day = now.toISOString().slice(0, 10);
+  if (scope === "line") {
+    // Today, and whatever the words point at - rather than the company.
+    const found = about(db, companyId, input.question);
+    documents = [todayDocument(db, companyId, now), ...(found ? [found] : []), ...(yours ? [yours] : [])];
+    contacts = 0;
+  } else {
+    documents = buildDossier(db, companyId, { secrets: false }, now);
+    contacts = allContacts;
+    if (size(documents) > room) {
+      const chosen = contactsFor(db, companyId, input.question, budget.contacts);
+      documents = buildDossier(db, companyId, { secrets: false, contacts: chosen }, now);
+      contacts = chosen.size;
+    }
+    if (yours) documents = [...documents, yours];
+  }
+  if (size(documents) > room) documents = fit(documents, room);
+
   const context = documents.map((document) => `<document title="${document.title}">\n${document.text}\n</document>`).join("\n\n");
-  const reply = await complete(connection, model, instructions(company, day), context, input.history, input.question);
+  const reply = await complete(
+    connection,
+    model,
+    scope === "line" ? lineInstructions(company, day) : instructions(company, day),
+    context,
+    input.history,
+    input.question,
+  );
   const text = reply.text.trim();
   if (text.length === 0) throw new Error(`${service.label} sent back an empty answer. Try asking another way, or another model.`);
 
@@ -454,6 +582,7 @@ export async function askBrain(db: Db, companyId: string, raw: unknown, now: Dat
       characters: context.length,
       contacts,
       leftOut: allContacts - contacts,
+      personal: yours !== null,
     },
     references,
     usage: reply.usage,

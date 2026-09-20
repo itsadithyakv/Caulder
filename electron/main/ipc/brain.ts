@@ -22,6 +22,8 @@ import { exportBrain } from "../services/brain-export";
 import { exportDossier } from "../services/dossier";
 import { backlinks, connect, disconnect, keepPositions, letGo, linkTargetsFor, localMap, wholeMap } from "../services/map";
 import { makeTasks, pageTasks } from "../services/steps";
+import { allMemories } from "../services/memories";
+import { remember } from "../services/remember";
 import { decisionLog } from "../services/brain";
 
 /** A copied number is wiped from the clipboard after this, if nothing replaced it. */
@@ -132,6 +134,9 @@ export function registerBrainHandlers(): void {
   );
 
   handle(CHANNELS.brainBacklinks, (_event, kind: unknown, id: unknown) => backlinks(getDatabase(), kind, id));
+
+  handle(CHANNELS.brainMemories, () => allMemories(getDatabase()));
+  handle(CHANNELS.brainRemember, (_event, input: unknown) => remember(getDatabase(), input, new Date()));
 
   handle(CHANNELS.brainMap, (_event, companyId: unknown, allContacts: unknown) =>
     wholeMap(getDatabase(), companyOf(companyId), allContacts),
