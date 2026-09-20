@@ -1,6 +1,6 @@
 {
   "name": "caulder",
-  "version": "0.4.1",
+  "version": "0.4.3",
   "description": "Personal CRM and lead manager",
   "main": "./out/main/index.js",
   "author": "PaperKite",

@@ -5,14 +5,16 @@
 // `electron .` against source, which would not catch a missing native module
 // or a resource the packager left behind.
 import { _electron as electron } from "@playwright/test";
-import { mkdtempSync, existsSync, readdirSync, rmSync } from "node:fs";
+import { mkdtempSync, existsSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const exe = join(
-  new URL("..", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"),
-  "release/win-unpacked/Caulder.exe",
-);
+const root = new URL("..", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
+const exe = join(root, "release/win-unpacked/Caulder.exe");
+
+// The version the app will ask the script for, read from where the app reads
+// it. Written here as a number it went stale the first time the script grew.
+const scriptVersion = /SCRIPT_VERSION = (\d+);/.exec(readFileSync(join(root, "shared/script.ts"), "utf8"))?.[1];
 
 if (!existsSync(exe)) {
   console.log("No packaged build found. Run `npm run package` first.");
@@ -68,7 +70,7 @@ try {
     await page.getByRole("button", { name: "Copy the script" }).first().click();
     await page.waitForTimeout(800);
     const copied = await app.evaluate(({ clipboard }) => clipboard.readText());
-    check("ships the Apps Script, at the version this build expects", /var SCRIPT_VERSION = 3;/.test(copied));
+    check("ships the Apps Script, at the version this build expects", Boolean(scriptVersion) && copied.includes(`var SCRIPT_VERSION = ${scriptVersion};`));
   } finally {
     await app.evaluate(({ clipboard }, text) => clipboard.writeText(text), before);
   }
