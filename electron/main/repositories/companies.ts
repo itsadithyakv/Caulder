@@ -116,6 +116,16 @@ export function homeCompanyId(db: Db): string | null {
 }
 
 /**
+ * Whether a workspace is your home - the personal kind - rather than a
+ * company. Not the same question as `homeCompanyId`, which falls back to the
+ * first company when there is no home yet.
+ */
+export function isHomeWorkspace(db: Db, companyId: string): boolean {
+  const row = db.prepare(`SELECT kind FROM companies WHERE id = ?`).get(companyId) as { kind: string } | undefined;
+  return row?.kind === "personal";
+}
+
+/**
  * The workspaces your day is made of: your home, and the company chosen.
  * One id for nearly everyone; two for someone whose own things live apart
  * from the company they are working on. Home first, so its timezone is the

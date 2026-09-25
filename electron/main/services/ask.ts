@@ -20,7 +20,7 @@ import {
 } from "@shared/ask";
 import { getSetting, setSetting } from "../repositories/settings";
 import { listLeads } from "../repositories/leads";
-import { homeCompanyId } from "../repositories/companies";
+import { homeCompanyId, isHomeWorkspace } from "../repositories/companies";
 import { searchEverything } from "../repositories/search";
 import { encryptionAvailable } from "./credentials";
 import { buildDossier, type DossierDocument } from "./dossier";
@@ -28,6 +28,7 @@ import { buildYours } from "./yours";
 import { buildToday } from "./today";
 import { pagesOf } from "../repositories/brain";
 import { linkLabelsOnly } from "@shared/links";
+import { mayGoToAi } from "@shared/brain";
 import { MARK_CLOSE, MARK_OPEN } from "@shared/search";
 import { describeDue, today as todayIn } from "@shared/dates";
 
@@ -422,17 +423,22 @@ function fit(documents: DossierDocument[], budget: number): DossierDocument[] {
  * of things, in full, chosen by the words that were typed. It is what makes a
  * short question on Today worth asking without sending a hundred thousand
  * characters to answer it.
+ *
+ * The search index holds every page, yours included, so a page it finds goes
+ * only if `mayGoToAi` says so - the same rule the dossier keeps.
  */
-function about(db: Db, companyId: string, question: string): DossierDocument | null {
+function about(db: Db, companyId: string, question: string, personalAllowed: boolean): DossierDocument | null {
   const hits = searchEverything(db, companyId, question, 10);
   if (hits.length === 0) return null;
   const pages = new Map(pagesOf(db, companyId).map((page) => [page.id, page]));
+  const inHome = isHomeWorkspace(db, companyId);
   const lines: string[] = [];
 
   for (const hit of hits) {
     if (hit.kind === "page") {
       const page = pages.get(hit.id);
       if (!page || page.is_archived === 1) continue;
+      if (!mayGoToAi(page.section, { inHome, personalAllowed })) continue;
       const body = linkLabelsOnly(page.body).trim().slice(0, 2500);
       lines.push(`## ${page.title}`, "", body.length > 0 ? body : "*(Nothing written on it yet.)*", "");
     } else {
@@ -528,7 +534,8 @@ export async function askBrain(db: Db, companyId: string, raw: unknown, now: Dat
   // Your own side goes only if you have said it may, and never carries a
   // locked or private journal day. See services/yours.ts.
   // Read from your home, whichever company the question was asked in: that is where your own things are kept.
-  const yours = getSetting(db, "aiPersonal") === "on" ? buildYours(db, homeCompanyId(db) ?? companyId, now) : null;
+  const personal = getSetting(db, "aiPersonal") === "on";
+  const yours = personal ? buildYours(db, homeCompanyId(db) ?? companyId, now) : null;
 
   const allContacts = (db.prepare(`SELECT COUNT(*) AS n FROM leads WHERE company_id = ?`).get(companyId) as { n: number }).n;
   let documents: DossierDocument[];
@@ -536,7 +543,7 @@ export async function askBrain(db: Db, companyId: string, raw: unknown, now: Dat
 
   if (scope === "line") {
     // Today, and whatever the words point at - rather than the company.
-    const found = about(db, companyId, input.question);
+    const found = about(db, companyId, input.question, personal);
     documents = [todayDocument(db, companyId, now), ...(found ? [found] : []), ...(yours ? [yours] : [])];
     contacts = 0;
   } else {

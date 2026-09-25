@@ -32,7 +32,15 @@ import type { DossierDocument } from "./dossier";
  * the screen that collects them says they never leave this computer.
  */
 
-const PERSONAL_SECTIONS: readonly BrainSectionId[] = ["hobbies", "studies", "goals", "ideas"];
+/**
+ * The sections whose pages go in this document. `remembered` is About me,
+ * People, Where things are and Lent and borrowed: asked for on 25 September
+ * 2026, so "what's my blood group" can be answered once you have said it may.
+ * The journal is not here; it has rules of its own, in `journal()` below.
+ * Not the same list as `PERSONAL_SECTIONS` in `shared/brain.ts`: `ideas` is
+ * here because your memories are kept in it.
+ */
+const SENT_SECTIONS: readonly BrainSectionId[] = ["hobbies", "studies", "goals", "ideas", "remembered"];
 
 /** How far back the journal is read. A season is enough to answer "how have I been". */
 const JOURNAL_DAYS = 90;
@@ -159,10 +167,10 @@ function pages(db: Db, companyId: string): string[] {
   const rows = db
     .prepare(
       `SELECT id, title, section, body, fields FROM brain_pages
-        WHERE company_id = ? AND is_archived = 0 AND section IN (${PERSONAL_SECTIONS.map(() => "?").join(", ")})
+        WHERE company_id = ? AND is_archived = 0 AND section IN (${SENT_SECTIONS.map(() => "?").join(", ")})
         ORDER BY updated_at DESC`,
     )
-    .all(companyId, ...PERSONAL_SECTIONS) as PageRow[];
+    .all(companyId, ...SENT_SECTIONS) as PageRow[];
 
   const remembered = rows
     .flatMap((row) => memoriesOf({ id: row.id, title: row.title, section: row.section, body: row.body }))

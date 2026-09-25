@@ -74,6 +74,14 @@ describe("what goes", () => {
     expect(said).toContain("hit a pr on the bench");
   });
 
+  it("carries what you told it about yourself, the people you know and where things are", () => {
+    page("remembered", "page", "About me", "- **Blood group: O+** · said _(2026-09-18)_\n", {});
+    page("remembered", "page", "Where things are", "- **Passport** · in the blue folder _(2026-09-17)_\n", {});
+    const said = text();
+    expect(said).toContain("Blood group: O+");
+    expect(said).toContain("in the blue folder");
+  });
+
   it("carries a journal day that is open, and says whose side of the app this is", () => {
     wrote("2026-09-19", "Wrote the pitch. Felt good about it.");
     const said = text();

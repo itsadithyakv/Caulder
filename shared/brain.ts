@@ -881,6 +881,28 @@ export function isPersonalSection(section: BrainSectionId): boolean {
   return PERSONAL_SECTIONS.includes(section);
 }
 
+/**
+ * Whether a page may be sent to an AI: found for a question on Today's Ask
+ * line, or written into the dossier (which Ask sends and *Export for an AI*
+ * writes out).
+ *
+ * `inHome` is true when the page lives in your home workspace rather than a
+ * company's. Pages move there because they are yours - an `ideas` page full
+ * of your memories, say - whatever their section is called.
+ * `personalAllowed` is the "your own pages" switch on the AI card; the
+ * dossier always passes false, because your side travels separately, in the
+ * You document (`services/yours.ts`), which has its own rules for the journal.
+ */
+export function mayGoToAi(section: BrainSectionId, where: { inHome: boolean; personalAllowed: boolean }): boolean {
+  // The journal has roads of its own (the You document, Looking back), each
+  // checking for a sealed day itself; a page found by search never is one.
+  if (section === "journal") return false;
+  // Anything in your home is yours, whatever its section is called - a plan
+  // written before there was a company is still your own writing.
+  if (isPersonalSection(section) || where.inHome) return where.personalAllowed;
+  return true;
+}
+
 /** A template by id, or the blank page for anything unknown. */
 export function templateOf(id: string | null | undefined): BrainTemplate {
   return (

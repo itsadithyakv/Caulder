@@ -35,6 +35,8 @@ vi.mock("electron", () => ({
 const { migrate } = await import("../db/migrations");
 const { createCompany } = await import("../repositories/companies");
 const { createLead } = await import("../repositories/leads");
+const { createPage } = await import("../repositories/brain");
+const { buildDossier } = await import("./dossier");
 const { getSetting } = await import("../repositories/settings");
 const ask = await import("./ask");
 const { leadInput } = await import("@shared/domain");
@@ -257,6 +259,39 @@ describe("asking", () => {
     expect(context).toContain("### Beacon Academy");
     expect(context).toContain("left out of this copy");
     expect(reply.references).toContainEqual({ kind: "contact", id: named.id, name: "Beacon Academy" });
+  });
+
+  it("sends no page of yours with a question until you say it may, even asked from your home", async () => {
+    const home = createCompany(db, { name: "Me", accent: "coffee", timezone: "Asia/Kolkata", kind: "personal" }).id;
+    const at = new Date().toISOString();
+    createPage(db, home, { section: "hobbies", template: "page", title: "Guitar", body: "Practising the F chord." }, at);
+    createPage(db, home, { section: "remembered", template: "page", title: "About me", body: "- **Blood group: O+** · said _(2026-09-20)_" }, at);
+    createPage(db, home, { section: "ideas", template: "page", title: "Gift ideas", body: "A watch for Dad." }, at);
+    await ask.connect(db, { service: "gemini", key: GEMINI_KEY });
+
+    for (const word of ["guitar", "blood", "watch"]) {
+      sent.length = 0;
+      const reply = await ask.askBrain(db, home, { question: word, scope: "line" });
+      expect(reply.sent.documents).not.toContain("What you asked about");
+      const context = (sent[0]?.body as { systemInstruction: { parts: { text: string }[] } }).systemInstruction.parts[0]?.text ?? "";
+      expect(context).not.toMatch(/F chord|O\+|watch for Dad/);
+    }
+
+    ask.setPersonal(db, true);
+    sent.length = 0;
+    const allowed = await ask.askBrain(db, home, { question: "guitar", scope: "line" });
+    expect(allowed.sent.documents).toContain("What you asked about");
+  });
+
+  it("keeps your ideas out of the dossier, and a company's own ideas in it", () => {
+    const home = createCompany(db, { name: "Me", accent: "coffee", timezone: "Asia/Kolkata", kind: "personal" }).id;
+    const at = new Date().toISOString();
+    createPage(db, home, { section: "ideas", template: "page", title: "Gift ideas", body: "A watch for Dad." }, at);
+    createPage(db, companyId, { section: "ideas", template: "page", title: "Referrals", body: "Pay schools for introductions." }, at);
+
+    const text = (id: string) => buildDossier(db, id, { secrets: false }).map((document) => document.text).join("\n");
+    expect(text(home)).not.toContain("watch for Dad");
+    expect(text(companyId)).toContain("Pay schools for introductions.");
   });
 
   it("says what went wrong in words, and needs a connection first", async () => {

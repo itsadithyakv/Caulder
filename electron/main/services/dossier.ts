@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { Db } from "../db/connection";
 import {
   BRAIN_SECTION_LIST,
+  mayGoToAi,
   templateOf,
   type BrainExport,
   type BrainSectionId,
@@ -23,6 +24,7 @@ import {
   type TaskKind,
 } from "@shared/domain";
 import { pagesOf } from "../repositories/brain";
+import { isHomeWorkspace } from "../repositories/companies";
 import { listActivities, listLeads } from "../repositories/leads";
 import { listCalls } from "../repositories/calls";
 import { listNotes } from "../repositories/notes";
@@ -189,7 +191,12 @@ export function buildDossier(
   if (!company) throw new Error("That company no longer exists.");
 
   const money = moneyIn(company.currency);
-  const pages = pagesOf(db, companyId).filter((page) => page.is_archived === 0);
+  // The company's pages only. Your own travel in the You document, under
+  // their own switch - never in here, whatever section they were filed in.
+  const inHome = isHomeWorkspace(db, companyId);
+  const pages = pagesOf(db, companyId).filter(
+    (page) => page.is_archived === 0 && mayGoToAi(page.section, { inHome, personalAllowed: false }),
+  );
   const leads = listLeads(db, { companyId, sort: "name", direction: "asc" });
   const names: Names = {
     titles: new Map(pages.map((page) => [page.id, page.title])),
