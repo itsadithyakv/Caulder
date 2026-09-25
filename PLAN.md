@@ -70,7 +70,7 @@ and each of these is.
 | Custom fields | **Keep**, on the contact. | Cheap and used. |
 | Saved views | **Remove.** | Search plus a stage filter covers it. |
 | Attachments | **Keep**, on the contact and on the invoice. | An invoice is a file. |
-| Desk widget, wallpaper level | **Remove.** | Engineering for its own sake. |
+| Desk widget, wallpaper level | **Removed, then asked for back** in 0.4.5 and rebuilt. | Judged engineering for its own sake; the person it is for wanted the day on the wallpaper. |
 | Reminders (overdue digest, block knock) | **Keep**, one card, both off by default. | |
 | Your words | **Keep**, one card. | The parser needs it. |
 | Google Calendar and Tasks sync | **Keep**, one card. | The only way anything reaches the phone. |
@@ -202,7 +202,10 @@ while after the charts went; both went in the UI pass that followed.
   verdicts, Rules, saved views, the widget, the wallpaper call, sequences
   and the bridge. A migration drops the tables.
 - `koffi` goes with the wallpaper and the foreground poll; the app has three
-  runtime dependencies again.
+  runtime dependencies again. **Both came back in 0.4.5** - the widget and
+  its wallpaper level were asked for by name, and koffi with them, so the
+  count is four. The foreground poll stayed gone: that one was Focus, and
+  Focus is not coming back. See `reference/features.md`, "The desk widget".
 - `reference/features.md` is rewritten to the five screens. `forecasting.md`
   and `email-bridge.md` go. `design-language.md` keeps the primitives section.
 
@@ -1092,3 +1095,251 @@ typing `[[`.
 - **Linking on the Map.** Drag a dot's + (or Alt and the dot) onto another:
   the link is written at the foot of the page at one end, with Undo. Click a
   line to take it out; a sentence keeps its words.
+
+### After 0.4, again - You apart, memories yours, and Today about the work - *done 25 September 2026*
+
+Asked for on 25 September 2026, after a review of how the company, a life and
+ambition sit together: fix all of it.
+
+- **A home of your own, never a second workspace.** Your journal, Life,
+  habits, vision board and memories are kept in a workspace of the personal
+  kind that Caulder makes once (`services/yourhome.ts`) and moves your things
+  into - still not in the switcher, still no mode, still "you are not a
+  company". So the company's brain and map are the company's alone, archiving
+  a company never takes your journal with it, and the sample's pages are never
+  yours. The journal's day beside an entry reads every company.
+- **Memories under You**, a row of its own; the company Brain is the
+  company's knowledge only, and the map is reached from each rather than from
+  a row of its own.
+- **Today leads with the work**: the quick line, then what is late and due.
+  Finish setting up is one line; the joke, the memory and your level sit
+  beside the work; the notes box went - the quick line is how things come in.
+- **Goals are where ambition lives**: the vision board heads them, and levels
+  and XP are a setting.
+- **The map shows what matters**: journal days only when asked for, and labels
+  that give way to each other instead of running together.
+
+---
+
+# Part five: understanding, on this machine
+
+*Written 25 September 2026. Planned, not started; the decisions at the end
+were made the same day.*
+
+## One sentence
+
+A small model that runs on this computer and reads what you write for what
+it *means*, so the quick line puts things where they belong, memories gather
+into topics without being filed by hand, and what goes to an AI (or into an
+export) is the right part, arranged and without repeats.
+
+## What a 25 MB model is, and is not
+
+A model that size is an **encoder**: it turns a line into a list of numbers (a
+vector) so that lines meaning similar things land close together. It can tell
+that "red rising book 2 was brutal" belongs beside a page called *Red Rising*,
+that "my blood type is O positive" says the same as an older "Blood group: O+",
+or that twelve loose lines are all about coffee.
+
+It **cannot** write. It does not summarise, answer, or name a topic in a
+sentence of its own. Anything that has to write stays with the AI the person
+connects under Ask, as now. It is trained on English, so Hinglish goes through
+`rephrase()` first, exactly as the rules already do.
+
+## Where it sits: the rules first, the model second
+
+The quick line's rules stay the source of truth. There are about 150 tests
+and 400 assertions on them, and they are right about structure: dates,
+times, prefixes, negation, names and commands. The model only acts where the
+rules are guessing.
+
+**It never overrides:**
+- a prefix;
+- a private line or a secret. It may push a line *towards* private, never away;
+- a command or money;
+- an edit or a question;
+- a date or a time;
+- a contact found by name. Names carry no meaning to an encoder.
+
+**It is asked only at these points**, all of them already chosen by
+the code as the soft places:
+
+| Where | Today | With the model |
+| --- | --- | --- |
+| The kind, when the rules reach their late fallbacks (`capture.ts`, the instruction / date-ahead / page / topic / note tail) | Rule order decides; `voteKind` may swap a soft kind | Nearest lines the person has already filed vote too, with a score and a `because` ("sounds like your Gym notes") |
+| Where a memory goes, when `branchOf` falls to `ideas` under Me, or `namedPage` finds no exact title | Random knowledge / Me | The nearest existing page above a threshold, offered as the destination chip |
+| A task's area, after your words and lessons, before the keyword lists | `AREA_PATTERNS` | The areas of the nearest past tasks |
+| Answering "what did I say about..." on the line | `recall()`: shared words | Shared words **and** meaning, merged |
+
+The chips stay. A model's choice is shown like a rule's, and pressing another
+chip still teaches a lesson.
+
+## How it is built
+
+- **all-MiniLM-L6-v2, int8 (23 MB), run by `onnxruntime-node` in an
+  Electron utility process.**
+  - Not in the window: its security policy refuses WebAssembly.
+  - Not in main: main runs SQLite synchronously, and a batch of reading must
+    never stall a click.
+  - Main talks to the process over a `MessagePort`; if the process dies, the
+    line carries on with the rules alone.
+  - The window asks `understand:read` after the line pauses, the way it
+    already asks `lines:answer` after 200 ms.
+- **The tokenizer is ours.** MiniLM uses BERT's lower-cased WordPiece
+  vocabulary, about 30,000 words. Splitting into WordPiece, mean pooling and
+  normalising are pure functions in `shared/`, so only the one matrix
+  multiply-heavy call needs the runtime.
+- **A seventh runtime dependency.** `onnxruntime-node` is native, so it must be
+  unpacked from the asar like `better-sqlite3` and `koffi`. Only the Windows
+  x64 binary may ship, not every platform's. `architecture.md` says why it
+  earns its place.
+- **Vectors in SQLite.** Migration 45 adds `vectors`:
+  - Each row is `(company_id, kind, ref, model, text_hash, vec)`, stored as
+    384 bytes of int8.
+  - `kind` is one of page, memory, contact, task, note, history or person.
+  - A memory's `ref` is its page id plus a hash of its line, because memories
+    are lines, not rows.
+  - `text_hash` means unchanged text is never embedded twice.
+  - `model` means changing models re-reads everything rather than mixing two
+    kinds of vector.
+- **Kept up to date the way search is.** Triggers on the same source tables
+  add rows to an `embed_queue` table, and a scheduler job works through it
+  in small batches while the app is idle. These are new triggers; migration
+  20's are frozen and stay untouched.
+- **No vector database.** A few thousand vectors are compared by brute force in
+  memory in a few milliseconds, one company at a time. There's no
+  `sqlite-vec` and no new native extension for it.
+- **Pure where it can be.** Tokenising, pooling, cosine, int8 packing, the
+  nearest-neighbour vote and the thresholds live in `shared/understand.ts` and
+  are tested like the rest of `shared/`. Only loading the model and running it
+  live in `electron/main/understand/`.
+- **The model file** goes in `resources/model/`, beside the executable like
+  the tray icons.
+  - It is fetched by `scripts/fetch-model.mjs` against a pinned SHA-256, not
+    committed.
+  - `smoke:packaged` loads it from the packaged binary, the only place a
+    missing resource shows up.
+- **Settings > This computer > Understanding:**
+  - on or off;
+  - how many things it has read;
+  - *Read everything again*.
+  - Nothing leaves the machine, and nothing moves without a yes.
+
+## Phases, continued
+
+### Phase 18 - Close the two leaks first
+
+Before anything reads more, stop sending what it should not.
+
+- **`about()`** (`services/ask.ts`) leaves out personal sections unless
+  `aiPersonal` is on. Journal days are left out unless they are unsealed and
+  allowed.
+- **`ideas`** leaves `RUNNING_SECTIONS` for the home workspace, or is gated
+  the same way.
+- **Tests in `ask.test.ts`** for both, asked from the home workspace.
+- **`remembered` joins `yours.ts`**, so About me, People and Where things
+  are go with a question when "your own pages" is on. They still never go
+  when it is off. This was decided below.
+
+### Phase 19 - The model and its index
+
+- `shared/understand.ts` holds the WordPiece tokenizer, pooling, cosine,
+  int8 packing and the vote.
+- `electron/main/understand/` holds the utility process, the port and
+  the queue job.
+- Migration 45 and the `understand:` channels (state, read, similar,
+  rebuild).
+- `onnxruntime-node` in `package.json`, `asarUnpack` and a file filter in
+  `electron-builder.yml`, checked in both the NSIS and the Store package.
+- The Settings card.
+- `smoke:packaged` starts the process in the packaged binary and embeds one
+  line.
+- **The measuring stick.** The lines already in the `capture*` and
+  `quickadd*` test tables, about 400 with a known answer, plus 100 new ones
+  written for this in Hinglish and texting shorthand, with no overlap.
+  Two runs over them:
+  - rules only;
+  - rules plus the model.
+  The model ships only where it moves wrong answers to right ones and moves
+  no right answer.
+- **Budgets:**
+  - a line is read within 30 ms of the pause;
+  - 5,000 things are read in under a minute in the background;
+  - memory grows by under 60 MB.
+
+### Phase 20 - The line gets a second opinion
+
+- **Kind, placement and area** at the four points in the table above. The
+  votes come from:
+  - the person's own filed things, which are the best teacher;
+  - about twenty seed lines per kind (`shared/understand-seeds.ts`), for a
+    new install with nothing filed yet.
+- **One function decides** between the rule's reading and the model's votes,
+  given the rule's kind, whether it was a fallback, the votes and the margin.
+  It is pure, tested, and the only place a threshold lives.
+- **Every existing test still passes.** Unit tests run the rules only, and the
+  eval runs both.
+
+### Phase 21 - Memories arranged
+
+- **Said again, without asking:**
+  - A new line close enough to an older one is marked as the newer answer,
+    even when the words differ ("blood type O positive" after "Blood group: O+").
+  - Today this happens only when the text before the colon matches.
+  - The Memories screen already shows only the current answer.
+  - This is the one arrangement made without a yes, because it moves and
+    deletes nothing. The older line stays, marked, and *Not the same*
+    undoes the mark.
+- **Loose ends gathered:**
+  - Memories on the catch-all pages (Random knowledge, Me, the root of
+    `ideas`) are grouped.
+  - A group of four or more is offered as a page, named after the nearest
+    existing title or the words the lines share: *Make a page "Coffee" for 6
+    lines?*
+  - Yes moves the lines through `savePage`, so History keeps where they were.
+- **Related:**
+  - A page, a memory or a contact shows its five nearest neighbours.
+  - The Map can show suggested links as faint lines, and clicking one writes
+    the `[[token]]`.
+  - `brain_links` stays explicit: only what the person accepts is a link.
+- **`recall()` merges** word overlap with meaning, by reciprocal rank.
+
+### Phase 22 - Ready for an AI
+
+- **Ask chooses by meaning as well as words.** `contactsFor` and `about()` add
+  the nearest contacts and pages to the search hits. The "You" document sends
+  the memories nearest the question instead of the 60 newest.
+- **An export of you, arranged.** A fifth document, *04 you*, is written only
+  when chosen, and each fact appears once: the current answer, dated. It is
+  laid out as:
+  - About me, then People;
+  - Work and studies;
+  - Interests, by their chain of pages;
+  - Things to remember (where things are, what was lent);
+  - a short index at the top.
+- **"Export for" a purpose.** A line saying what the export is for ("planning
+  my week", "a cover letter") orders and trims everything by nearness to it,
+  within the chosen size.
+- **The topic brief** takes meaning into account too.
+
+### Later, not planned
+
+- **Contacts like this one:** lookalike leads from notes and history.
+- **Duplicate contacts** whose notes describe the same school. Duplicates by
+  phone and email stay as they are.
+
+## Decisions, part five - *decided 25 September 2026*
+
+1. **The model: all-MiniLM-L6-v2, int8, 23 MB**, in a utility process
+   through `onnxruntime-node`.
+   - It reads word order and context, which is what a short line needs.
+   - The cost is accepted: a seventh runtime dependency, a native one, and a
+     process of its own.
+   - potion-base-8M was the alternative. It is pure TypeScript with no
+     dependency, but reads words and not their order.
+2. **On by default.** It reads, it never sends, and it offers rather than acts.
+3. **Arranging asks, except for the obvious.**
+   - A repeat is marked as *said again* on its own.
+   - Moving lines, making a page and writing a link always ask.
+4. **Life facts go to Ask when "your own pages" is on**: `remembered` joins
+   `yours.ts` in phase 18. When the setting is off, they never go.
