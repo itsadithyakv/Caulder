@@ -43,9 +43,11 @@ test.beforeAll(async () => {
 
   // A contact and a hobby for the line to know by name.
   await page.evaluate(async () => {
-    const company = (await window.caulder.companies.list()).activeCompanyId as string;
+    const { activeCompanyId, homeCompanyId } = await window.caulder.companies.list();
+    const company = activeCompanyId as string;
     await window.caulder.leads.create(company, { name: "Oakridge International School" } as never);
-    const hobby = await window.caulder.brain.create(company, "hobbies", "hobby");
+    // A hobby is yours, kept in your home whichever company is chosen.
+    const hobby = await window.caulder.brain.create((homeCompanyId ?? company) as string, "hobbies", "hobby");
     await window.caulder.brain.save(hobby.id, { title: "Guitar", body: "", fields: { hoursWanted: 3 }, secrets: {}, baseRevision: hobby.revision });
   });
   await goTo(page, "Contacts");

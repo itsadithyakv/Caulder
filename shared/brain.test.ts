@@ -22,8 +22,9 @@ describe("the sections and templates", () => {
       // Every section offers a kind of page, except the four whose things
       // became rows: products (phase 8, on Money), documents (phase 9),
       // people (phase 10) and metrics (phase 11), listed in their section.
-      // What is left there is written as blank pages.
-      if (!["products", "documents", "people", "metrics"].includes(section.id)) {
+      // What is left there is written as blank pages. Remembered's pages are
+      // started by the line on Today, one for what each memory is about.
+      if (!["products", "documents", "people", "metrics", "remembered"].includes(section.id)) {
         expect(section.templates.length).toBeGreaterThan(0);
       }
       for (const id of section.templates) expect(templateOf(id).section).toBe(section.id);

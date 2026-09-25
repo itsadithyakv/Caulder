@@ -1,0 +1,145 @@
+/* ---- The desk widget ---------------------------------------------------
+ *
+ * A second window, 184x44 resting and 308x372 open, and the window itself is
+ * what changes size - so the card fills the viewport in both states rather
+ * than being drawn inside a window-shaped hole over the desktop.
+ *
+ * Nothing here is interactive. At the desktop level Windows sends every click
+ * to the wallpaper, so hover and focus styling would describe behaviour two
+ * levels out of three actually have. See src/features/widget/Widget.tsx.
+ * ------------------------------------------------------------------------ */
+
+:root[data-window="widget"] body {
+  background: transparent;
+  overflow: hidden;
+}
+
+.desk {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  box-sizing: border-box;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  /* It sits over a wallpaper nobody chose for its contrast. */
+  color: var(--ink);
+  overflow: hidden;
+  /* The pointer is watched from main, off the real cursor - the page never
+     needs to catch it, and catching it at the desktop level is impossible. */
+  user-select: none;
+  cursor: default;
+}
+
+/* Only the resting pill is draggable, and only where it can be clicked at
+   all. Dragging the open panel would move the widget every time somebody
+   read it. */
+.desk--pill {
+  -webkit-app-region: drag;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-pill);
+}
+
+/* The window is sized to the panel's contents (see electron/main/desk.ts), so
+   the card fills it exactly and the padding lives on the inner element - which
+   is the thing that gets measured. */
+.desk--panel {
+  overflow: hidden;
+}
+
+.desk__inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+
+.desk__line {
+  margin: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.desk__now {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  font-size: var(--text-md);
+}
+
+.desk__label {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+}
+
+.desk__next {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+}
+
+.desk__hours {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  list-style: none;
+  overflow: hidden;
+}
+
+/* 68px, not 52: a twelve-hour clock writes "11:30 AM", and at 52 the meridiem
+   wrapped onto a second line and the row grew to two. */
+.desk__hour {
+  display: grid;
+  grid-template-columns: 68px minmax(0, 1fr);
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.desk__at {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--ink-3);
+}
+
+.desk__what {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desk__counts {
+  display: flex;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+/* Late is the one thing on this window that gets a colour of its own, and it
+   is the semantic one rather than the workspace accent - a missed call is as
+   late in every workspace. */
+.desk__late {
+  color: var(--danger);
+  font-weight: 500;
+}
+
+.desk__due {
+  color: var(--ink-2);
+}
+
+.desk__clear {
+  color: var(--ink-3);
+}

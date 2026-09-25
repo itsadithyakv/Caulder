@@ -1,18 +1,23 @@
 # What Caulder does
 
-Ten screens, eight rows in the sidebar, one workspace per company.
+Thirteen screens, ten rows in the sidebar, one workspace per company.
 
-**The sidebar is four groups and Settings.** *Plan* is Today and Calendar;
-*You* is the Journal and Life, the founder's own; *Sell* is Contacts, Deals
-and Money; *Company* is the Brain. Import has no row: it is a button on
-Contacts, with a way back, because it is something done to that list a
-handful of times. A row is a claim that a thing is opened most days.
+**The sidebar is three groups and Settings.** *Plan* is Today and Calendar;
+*You* is the Journal, Life and Memories, the founder's own, the same whichever
+company is open; the company group, headed by the company itself (which is
+where it is switched), is Contacts, Deals, Money and the Brain. The Brain
+holds the company's knowledge and nothing of yours. Import has no row: it is a
+button on Contacts, with a way back, because it is something done to that list
+a handful of times. Nor does the map: it is reached from the Brain, where it
+draws the company, and from Memories, where it draws yours, and it keeps a way
+back to whichever sent you. A row is a claim that a thing is opened most days.
 
 **One workspace.** The degree and the company are one calendar and one task
 list, and *area* (college, company, personal, health) is the only tag. There
-is no personal workspace, no mode toggle and no "which half"; a second
-company gets its own workspace, and the switcher at the top of the sidebar
-moves between companies.
+is no personal workspace to choose, no mode toggle and no "which half"; a
+second company gets its own workspace, and the switcher at the top of the
+sidebar moves between companies. Your own things are kept in a home of their
+own that is never in the switcher (see **You are not a company**).
 
 **The screen says what it holds; the reasoning is here.** Each card carries
 one line under its heading. Where a section's *why* is worth keeping it sits
@@ -106,11 +111,19 @@ money. Nothing is shared between companies.
 **You are not a company.** Plan and You in the sidebar - Today, the Calendar,
 the journal and Life - are yours whichever company is chosen. Your own things
 (the journal, habits, studies, hobbies, goals, the vision board and your
-level) live in one **home**: for someone with one company, that company; for
-someone with a workspace of the personal kind from before phase 1, that
-workspace; otherwise the first company made. Today and the Calendar show your
-home and the chosen company together, so choosing a company never hides your
-own day, and your level counts what you did in every company.
+level, and everything the line remembers) live in one **home**, a workspace
+of the personal kind called Me that Caulder makes itself the first time there
+is a real company (`services/yourhome.ts`) - never while only the sample
+company is being looked round. It is not in the switcher and nothing asks
+which half you are in: only where things are kept is apart. Made for a file
+from before, it takes your pages in the personal sections (and what the line
+remembered into Ideas), habits, private lines, the shelf, the vision board,
+day check-ins and themes, terms, and the hours and tasks your hobby and course
+pages made - so the company's brain and map are the company's alone, and
+archiving a company never takes your journal with it. Today and the Calendar
+show your home and the chosen company together, the journal's day beside an
+entry is every company's, so choosing a company never hides your own day, and
+your level counts what you did in every company.
 
 - **The company is chosen where its screens are**: its name, mark and count
   head Contacts, Deals, Money and Brain in the sidebar, and pressing it lists
@@ -135,21 +148,46 @@ own day, and your level counts what you did in every company.
 ## Today
 
 The home screen, and the reason the app is worth opening: the first screen
-for all of it. Under the heading, the day in one line - *Saturday, 19
-September · 2 things to do today, and 1 late*, or *A clear day*. Then one line
-that takes anything, whose hint names the key that opens it from any app; the
-work in the order it needs attention - late money, what is overdue, a deadline
-three days off or less, what is due today, then what the company pays for,
-replies, the contacts going quiet, deadlines further off, what is coming and
-notes - each section only when it has something in it. A task shows its tick
-and, for a call, *Call*; moving it or deleting it comes up when the row is
-pointed at or has the keyboard. Beside the work, the life half of the day - **your level** in one line (the level, the XP
-to the next, a thin bar, and what the last seven days added; it moves the
-moment a task is done or a habit ticked, says *Up to level 4* for a moment
-when one is crossed, and opens Life), **Journal** (how today felt, in one
-press, and its first words), **Habits** (today's ticked in one press, each
-with its run of days) and **Your week** (the next exam, the hobbies' time this
-week against what they are wanted, the goal whose day is nearest).
+for all of it. **The work comes first.** From the top:
+
+1. **Hello and the day**, as one short header: the greeting, and under it the
+   day in one line - *Saturday, 19 September · 2 things to do today, and 1
+   late*, or *A clear day*.
+2. **Right now**: what the calendar says you should be doing, or *Free until*
+   the next thing.
+3. **The line that takes anything**, whose hint names the key that opens it
+   from any app, with Ember's door on its top edge.
+4. **Finish setting up**, while Google or an AI is still unconnected and not
+   waved away - one quiet line, not a card: *Finish setting up: Connect Google
+   · Connect an AI*. Each name goes to the setup guide, and says on hover (and
+   to a screen reader) what it gives; a cross skips that one, and **Skip all**
+   skips the lot. Skipping is remembered on this machine; Settings has both,
+   always.
+5. **The work**, in the order it needs attention - late money, what is
+   overdue, a deadline three days off or less, what is due today, then what
+   the company pays for, replies, the contacts going quiet, deadlines further
+   off, what is coming, and notes waiting to be filed - each section only when
+   it has something in it.
+
+A task shows its tick and, for a call, *Call*; moving it or deleting it comes
+up when the row is pointed at or has the keyboard.
+
+Beside the work (and under it, on a window too narrow for two columns) goes
+everything that is nice to see but asks nothing of the work: the **aside** (a
+joke, a pun, a tip; pressed, it tells another) and a **memory** brought back,
+at the head of the column; then the life half of the day - **Habits**
+(today's ticked in one press, each with its run of days), **Journal** (how
+today felt, in one press, and its first words), **Your week** (the next exam,
+the hobbies' time this week against what they are wanted, the goal whose day
+is nearest), how the weeks have been, and **your level** in one line (the
+level, the XP to the next, a thin bar, and what the last seven days added; it
+moves the moment a task is done or a habit ticked, says *Up to level 4* for a
+moment when one is crossed, and opens Life).
+
+Today used to stack the aside, the memory and a large setup card above the
+line, and a box for notes below it, until on a first run at 1440 by 900 the
+first overdue task began at the bottom edge of the window. Nothing was taken
+away but the second notes box; the rest moved beside the work, or shrank.
 
 ### The line that takes anything
 
@@ -191,11 +229,141 @@ away; **Keep** (or Enter) puts it there.
 - **A note** - anything it is unsure of, kept at the foot of Today to file
   later: nothing is lost by the line being unsure.
 - A prefix says so outright: *journal:*, *idea:*, *note:*, *task:*.
+- **Not done** - *skipped gym today*, *I didn't go to office*, *couldn't
+  finish the report*: the journal, and it finishes no task, ticks no habit,
+  logs no hobby time and takes no hour.
+
+### Said the way it is texted
+
+Before either reader sees a line, it is said the plain way
+(`shared/slang.ts`, `shared/rephrase.ts`, `shared/hinglish.ts`), and what is
+kept is the plain version:
+
+- **Short forms and slang** that mean one thing are written out - *mtg w
+  rahul nxt wk*, *wfh tmrw*, *finish the deck tn* - and what is said to nobody
+  goes: *bro*, *ngl*, *lowkey*, *deadass*, *fr*, *bhai*, *yaar* at either end.
+  Never where it is who the line is about: *call bro*, *bhai ko call karna*.
+- **Money lent and owed** is the thing to do about it: *rahul owes me 500* is
+  *Get 500 back from rahul*.
+- **Forgotten** is still to do: *forgot to pay rent* is *Pay rent* - unless
+  the line is about the day it was forgotten.
+- **Hinglish** is turned round into English. Hindi says the verb last and who
+  it is for after the name, so the one verb is found - whether it is to be
+  done (*karna hai*, *jaunga*), was done (*kiya*, *gaya*, *piya*) or not
+  (*nahi gaya*) - and every *ko*, *se*, *ke saath*, *ke liye*, *ke baare mein*
+  and *tak* becomes the English it means. *kal subah gym jaana hai* is *Go to
+  gym* tomorrow morning; *report bhejni hai client ko* is *Send report to
+  client*; *paani piya* ticks *Drink water*; *aaj bahut thak gaya hu* goes in
+  the journal. It reads the Hindi way of saying when - *parso*, *sade 5 baje*
+  (5:30), *paune 9* (8:45), *har somvar*, *5 tarikh tak* (by the 5th) - and
+  *yaad dila dena* or *bhool mat jaana* asks for a reminder. *Kal* is
+  tomorrow, or yesterday in a line about something done. Only a line with a
+  word that is only ever Hindi is touched: *meet Kal Penn*, *call abhi at 5*
+  and *trip to gaya* are left as they were typed.
+
+A bare hour from one to six is the afternoon - except for waking: *wake up at
+5*, *alarm at 6:30* are the morning.
+
+### It knows what is already there
+
+The line is told what is open, the hours ahead and what was typed before
+(`services/lines.ts`, `shared/lines.ts`), so a line can mean something that
+exists instead of adding another:
+
+- **Change it.** *push gym to tomorrow*, *move dentist to 5*, *reschedule the
+  call with rahul to friday 4pm*, *postpone rent*, *push the deck by a week*,
+  *cancel the dentist*, *gym is cancelled*, *rename deck to pitch deck*
+  (`shared/edits.ts`). Every word said has to be in the task's title - *the
+  dentist* is "Dentist appointment", *gym membership* is not "Go to gym" -
+  and a task and its hour on the Calendar move, go and are renamed together,
+  with a reminder asked for going with them. Said with only an hour, it keeps
+  its day. A cancel says **Undo** until the next line. When nothing open is
+  it, the line is not a change: *cancel netflix* is still a task.
+- **Straight after adding one**: *actually 6pm*, *make it friday*, *scratch
+  that*, *call it seed deck*. Only a line that is nothing but a when moves it:
+  *no sugar this week* is its own line.
+- **Carry on from the last line** (`shared/followon.ts`): after *met rahul*,
+  *send him the deck friday* is Rahul's and *he wants a demo* goes on his
+  history; after *buy milk*, *also eggs* is bought the same day; *same time*
+  and *same day* mean the last one's. What was taken is said under the line.
+- **Answer a question** (`shared/questions.ts`): *what's on tomorrow*, *am I
+  free at 5*, *rahul's number*, *how much did I spend this week* (or *on food
+  this month*), *what did I note about red rising*, *when's mummy's
+  birthday*, *what's due*. The answer is under the line, with what it was read
+  from; nothing is kept, and **Keep it instead** files the line as usual. Only
+  a whole line said as a question: *what if we priced it yearly*, *find a flat*
+  and *plan for tomorrow* are what they always were.
+- **Several things at once** (`shared/together.ts`): *call rahul and email
+  priya tomorrow* is two tasks, the when said once is both's; *gym, laundry,
+  finish deck* is three; *buy milk, eggs and bread* is one errand with the
+  list in its note. *call rahul and priya*, *salt and pepper* and *call rahul
+  and ask him about pricing* stay whole. **One task** undoes it.
+- **Your usual** (`shared/habitual.ts`): an hour this has had three times and
+  most of the time is used when none is said - *gym tomorrow* is at 7 when gym
+  has been at 7 - said as *your usual for gym (9 of the last 10)*, with **Not
+  this time**. The same for how long.
+- **A clash** with an hour already taken, **the same thing** already open
+  within two weeks, and for an exam or a pitch two days off or more, **the
+  day before** to revise or prepare, one click to add.
+- **Tab** finishes the line: the whole of something typed before - what you
+  usually do at about this hour first - or the habit, hobby, contact or page
+  the last word starts. The right arrow at the end does the same; with nothing
+  offered, Tab moves on as it always has.
+- **Money in** - *got salary 50k*, *received 5000 from rahul*, *stipend
+  credited 12000* - is kept in Money as money in. **Something paid every
+  month** - *netflix 649 monthly*, *aws 3000 every month on the 5th*, *domain
+  900 yearly* - is a Running cost page in the brain's Money, with its next due
+  date.
+- **Somebody new, told about** (`shared/newperson.ts`): *Jyothi the principal
+  from reva puc has accepted my linkedin connection request, i need to follow
+  up* is, on one Enter, a new contact - Jyothi at Reva PUC, *Role: Principal*
+  in its notes, LinkedIn as its source - with *Accepted my LinkedIn connection
+  request* on its history and *Follow up with Jyothi* as its task: tomorrow
+  when no day is said, or the day that is. Also *met anil sharma, HR head at
+  infosys*, *spoke to priya from GIG international, need to send her the
+  brochure tomorrow*, and *the principal of vidyashilp accepted my request*
+  (a contact with no name yet). Only somebody not already a contact, with a
+  role, how you met, something they did or something to do about them: *letter
+  from school*, *email from hdfc bank* and *pizza from dominos* are not people.
+  The next line's *her* is them.
+- **Family by what they are called**: *call mom* finds the contact saved as
+  Mummy or Amma, and so on for dad, brother, sister and grandparents.
+- **A message pasted in**: a WhatsApp line keeps what was asked and whose it
+  was - *[23/09, 10:32] Rahul: can you send the deck by friday* is *send the
+  deck by friday for Rahul*; *call me* from Priya is *call Priya*. An email
+  keeps its subject and sender.
+
+### It learns from being moved
+
+Move a line to another part of life - press its area - or to another place
+under **Goes to**, before you keep it, and the line keeps the lesson: the
+words of that line and where you moved it (`shared/lessons.ts`,
+`line_lessons`). The next line that shares those words goes there by
+itself, and says why under the line: *Personal, the way you moved "give
+arjun the charger back"*. Move "give arjun the charger back" to Personal
+once and "drop the charger at meera's" lands in Personal too.
+
+- It learns words, not sentences, with "friends" and "friend" as one.
+- A word moved two different ways counts for neither: "report" is a client's
+  and a lab's, so it decides nothing.
+- Your words, taught outright, come first; lessons come next; the built-in
+  guesses about everyone come last.
+- Only between the soft kinds - task, journal, idea, note, memory. A prefix,
+  a private line, a contact and a report on the day are said or found, not
+  guessed, and are never moved by a lesson. A private line teaches nothing.
+- **Settings, What the line has learnt** lists every lesson with the line it
+  came from and a way to take it back. There is no model: that list is all of
+  it, and nothing leaves the computer.
+
+A clause that says a thing must be done makes the line a task wherever it
+comes: *my friends jacket is in my room, have to return it* is a task, not a
+note. And the people in a life - friend, roommate, cousin, neighbour,
+borrowed, lent - are Personal, whichever workspace is open.
 
 ### Adding a task in one line
 
 The line at the top of Today, reachable from any screen with **A**, and from any
-application at all through the tray icon or Ctrl+Alt+A. Type it the way you
+application at all through the tray icon or Ctrl+Win+A. Type it the way you
 would say it — *"Task at 4pm, today, Datascience Assignment"*, *"call Oakridge
 tmrw 11:30am"*, *"gym every mon wed fri 6am"*, *"submit the form by the 15th"* —
 and the line under it shows what was understood before anything is written.
@@ -405,15 +573,28 @@ The clock starts at the lead's creation, so a new lead is never instantly cold.
 
 ### Replies
 
-Replies to email sent from Caulder in the last seven days, newest first, at the
-top of the side column. Each opens its contact. Out-of-office answers never
-appear here: the script does not count them as replies.
+Replies to email sent from Caulder in the last seven days, newest first, in
+the work column after the things to pay for. Each opens its contact.
+Out-of-office answers never appear here: the script does not count them as
+replies.
 
 ### Notes, at the foot
 
-A thought caught by **Ctrl+N** in the quick window, or written in the box at
-the foot of Today, lands here. Notes have no screen of their own any more: a
+What the line kept to file later lands here: a line started with *note:*, a
+line the line could not place anywhere better, or a thought caught by
+**Ctrl+N** in the quick window. Notes have no screen of their own any more: a
 note is a thing you have on a day, not a place you go.
+
+**There is no box to write in here.** There used to be - a text box with
+*Keep it* and *Ctrl + Enter saves it* - but it was a second way to do what
+the line at the top already does, a screen further down, so it went. The
+card's one line of hint points back up: *start a line above with note:*.
+
+With nothing to file there is no card at all, rather than an empty one with
+a joke in it. A search box appears once there are six notes or more (below
+that the list is its own search), and stays while a search is typed,
+whatever it narrows the list to. Each note can be edited in place, made a
+task for today, pinned or deleted.
 
 A note worth keeping can be **filed in the brain**: pick a section (Ideas by
 default) and it becomes a page there, titled with its first line. The page is
@@ -708,6 +889,53 @@ Neither merge mode **ever blanks a known value**: a column your sheet does not
 carry cannot erase what is already there.
 
 ---
+
+### From Google Contacts
+
+Import has a third source, beside a file and a pasted list: **your Google
+address book, read once, when you press the button.** It is offered only when
+Google is connected, and it goes through the same wizard - the same column
+mapping, the same duplicate check against people already here, one
+transaction, and the same undo. A second import path that skipped the preview
+would be a second way to get it wrong, and this is the one source whose rows
+nobody chose by hand.
+
+**Nothing about it runs on a timer.** Calendar and tasks sync in the
+background because a task is meant to reach a phone; an address book is not,
+and quietly reading the people in somebody's life is not a feature. Caulder
+had only ever written to Google Contacts before this, and the script said so
+in as many words - that sentence is now rewritten to describe what it
+actually does, rather than left standing as a promise the code had stopped
+keeping.
+
+**A person with a company becomes that company, with their name as the
+contact on it.** That is the same shape `saveContact` writes in the other
+direction, so somebody pushed to Google and pulled back reads as the lead
+they started as rather than as a second, person-shaped one. Somebody with no
+company is their own lead, which for a one-person business is exactly right.
+The rows are headed with Caulder's own column names, so the mapping step has
+nothing to correct.
+
+Three things it says rather than hides:
+
+- **Contacts with no name at all are left out, and counted.** Google keeps
+  entries that are only an email address, and `Name` is the one column the
+  importer requires.
+- **It says when it did not reach the end.** The script follows Google's
+  pages to about five thousand contacts - the importer's own row cap - and
+  reports whether it finished. This is the lesson `pullTasks` has an essay
+  about: a page is not a list, and an address book is the one place somebody
+  is certain to have more than a hundred of something.
+- **Duplicate detection needs a name and one other thing to agree** - an
+  email, a number or a city - so a contact who is only a name is added again
+  on a second import. That is the importer's rule, not anything about Google:
+  no contact detail identifies a lead on its own, and loosening it to
+  name-only would start merging people who happen to share one. Almost every
+  real address-book entry has a number, and those are caught.
+
+It needs script version 5. An older script answers "this script does not do
+pullContacts", which is true and useless, so Caulder turns that into the
+sentence that says where the new one is.
 
 ## Pipeline
 
@@ -1244,11 +1472,14 @@ the task goes in, or as soon as you click away. **Right-click** for the rest:
 Add a task, Write a note, Open Caulder, Quit Caulder. The key is shown beside
 Add a task, so the menu is also where you find out it exists.
 
-**Ctrl+Alt+A opens the same window from any app**, where you are looking.
+**Ctrl+Win+A opens the same window from any app**, where you are looking.
 It is on from the start, because a key you have to find and switch on is a
-key nobody uses — and it was chosen by trying the candidates on a real
-machine: Ctrl+Alt+Space, the obvious one, was already held there by another
-app. "A" is the key that opens quick add inside Caulder, so this is the same
+key nobody uses. Ctrl and the Windows key sit together under one hand;
+Ctrl+Alt+A came first and was awkward, and Ctrl+Alt+Space, the obvious one,
+was already held by another app on a real machine. Ctrl and the Windows key
+on their own cannot be a system-wide key - Windows needs a key with the
+modifiers - so "A" stays, being the key that opens quick add inside Caulder,
+so this is the same
 key, from everywhere. In the window, **Ctrl+T** and **Ctrl+N** move between a
 task and a note. The tray always opens on a task; the key opens whichever you
 used last.
@@ -1292,6 +1523,81 @@ installer's shortcut — from the project, or a portable build — has nowhere
 else for Windows to read them from and would show the bare ID. Each
 notification carries the mark too, from `resources/tray/notify.png`, cut the
 same way as the tray icon.
+
+## The desk widget
+
+A second window that **rests as a pill and opens when the pointer is on it**,
+saying what is on now, what is next and what is late. Switched on in Settings
+> Your computer, off until it is: it is the one part of Caulder that puts
+something on screen you did not open. It comes back on the next launch at the
+level and in the place it was left.
+
+**The window resizes, the contents do not hide.** A full-size window with a
+pill drawn inside it is still a full-size hole over the desktop underneath,
+and the widget is a transparent window over somebody's wallpaper. Open, it is
+as tall as what is in it and no taller - `deskFit` in
+`electron/main/desk.ts` holds the page's own measurement between 96px and
+372px, because a fixed panel draws 300px of empty card on a quiet Sunday and
+that reads as broken rather than as quiet.
+
+**It opens away from the nearest edges.** A pill left in the bottom right
+grows up and to the left, sharing the corner it already had, so the pill does
+not appear to jump. The obvious version - grow down and right - puts the panel
+off the screen for the corner people actually leave it in. `deskOpen` is
+worked out by hand in `desk.test.ts` on a 1920x1040 work area.
+
+### Three levels, and what the first one costs
+
+| Level | Where it sits |
+| --- | --- |
+| **In front** | Above your other windows, draggable, hover to open. The default. |
+| **On the desktop** | Part of the wallpaper, behind your windows and your icons. |
+| **An ordinary window** | In the stack, covered by whatever you are working in. |
+
+**The desktop level cannot be clicked or dragged**, and Settings says so
+before it is chosen rather than leaving somebody to discover it. A window
+parented to the desktop is behind the icons, and Windows sends every click
+there to the desktop instead. Move it while it is in front, then send it
+back. Nothing on the widget is a control for the same reason: a button that
+works at two levels out of three is worse than no button.
+
+That level is a real Win32 call, through `koffi` - a fourth runtime
+dependency, loaded only when somebody asks for the level and failing soft with
+a reason the card prints. Four things it cost, none of them visible from the
+API:
+
+- **The desktop is a different shape on different Windows.** Windows 10 spawns
+  a top-level `WorkerW` behind the icons; Windows 11 22H2 and later hold
+  `SHELLDLL_DefView` directly under `Progman` with no such sibling. Both are
+  tried, and the 10 branch checks the candidate is *visible* - this machine
+  carries a couple of hundred top-level windows with several invisible
+  `WorkerW`s among them.
+- **Windows refuses to make a topmost window the child of anything**, so
+  always-on-top comes off first. That is what makes the call possible, not
+  tidiness.
+- **`GetParent` is the wrong question.** For a `WS_POPUP` window it answers
+  with the owner, and reads back 0 after a `SetParent` that entirely
+  succeeded. `GetAncestor(GA_PARENT)` is the one that answers, and it is what
+  decides whether the card says "pinned" or "Windows would not".
+- **A window parented to Progman does not close cleanly**, and the app hangs
+  on quit with nothing on screen to explain itself. It detaches before the
+  window goes and again on `before-quit`. `e2e/widget.spec.ts` pins it and
+  then quits, so a missing detach fails the suite rather than the user.
+
+**Hover is watched from the real cursor, in main**, not from the DOM. Three
+reasons, each found the hard way: an element with `-webkit-app-region: drag`
+gets no mouse events at all, so the draggable pill can never fire
+`mouseenter`; a window can be moved out from under a stationary pointer with
+no DOM event; and at the desktop level the window is behind everything and
+unfocusable, where pointer events cannot be leaned on. One mechanism, both
+directions. The hit test grows by 12px once the panel is open, so a pointer
+resting on its edge does not shut and open it on every tremor.
+
+Measured while building it, and worth knowing before changing any of it:
+**`moved` is not emitted for a programmatic `setBounds` on Windows**, only
+for a real drag - which is what lets the pill remember where it was dragged
+to without its own growing and shrinking counting as a move.
+
 
 ## You: the journal and Life
 
@@ -1363,16 +1669,23 @@ lock off.
 ### Life
 
 **Life** (key **Y**) is habits, studies, hobbies and goals, a tab each, and an
-**Overview**: the vision board, your level beside the last seven days,
-achievements, your theme days, and then the exams coming, each goal with its
-line, and the time the hobbies actually got - or, with none of those yet,
-where to start.
+**Overview**: your level beside the last seven days, achievements, your theme
+days, and then the exams coming, each goal with its line, and the time the
+hobbies actually got - or, with none of those yet, where to start.
+**Goals** is where ambition lives: the vision board on top, because it is what
+the goals are for, then your goals under their areas, then - when the
+company's Plan in the Brain has any goals or milestones - a short list of
+**the company's goals**, read-only here, each opening in the Brain.
+**Show levels and XP** (Settings › Appearance, on to start with) puts your
+level and achievements away when switched off: the Overview keeps the last
+seven days without its XP, and Today's level line goes. The points are still
+counted, so switching it back on loses nothing.
 The pages open here, with the way back to their tab; opened from anywhere
 else - search, a link, Today, the Calendar - they come here too.
 
-- **The vision board**: pictures and words for what the year is for. *Add a
-  picture* takes a photo, a PNG, a WebP, a GIF or an AVIF; so does dropping
-  one on the board, or pasting one anywhere on Life while the cursor is not in
+- **The vision board** (on Goals): pictures and words for what the year is
+  for. *Add a picture* takes a photo, a PNG, a WebP, a GIF or an AVIF; so does dropping
+  one on the board, or pasting one anywhere on Goals while the cursor is not in
   a box. It is made smaller before it is kept - 1,400 pixels on its long side,
   as WebP - and asks for its words, an area and a goal, all optional, before
   it goes on. *Add words* makes a tile of words alone, large, on its area's
@@ -1419,7 +1732,9 @@ else - search, a link, Today, the Calendar - they come here too.
   a time, and the last **eight weeks as bars** against a dashed line at the
   hours wanted - a week over it darker, the week still going lighter.
 - **Goals**: area (college, company, personal, health), a day, and a number
-  to reach. Each is a small card that is kept up with in a press:
+  to reach. On the tab they sit under a heading for each area, those without
+  one last; the Overview keeps them in one list. Each is a small card that is
+  kept up with in a press:
   - **+1** (or **−1** for a goal that counts down, a weight to lose) moves it;
     **Update** adds some or says where it stands now, with a word about it if
     you like ("Dune"). Each is a check-in, kept with its day; the page's *So
@@ -1612,8 +1927,9 @@ the mouse, not only typed.
   the map* and the kinds top left, *Fit*, *As a list* and *Display* top
   right, *Replay* along the foot.
 - **Colour says what a dot is** - Pages, Decisions, Contacts, Products,
-  People, Documents, and **Your own** in grey: the journal, studies, hobbies
-  and goals, which are on your map and nobody else's. The kinds are the
+  People, Documents, and **Your own** in grey: studies, hobbies, goals and
+  (when *Journal days* is on) the journal, which are on your map and nobody
+  else's. The kinds are the
   legend: a colour, a word and a count each, and switching one off takes
   those dots away and fades its colour in the legend, so the legend stays
   whole.
@@ -1627,15 +1943,21 @@ the mouse, not only typed.
 - **Hover** a dot and what it is linked to stays lit while the rest fades,
   in and out rather than at once; the lines to it take the accent colour.
   Names grow in as you zoom, the busiest dots' first, and always for what is
-  lit. **Click** opens it where it lives.
+  lit. A long name is cut short with an ellipsis, and where two would run
+  into each other only the busier dot's is drawn; the other shows on hover.
+  The dot hovered, the page's own and whatever *Find* matches always show
+  their whole name. **Click** opens it where it lives.
 - **Drag** a dot and its neighbours come with it, the whole map giving way
   as you move; let go and it settles back among them. **Hold Shift as you let
   go** to pin it there instead. A dot already pinned stays where it is put;
   double-click a pinned dot to let it go. Scroll to zoom, drag the background
   to move, *Fit* to see everything again.
 - **Display** is the panel of controls:
-  - *Show*: dots with no lines (the orphans), every contact, and arrows the
-    way links were written;
+  - *Show*: dots with no lines (the orphans), every contact, journal days,
+    and arrows the way links were written. Journal days are off to begin
+    with - a dot a day buries everything else - and *As a list* follows the
+    same switch; a day that links to something is still in that thing's
+    *Linked here*;
   - *Looks*: when names show, dot size, line thickness;
   - *Forces*: push apart, line length, pull to the middle - the map moves as
     they do;
@@ -1688,20 +2010,55 @@ on Life lists everything under it however far down, and the map draws it.
 
 ### Memories
 
-On the Brain's rail, under Map. Everything the line on Today was told to
-remember, read back out of the pages it was written on (a memory is a dated
-line at the foot of a page, `shared/memories.ts`): grouped by what each is
-about, the most recently added to first, searchable, and each group says where
-its page hangs and opens it. **See them on your map** goes straight to your
-side of the map. Memories are kept in your own workspace whichever company is open, so
-this shows the same thing in every company's brain, and says so. The journal
-is never read for it.
+A row of its own under *You*, after Life - not on the company Brain's rail,
+because memories are yours and the Brain is the company's. Everything the line
+on Today was told to remember, read back out of the pages it was written on (a
+memory is a dated line at the foot of a page, `shared/memories.ts`): grouped
+by what each is about, the most recently added to first, searchable, and each
+group says where its page hangs and opens it. A page opens right there, with
+the way back to Memories, and so does a page it links to; a **Remembered**
+page found anywhere else - search, a link - opens here too. **See them on your
+map** goes straight to your side of the map. Memories are kept in your own
+workspace whichever company is open, so this shows the same thing in every
+company, and says so. The journal is never read for it.
 
-The **Map** has the same two sides. With a company open, a pair of tabs above
-it chooses between the company's map and **Yours** - your own workspace's
-pages, where Red Rising hangs off Reading. With your own workspace open they
-are one map and the tabs are not drawn. A page opened from either knows which
-workspace it is in, so its links and what links to it are its own.
+- **What a life is made of** (`shared/lifefacts.ts`) goes on its own page in
+  **Remembered**, a personal section that never leaves the machine: *my blood
+  group is O+*, *i'm allergic to peanuts*, *my car number is…* on **About
+  me**; *mummy's birthday is 15 march*, *arjun likes filter coffee*, *meera
+  just got engaged*, *dad's shirt size is XL* on a page for each person under
+  **People**; *the spare key is under the plant pot*, *i parked on level 3,
+  spot B12* on **Where things are**; *lent my drill to arjun*, *arjun returned
+  the drill* on **Lent and borrowed**. What it is about leads the line -
+  **Blood group: O+** - so a later memory about the same thing is the newer
+  answer, and the one before is shown as *earlier*. Somebody already a contact
+  keeps theirs on their history. *My exam is on friday* is still a task and *my
+  head is killing me* still the journal.
+- **A password is never a memory.** *My wifi password is…*, a PIN, a card or
+  account number, an OTP go to **Private**, locked behind the journal's
+  passcode. *The plumber's number is…* is a new contact.
+- **Coming up**: a birthday or an anniversary told to it, in the next month,
+  at the top of Memories; on Today when it is within the week; and as a
+  Windows notification on the day and the day before, at the brief's hour or
+  nine, whatever the reminder switches say - it was asked for.
+- **On this day**: what was kept on this day in an earlier year, or failing
+  that an earlier month. Today brings one memory back under the greeting, the
+  same one all day - a birthday this week first, then one from this day, then
+  one from a while ago.
+- **By what** or **Timeline**, and a search that finds every word in any order.
+- **Edit** and **Forget** each memory where it is, on its page, through the
+  page's history - so what it said before can still be seen there.
+- **Asked** in the line on Today: *where did i park*, *where is my passport*,
+  *what's my blood group*, *what does arjun like*, *who has my drill*, *when's
+  mummy's birthday* are answered from memories, the current one first.
+
+The **Map** has the same two sides. Opened from Memories, with a company
+open, a pair of tabs above it chooses between the company's map and **Yours**
+- your own workspace's pages, where Red Rising hangs off Reading - and it
+opens on Yours. The Map on the Brain's rail is the company's alone, with no
+tabs. With your own workspace open they are one map and the tabs are not
+drawn. A page opened from either knows which workspace it is in, so its links
+and what links to it are its own.
 
 ### Brain home
 
@@ -1993,6 +2350,289 @@ to what it drew on, and says what went. The switch stays where it was put.
 - Nothing is sent until a question is asked, and without a key the card says
   where to add one. Everything else in Caulder works without it.
 
+## Context for another AI
+
+The quick line has three modes, and the flame at its head says which. Type a
+topic in the violet one and **everything Caulder holds about it goes on the
+clipboard**, written out in full, to paste into any chat. The same thing sits
+on Brain home as a card, for when you have come looking for it rather than
+happened upon it.
+
+**It is not the search results.** Search answers *where is the word*; a brief
+answers *what is known*. Three things make the difference:
+
+- **It follows the shape of the brain, not just the text.** Everything hanging
+  under a page that matched comes too, so *guitar* brings the songs filed
+  under it and *reading* brings the shelf, none of which say the word.
+- **A page two levels down is found at all.** A page directly under Unifloe
+  carries the line `Part of [[Unifloe]]`, so the index can find it; its own
+  child says `Part of [[Pricing]]` and never says Unifloe, so *unifloe tiers*
+  matches nothing whatsoever in the search box. A page counts when the words
+  it matched plus the names of every page above it cover what was typed.
+- **It reads the sentence, not just the words.** *Give me context about
+  unifloe pricing* is a brief about unifloe pricing: the asking words are
+  thrown away, because the index joins words with AND and *give* would find
+  nothing.
+
+It also brings what the index does not hold: the hours set aside for it in the
+calendar, the numbers the line logged about it, and the tasks with its name on.
+
+**What never goes.** A journal day you have locked, and anything the line took
+as private - the same two rules the connected AI has, for the same reason, and
+the private table is not read at all rather than read and skipped.
+Registration and account numbers are masked.
+
+**And the paste says so.** It opens by explaining what Caulder is, because the
+chat window it lands in has never heard of it, and warns that these are one
+person's own notes rather than a document. It closes by naming what went in
+and what was held back, and tells the reader not to read silence as absence -
+without which an AI handed a brief answers confidently about a gap that is a
+gap on purpose.
+
+The words never reach the window: main puts them on the clipboard and the
+screen is told only how many characters and what kinds of thing went in.
+
+## Ember
+
+The flame at the head of the quick line is a mascot, and her colour is the
+mode. **A flame test** - copper burns green, potassium violet, a gas ring
+blue, plain fire orange:
+
+| | |
+| --- | --- |
+| **Orange** | The line goes into the company. |
+| **Blue** | The line goes into your own day. |
+| **Green** | The line is a question for the AI Caulder is connected to. |
+| **Violet** | The line is a topic, and its context leaves for another AI. |
+
+Colour is never the only signal: each switch keeps its pressed state and its
+title, and the line's placeholder changes with the mode.
+
+**She lives in the app, on Today.** Her front door stands on the top edge of
+the quick line, and Today is the only screen she is on - the rest of the app
+is for working in. She comes out of it when Caulder opens, wanders the line, stops, looks
+about, breaks into a run now and then, and goes back in between one and six,
+when the door's little window dims and a z drifts out. Knock on it and she
+answers; in the small hours she opens it just far enough to ask for five more
+minutes.
+
+**She has a body** (`shared/body.ts`): one physics step, sixty times a second,
+whether she is walking the line, standing on a card, held, or flying across
+the window. Cartoon physics on purpose - heavy gravity, bounces that keep more
+speed than anything real would, walls she splats against - and two springs
+that overshoot: her squash, so every landing flattens her and she wobbles back
+through her own shape like a jelly, and her tilt, so she leans into a walk,
+tumbles when thrown and rocks herself upright after landing the wrong way up.
+Her walk squashes on every footfall. A one-pixel ink outline stands her off
+the page - drawn as pixels, an ink twin of every layer of her grown by one,
+rather than by a filter, which measured as the most expensive thing about
+her - and a shadow on whatever is under her shrinks as she goes up.
+
+**What she costs.** Measured with Chromium's own counters, wandering the line
+she takes a few hundred milliseconds of main-thread time every six seconds
+and drops no frames. Her movement is a transform on her outer box, which the
+GPU does; anything that loops inside her drawing steps rather than eases, so
+she repaints only when a frame of her changes; and indoors she checks four
+times a second instead of sixty.
+
+She watches the pointer, and one that sits beside her long enough gets
+noticed. She reads, plays an electric guitar with her eyes shut, dances under
+a disco ball, skates, listens to music, drinks tea, goes running, stretches,
+dresses up, swings a pickaxe at a block of stone until the chips fly, sits
+with her hands behind her head under a blocky tree while a leaf comes down,
+and now and then mopes in bed under her own raincloud - one pastime in four
+stretches of resting, in a fixed order that alternates loud things and quiet
+ones.
+
+She is a **thirty-two by thirty-two pixel sprite**, shown at sixty-four, so
+every sprite pixel is exactly two screen pixels. Three body frames are cycled
+about eight times a second, which is how she burns; her face, wardrobe and
+pastimes are separate sprites laid over it. Her own moves glide from pose to
+pose rather than cutting between them, spinning the short way round, so a
+somersault is one turn. Under reduced motion she stands still beside her door.
+
+### Out on the taskbar
+
+When Caulder is not the window in front, Ember walks the **seam between the
+taskbar and everything above it** - the bottom of the work area, which is the
+top edge of a bottom taskbar, and the bottom of the screen when the taskbar is
+at the top, on a side, or hidden. She ambles, stops now and then, turns round
+at the ends, and stands still for her pastimes.
+
+**She is for something.** She holds up what is waiting for you, one thing at a
+time: a **bell** when a block starts within ten minutes, a **letter** when
+somebody has replied, **papers** when something is overdue. Click her and
+Caulder comes forward on Today, where all three are. Everything she carries is
+a row Caulder already has; an empty day, and she just gets on with her life.
+
+- **There is only one of her.** Switch to Caulder and she comes inside, onto
+  the quick line; switch away and she is back on the taskbar.
+- **She never costs a click.** Her window lets every click through to whatever
+  is underneath, except while the pointer is actually on her.
+- **She keeps out of the way** of anything full-screen - a film, a slide deck,
+  a game - by asking Windows what is in front.
+- **Settings → This computer → Ember** puts her away. Under reduced motion
+  she stands still and holds on one drawing.
+
+### Click her, poke her, throw her
+
+**Click her and the line becomes a question for the AI**, cursor in it. The
+obvious thing to want from the character on the line is to talk to her.
+
+**Poking** (on in Settings unless switched off) answers differently depending
+on where it lands, which is what makes it exploring rather than repeating: the
+head bonks her, the belly tickles, the feet trip her, and five in a row makes
+her dizzy. In costume, the belly is where the costume's own move lives.
+
+**Drag her anywhere.** She hangs from where you grabbed her and swings behind
+your hand. Every card's top edge is somewhere she can stand, and she wanders
+whichever one she is put on; the card dents under her when she lands, and a
+hard enough landing shakes the window. A flick throws her: she tumbles,
+bounces off cards, and splats flat on a wall or the ceiling, sticks there a
+moment too long, and peels off. Take the card away from under her and she
+hangs in the air long enough to say "Uh oh." Dropped over nothing, she grows
+wings, flaps, fails, and falls out of the bottom of the window head first,
+whistling - and a moment later her door bursts open and she stumbles out. A
+double-click sends her home with a leap, and after a while on somebody else's
+card she goes home by herself.
+
+**Her temper.** Pokes, throws, bumps and drops all add up and cool off by
+themselves. Past one line she is cross (a scowl and steam); past the next she
+goes up in flames and takes the screen with her: the window turns red and
+pixel flames climb the bottom of it until you **give her a marshmallow**,
+which she toasts on her own head and eats. Escape counts as a marshmallow.
+
+### Getting back up
+
+Put her down on a card below her line and she stands there a moment, looks
+up at it, says "Hmm.", and gets herself back the hard way - a different way
+each time, and every one with a beat that goes wrong (`shared/ascent.ts`):
+
+- **The rope.** A grappling hook, thrown up and straight back down onto her
+  head; thrown again, and it catches. She climbs hand over hand, from behind
+  - you see her back, not her face - slips halfway and whips round to look at
+  you, then carries on, flops over the edge, and says "Easy."
+- **The web.** "Thwip!", and she is yanked up so hard she overshoots, flips,
+  and lands. "Nailed it."
+- **Magic.** "Abracadabra!" - and she reappears two steps to the left.
+  "...huh." "Alakazam!" works. Ta-da, and a bow.
+- **A pogo spring,** squashed down with everything she has, then BOING.
+- **A rocket** that sputters out halfway, relights, and weaves her home.
+
+### Dances
+
+Twenty: the dab, the robot, the floss, 6-7, a headspin, disco point, the
+moonwalk, the chicken dance, the griddy, the worm, the Carlton, the macarena,
+the sprinkler, the horse dance, jumping jacks, an Irish jig, the twist, the
+running man, Cossack kicks and the ninja run - head down, both arms straight
+out behind her - over a drum machine, when she has been asked. Once she knows
+the ninja run, it is also how she runs anywhere fast. Ticking a task off gets
+the next one she knows, and she breaks into one on her own now and then.
+
+### Keeping her warm
+
+Ember is the reason to keep your habits (`shared/growth.ts`). Everything she
+has is **worked out from what you did, never banked**: undoing a tick undoes
+what it earned, and opening the app earns nothing.
+
+- **Your habits feed her.** Tick a habit and a marshmallow flies from the box
+  to her; she catches it and says "Nom!". How many you have kept over the last
+  five days, the recent ones counting most, is **how warm she is**: blazing,
+  she walks faster, breaks into runs more often and rests less; low, she
+  slows down, stops running and mutters "Hungry..."; down to embers, she sits
+  by her door, says "So... cold...", and waits for you. One tick and she
+  brightens on the spot. **She never dies, sulks
+  or tells you off.** A pet that punishes you gets switched off, and then it
+  motivates nothing.
+- **Your level teaches her things.** The XP everything you do already earns
+  now has somewhere to go: every level from the second teaches her a dance, a
+  costume, something to wear, and every third one a new way back up. The
+  things people ask for come first (the floss and Superman at level 2, the
+  moonwalk and the ninja run at 3, 6-7 at 5, Shah Rukh Khan at 6), and the
+  ladder runs to level 25.
+- **Your streaks earn the special costumes**, on the longest run you have
+  ever had on any habit: Bruce Lee at 3 days, Usain Bolt at 7, Neil Armstrong
+  at 14, Ronaldo at 21, Michael Jackson at 30, Mike Tyson at 60, and Zeus at
+  100.
+- **Something new arrives as a present.** It drops onto her line, she walks
+  over, opens it, and shows you what she learned.
+
+**Right-click her for her book**: how warm she is, how many habits are fed
+today, your level, your best run, and the next three things she will learn
+with how far off each is. Below that are her dances, costumes, clothes and ways
+home. Anything she knows is a click away. Anything she does not know is still
+listed, with what unlocks it, and clicking it gets a shake of the head and
+"Not yet! Level 5."
+
+### Her clothes
+
+She is never naked. **Every morning she dresses herself**: a knitted scarf and
+white sneakers, and most days one extra thing on her head or face, the same
+all day (`shared/closet.ts`). Her wardrobe has sixteen things across six
+places - head, face, neck, body, back and feet: a scarf, a bow tie, a bandana,
+sneakers, boots, red kicks, a beanie, a bow, a flower, a party hat, a
+sweatband, a crown, shades, round specs, a hoodie and a backpack. She starts
+with the scarf, the sneakers and the beanie, and the rest come up the ladder.
+
+Dress her yourself from **Her clothes** in her book. Clicking something puts it
+on, and takes off whatever was in the same place; clicking it again takes it
+off. She changes in a puff of smoke and asks "How do I look?". She keeps what
+you chose until you click **Let her choose**. In a costume her own clothes are
+put away, and a pastime's own hat wins its place: a nightcap in bed, a cap on
+a run, reading glasses over her shades.
+
+### Her ways
+
+- **She says hello**, the first time she comes out each day: "Morning!",
+  "Afternoon!", "Evening!", or "Up late?" after ten at night. The greeting is
+  bubble-only; she makes no sound on her own.
+- **She has a favourite dance**, picked once from what she knows and kept.
+  It is marked with a star in her book.
+- **Left alone** for three minutes, with nobody moving the pointer or typing,
+  she gets bored, does her favourite dance to nobody, and asks "...anyone
+  there?"
+- **The day every habit is fed**, she dances and says so, once.
+
+### Tricks and the wardrobe
+
+Between pastimes she does something funny of her own accord: trips over
+nothing, waves, does a somersault, dances. Every move squashes and stretches -
+flattened before a jump, long on the way up, a pancake on landing and a wobble
+after - and a bonk on the head flattens her like a pancake before she springs
+back up far too tall. **Clearing the last overdue thing gets the moonwalk**: a
+puff of smoke, a fedora, white socks, eight steps backwards, a spin and the
+kick.
+
+Twice in every fourteen pastimes she dresses up, as one of the costumes she
+knows, from a wardrobe of **thirty-seven**, each with its own move: Michael Jackson, Zeus (a thunderbolt,
+then he trips on his robe), Superman, Shah Rukh Khan (the arms), Einstein (the
+tongue), Mike Tyson (a combination, then a pigeon), Rajinikanth (the
+sunglasses), Napoleon (on tiptoe), Batman, Sachin Tendulkar, Cleopatra, Donald
+Trump, A. P. J. Abdul Kalam (a launch), Newton (an apple), Elvis, Cristiano
+Ronaldo, Neil Armstrong, Bruce Lee, MS Dhoni (the helicopter shot), Lincoln (a
+hat that keeps growing), Freddie Mercury, Shakespeare, Usain Bolt, Beethoven,
+Chaplin, Caesar, Bob Ross, Marie Curie, Frida Kahlo, and a Viking, a pirate, a
+boy wizard, a great detective, a plumber, a space knight, a cowboy and a hero
+in green.
+
+**On somebody's day she is them all day**, the way a search page draws its
+logo for a birthday: Einstein on 14 March, the Moon landing on 20 July, MJ on
+29 August. Hover over her and the caption says whose day it is and why. A
+costume that followed the calendar with no explanation was taken out once, as
+a bug; a doodle is different because it says why.
+
+### Her voice
+
+Every sound is synthesised in the app: a bonk is a falling square wave, a
+whoosh is noise swept through a filter, and Beethoven gets his four notes. The
+catchphrases ("Hee-hee!", "Hiyaaaa!", "Siuuuuu!", "Mind it!", "I'm Batman.")
+are said by the machine's own voice, bent for whoever she is being, and shown
+in a speech bubble over her so they land with the sound off.
+
+**She only makes a sound because of something you did**: a poke, a throw, a
+task finished. What she does on her own is silent. **Ember in the app**, **Her sounds** and **Poking, and her temper** each have
+their own switch in Settings.
+
 ## Search everything
 
 **Ctrl + K**, from anywhere, even mid-sentence in a field. Pages, contacts,
@@ -2087,6 +2727,51 @@ same URL — paste over the old file, *Manage deployments*, *New version*, and r
 `setUp` once more — with *Copy the new script* and *Check again*. Once current,
 it says which address email goes out from and how many sends Gmail allows
 today (100 a day on a personal account).
+
+### Reminders and notifications
+
+Caulder sends Windows notifications of three kinds (`shared/nudges.ts`,
+`services/nudges.ts`); clicking one brings Caulder to where it is about.
+
+- **A reminder you asked for.** A line that says *remind me*, *don't let me
+  forget*, *ping me* or *set a reminder* - "remind me in 20 mins to check the
+  oven" - keeps a reminder against the task (`reminders`). It arrives at the
+  time the line said, or at the start of that day without one (the morning
+  brief's hour, or nine), once, and never for a task already done. The line
+  says so before Enter: *A Windows notification at 2:20 PM.* It is sent
+  whatever the reminder switches say, because it was asked for in so many
+  words - unlike a block's notice, which stays behind its workspace's switch.
+- **The journal**, at the hour picked in Settings, Reminders - only on a day
+  with nothing written yet, and a different line each day.
+- **The morning brief**, at the hour picked: the must-dos by name, then how
+  many more and how many are late, across every workspace. Nothing on a day
+  with nothing.
+
+Both daily ones are off until switched on, and each is sent once a day, still
+arriving if Caulder is opened a little after its hour. **Send a test
+notification** in Settings shows one at once, and says what to check -
+Focus assist, and Caulder under Windows' notification settings - if it does
+not appear.
+
+### Other mail accounts
+
+**Settings, Other mail accounts** connects Zoho (zoho.com or zoho.in),
+Outlook or Microsoft 365, Yahoo, iCloud, Gmail without the script, or any
+SMTP server. Pick the provider, give the address and an app password - each
+preset says where that provider makes one - and it is tried against the
+server before anything is saved, so a wrong password or server is said
+there, in plain words, and not when a message will not go.
+
+- The password is encrypted by Windows the moment it is saved and never
+  shown again; if Windows will not encrypt, the account is not saved.
+- On a contact, **From** picks the account when there is more than one. The
+  script comes first when it is ready, because only it sees replies.
+- These accounts only send. A message from one is written on the contact's
+  history like any other, but no reply is watched for, a follow-up cannot be
+  asked for (it is said why), and one scheduled for later is sent by Caulder
+  when it is due - so Caulder has to be running then. Removing an account
+  marks what was waiting to go from it as not sent, rather than sending it
+  from somewhere else.
 
 ### Email through the script
 

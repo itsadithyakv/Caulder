@@ -762,6 +762,8 @@ export const quickInput = z.object({
     })
     .nullable()
     .default(null),
+  /** The line said "remind me": a notification at its time, or at the start of its day. */
+  remind: z.boolean().default(false),
   /**
    * "Gym every Mon, Wed, Fri" - hours set aside on those days until the last
    * one, rather than a task. A task is done once; a repeat is a habit.
@@ -922,16 +924,56 @@ export const SETTING_KEYS = [
   "shelfCovers",
   /** "off" when how somebody has been is not to be watched; anything else, it is. */
   "pulseOff",
+  /**
+   * "1" when your level, its XP and the achievements are put away - on Life's
+   * overview and on Today. Empty or never set shows them, which is where
+   * everybody who had them already stays.
+   */
+  "levelsHidden",
+  /**
+   * Whether the desk widget comes back on launch. Never set means no: it is
+   * the one part of Caulder that puts something on screen you did not open,
+   * so it starts asked-for or not at all.
+   */
+  "widgetOpen",
+  /** Where it sits in the stack: desktop, front or normal. See electron/main/desk.ts. */
+  "widgetLevel",
+  /** Where the resting pill was left, as {"x":n,"y":n}. Clamped onto a real screen on every launch. */
+  "widgetSpot",
+  /** Whether Ember walks the taskbar when Caulder is not in front. "0" is put away; anything else is out. */
+  "petOpen",
+  /** The hour of the journal nudge, "HH:MM"; empty or never set is off. */
+  "journalNudgeAt",
+  /** The day the journal nudge was last sent, so it is sent once. */
+  "journalNudged",
+  /** The hour of the morning brief, "HH:MM"; empty or never set is off. */
+  "briefAt",
+  /** The day the morning brief was last sent. */
+  "briefed",
+  /** The day a birthday or an anniversary coming round was last said. */
+  "datesTold",
 ] as const;
 export type SettingKey = (typeof SETTING_KEYS)[number];
 
 /**
  * The key that opens the quick window from anywhere, until somebody picks
- * another. Chosen by trying the candidates on a real machine: Ctrl+Alt+Space,
- * the obvious one, was already held by another app there. "A" is the key that
- * opens quick add inside Caulder, so this is the same key, from everywhere.
+ * another. Ctrl and the Windows key, which sit together under the thumb and
+ * left hand, and "A", the key that opens quick add inside Caulder - so it is
+ * the same key, from everywhere. Ctrl+Alt+A came first and was awkward to
+ * reach; Ctrl+Alt+Space was already held by another app on a real machine.
+ * Electron writes the Windows key as Super; sayShortcut says it as Win.
+ *
+ * Not Ctrl and the Windows key alone: a system-wide key needs a key, not only
+ * modifiers, so two modifiers by themselves cannot be claimed.
  */
-export const DEFAULT_CAPTURE_SHORTCUT = "Ctrl+Alt+A";
+export const DEFAULT_CAPTURE_SHORTCUT = "Ctrl+Super+A";
+
+/** "Ctrl+Win+A": an accelerator the way a person on Windows would say it. */
+export function sayShortcut(accelerator: string): string {
+  return accelerator
+    .replace(/\bCommandOrControl\b|\bCmdOrCtrl\b|\bControl\b/g, "Ctrl")
+    .replace(/\bSuper\b|\bMeta\b/g, "Win");
+}
 
 /**
  * The system timezone, used as the default when creating a company. Falls back

@@ -138,6 +138,26 @@ export function trailOf(input: { section: BrainSectionId; trunk: Step | null; is
   return steps.filter((step, at) => !same(step.title, input.topic) && steps.findIndex((each) => same(each.title, step.title)) === at);
 }
 
+/**
+ * Whether a title is one of the levels this file starts: the root, a hub, a
+ * hobby started under its plain name, a genre, a series, a part of the body.
+ * Such a page is there to hold others, so the line never files a memory onto
+ * it because a word in a line happens to be its name - "reading the report
+ * tonight" is not about Reading, and "chest day was brutal" is not a note on
+ * Chest.
+ */
+const TRUNKS = ["Reading", "Films and shows", "Music", "Gaming", "Cooking", "Gym"];
+export function isLevel(title: string): boolean {
+  const plain = title.trim();
+  return (
+    same(plain, ROOT.title) ||
+    Object.values(HUBS).some((hub) => same(plain, hub.title)) ||
+    TRUNKS.some((trunk) => same(plain, trunk)) ||
+    BODY.some(([, part]) => same(plain, part)) ||
+    /\s(?:books|films|series)$/i.test(plain)
+  );
+}
+
 /** "Hobbies › Reading › Red Rising series": the chain as it is said, without the root everybody shares. */
 export function sayTrail(trail: readonly { title: string }[]): string {
   return trail

@@ -44,6 +44,7 @@ export const BRAIN_SECTIONS = [
   "studies",
   "hobbies",
   "goals",
+  "remembered",
   "journal",
 ] as const;
 
@@ -841,6 +842,13 @@ export const BRAIN_SECTION_LIST: readonly BrainSection[] = [
     templates: ["life-goal"],
   },
   {
+    id: "remembered",
+    label: "Remembered",
+    prompt:
+      "What you know about your own life, kept for you by the line on Today: facts about you, a page for each person you know, where things are and what you lent. Tell the line - my blood group is O+, mummy's birthday is 15 march, the spare key is under the plant pot - and it lands here, dated, the newest first.",
+    templates: [],
+  },
+  {
     id: "journal",
     label: "Journal",
     prompt:
@@ -864,7 +872,7 @@ export function isSection(value: unknown): value is BrainSectionId {
  * machine: never sent to a co-founder, never in a data room, a handbook or
  * the dossier an assistant reads.
  */
-const PERSONAL_SECTIONS: readonly BrainSectionId[] = ["studies", "hobbies", "goals", "journal"];
+const PERSONAL_SECTIONS: readonly BrainSectionId[] = ["studies", "hobbies", "goals", "remembered", "journal"];
 
 /** The same, as a list SQL can test against. The ids are this file's own constants, never input. */
 export const PERSONAL_SQL = PERSONAL_SECTIONS.map((section) => `'${section}'`).join(", ");

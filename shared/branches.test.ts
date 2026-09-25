@@ -101,6 +101,21 @@ describe("the way down to a thing", () => {
     expect(titles("Read red rising book today, loved chapter 25", pages)).toEqual(["Me", "Hobbies", "Reading", "Red Rising series"]);
   });
 
+  it("never files a line onto a level because a word in it is the level's name", () => {
+    const pages = ["Me", "Hobbies", "Reading", "Gym", "Chest", "Sci-fi books", "Red Rising series", "Red Rising"].map((title, at) => ({
+      id: `p${at}`,
+      title,
+      section: "hobbies",
+    }));
+    const read = (line: string) => readCapture(line, { contacts: [], hobbies: [], pages }, CLOCK);
+    expect(read("reading the report tonight was painful").page).toBeNull();
+    expect(read("chest day was brutal").page).toBeNull();
+    // The series is a level; the book it is named after is not, and is what the line lands on.
+    expect(read("red rising series is worth a reread").page?.title).not.toBe("Red Rising series");
+    // A thing that is not a level is still found by its name.
+    expect(read("red rising was even better the second time").page?.title).toBe("Red Rising");
+  });
+
   it("gives a private line no trail at all", () => {
     expect(titles("private: i like julia")).toEqual([]);
   });

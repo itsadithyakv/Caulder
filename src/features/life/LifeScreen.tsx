@@ -16,13 +16,20 @@ import { ThemeDays } from "./ThemeDays";
 import { HabitsPanel } from "./HabitsPanel";
 import { VisionBoard } from "./VisionBoard";
 import { ProgressCards } from "./ProgressCards";
+import { CompanyGoals } from "./CompanyGoals";
+import { useShowLevels } from "./levels";
 
 /**
  * Life (PLAN.md, part four): the founder's own, a key away. Habits, studies,
- * hobbies and goals, each a tab, and an overview - the vision board, your
- * level and the week across the four areas, achievements, then the exams
- * coming, how far along each goal is, and what the hobbies actually got.
- * Habits are ticked on Today; this is where they are made and looked back on.
+ * hobbies and goals, each a tab, and an overview - the week across the four
+ * areas, your level and achievements (unless levels are switched off), then
+ * the exams coming, how far along each goal is, and what the hobbies
+ * actually got. Habits are ticked on Today; this is where they are made and
+ * looked back on.
+ *
+ * Goals is where ambition lives: the vision board on top, because it is what
+ * the goals are for, then your goals under their areas, then the company's
+ * own from its Plan, so the two are read side by side.
  *
  * The pages are brain pages underneath - they link, they are searched, they
  * have a history - but they are opened here, with the way back to here,
@@ -66,8 +73,11 @@ export function LifeScreen({
   onOpenContact: (leadId: string) => void;
 }) {
   // Yours, not the chosen company's: Life stays put when the company changes.
-  const { home } = useWorkspace();
+  const { home, activeCompany } = useWorkspace();
   const companyId = home?.id ?? null;
+  // The company whose goals sit beside yours: the one chosen, which for most
+  // people is the same workspace as their own.
+  const company = activeCompany ?? home;
   const [tab, setTab] = useState<Tab>("overview");
   const [view, setView] = useState<View>({ kind: "tab" });
   const [version, setVersion] = useState(0);
@@ -113,6 +123,20 @@ export function LifeScreen({
   }
 
   const openHere = (id: string, editing = false) => setView({ kind: "page", id, editing });
+  const sectionView = (section: Exclude<Tab, "overview" | "habits">) => (
+    <SectionView
+      key={section}
+      companyId={companyId}
+      section={section}
+      focus={null}
+      version={version}
+      onOpen={openHere}
+      onCreate={(template) => void create(section, template)}
+      onOpenSection={(next) => (isTab(next) ? setTab(next) : undefined)}
+      onOpenContact={onOpenContact}
+      onChanged={changed}
+    />
+  );
   const back = TABS.find((entry) => entry.id === tab)?.label ?? "Life";
 
   return (
@@ -154,19 +178,14 @@ export function LifeScreen({
           <HabitsPanel companyId={companyId} />
         ) : tab === "overview" ? (
           <Overview companyId={companyId} version={version} onOpen={openHere} onCreate={(section, template) => void create(section, template)} />
+        ) : tab === "goals" ? (
+          <div className="life__overview">
+            <VisionBoard companyId={companyId} version={version} onOpenGoal={openHere} />
+            {sectionView(tab)}
+            {company && <CompanyGoals companyId={company.id} companyName={company.name} version={version} onOpenPage={onOpenPage} />}
+          </div>
         ) : (
-          <SectionView
-            key={tab}
-            companyId={companyId}
-            section={tab}
-            focus={null}
-            version={version}
-            onOpen={openHere}
-            onCreate={(template) => void create(tab, template)}
-            onOpenSection={(section) => (isTab(section) ? setTab(section) : undefined)}
-            onOpenContact={onOpenContact}
-            onChanged={changed}
-          />
+          sectionView(tab)
         )}
       </div>
     </div>
@@ -174,9 +193,10 @@ export function LifeScreen({
 }
 
 /**
- * Everything at once (phase 17): what the year is for, how it is going, and
- * then the exams coming, how far along each goal is, and the time the
- * hobbies got - or, with none of those yet, where to start.
+ * Everything at once (phase 17): how the year is going, and then the exams
+ * coming, how far along each goal is, and the time the hobbies got - or,
+ * with none of those yet, where to start. What the year is for, the vision
+ * board, is on Goals, beside the goals it is about.
  */
 function Overview({
   companyId,
@@ -190,6 +210,7 @@ function Overview({
   onCreate: (section: BrainSectionId, template: string) => void;
 }) {
   const [empty, setEmpty] = useState<boolean | null>(null);
+  const levels = useShowLevels();
 
   useEffect(() => {
     let live = true;
@@ -210,8 +231,7 @@ function Overview({
 
   return (
     <div className="life__overview">
-      <VisionBoard companyId={companyId} version={version} onOpenGoal={onOpen} />
-      <ProgressCards companyId={companyId} version={version} />
+      <ProgressCards companyId={companyId} version={version} levels={levels} />
       <ThemeDays companyId={companyId} />
       {/* What the quick line was told, as a shelf and as a year added up. */}
       <ReadingShelf companyId={companyId} version={version} />
@@ -221,7 +241,7 @@ function Overview({
       ) : (
         <>
           <StudiesPanel companyId={companyId} version={version} onOpen={onOpen} only="exams" />
-          <GoalsPanel companyId={companyId} version={version} onOpen={onOpen} title="Goals" />
+          <GoalsPanel companyId={companyId} version={version} onOpen={onOpen} title="Goals" byArea={false} />
           <HobbiesPanel companyId={companyId} version={version} onOpen={onOpen} />
           {/* A page for each hobby, made for what it is. */}
           <HobbyBoards companyId={companyId} version={version} onOpen={onOpen} />

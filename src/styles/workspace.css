@@ -728,6 +728,24 @@
 
 .setup__lead + .setup__lead { margin-top: var(--space-2); }
 
+/* Adding a mail account: the provider, the address and password, and the server tucked away unless it is needed. */
+.mailacct {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.mailacct__server > summary {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.mailacct__server[open] > summary {
+  margin-bottom: var(--space-3);
+}
+
 .setup__foot {
   display: flex;
   align-items: center;

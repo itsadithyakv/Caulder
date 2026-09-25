@@ -20,9 +20,10 @@ import {
 } from "../services/brain";
 import { exportBrain } from "../services/brain-export";
 import { exportDossier } from "../services/dossier";
+import { buildTopicBrief } from "../services/topic";
 import { backlinks, connect, disconnect, keepPositions, letGo, linkTargetsFor, localMap, wholeMap } from "../services/map";
 import { makeTasks, pageTasks } from "../services/steps";
-import { allMemories } from "../services/memories";
+import { allMemories, editMemory, forgetMemory } from "../services/memories";
 import { remember } from "../services/remember";
 import { decisionLog } from "../services/brain";
 
@@ -127,6 +128,17 @@ export function registerBrainHandlers(): void {
     search(getDatabase(), companyOf(companyId), text),
   );
 
+  // The brief goes on the clipboard from here rather than being handed to
+  // the window to copy: it is the journal and the contacts written out in
+  // full, and the screen has no use for the words. It is also not wiped
+  // after thirty seconds the way a revealed number is - the whole point is
+  // to paste it into something else, which may be minutes away.
+  handle(CHANNELS.brainTopic, (_event, companyId: unknown, text: unknown) => {
+    const brief = buildTopicBrief(getDatabase(), companyOf(companyId), text);
+    clipboard.writeText(brief.markdown);
+    return { topic: brief.topic, chars: brief.chars, went: brief.went, cut: brief.cut };
+  });
+
   /* ---- Links and the Map ---- */
 
   handle(CHANNELS.brainLinkTargets, (_event, companyId: unknown, text: unknown) =>
@@ -136,6 +148,8 @@ export function registerBrainHandlers(): void {
   handle(CHANNELS.brainBacklinks, (_event, kind: unknown, id: unknown) => backlinks(getDatabase(), kind, id));
 
   handle(CHANNELS.brainMemories, () => allMemories(getDatabase()));
+  handle(CHANNELS.brainEditMemory, (_event, input: unknown) => editMemory(getDatabase(), input, new Date()));
+  handle(CHANNELS.brainForgetMemory, (_event, input: unknown) => forgetMemory(getDatabase(), input, new Date()));
   handle(CHANNELS.brainRemember, (_event, input: unknown) => remember(getDatabase(), input, new Date()));
 
   handle(CHANNELS.brainMap, (_event, companyId: unknown, allContacts: unknown) =>

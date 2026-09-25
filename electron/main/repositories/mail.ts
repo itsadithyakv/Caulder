@@ -83,6 +83,8 @@ function progressOf(row: EmailRow): EmailProgress {
 
 type NewEmail = {
   id: string;
+  /** The account it went from; null for the Google script. */
+  accountId?: string | null;
   companyId: string;
   leadId: string;
   to: string;
@@ -105,11 +107,12 @@ export function recordEmail(db: Db, email: NewEmail, remote: RemoteEmail, now: D
   const stamp = now.toISOString();
   db.transaction(() => {
     db.prepare(
-      `INSERT INTO emails (id, company_id, lead_id, to_email, subject, body, send_at, status,
-                           follow_up_days, follow_up_body, follow_up_status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'scheduled', ?, ?, ?, ?, ?)`,
+      `INSERT INTO emails (id, account_id, company_id, lead_id, to_email, subject, body, send_at, status,
+                           follow_up_days, follow_up_body, follow_up_status, forgotten, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'scheduled', ?, ?, ?, ?, ?, ?)`,
     ).run(
       email.id,
+      email.accountId ?? null,
       email.companyId,
       email.leadId,
       email.to,
@@ -119,6 +122,8 @@ export function recordEmail(db: Db, email: NewEmail, remote: RemoteEmail, now: D
       email.followUpDays,
       email.followUpBody,
       email.followUpDays === null ? null : "waiting",
+      // The script never had one from another account, so there is nothing for it to forget.
+      email.accountId ? 1 : 0,
       stamp,
       stamp,
     );
@@ -239,10 +244,10 @@ export function findEmail(db: Db, id: string): EmailRecord | null {
 /** How many ids go to the script in one call, so a call never grows without end. */
 const BATCH = 200;
 
-/** Messages something can still happen to, least recently heard about first. */
+/** Messages something can still happen to, least recently heard about first. Only the script's: it is who is asked. */
 export function watchedEmailIds(db: Db): string[] {
   const rows = db
-    .prepare(`SELECT id FROM emails WHERE settled = 0 ORDER BY updated_at LIMIT ?`)
+    .prepare(`SELECT id FROM emails WHERE settled = 0 AND account_id IS NULL ORDER BY updated_at LIMIT ?`)
     .all(BATCH) as { id: string }[];
   return rows.map((row) => row.id);
 }
@@ -250,7 +255,7 @@ export function watchedEmailIds(db: Db): string[] {
 /** Settled messages the script has not yet been told it can forget. */
 export function forgettableEmailIds(db: Db): string[] {
   const rows = db
-    .prepare(`SELECT id FROM emails WHERE settled = 1 AND forgotten = 0 LIMIT ?`)
+    .prepare(`SELECT id FROM emails WHERE settled = 1 AND forgotten = 0 AND account_id IS NULL LIMIT ?`)
     .all(BATCH) as { id: string }[];
   return rows.map((row) => row.id);
 }
@@ -265,9 +270,25 @@ export function markForgotten(db: Db, ids: string[]): void {
 /** Whether there is anything to ask the script about. */
 export function hasEmailWork(db: Db): boolean {
   return (
-    db.prepare(`SELECT 1 FROM emails WHERE settled = 0 OR forgotten = 0 LIMIT 1`).get() !==
+    db.prepare(`SELECT 1 FROM emails WHERE account_id IS NULL AND (settled = 0 OR forgotten = 0) LIMIT 1`).get() !==
     undefined
   );
+}
+
+/** Messages from another account that are due to go, oldest first. */
+export function dueAccountEmails(db: Db, nowIso: string): { id: string; accountId: string; to: string; subject: string; body: string }[] {
+  return db
+    .prepare(
+      `SELECT id, account_id AS accountId, to_email AS "to", subject, body FROM emails
+        WHERE account_id IS NOT NULL AND status = 'scheduled' AND send_at IS NOT NULL AND send_at <= ?
+        ORDER BY send_at LIMIT 50`,
+    )
+    .all(nowIso) as { id: string; accountId: string; to: string; subject: string; body: string }[];
+}
+
+/** Nothing more will happen to it: an account sees no replies, so a sent message is done with. */
+export function settleAccountEmail(db: Db, id: string): void {
+  db.prepare(`UPDATE emails SET settled = 1, forgotten = 1 WHERE id = ? AND account_id IS NOT NULL AND status <> 'scheduled'`).run(id);
 }
 
 /** Replies since a moment, newest first, for Today. */

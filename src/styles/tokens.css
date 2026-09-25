@@ -99,6 +99,58 @@
    * the workspace's, and it stays the same in every company. */
   --logo-mark: url("../assets/logo-light.png");
 
+  /* The mascot's flame, and what colour it burns.
+   *
+   * A flame test: copper burns green, potassium violet, a gas ring blue. The
+   * app is called Caulder and its mark is a cauldron, so what the quick line
+   * is about to do with what you type is said by what colour the flame is,
+   * and nothing has to be read to know it.
+   *
+   * Orange is plain fire and the mark's own colour: the line goes into the
+   * company. Blue is your own life. Green is the AI Caulder is connected to.
+   * Violet is context leaving for an AI that is not Caulder's.
+   *
+   * These are NOT semantic and NOT the accent. A company's accent may be
+   * blue; the flame still burns orange for its work, because the flame says
+   * what the line does and the accent says whose workspace it is. Each has a
+   * deep pair for the base of the flame, which is what gives it depth. */
+  --flame-work: #f2820f;
+  --flame-work-deep: #c2410c;
+  --flame-life: #3b93e6;
+  --flame-life-deep: #1a5fb4;
+  --flame-ask: #21a86a;
+  --flame-ask-deep: #0f7346;
+  --flame-copy: #9061f9;
+  --flame-copy-deep: #6532c9;
+
+  /* The hot middle of each flame: the third band, inside the bright one.
+   *
+   * Real values rather than a mix, because the mix cannot get there. A
+   * flame is yellow in the middle, and yellow is not orange lightened -
+   * lightening orange gives peach, which is what the first attempt looked
+   * like and why it read as skin. Each flame gets the colour a flame of
+   * that kind actually burns in its centre. */
+  --flame-work-pale: #ffcb5e;
+  --flame-life-pale: #9fd4ff;
+  --flame-ask-pale: #97e394;
+  --flame-copy-pale: #cfb4ff;
+
+  /* The eyes. One value for all four flames and both themes: the flame is
+   * always the bright thing the eyes sit on, whatever the page behind it is
+   * doing, so this follows the flame rather than the canvas. */
+  --flame-eye: #2a1a10;
+  --flame-white: #fff4e6;
+  /* Ember's wardrobe: a red cape, a gold crown, a green cap, a brown
+   * hat, a navy coat - and red, deepened, is what she burns when she
+   * is furious. On her rather than on the page, so like the eyes they
+   * are the same in both themes and restated for the convention. */
+  --ember-red: #d7263d;
+  --ember-red-deep: #8f1224;
+  --ember-gold: #f5c518;
+  --ember-green: #2f9e44;
+  --ember-brown: #7a4a24;
+  --ember-navy: #23335e;
+
   /* Brand, and the default for a new company. A company sets an accent id,
    * never a hex; see the accent presets near the end of this file. Only
    * --accent and --accent-strong vary per accent - the wash, the ring and the
@@ -302,6 +354,36 @@
 
     --logo-mark: url("../assets/logo-dark.png");
 
+    /* Brighter on a dark canvas, the way a real flame is. The deep pair goes
+     * up rather than down: against near-black a dark base is not the bottom
+     * of a flame, it is a hole. */
+    --flame-work: #ff9d2e;
+    --flame-work-deep: #e8590c;
+    --flame-life: #5aaef5;
+    --flame-life-deep: #2b7fd4;
+    --flame-ask: #3ecf8e;
+    --flame-ask-deep: #17a06a;
+    --flame-copy: #a98bff;
+    --flame-copy-deep: #8257e6;
+    --flame-work-pale: #ffd782;
+    --flame-life-pale: #bbe2ff;
+    --flame-ask-pale: #b4eeb1;
+    --flame-copy-pale: #ddc9ff;
+
+    /* Restated at the same value on purpose. It is the one colour here that
+     * does not depend on the theme, because it sits on the flame rather than
+     * on the page - but the convention is all three blocks or none, and a
+     * token that appears in one place is exactly the bug that convention
+     * exists to catch. */
+    --flame-eye: #2a1a10;
+    --flame-white: #fff4e6;
+    --ember-red: #d7263d;
+    --ember-red-deep: #8f1224;
+    --ember-gold: #f5c518;
+    --ember-green: #2f9e44;
+    --ember-brown: #7a4a24;
+    --ember-navy: #23335e;
+
     --accent: #3ba5dc;     /* light enough to read on a dark ground */
     --accent-strong: #6fc0ea;
     --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--surface));
@@ -395,6 +477,27 @@
   --knob: #e8edeb;
 
   --logo-mark: url("../assets/logo-dark.png");
+
+  --flame-work: #ff9d2e;
+  --flame-work-deep: #e8590c;
+  --flame-life: #5aaef5;
+  --flame-life-deep: #2b7fd4;
+  --flame-ask: #3ecf8e;
+  --flame-ask-deep: #17a06a;
+  --flame-copy: #a98bff;
+  --flame-copy-deep: #8257e6;
+  --flame-work-pale: #ffd782;
+  --flame-life-pale: #bbe2ff;
+  --flame-ask-pale: #b4eeb1;
+  --flame-copy-pale: #ddc9ff;
+  --flame-eye: #2a1a10;
+  --flame-white: #fff4e6;
+  --ember-red: #d7263d;
+  --ember-red-deep: #8f1224;
+  --ember-gold: #f5c518;
+  --ember-green: #2f9e44;
+  --ember-brown: #7a4a24;
+  --ember-navy: #23335e;
 
   --accent: #3ba5dc;
   --accent-strong: #6fc0ea;

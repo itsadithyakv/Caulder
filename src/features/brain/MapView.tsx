@@ -9,6 +9,7 @@ import {
   lookFrom,
   replaySteps,
   withKinds,
+  withoutJournalDays,
   withoutOrphans,
   type MapGraph,
   type MapKind,
@@ -31,7 +32,8 @@ import { MapCanvas } from "./MapCanvas";
  * - which are the legend, each a colour and a word, because colour alone is
  * not allowed to mean anything - at the top left; fit, the list and Display at
  * the top right; replay at the foot. Display holds the forces and the looks,
- * kept on this computer. The list view is the same map for the keyboard and
+ * kept on this computer - and the journal's days, which are off until asked
+ * for, because a dot a day buries everything else. The list view is the same map for the keyboard and
  * the screen reader: every dot, what it is, and what it is linked to.
  *
  * Links can be made here with the mouse as well as typed: drag from a dot's +
@@ -108,11 +110,14 @@ export function MapView({
   useEffect(() => store(LOOK_KEY, look), [look]);
   useEffect(() => store(KINDS_KEY, [...kinds]), [kinds]);
 
+  // The journal's days first, so the kinds count only what could be drawn,
+  // and the list follows the same switch as the map.
+  const drawable = useMemo(() => (graph && !look.journal ? withoutJournalDays(graph) : graph), [graph, look.journal]);
   const filtered = useMemo(() => {
-    if (!graph) return null;
-    const some = withKinds(graph, kinds);
+    if (!drawable) return null;
+    const some = withKinds(drawable, kinds);
     return look.orphans ? some : withoutOrphans(some);
-  }, [graph, kinds, look.orphans]);
+  }, [drawable, kinds, look.orphans]);
   const steps = useMemo(() => (filtered ? replaySteps(filtered) : []), [filtered]);
 
   const shown = useMemo(() => {
@@ -218,12 +223,12 @@ export function MapView({
     });
   }
 
-  if (!graph || !shown) return <ErrorLine>{error}</ErrorLine>;
+  if (!graph || !drawable || !shown) return <ErrorLine>{error}</ErrorLine>;
 
   const pinned = graph.nodes.some((node) => node.pinned);
   const moment = replay ? steps[Math.min(replay.step, steps.length - 1)] : null;
   const counts = new Map<MapKind, number>();
-  for (const node of graph.nodes) counts.set(node.kind, (counts.get(node.kind) ?? 0) + 1);
+  for (const node of drawable.nodes) counts.set(node.kind, (counts.get(node.kind) ?? 0) + 1);
 
   return (
     <div className="mapview">
@@ -499,6 +504,7 @@ function DisplayPanel({
       <p className="mapdisplay__group">Show</p>
       {toggle(look.orphans, "Dots with no lines", (on) => onLook({ ...look, orphans: on }))}
       {toggle(allContacts, "Every contact", onAllContacts)}
+      {toggle(look.journal, "Journal days", (on) => onLook({ ...look, journal: on }))}
       {toggle(look.arrows, "Arrows, the way links were written", (on) => onLook({ ...look, arrows: on }))}
       <p className="mapdisplay__group">Looks</p>
       {slider("labelsAt", "Labels show from", 0.3, 3, 0.05)}

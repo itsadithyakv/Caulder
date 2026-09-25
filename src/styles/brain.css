@@ -244,6 +244,109 @@
   white-space: nowrap;
 }
 
+.memories__tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.memories__tools .memories__search {
+  flex: 1;
+  min-width: 220px;
+  margin-top: 0;
+}
+
+/* What is coming round and what was kept on this day: side by side where there is room. */
+.memories__soon {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-4);
+}
+
+.memories__icon {
+  margin-right: var(--space-2);
+  color: var(--accent);
+  vertical-align: -2px;
+}
+
+/* A memory a later one has answered: still there, quieter. */
+.memories__item--earlier .memories__says {
+  color: var(--ink-3);
+}
+
+.memories__item--earlier .memories__fact {
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+.memories__earlier {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: var(--space-2);
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+}
+
+.memories__page {
+  font-size: var(--text-xs);
+}
+
+.memories__side {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+/* Edit and forget are there for whoever reaches for them: on hover, and always to the keyboard. */
+.memories__actions {
+  display: inline-flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+
+.memories__item:hover .memories__actions,
+.memories__item:focus-within .memories__actions {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .memories__actions { opacity: 1; }
+}
+
+.memories__act {
+  min-width: 28px;
+  min-height: 26px;
+  color: var(--ink-3);
+}
+
+.memories__confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.memories__edit {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.memories__edit .input {
+  flex: 1 1 200px;
+}
+
+.memories__editActions {
+  display: inline-flex;
+  gap: var(--space-2);
+}
+
 .checklist__head {
   display: flex;
   align-items: center;
@@ -1929,4 +2032,31 @@
   align-items: center;
   gap: var(--space-2);
   margin-top: var(--space-3);
+}
+
+/* ---- Context for another AI --------------------------------------------- */
+
+/* The flame, the topic and the button on one line, the way the quick line
+ * on Today wears them - this is the same feature sitting still. */
+.context__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+/* Room for the whole of her, including the bit above her head: at
+ * twenty-six pixels the drawing was mush, and she is taller than she is
+ * wide now that she has legs. */
+.context__flame {
+  display: grid;
+  place-items: end center;
+  flex: none;
+  width: 64px;
+  height: 64px;
+}
+
+.context__input {
+  flex: 1 1 18rem;
+  min-width: 0;
 }

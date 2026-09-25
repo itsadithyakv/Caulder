@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { MailSender } from "./mailaccounts";
 
 /**
  * Email that Caulder sends through the Google script.
@@ -51,6 +52,8 @@ export type MailState = {
   address: string | null;
   /** Sends Gmail still allows today, as the script last reported it. */
   remaining: number | null;
+  /** Everywhere a message can go from: the script when it is ready, then each other account. */
+  senders: MailSender[];
 };
 
 /** Longest a follow-up may wait, in days. The script holds the same limit. */
@@ -64,6 +67,8 @@ const WATCH_DAYS = 30;
 
 export const sendEmailInput = z.object({
   leadId: z.string().min(1, "Missing contact."),
+  /** Which account it goes from; null or left out is the Google script. */
+  accountId: z.string().min(1).nullable().default(null),
   subject: z
     .string()
     .trim()

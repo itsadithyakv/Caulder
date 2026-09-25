@@ -1,3 +1,4 @@
+import type { EmberStats } from "./growth";
 import type { EmailRecord, MailState, SendEmailInput } from "./mail";
 import type {
   BrainExport,
@@ -10,6 +11,7 @@ import type {
   PageSaveInput,
 } from "./brain";
 import type { SearchHit } from "./search";
+import type { TopicCopied } from "./topic";
 import type { CallContext, CallInput, CallRecord, CallScript, CallTone } from "./calls";
 import type { CashBalanceInput, CostsOverview } from "./costs";
 import type { AskAnswer, AskInput, AskState, ConnectInput, ContextSize } from "./ask";
@@ -37,6 +39,10 @@ import type { Shelf, ShelfInput, YearInNumbers } from "./tracker";
 import type { HobbyBoard } from "./hobbies";
 import type { Checkin, Pulse } from "./pulse";
 import type { AnswerInput, SeenInput, TuneState } from "./tune";
+import type { Lesson, LessonInput } from "./lessons";
+import type { NudgeSettings } from "./nudges";
+import type { Answer, LineContext, MoveInput, Question, TaskSnapshot } from "./lines";
+import type { MailAccount, MailAccountInput } from "./mailaccounts";
 import type { PageTasks } from "./steps";
 import type { ImportOutcome, InvitationPreview, ShareState } from "./share";
 import type { HandbookInput, HandbookOutcome, RoomChoices, RoomInput, RoomOutcome } from "./dataroom";
@@ -56,6 +62,7 @@ import type {
 } from "./people";
 import type { LinkOutcome, MapGraph, MapPosition } from "./map";
 import type { Memory } from "./memories";
+import type { WidgetLevel } from "./widget";
 import type { RememberInput, Remembered } from "./branches";
 import type { CheckInInput, DayTheme, DayThemeInput, GoalDetail } from "./goals";
 import type {
@@ -205,6 +212,7 @@ export const CHANNELS = {
   importBatches: "import:batches",
   importUndo: "import:undo",
   importTemplate: "import:template",
+  importGoogle: "import:google",
 
   todayGet: "today:get",
 
@@ -263,10 +271,13 @@ export const CHANNELS = {
   brainExport: "brain:export",
   brainDossier: "brain:dossier",
   brainSearch: "brain:search",
+  brainTopic: "brain:topic",
   brainLinkTargets: "brain:link-targets",
   brainBacklinks: "brain:backlinks",
   brainMap: "brain:map",
   brainMemories: "brain:memories",
+  brainEditMemory: "brain:edit-memory",
+  brainForgetMemory: "brain:forget-memory",
   brainRemember: "brain:remember",
   brainLocalMap: "brain:local-map",
   brainKeepPositions: "brain:keep-positions",
@@ -355,6 +366,8 @@ export const CHANNELS = {
   visionMove: "vision:move",
   visionRemove: "vision:remove",
   progressGet: "progress:get",
+  progressShown: "progress:shown",
+  progressSetShown: "progress:set-shown",
   notesList: "notes:list",
   notesCreate: "notes:create",
   notesUpdate: "notes:update",
@@ -377,6 +390,17 @@ export const CHANNELS = {
   captureWhich: "capture:which",
   trayKeep: "tray:keep",
   traySetKeep: "tray:set-keep",
+
+  widgetGet: "widget:get",
+  widgetShow: "widget:show",
+  widgetLevel: "widget:level",
+  widgetFit: "widget:fit",
+  petGet: "pet:get",
+  petShow: "pet:show",
+  petHover: "pet:hover",
+  petHold: "pet:hold",
+  petOpen: "pet:open",
+  emberStats: "ember:stats",
 
 
   documentsList: "documents:list",
@@ -429,6 +453,22 @@ export const CHANNELS = {
   tuneKeep: "tune:keep",
   tuneAnswer: "tune:answer",
   tuneForget: "tune:forget",
+  lessonsList: "lessons:list",
+  nudgesGet: "nudges:get",
+  nudgesSet: "nudges:set",
+  nudgesTest: "nudges:test",
+  linesContext: "lines:context",
+  linesMove: "lines:move",
+  linesCancel: "lines:cancel",
+  linesRestore: "lines:restore",
+  linesRename: "lines:rename",
+  linesAnswer: "lines:answer",
+  lessonsAdd: "lessons:add",
+  lessonsRemove: "lessons:remove",
+  mailAccountsList: "mail-accounts:list",
+  mailAccountsAdd: "mail-accounts:add",
+  mailAccountsRemove: "mail-accounts:remove",
+  mailAccountsDefault: "mail-accounts:default",
 
   boardGet: "board:get",
   stagesCreate: "stages:create",
@@ -675,6 +715,14 @@ export type ImportApi = {
   undo: (batchId: string) => Promise<{ deleted: number; restored: number }>;
   /** Writes the template where the user chooses. Resolves to the path, or null if cancelled. */
   template: () => Promise<string | null>;
+  /**
+   * The Google address book, fetched once and handed to the same wizard.
+   *
+   * Only when asked for: there is no background read of your contacts. It
+   * reports what it left out and whether it reached the end, because a
+   * partial address book that says it is whole is how people go missing.
+   */
+  google: () => Promise<ContactsPull>;
 };
 
 /**
@@ -897,6 +945,8 @@ export type BrainApi = {
   /** The few long documents written for an assistant. Asks for a folder; null when cancelled. */
   dossier: (companyId: string, secrets: boolean) => Promise<BrainExport | null>;
   search: (companyId: string, text: string) => Promise<SearchHit[]>;
+  /** Everything about one topic, onto the clipboard for another AI. The words stay in main. */
+  topic: (companyId: string, text: string) => Promise<TopicCopied>;
   /** What `[[` offers for what has been typed after it. */
   linkTargets: (companyId: string, text: string) => Promise<LinkTarget[]>;
   /** The pages that link to a page or a contact. */
@@ -904,6 +954,10 @@ export type BrainApi = {
   map: (companyId: string, allContacts: boolean) => Promise<MapGraph>;
   /** What the line was told to remember, from your own workspace, and which workspace that is. */
   memories: () => Promise<{ companyId: string | null; memories: Memory[]; trails: Record<string, string[]> }>;
+  /** One memory said differently, on its page; the page's memories as they now are. */
+  editMemory: (input: { pageId: string; raw: string; fact: string | null; says: string }) => Promise<Memory[]>;
+  /** One memory taken off its page. */
+  forgetMemory: (input: { pageId: string; raw: string }) => Promise<Memory[]>;
   /** One dated line on the page it is about, in your own workspace, with every page above it started if it has to be. */
   remember: (input: RememberInput) => Promise<Remembered>;
   /** What is around one dot, one to three links out: two when not said. */
@@ -1066,6 +1120,10 @@ export type VisionApi = {
 /** Your level, the week across the four areas, and achievements - all worked out, none of it kept. */
 export type ProgressApi = {
   get: (companyId: string) => Promise<Progress>;
+  /** Whether your level and achievements are shown at all. On until switched off in Settings. */
+  shown: () => Promise<boolean>;
+  /** Returns what it is now. */
+  setShown: (on: boolean) => Promise<boolean>;
 };
 
 /** Metrics: the derived ones and the ones written down, each with a year of history. */
@@ -1182,6 +1240,63 @@ export type CaptureApi = {
   setKeepInTray: (on: boolean) => Promise<void>;
 };
 
+/**
+ * The desk widget: the day, resting on the desktop.
+ *
+ * `set` answers with the state rather than void for the same reason
+ * `capture.set` does - the desktop level is a Win32 call that some machines
+ * refuse, and a level you believe you are at and are not is worse than being
+ * told. `reason` is non-null exactly when the desktop was asked for and
+ * Windows would not give it.
+ */
+export type WidgetApi = {
+  get: () => Promise<WidgetState>;
+  /** Opens or closes it, and remembers which for next launch. */
+  show: (on: boolean) => Promise<WidgetState>;
+  setLevel: (level: WidgetLevel) => Promise<WidgetState>;
+  /** The page saying how tall it is, so the window is never taller than what is in it. */
+  fit: (height: number) => Promise<void>;
+  /** Told when the pill grows into the panel, and when it shrinks back. */
+  onOpen: (fn: (open: boolean) => void) => () => void;
+};
+
+export type WidgetState = { on: boolean; level: WidgetLevel; reason: string | null };
+
+/**
+ * Ember on the taskbar. The page in her window says when the pointer is on
+ * her and when something wants her still; main walks her and tells the page
+ * which way she is going. See electron/main/pet.ts.
+ */
+export type PetApi = {
+  get: () => Promise<PetState>;
+  /** Lets her out or puts her away, and remembers which. */
+  show: (on: boolean) => Promise<PetState>;
+  hover: (over: boolean) => Promise<void>;
+  hold: (still: boolean) => Promise<void>;
+  /** She was clicked: bring Caulder forward, on Today. */
+  open: () => Promise<void>;
+  /** Her window: which way she is walking, and whether she is. */
+  onWalk: (fn: (walk: { moving: boolean; dir: 1 | -1 }) => void) => () => void;
+  /** The main window: somebody clicked her, so go to Today. */
+  onToday: (fn: () => void) => () => void;
+};
+
+export type PetState = { on: boolean };
+
+/** How Ember is doing - your level, your runs, how warm your habits keep her. See shared/growth.ts. */
+export type EmberApi = {
+  stats: (companyId: string) => Promise<EmberStats>;
+};
+
+/** What a pull from Google Contacts came back with. See services/gcontacts.ts. */
+export type ContactsPull = {
+  file: ChosenFile;
+  /** People with no name at all - Google keeps contacts that are only an email. */
+  skipped: number;
+  /** False when the address book was longer than the script would read in one go. */
+  complete: boolean;
+};
+
 export type TasksApi = {
   forLead: (leadId: string) => Promise<Task[]>;
   create: (companyId: string, input: TaskInput) => Promise<Task>;
@@ -1217,6 +1332,57 @@ export type WordsApi = {
  * Tune: what the quick-add line guessed at, and the answers given about it
  * (shared/tune.ts). Global, like Your words.
  */
+/**
+ * What the line learnt from being moved (shared/lessons.ts). Global, like Tune.
+ */
+/**
+ * The notifications Caulder sends by itself (shared/nudges.ts): the journal
+ * and the morning brief, each at an hour or off, and a test to prove Windows
+ * lets them through.
+ */
+/**
+ * What the quick line needs to mean what is already there, and the edits and
+ * answers it gives (services/lines.ts, shared/lines.ts).
+ */
+export type LinesApi = {
+  context: (companyId: string, today: string) => Promise<LineContext>;
+  /** A task to a new day, and its hour with it. */
+  move: (taskId: string, to: MoveInput) => Promise<{ task: Task; time: string | null }>;
+  /** A task and its hour gone; what they were, for Undo. */
+  cancel: (taskId: string) => Promise<TaskSnapshot>;
+  restore: (companyId: string, snapshot: TaskSnapshot) => Promise<Task>;
+  rename: (taskId: string, title: string) => Promise<Task>;
+  answer: (companyId: string, question: Question) => Promise<Answer>;
+};
+
+export type NudgesApi = {
+  get: () => Promise<NudgeSettings>;
+  set: (settings: NudgeSettings) => Promise<NudgeSettings>;
+  /** False when this machine cannot show notifications at all. */
+  test: () => Promise<boolean>;
+  /** A notification clicked: where it was about. */
+  onGo: (fn: (place: "today" | "journal") => void) => () => void;
+};
+
+export type LessonsApi = {
+  list: () => Promise<Lesson[]>;
+  /** A line moved to another part of life, or another kind, before it was kept. */
+  add: (input: LessonInput) => Promise<Lesson[]>;
+  remove: (id: string) => Promise<Lesson[]>;
+};
+
+/**
+ * Mail accounts that are not the Google script (shared/mailaccounts.ts). The
+ * password goes in once, on add, and no call hands it back.
+ */
+export type MailAccountsApi = {
+  list: () => Promise<MailAccount[]>;
+  /** Tried against the server first; nothing is saved if it will not sign in. */
+  add: (input: MailAccountInput) => Promise<MailAccount[]>;
+  remove: (id: string) => Promise<MailAccount[]>;
+  setDefault: (id: string) => Promise<MailAccount[]>;
+};
+
 export type TuneApi = {
   /** The questions worth asking, and the answers that can be taken back. */
   get: () => Promise<TuneState>;
@@ -1313,6 +1479,9 @@ export type CaulderApi = {
   google: GoogleApi;
   mail: MailApi;
   capture: CaptureApi;
+  widget: WidgetApi;
+  pet: PetApi;
+  ember: EmberApi;
   documents: DocumentsApi;
   deadlines: DeadlinesApi;
   people: PeopleApi;
@@ -1327,6 +1496,10 @@ export type CaulderApi = {
   tasks: TasksApi;
   words: WordsApi;
   tune: TuneApi;
+  lessons: LessonsApi;
+  nudges: NudgesApi;
+  lines: LinesApi;
+  mailAccounts: MailAccountsApi;
   board: BoardApi;
   email: EmailApi;
   data: DataApi;

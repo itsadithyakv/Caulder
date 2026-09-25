@@ -23,6 +23,10 @@
   border-bottom: 1px solid var(--border);
   -webkit-app-region: drag;
   user-select: none;
+  /* Above everything drawn over the app - Ember, her bubble, even her
+   * marshmallow overlay at 380 - so minimise and close are always reachable. */
+  position: relative;
+  z-index: 400;
 }
 
 /* The mark. One element, both themes: --logo-mark swaps the file underneath

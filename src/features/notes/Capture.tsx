@@ -5,7 +5,7 @@ import { taskExample } from "@shared/voice";
 import { sayOnce } from "@/features/today/said";
 
 /**
- * The quick window - opened from the tray icon or with Ctrl+Alt+A.
+ * The quick window - opened from the tray icon or with Ctrl+Win+A.
  *
  * One box, over whatever you were doing, gone again in a second. It has no
  * workspace switcher and almost no controls on purpose: every element here is
@@ -25,7 +25,8 @@ import { sayOnce } from "@/features/today/said";
 type Mode = "note" | "task";
 const MODE_KEY = "caulder.capture.mode";
 
-type Workspace = { id: string; timezone: string; personal: boolean };
+/** The company chosen, and your home - where a journal line or a memory from here goes. */
+type Workspace = { id: string; timezone: string; personal: boolean; home: string | null };
 
 export function Capture() {
   // Task unless a note was the last thing written here: the tray and the key
@@ -59,11 +60,11 @@ export function Capture() {
   // changed in between.
   useEffect(() => {
     const refresh = async () => {
-      const { companies, activeCompanyId } = await window.caulder.companies.list();
+      const { companies, activeCompanyId, homeCompanyId } = await window.caulder.companies.list();
       const active = companies.find((company) => company.id === activeCompanyId);
       setWorkspace(
         active
-          ? { id: active.id, timezone: active.timezone, personal: active.kind === "personal" }
+          ? { id: active.id, timezone: active.timezone, personal: active.kind === "personal", home: homeCompanyId }
           : null,
       );
       // The look is the app's own, set on the page (index.html): this window
@@ -191,6 +192,7 @@ export function Capture() {
       ) : workspace ? (
         <QuickAdd
           companyId={workspace.id}
+          homeId={workspace.home ?? undefined}
           timezone={workspace.timezone}
           personal={workspace.personal}
           focusNonce={nonce}

@@ -1,4 +1,4 @@
-import { DEFAULT_CAPTURE_SHORTCUT } from "@shared/domain";
+import { DEFAULT_CAPTURE_SHORTCUT, sayShortcut } from "@shared/domain";
 
 /**
  * The decisions behind the tray and the quick window, with no Electron in
@@ -74,7 +74,7 @@ export function trayItems(shortcut: string | null): TrayItem[] {
 
 /** What hovering the icon says. */
 export function trayTooltip(shortcut: string | null): string {
-  return shortcut ? `Caulder - ${shortcut} adds a task from anywhere` : "Caulder";
+  return shortcut ? `Caulder - ${sayShortcut(shortcut)} adds a task from anywhere` : "Caulder";
 }
 
 /**

@@ -11,23 +11,28 @@ import { MapView } from "./MapView";
  * you could get to. This puts the two side by side: the company's, and yours.
  *
  * With your own workspace open they are the same map, and there is nothing to
- * choose between, so the choice is not drawn.
+ * choose between, so the choice is not drawn. Nor is it on the company's
+ * Brain, which holds only the company's knowledge: yours is reached from
+ * Memories, under You.
  */
 export function MapOf({
   companyId,
   startYours = false,
+  companyOnly = false,
   onOpenPage,
   onOpenContact,
 }: {
   companyId: string;
   /** Arrived at from Memories, which are on your map and not the company's. */
   startYours?: boolean;
+  /** On the company's Brain: the company's map, and no way across to yours. */
+  companyOnly?: boolean;
   onOpenPage: (pageId: string) => void;
   onOpenContact: (leadId: string) => void;
 }) {
   const { home, activeCompany } = useWorkspace();
   const [yours, setYours] = useState(startYours);
-  const twoMaps = home !== null && home.id !== companyId;
+  const twoMaps = !companyOnly && home !== null && home.id !== companyId;
   const shown = twoMaps && yours ? home.id : companyId;
 
   return (

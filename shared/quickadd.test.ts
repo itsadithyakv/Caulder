@@ -402,11 +402,14 @@ describe("ranges and lengths", () => {
   });
 
   it("asks for a range that could be the morning or the evening", () => {
-    const { task, questions } = parse("class 9-10:30 tomorrow");
+    const { task, questions } = parse("practice 9-10:30 tomorrow");
     expect(questions.map((q) => q.id)).toEqual(["meridiem"]);
     expect(task.minutes).toBe(90);
     // Answering keeps the length.
-    expect(parse("class 9-10:30 tomorrow", { time: "09:00" }).task).toMatchObject({ time: "09:00", minutes: 90 });
+    expect(parse("practice 9-10:30 tomorrow", { time: "09:00" }).task).toMatchObject({ time: "09:00", minutes: 90 });
+    // What it is can settle it: a class at nine is the morning, a party at nine the night.
+    expect(parse("class 9-10:30 tomorrow").task).toMatchObject({ time: "09:00", minutes: 90 });
+    expect(parse("party 9-11 saturday").task).toMatchObject({ time: "21:00", minutes: 120 });
     // Dots for the colon ask the same, rather than reading a date inside it.
     expect(parse("study 10.30-11.30 friday").task).toMatchObject({ day: "2026-09-11", minutes: 60, time: null });
     expect(ids("study 10.30-11.30 friday")).toEqual(["meridiem"]);

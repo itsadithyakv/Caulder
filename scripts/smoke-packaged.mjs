@@ -36,7 +36,16 @@ try {
     args: [`--user-data-dir=${dir}`],
   });
 
-  const page = await app.firstWindow();
+  // The main window, not whichever opened first: on a clean profile Ember's
+  // taskbar window opens alongside it, and firstWindow() can hand back her
+  // sixty-four pixels instead - which then never shows a first-run screen.
+  // Every window but the main one has a `#` in its address.
+  await app.firstWindow();
+  let page = app.windows().find((one) => !one.url().includes("#"));
+  while (!page) {
+    const next = await app.waitForEvent("window", { timeout: 30000 });
+    if (!next.url().includes("#")) page = next;
+  }
   await page.waitForSelector(".firstrun, .sidebar", { timeout: 30000 });
 
   // A clean profile lands on first run rather than a blank window.
@@ -92,6 +101,39 @@ try {
   await nav.getByRole("button", { name: "Today" }).click();
   await page.waitForTimeout(800);
   check("works out your level on Today", await page.getByRole("button", { name: /^Level 1, 0 XP/ }).isVisible());
+
+  // Ember, who is the first thing anybody notices missing: her door on the
+  // quick line, and her out of it. A packaged run is not a test run, so
+  // nothing keeps her indoors here.
+  const door = await page.locator("[data-ember-door]").isVisible();
+  const out = await page
+    .locator(".ember-body[data-out='yes']")
+    .waitFor({ timeout: 8000 })
+    .then(() => true, () => false);
+  check("Ember comes out of her door on Today", door && out);
+
+  // koffi is the second native dependency, and unlike better-sqlite3 it
+  // resolves its own binary by a path relative to itself - which is exactly
+  // what an asar hides. Nothing but a packaged run can prove it comes out.
+  // A refusal here is either that, or a desktop this Windows will not lend;
+  // the reason says which.
+  await nav.getByRole("button", { name: "Settings" }).click();
+  await page.getByRole("switch", { name: "Show the desk widget" }).click();
+  await page.getByRole("button", { name: "On the desktop" }).click();
+  await page.waitForTimeout(900);
+
+  const widgetWindow = await app.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows().some((w) => w.webContents.getURL().includes("#widget")),
+  );
+  check("shows the desk widget", widgetWindow);
+
+  // The card prints the refusal when Windows would not take the window, so
+  // its absence is the check - read the way a person would rather than
+  // through an API the packaged build does not expose to a test.
+  const card = page.locator(".card", { hasText: "Desk widget" });
+  const refused = await card.getByText("Windows would not").count();
+  if (refused) console.log("      " + (await card.getByText("Windows would not").innerText()));
+  check("pins it to the wallpaper through koffi", refused === 0);
 
   const errors = [];
   page.on("pageerror", (error) => errors.push(String(error)));

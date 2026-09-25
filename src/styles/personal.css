@@ -15,19 +15,6 @@
   gap: var(--space-4);
 }
 
-.notes__write {
-  resize: vertical;
-  min-height: 76px;
-}
-
-.notes__writeFoot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  margin-top: var(--space-3);
-}
-
 .notes__search {
   position: relative;
 }

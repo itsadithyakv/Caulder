@@ -8,16 +8,21 @@ import { ErrorLine } from "@/components/ErrorLine";
 import { useWorkspace } from "@/lib/workspace";
 import { StageEditor } from "./StageEditor";
 import { DataSafety } from "./DataSafety";
+import { setShowLevels, useLevelsSetting } from "@/features/life/levels";
 import { FieldsCard, RemindersCard } from "./Workbench";
 import { GoogleCard } from "./GoogleCard";
 import { AiCard } from "./AiCard";
 import { WordsCard } from "./WordsCard";
 import { TuneCard } from "./TuneCard";
+import { LessonsCard } from "./LessonsCard";
+import { MailAccountsCard } from "./MailAccountsCard";
 import { TemplatesCard } from "./TemplatesCard";
 import { ConnectionsCard } from "./Connected";
+import { DeskCard } from "./DeskCard";
+import { PetCard } from "./PetCard";
 import { ThisIsMeCard } from "@/features/sharing/ThisIsMeCard";
 import { getTheme, setTheme, type ThemeChoice } from "@/lib/theme";
-import { DEFAULT_CAPTURE_SHORTCUT, type AccentId, type Company } from "@shared/domain";
+import { DEFAULT_CAPTURE_SHORTCUT, sayShortcut, type AccentId, type Company } from "@shared/domain";
 import { countryName } from "@shared/countries";
 import { countryChoices, currencyChoices, timezoneChoices } from "@/lib/places";
 import { Select } from "@/components/Select";
@@ -111,9 +116,12 @@ export function SettingsScreen({
               }
             >
               <div className="companies">
-                {companies.map((company) => (
-                  <CompanyRow key={company.id} company={company} canArchive={companies.length > 1} />
-                ))}
+                {/* Your home is you, not a company: it is kept apart, never listed or archived here. */}
+                {companies
+                  .filter((company) => company.kind !== "personal")
+                  .map((company, _index, listed) => (
+                    <CompanyRow key={company.id} company={company} canArchive={listed.length > 1} />
+                  ))}
               </div>
             </Card>
             {activeCompany && <FieldsCard />}
@@ -142,6 +150,7 @@ export function SettingsScreen({
           </Column>
           <Column>
             <GoogleCard />
+            <MailAccountsCard />
           </Column>
           <Band>
             <AiCard />
@@ -155,6 +164,8 @@ export function SettingsScreen({
           </Column>
           <Column>
             <CaptureCard />
+            <DeskCard />
+            <PetCard />
           </Column>
           {activeCompany && (
             <Band>
@@ -198,6 +209,7 @@ function Band({ children }: { children: ReactNode }) {
 
 function AppearanceCard() {
   const [theme, setThemeState] = useState<ThemeChoice>(getTheme);
+  const levels = useLevelsSetting();
 
   function chooseTheme(next: ThemeChoice) {
     setTheme(next);
@@ -220,6 +232,25 @@ function AppearanceCard() {
           </button>
         ))}
       </div>
+
+      {/* Not shown until the answer is in, so the box never ticks itself a moment after opening. */}
+      {levels !== null && (
+        <label className="field checkline">
+          <input
+            type="checkbox"
+            className="tickbox"
+            checked={levels}
+            onChange={(event) => void setShowLevels(event.target.checked)}
+            aria-label="Show levels and XP"
+          />
+          <span className="checkline__text">
+            <span className="checkline__title">Show levels and XP</span>
+            <span className="card__hint">
+              Your level on Today, and your level and achievements on Life. Off, the points are still counted, just not shown.
+            </span>
+          </span>
+        </label>
+      )}
     </Card>
   );
 }
@@ -485,7 +516,7 @@ function CaptureCard() {
           className="input"
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
-          placeholder={DEFAULT_CAPTURE_SHORTCUT}
+          placeholder={sayShortcut(DEFAULT_CAPTURE_SHORTCUT)}
           aria-label="The quick-add key"
         />
         <button
@@ -505,7 +536,7 @@ function CaptureCard() {
               void apply(DEFAULT_CAPTURE_SHORTCUT);
             }}
           >
-            Use {DEFAULT_CAPTURE_SHORTCUT}
+            Use {sayShortcut(DEFAULT_CAPTURE_SHORTCUT)}
           </button>
         )}
         {held.length > 0 && (
@@ -575,6 +606,7 @@ function WordsAndTune() {
     <>
       <WordsCard key={taught} />
       <TuneCard onTaught={() => setTaught((count) => count + 1)} />
+      <LessonsCard />
     </>
   );
 }

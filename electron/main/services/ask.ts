@@ -20,6 +20,7 @@ import {
 } from "@shared/ask";
 import { getSetting, setSetting } from "../repositories/settings";
 import { listLeads } from "../repositories/leads";
+import { homeCompanyId } from "../repositories/companies";
 import { searchEverything } from "../repositories/search";
 import { encryptionAvailable } from "./credentials";
 import { buildDossier, type DossierDocument } from "./dossier";
@@ -526,7 +527,8 @@ export async function askBrain(db: Db, companyId: string, raw: unknown, now: Dat
 
   // Your own side goes only if you have said it may, and never carries a
   // locked or private journal day. See services/yours.ts.
-  const yours = getSetting(db, "aiPersonal") === "on" ? buildYours(db, companyId, now) : null;
+  // Read from your home, whichever company the question was asked in: that is where your own things are kept.
+  const yours = getSetting(db, "aiPersonal") === "on" ? buildYours(db, homeCompanyId(db) ?? companyId, now) : null;
 
   const allContacts = (db.prepare(`SELECT COUNT(*) AS n FROM leads WHERE company_id = ?`).get(companyId) as { n: number }).n;
   let documents: DossierDocument[];

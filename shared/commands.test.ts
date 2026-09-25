@@ -85,3 +85,60 @@ describe("a new contact", () => {
     expect(readCommand("add contact")).toBeNull();
   });
 });
+
+describe("money that came in", () => {
+  it.each([
+    ["got salary 50k", -50000, "Salary"],
+    ["received 5000 from rahul", -5000, "From rahul"],
+    ["stipend credited 12000", -12000, "Stipend"],
+    ["salary credited: 45000", -45000, "Salary"],
+  ])("reads '%s'", (line, amount, what) => {
+    expect(readCommand(line)).toEqual({ do: "spend", amount, what, daysAgo: 0 });
+  });
+
+  it("is never a count of something else", () => {
+    expect(readCommand("got 3 marks")).toBeNull();
+    expect(readCommand("made 2 friends")).toBeNull();
+  });
+});
+
+describe("something paid again and again", () => {
+  it.each([
+    ["netflix 649 monthly", "Netflix", 649, "monthly", null],
+    ["spotify 119 a month", "Spotify", 119, "monthly", null],
+    ["aws 3000 every month on the 5th", "AWS", 3000, "monthly", 5],
+    ["domain 900 yearly", "Domain", 900, "yearly", null],
+  ])("reads '%s' as a running cost", (line, title, amount, cycle, day) => {
+    expect(readCommand(line)).toEqual({ do: "cost", title, amount, cycle, day });
+  });
+
+  it("is not money coming in, and not a one-off", () => {
+    expect(readCommand("salary 50000 monthly")).toBeNull();
+    expect(readCommand("uber 340")).toMatchObject({ do: "spend", amount: 340 });
+  });
+});
+
+describe("money in, and money paid again and again", () => {
+  it.each([
+    ["got salary 50k", -50000, "Salary"],
+    ["received 5000 from rahul", -5000, "From rahul"],
+    ["stipend credited 12000", -12000, "Stipend"],
+    ["salary credited: 45000", -45000, "Salary"],
+  ])("'%s' is money in", (line, amount, what) => {
+    expect(readCommand(line)).toMatchObject({ do: "spend", amount, what });
+  });
+
+  it("is a running cost when it says how often", () => {
+    expect(readCommand("netflix 649 monthly")).toEqual({ do: "cost", title: "Netflix", amount: 649, cycle: "monthly", day: null });
+    expect(readCommand("spotify 119 a month")).toMatchObject({ title: "Spotify", cycle: "monthly" });
+    expect(readCommand("aws 3000 every month on the 5th")).toEqual({ do: "cost", title: "AWS", amount: 3000, cycle: "monthly", day: 5 });
+    expect(readCommand("domain 900 yearly")).toMatchObject({ cycle: "yearly" });
+  });
+
+  it("is neither for a count, or for pay that comes in", () => {
+    expect(readCommand("got 3 marks")).toBeNull();
+    expect(readCommand("salary 50000 monthly")).toBeNull();
+    // Said once, it is still what was spent.
+    expect(readCommand("uber 340")).toMatchObject({ do: "spend", amount: 340 });
+  });
+});

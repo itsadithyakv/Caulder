@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ClipboardPaste, Copy, Download, FileSpreadsheet, Undo2 } from "lucide-react";
+import { ClipboardPaste, Contact, Copy, Download, FileSpreadsheet, Undo2 } from "lucide-react";
 import type {
   ChosenFile,
   ColumnMapping,
@@ -47,6 +47,10 @@ export function ImportScreen({ onGoToLeads }: { onGoToLeads: () => void }) {
   const [saved, setSaved] = useState<string | null>(null);
   const [pasted, setPasted] = useState("");
   const [copied, setCopied] = useState(false);
+  /** Whether the Google card is worth offering: only once there is a link to use. */
+  const [googleOn, setGoogleOn] = useState(false);
+  /** What the last pull left out, once there has been one. */
+  const [pullNote, setPullNote] = useState<string | null>(null);
 
   const loadBatches = useCallback(() => {
     if (!companyId) return;
@@ -54,6 +58,16 @@ export function ImportScreen({ onGoToLeads }: { onGoToLeads: () => void }) {
   }, [companyId]);
 
   useEffect(loadBatches, [loadBatches]);
+
+  // Offered only when there is a Google link to pull through. Asked for
+  // rather than assumed: this is the cheap offline read of what is stored.
+  useEffect(() => {
+    if (!companyId) return;
+    window.caulder.google
+      .state(companyId)
+      .then((state) => setGoogleOn(state.connected))
+      .catch(() => setGoogleOn(false));
+  }, [companyId]);
 
   // Switching company must not leave another workspace's import on screen.
   useEffect(() => setStep({ kind: "start" }), [companyId]);
@@ -93,6 +107,37 @@ export function ImportScreen({ onGoToLeads }: { onGoToLeads: () => void }) {
       const file = await window.caulder.imports.paste(pasted);
       setStep({ kind: "mapping", file, mapping: file.mapping });
       setPasted("");
+    } catch (cause) {
+      fail(cause);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function useGoogle() {
+    setError(null);
+    setPullNote(null);
+    setBusy(true);
+    try {
+      const pull = await window.caulder.imports.google();
+      setStep({ kind: "mapping", file: pull.file, mapping: pull.file.mapping });
+      // Said before anything is committed, because both of these change what
+      // the list in front of them means.
+      const notes: string[] = [];
+      if (!pull.complete) {
+        // Not "pull again for the rest": a second pull starts from the
+        // beginning of the address book, so it would hand back these same
+        // people rather than the next ones.
+        notes.push(
+          "Your address book is longer than Caulder reads in one go, so this is the first 5,000 contacts. The rest would need Google's own CSV export.",
+        );
+      }
+      if (pull.skipped > 0) {
+        notes.push(
+          `${pull.skipped} ${pull.skipped === 1 ? "contact" : "contacts"} had no name to file ${pull.skipped === 1 ? "it" : "them"} under and ${pull.skipped === 1 ? "was" : "were"} left out.`,
+        );
+      }
+      setPullNote(notes.length > 0 ? notes.join(" ") : null);
     } catch (cause) {
       fail(cause);
     } finally {
@@ -200,6 +245,39 @@ export function ImportScreen({ onGoToLeads }: { onGoToLeads: () => void }) {
             {saved && <p className="card__hint">Saved to {saved}</p>}
           </section>
 
+          {/* Only with a Google link to pull through. Nothing here runs on
+              its own: the address book is read when this is pressed and at
+              no other time. */}
+          {googleOn && (
+            <section className="card">
+              <h2 className="card__title">Or bring in your Google Contacts</h2>
+              <p className="card__hint">
+                Read once, now, through the script Caulder already talks to. Everybody
+                comes into the same preview as a spreadsheet does, so you see what
+                Caulder made of them - and who you already have - before anything is
+                saved.
+              </p>
+
+              <div className="import__start">
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  onClick={() => void useGoogle()}
+                  disabled={busy}
+                >
+                  <Contact size={15} aria-hidden />
+                  {busy ? "Reading your contacts" : "Read my Google Contacts"}
+                </button>
+              </div>
+
+              <p className="card__hint">
+                A person with a company on them arrives as that company, with their
+                name as the contact on it. Nothing is sent to Google, and nothing is
+                read again until you press this.
+              </p>
+            </section>
+          )}
+
           {/* The other way a list arrives now. Asking a model for one gives
               back a chat message, not a file, and saving it to a .csv just to
               browse for it is three steps of nothing. */}
@@ -245,14 +323,22 @@ export function ImportScreen({ onGoToLeads }: { onGoToLeads: () => void }) {
       )}
 
       {step.kind === "mapping" && (
-        <MappingStep
-          file={step.file}
-          mapping={step.mapping}
-          busy={busy}
-          onChange={(mapping) => setStep({ ...step, mapping })}
-          onBack={() => setStep({ kind: "start" })}
-          onNext={() => void runPreview(step.file, step.mapping)}
-        />
+        <>
+          {/* What the pull left out, said over the list rather than after it
+              is committed: both of these change what is in front of you. */}
+          {pullNote && <p className="card card--warn card__hint">{pullNote}</p>}
+          <MappingStep
+            file={step.file}
+            mapping={step.mapping}
+            busy={busy}
+            onChange={(mapping) => setStep({ ...step, mapping })}
+            onBack={() => {
+              setPullNote(null);
+              setStep({ kind: "start" });
+            }}
+            onNext={() => void runPreview(step.file, step.mapping)}
+          />
+        </>
       )}
 
       {step.kind === "preview" && (

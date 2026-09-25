@@ -29,7 +29,7 @@ const SHORT: Record<string, string> = {
   nxt: "next", wk: "week", wks: "weeks", wknd: "weekend", wkend: "weekend", mnth: "month",
   yday: "yesterday", ystd: "yesterday", l8r: "later", l8: "late", rn: "right now",
   mrng: "morning", morn: "morning", aftn: "afternoon", arvo: "afternoon", evng: "evening",
-  evn: "evening", nite: "night", evry: "every", evryday: "everyday", evrday: "everyday",
+  evn: "evening", nite: "night", tn: "tonight", tonite: "tonight", evry: "every", evryday: "everyday", evrday: "everyday",
   // Things.
   msg: "message", msgs: "messages", mtg: "meeting", mtng: "meeting", mtgs: "meetings",
   appt: "appointment", appts: "appointments", asgn: "assignment", asgmt: "assignment",
@@ -39,6 +39,8 @@ const SHORT: Record<string, string> = {
   clg: "college", gr8: "great", w8: "wait",
   // How much it matters.
   imp: "important", impt: "important", urg: "urgent", urgnt: "urgent",
+  // Said at work.
+  wfh: "work from home", wfo: "work from office", sus: "suspicious", rly: "really", prolly: "probably",
   // The way it is said out loud.
   gonna: "going to", gotta: "got to", hafta: "have to", wanna: "want to", lemme: "let me",
   gimme: "give me", imma: "i'm going to", ima: "i'm going to", iont: "i don't", idk: "i don't know",
@@ -47,14 +49,14 @@ const SHORT: Record<string, string> = {
   shouldnt: "shouldn't", couldnt: "couldn't", wouldnt: "wouldn't",
   plz: "please", pls: "please", plss: "please", thx: "thanks", thnx: "thanks", tnx: "thanks",
   // Said around a thought rather than in it; gone, like "please" is.
-  btw: "", ngl: "", tbh: "", lol: "", lowkey: "", highkey: "",
+  btw: "", ngl: "", tbh: "", lol: "", lowkey: "", highkey: "", deadass: "", istg: "", smh: "", rq: "",
 };
 
 /**
  * Read only as typed in lowercase. "U" is a university and "W" an initial;
  * "IM" is a message and "RN" a nurse.
  */
-const LOWER_ONLY = new Set(["u", "ur", "w", "im", "rn", "ima"]);
+const LOWER_ONLY = new Set(["u", "ur", "w", "im", "rn", "ima", "tn", "sus"]);
 
 /**
  * "ion" is "I don't" only in front of what people do not do - and an ion
@@ -62,9 +64,11 @@ const LOWER_ONLY = new Set(["u", "ur", "w", "im", "rn", "ima"]);
  */
 const ION = /(^|\s)ion(?=\s+(?:wanna|want|know|think|feel|like|care|need|have|got|get|see|even|really|mind)\b)/g;
 
-/** The line with its short forms written out. Case follows what was typed. */
+import { rephrase } from "./rephrase";
+
+/** The line with its short forms written out, and turned round where it means something plainer (shared/rephrase.ts). */
 export function expand(text: string): string {
-  return text
+  return rephrase(text)
     .replace(ION, (_whole, lead: string) => `${lead}i don't`)
     .replace(/(^|[\s(])([\p{L}\p{N}][\p{L}\p{N}/']*)(?=$|[\s,.;:!?)])/gu, (whole, lead: string, token: string) => {
       const meant = SHORT[token.toLowerCase()];

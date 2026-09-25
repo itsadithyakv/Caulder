@@ -19,8 +19,13 @@ import { SetupNudge } from "@/features/onboarding/SetupNudge";
 import { PulseCard } from "@/features/life/PulseCard";
 import { QuickAdd } from "./QuickAdd";
 import { AskLine } from "./AskLine";
+import { ContextLine } from "./ContextLine";
+import { LineModes } from "./LineModes";
+import { cueEmber } from "@/features/ember/stage";
+import { lineMode, writingMode, type LineMode } from "@shared/ember";
 import type { AskState } from "@shared/ask";
 import { Aside, ClearDay, Hello } from "./Hello";
+import { Remember } from "./Remember";
 import { useStartCall } from "@/features/calls/CallProvider";
 import { describeRenewal } from "@shared/costs";
 import { describeDeadline, sectionForDeadline, type Deadline } from "@shared/deadlines";
@@ -34,11 +39,19 @@ import { TodayTheme } from "@/features/life/TodayTheme";
 /**
  * The home screen, and the reason the app is worth opening.
  *
- * One line at the top that takes anything and puts it where it belongs. Then,
- * in the order they need attention: what is late, what is due today, and
- * what is quietly going nowhere - and beside it the life half of the day:
- * how it felt, the habits to tick, the exam and the hobbies this week. The three sections about the email bridge -
- * a log not back, replies waiting, emails ready - went with the bridge.
+ * The work comes first, because it is what the screen is opened for: hello and
+ * the day in two short lines, what you should be doing right now, the one line
+ * that takes anything and puts it where it belongs - and then, in the order
+ * they need attention, what is late, what is due today, and what is quietly
+ * going nowhere. Beside it goes the life half of the day and everything that
+ * is nice to see but asks nothing of you: the joke, the memory, the habits to
+ * tick, how the week has been, your level.
+ *
+ * It used to stack all of that above the work - a joke, a memory, a setup
+ * card, a box for notes lower down - until on a first run the first overdue
+ * task started at the bottom edge of the window. The three sections about the
+ * email bridge - a log not back, replies waiting, emails ready - went with the
+ * bridge.
  *
  * Every section used to carry a sentence saying why it was there. They are
  * gone: the heading says what the section is, and the reasoning is in
@@ -87,12 +100,17 @@ export function TodayScreen({
   );
   const [adding, setAdding] = useState(false);
   /**
-   * Which line is on the screen: the one Caulder reads itself, or the same
-   * line asked of your AI. The star switches them, and the choice is kept
-   * here rather than in the database because it is a preference of this
-   * screen on this machine, like a collapsed section.
+   * Which line is on the screen, of the three: the one Caulder reads itself,
+   * the same line asked of your AI, or a topic whose context goes on the
+   * clipboard. The flames switch them, and the choice is kept here rather
+   * than in the database because it is a preference of this screen on this
+   * machine, like a collapsed section.
+   *
+   * Which of the two writing flames is a fact about the workspace, not a
+   * fourth choice: a personal workspace has no funnel to file anything into.
    */
-  const [asking, setAsking] = useState(() => remembersAsking());
+  const [mode, setMode] = useState<LineMode>(() => remembersMode());
+  const writing = writingMode(activeCompany?.kind === "personal");
   const [ai, setAi] = useState<AskState | null>(null);
   useEffect(() => {
     let live = true;
@@ -141,7 +159,14 @@ export function TodayScreen({
       overdue={overdue}
       {...(hide ? { hide } : {})}
       onOpenLead={onOpenLead}
-      onComplete={() => void act(() => window.caulder.tasks.complete(task.id))}
+      onComplete={() =>
+        void act(async () => {
+          await window.caulder.tasks.complete(task.id);
+          // Ember was watching. The last overdue thing gone gets the whole
+          // routine; anything else, a cheer.
+          cueEmber(overdue && today.overdue.length === 1 ? "cleared" : "done");
+        })
+      }
       onReschedule={(dueOn) => void act(() => window.caulder.tasks.reschedule(task.id, dueOn))}
       onDelete={() => void act(() => window.caulder.tasks.remove(task.id))}
       onCall={
@@ -161,20 +186,20 @@ export function TodayScreen({
 
   return (
     <div className="today anim-stagger">
-      <Hello day={today.day} timezone={timezone} due={due} late={late} />
+      <header className="today__head">
+        <Hello day={today.day} timezone={timezone} due={due} late={late} />
 
-      {/* The day in one line: which day, and how much of it is waiting. */}
-      <p className="today__day">
-        <span className="today__date">{longDay(today.day)}</span>
-        <TodayTheme companyId={homeId} day={today.day} />
-        {due + late > 0 ? (
-          <span className="today__summary">{summaryOf(due, late)}</span>
-        ) : (
-          <ClearDay day={today.day} timezone={timezone} />
-        )}
-      </p>
-
-      <Aside day={today.day} timezone={timezone} />
+        {/* The day in one line: which day, and how much of it is waiting. */}
+        <p className="today__day">
+          <span className="today__date">{longDay(today.day)}</span>
+          <TodayTheme companyId={homeId} day={today.day} />
+          {due + late > 0 ? (
+            <span className="today__summary">{summaryOf(due, late)}</span>
+          ) : (
+            <ClearDay day={today.day} timezone={timezone} />
+          )}
+        </p>
+      </header>
 
       <NowLine blocks={today.blocks} timezone={timezone} onOpenDay={onGoToDay} />
 
@@ -193,12 +218,20 @@ export function TodayScreen({
         // The line first, the form a click away. Most tasks are one sentence,
         // and the form is for the ones that need a lead attached or a note.
         <section className="card today__quick">
-          {asking && ai?.connected ? (
+          {mode === "copy" ? (
+            <ContextLine
+              companyId={companyId}
+              writing={writing}
+              focusNonce={quickNonce}
+              onMode={(next) => rememberMode(setMode, next)}
+            />
+          ) : mode === "ask" && ai?.connected ? (
             <AskLine
               companyId={companyId}
               focusNonce={quickNonce}
               model={whoAnswers(ai)}
-              onLocal={() => rememberAsking(setAsking, false)}
+              writing={writing}
+              onMode={(next) => rememberMode(setMode, next)}
               onOpenPage={onOpenPage}
               onOpenContact={onOpenLead}
             />
@@ -223,7 +256,15 @@ export function TodayScreen({
               reload();
               setKept((n) => n + 1);
             }}
-            {...(ai?.connected ? { onAi: () => rememberAsking(setAsking, true) } : {})}
+            modes={
+              <LineModes
+                mode={writing}
+                writing={writing}
+                mood="resting"
+                canAsk={ai?.connected === true}
+                onMode={(next) => rememberMode(setMode, next)}
+              />
+            }
           />
           <button type="button" className="btn btn--sm btn--ghost today__form" onClick={() => setAdding(true)}>
             <CalendarPlus size={15} aria-hidden />
@@ -234,7 +275,9 @@ export function TodayScreen({
         </section>
       )}
 
-      {/* Whatever was never connected, offered until it is or is waved away. */}
+      {/* Whatever was never connected, offered until it is or is waved away -
+          in one line under the quick line, so it moves the work down by a
+          line and no more. */}
       <SetupNudge companyId={companyId} onSetUp={() => onGoTo("setup")} />
 
       <div className="today__grid">
@@ -485,21 +528,28 @@ export function TodayScreen({
             </Card>
           )}
 
-          {/* Notes at the foot of the work: a thought caught by Ctrl+N lands
-              beside the day it was had on. */}
-          <Card title="Notes">
-            <NotesScreen key={`notes-${kept}`} onTasksChanged={reload} onOpenPage={onOpenPage} />
-          </Card>
+          {/* Notes at the foot of the work: what the quick line or the capture
+              key kept to file later. No box to write in - the line is that -
+              and no card at all when there is nothing to file. */}
+          <NotesScreen key={`notes-${kept}`} onTasksChanged={reload} onOpenPage={onOpenPage} />
         </div>
 
-        {/* The life half of the day: the half no other screen puts in front of you. */}
+        {/* The life half of the day: the half no other screen puts in front of
+            you, beside the work rather than above it. What asks something of
+            you today - a habit to tick, a line in the journal - comes before
+            what is only there to be seen. */}
         <div className="today__side anim-stagger">
-          <LevelStrip companyId={homeId ?? companyId} version={kept + ticked} watch={today} onOpen={() => onOpenLife()} />
+          {/* A joke and a memory: nice to have, never in the way of the work. */}
+          <div className="today__ambient">
+            <Aside day={today.day} timezone={timezone} />
+            <Remember day={today.day} onOpenPage={onOpenPage} />
+          </div>
+          <HabitsCard companyId={homeId ?? companyId} onManage={() => onOpenLife("habits")} onChanged={() => setTicked((n) => n + 1)} />
           <JournalCard key={`journal-${kept}`} companyId={homeId ?? companyId} onOpenJournal={onOpenJournal} />
+          <YourWeekCard companyId={homeId ?? companyId} version={kept} onOpenPage={onOpenPage} onOpenLife={() => onOpenLife()} />
           {/* How the weeks have been, from your own history - and what yesterday was, if it was quiet. */}
           <PulseCard companyId={homeId ?? companyId} version={kept + ticked} />
-          <HabitsCard companyId={homeId ?? companyId} onManage={() => onOpenLife("habits")} onChanged={() => setTicked((n) => n + 1)} />
-          <YourWeekCard companyId={homeId ?? companyId} version={kept} onOpenPage={onOpenPage} onOpenLife={() => onOpenLife()} />
+          <LevelStrip companyId={homeId ?? companyId} version={kept + ticked} watch={today} onOpen={() => onOpenLife()} />
         </div>
       </div>
     </div>
@@ -516,18 +566,21 @@ function whoAnswers(state: AskState): string {
  * line in the wrong mode, so both ways are caught. */
 const ASKING = "caulder.today.ask";
 
-function remembersAsking(): boolean {
+function remembersMode(): LineMode {
   try {
-    return localStorage.getItem(ASKING) === "on";
+    // "on" is what the two-way version of this wrote, and somebody upgrading
+    // has one in their browser storage. It meant the AI line, and still does.
+    const saved = localStorage.getItem(ASKING);
+    return lineMode(saved === "on" ? "ask" : saved);
   } catch {
-    return false;
+    return "work";
   }
 }
 
-function rememberAsking(set: (on: boolean) => void, on: boolean): void {
-  set(on);
+function rememberMode(set: (mode: LineMode) => void, mode: LineMode): void {
+  set(mode);
   try {
-    localStorage.setItem(ASKING, on ? "on" : "");
+    localStorage.setItem(ASKING, mode);
   } catch {
     // Not worth a word on the screen: the line still switched.
   }

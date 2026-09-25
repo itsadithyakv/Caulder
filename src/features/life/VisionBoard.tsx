@@ -11,10 +11,10 @@ import { pictureIn, shrinkPicture } from "@/lib/picture";
 
 /**
  * The vision board (PLAN.md, phase 17): pictures and words for what the year
- * is for, on top of Life. A picture comes from a file, a drop or a paste, is
- * made smaller here, and asks for its words before it goes on; a tile can be
- * tied to one of your goals or an area. Dragging reorders; so does each
- * tile's menu, for the keyboard.
+ * is for, on top of Life's Goals, above the goals it is about. A picture
+ * comes from a file, a drop or a paste, is made smaller here, and asks for
+ * its words before it goes on; a tile can be tied to one of your goals or an
+ * area. Dragging reorders; so does each tile's menu, for the keyboard.
  */
 
 type Draft = {
@@ -88,7 +88,7 @@ export function VisionBoard({
     }
   }, []);
 
-  // A picture pasted anywhere on Life, while nothing that takes text has the cursor.
+  // A picture pasted anywhere on the Goals tab, while nothing that takes text has the cursor.
   useEffect(() => {
     const paste = (event: ClipboardEvent) => {
       const target = event.target as HTMLElement | null;

@@ -6,6 +6,10 @@ import type { IpcMainEvent, IpcMainInvokeEvent } from "electron";
 import { isCurrency } from "@shared/countries";
 import { CHANNELS, type Workspace } from "@shared/ipc";
 import { assertId, handle } from "./handle";
+import { type WidgetLevel, widgetLevel, widgetSpot, widgetWanted } from "@shared/widget";
+import { fitWidget, hideWidget, setWidgetLevel, showWidget, widgetState } from "../widget";
+import { hidePet, holdPet, hoverPet, openFromPet, petState, showPet } from "../pet";
+import { petWanted } from "@shared/pet";
 import { registerBrainHandlers } from "./brain";
 import { registerDealHandlers } from "./deals";
 import { registerCallHandlers } from "./calls";
@@ -75,6 +79,12 @@ import {
 } from "../services/credentials";
 import { quickAdd } from "../services/quickadd";
 import { addAreaWord, listAreaWords, removeAreaWord } from "../repositories/words";
+import { addLesson, listLessons, removeLesson } from "../repositories/lessons";
+import { nudgeSettings, setNudgeSettings, testNotification } from "../services/nudges";
+import { answerQuestion, cancelTask, lineContext, moveTask, renameTask, restoreTask } from "../services/lines";
+import { ensureHome } from "../services/yourhome";
+import { addMailAccount, listMailAccounts, removeMailAccount, setDefaultMailAccount } from "../services/mailaccounts";
+import { mailAccountInput } from "@shared/mailaccounts";
 import { answerGuess, forgetGuess, keepAsTyped, learnedFrom, recordSeen, tuneState } from "../repositories/tune";
 import { backupToDrive, driveBackups, saveLeadToGoogle } from "../services/gmore";
 import { answerInput, keepInput, seenInput } from "@shared/tune";
@@ -162,6 +172,7 @@ import {
   undoImport,
 } from "../services/import";
 import { findDemoBatch, seedDemo } from "../services/demo";
+import { pullGoogleContacts } from "../services/gcontacts";
 import {
   createField,
   deleteField,
@@ -244,6 +255,24 @@ export function savedCaptureShortcut(): string | null {
 /** Whether closing the main window leaves Caulder in the tray. Yes unless said. */
 export function keepsInTray(): boolean {
   return getSetting(getDatabase(), "keepInTray") !== "0";
+}
+
+/** Whether Ember walks the taskbar. Out unless somebody put her away. */
+export function savedPet(): boolean {
+  return petWanted(getSetting(getDatabase(), "petOpen"));
+}
+
+/**
+ * What the desk widget was doing when Caulder last closed: whether it was
+ * there at all, where in the stack, and where on the screen.
+ */
+export function savedWidget(): { on: boolean; level: WidgetLevel; spot: { x: number; y: number } | null } {
+  const db = getDatabase();
+  return {
+    on: widgetWanted(getSetting(db, "widgetOpen")),
+    level: widgetLevel(getSetting(db, "widgetLevel")),
+    spot: widgetSpot(getSetting(db, "widgetSpot")),
+  };
 }
 
 /**
@@ -343,6 +372,8 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
   handle(CHANNELS.companiesCreate, (_event, raw: unknown) => {
     const input = companyInput.parse(raw);
     const created = createCompany(getDatabase(), input);
+    // The first real company is when your own things get a home apart from it.
+    ensureHome(getDatabase());
     // A newly created company becomes the one you are looking at. Creating a
     // workspace and staying in the old one is never what was meant.
     setSetting(getDatabase(), "activeCompanyId", created.id);
@@ -984,6 +1015,48 @@ function registerPersonalHandlers() {
     setSetting(getDatabase(), "keepInTray", on === false ? "0" : "1");
   });
 
+  /* ---- The desk widget ---- */
+
+  handle(CHANNELS.widgetGet, () => widgetState());
+
+  handle(CHANNELS.widgetShow, (_event, on: unknown) => {
+    const wanted = on === true;
+    const saved = savedWidget();
+    setSetting(getDatabase(), "widgetOpen", wanted ? "1" : "0");
+    if (wanted) showWidget(saved.level, saved.spot);
+    else hideWidget();
+    return widgetState();
+  });
+
+  handle(CHANNELS.widgetFit, (_event, height: unknown) => {
+    if (typeof height === "number") fitWidget(height);
+  });
+
+  /* ---- Ember on the taskbar ---- */
+
+  handle(CHANNELS.petGet, () => petState());
+
+  handle(CHANNELS.petShow, (_event, on: unknown) => {
+    const wanted = on === true;
+    setSetting(getDatabase(), "petOpen", wanted ? "1" : "0");
+    if (wanted) showPet();
+    else hidePet();
+    return petState();
+  });
+
+  handle(CHANNELS.petHover, (_event, over: unknown) => hoverPet(over === true));
+  handle(CHANNELS.petHold, (_event, still: unknown) => holdPet(still === true));
+  handle(CHANNELS.petOpen, () => openFromPet());
+
+  handle(CHANNELS.widgetLevel, (_event, level: unknown) => {
+    const wanted = widgetLevel(typeof level === "string" ? level : null);
+    setSetting(getDatabase(), "widgetLevel", wanted);
+    setWidgetLevel(wanted);
+    // Read back rather than assumed: the desktop level is the one that can be
+    // asked for and refused, and the card has to be able to say so.
+    return widgetState();
+  });
+
   handle(CHANNELS.captureSet, (_event, accelerator: unknown) => {
     const wanted = typeof accelerator === "string" ? accelerator.trim() : "";
     const outcome = setCaptureShortcut(wanted);
@@ -1272,6 +1345,43 @@ function registerTaskHandlers() {
     removeAreaWord(getDatabase(), assertId(id, "word id")),
   );
 
+  handle(CHANNELS.linesContext, (_event, companyId: unknown, today: unknown) =>
+    lineContext(getDatabase(), assertId(companyId, "company id"), today),
+  );
+  handle(CHANNELS.linesMove, alsoNudge((_event, id: unknown, to: unknown) => moveTask(getDatabase(), assertId(id, "task id"), to)));
+  handle(CHANNELS.linesCancel, alsoNudge((_event, id: unknown) => cancelTask(getDatabase(), assertId(id, "task id"))));
+  handle(
+    CHANNELS.linesRestore,
+    alsoNudge((_event, companyId: unknown, snapshot: unknown) => restoreTask(getDatabase(), assertId(companyId, "company id"), snapshot)),
+  );
+  handle(CHANNELS.linesRename, alsoNudge((_event, id: unknown, title: unknown) => renameTask(getDatabase(), assertId(id, "task id"), title)));
+  handle(CHANNELS.linesAnswer, (_event, companyId: unknown, asked: unknown) =>
+    answerQuestion(getDatabase(), assertId(companyId, "company id"), asked),
+  );
+  handle(CHANNELS.nudgesGet, () => nudgeSettings(getDatabase()));
+  handle(CHANNELS.nudgesSet, (_event, raw: unknown) => setNudgeSettings(getDatabase(), raw));
+  handle(CHANNELS.nudgesTest, () => testNotification(() => BrowserWindow.getAllWindows().find((w) => !w.isDestroyed() && w.webContents.getURL().indexOf("#") === -1) ?? null));
+
+  handle(CHANNELS.lessonsList, () => listLessons(getDatabase()));
+  // Learning must never be why keeping a line fails, so a lesson that does not parse is simply not learnt.
+  handle(CHANNELS.lessonsAdd, (_event, raw: unknown) => {
+    try {
+      return addLesson(getDatabase(), raw);
+    } catch {
+      return listLessons(getDatabase());
+    }
+  });
+  handle(CHANNELS.lessonsRemove, (_event, id: unknown) => removeLesson(getDatabase(), assertId(id, "lesson id")));
+
+  handle(CHANNELS.mailAccountsList, () => listMailAccounts(getDatabase()));
+  handle(CHANNELS.mailAccountsAdd, async (_event, raw: unknown) => {
+    const parsed = mailAccountInput.safeParse(raw);
+    if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "That account will not do.");
+    return addMailAccount(getDatabase(), parsed.data);
+  });
+  handle(CHANNELS.mailAccountsRemove, (_event, id: unknown) => removeMailAccount(getDatabase(), assertId(id, "account id")));
+  handle(CHANNELS.mailAccountsDefault, (_event, id: unknown) => setDefaultMailAccount(getDatabase(), assertId(id, "account id")));
+
   handle(CHANNELS.tuneGet, () => tuneState(getDatabase()));
   handle(CHANNELS.tuneLearned, () => learnedFrom(getDatabase()));
 
@@ -1353,6 +1463,8 @@ function registerImportHandlers() {
     if (raw.length > MAX_BYTES) throw new Error("That is too much text to paste.");
     return registerFile("Pasted list", "csv", await readPasted(raw));
   });
+
+  handle(CHANNELS.importGoogle, () => pullGoogleContacts());
 
   handle(
     CHANNELS.importPreview,

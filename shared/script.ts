@@ -13,7 +13,7 @@
  * missing and how to update it. A script too old to report a version at all
  * is version 1.
  */
-export const SCRIPT_VERSION = 4;
+export const SCRIPT_VERSION = 5;
 
 /** The first version that sends email. */
 export const MAIL_SINCE_VERSION = 2;

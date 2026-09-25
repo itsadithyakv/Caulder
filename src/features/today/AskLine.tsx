@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CornerDownLeft, RotateCcw, Sparkles } from "lucide-react";
+import { CornerDownLeft, RotateCcw } from "lucide-react";
 import { linkAnswer, type AskAnswer, type AskTurn } from "@shared/ask";
 import type { LinkedName } from "@shared/links";
 import { messageOf } from "@/lib/errors";
 import { ErrorLine } from "@/components/ErrorLine";
+import { useEmberMood } from "@/components/Ember";
 import { Markdown } from "@/features/brain/Markdown";
+import { modeInfo, type LineMode } from "@shared/ember";
+import { LineModes } from "./LineModes";
 
 /**
  * The same line on Today, asked of your AI instead of read by Caulder.
@@ -36,7 +39,8 @@ export function AskLine({
   companyId,
   focusNonce = 0,
   model,
-  onLocal,
+  writing,
+  onMode,
   onOpenPage,
   onOpenContact,
 }: {
@@ -45,8 +49,10 @@ export function AskLine({
   focusNonce?: number;
   /** Who is answering, for the line while it thinks. */
   model: string;
-  /** Back to the line Caulder reads itself. */
-  onLocal: () => void;
+  /** Which writing flame this workspace has, for when the line goes back to it. */
+  writing: LineMode;
+  /** Somewhere else: back to the line Caulder reads, or on to copying context. */
+  onMode: (mode: LineMode) => void;
   onOpenPage: (pageId: string) => void;
   onOpenContact: (leadId: string) => void;
 }) {
@@ -54,6 +60,8 @@ export function AskLine({
   const [exchanges, setExchanges] = useState<Exchange[]>([]);
   const [busy, setBusy] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+  const last = exchanges.at(-1);
+  const mood = useEmberMood({ busy, failed: last?.error != null, done: last?.answer != null });
 
   useEffect(() => {
     input.current?.focus();
@@ -91,21 +99,12 @@ export function AskLine({
   return (
     <div className="quickadd askline">
       <div className="quickadd__row">
-        <button
-          type="button"
-          className="quickadd__star quickadd__star--on"
-          aria-pressed
-          title="Back to the line Caulder reads itself"
-          onClick={onLocal}
-        >
-          <Sparkles size={17} aria-hidden />
-          <span className="visually-hidden">Back to the line Caulder reads itself</span>
-        </button>
+        <LineModes mode="ask" writing={writing} mood={mood} canAsk onMode={onMode} />
         <input
           ref={input}
           className="quickadd__input"
           value={question}
-          placeholder="Ask anything - about today, the company, or you"
+          placeholder={modeInfo("ask").placeholder}
           aria-label="Ask the AI"
           autoComplete="off"
           disabled={busy}

@@ -14,9 +14,12 @@
 | Styling | Plain CSS with custom properties | — |
 | Tests | Vitest (unit), Playwright (a real window) | 4 / 1.6 |
 | Dead code | knip | 5 |
+| Win32 calls | koffi, loaded only when the desk widget is sent to the wallpaper | 3 |
 | Packaging | electron-builder, NSIS | 26 |
 
-Runtime dependencies are three: `better-sqlite3`, `exceljs` and `zod`.
+Runtime dependencies are six: `better-sqlite3`, `electron-updater`,
+`exceljs`, `koffi`, `nodemailer` (sending through another mail account) and
+`zod`.
 Everything else is a build or test tool, or - like React, lucide and
 `d3-force` - bundled into the window at build time, which is why they are
 dev dependencies.
@@ -25,8 +28,18 @@ dev dependencies.
 one library chosen for a picture: a hand-written force simulation is where
 the jitter bugs live.
 
-`better-sqlite3` is the one native module. It has to be unpacked from the
-asar &mdash; see `electron-builder.yml`.
+There are two native modules, and both have to be unpacked from the asar
+&mdash; see `electron-builder.yml`. `better-sqlite3` is detected and unpacked
+automatically; `koffi` is not, because it resolves its own binary by a path
+relative to itself, so the whole package is named rather than only the `.node`
+inside it. `npm run smoke:packaged` exercises both against the packaged
+binary, which is the only place that kind of mistake shows up.
+
+`koffi` earns its place for exactly one call: pinning the desk widget behind
+the wallpaper, which Electron has no API for. It is `require`d on first use
+rather than imported, so a launch that never asks for that level never loads
+it, and every failure comes back as a reason rather than an exception. See
+`electron/main/wallpaper.ts`.
 
 ### What is deliberately absent
 
@@ -371,12 +384,15 @@ the main process, the way the email suite plays the script.
 
 ## One kind of workspace
 
-Every workspace is a company. `companies.kind` still accepts `personal`,
-because personal workspaces made before PLAN.md's first phase are still in
-people's files: one opens as a company with no contacts, and its blocks and
-tasks are untouched. Nothing creates one any more. `team` was never built: it
-needs sync, accounts and conflict resolution, and a value the app cannot
-produce has no business in a picker.
+Every workspace you choose is a company. `companies.kind = 'personal'` is
+your **home**, where your own things are kept: made once by
+`services/yourhome.ts` at start-up or when the first real company is made,
+with your personal pages and rows moved into it in one transaction (after the
+launch backup). It is left out of the switcher while there is a company, and
+the active workspace is never it (`workspace()` in `ipc/index.ts`), so it is a
+place things are kept, never a mode. `homeCompanyId` prefers it. `team` was
+never built: it needs sync, accounts and conflict resolution, and a value the
+app cannot produce has no business in a picker.
 
 The sample company is a workspace of its own for the same reason a real one
 is: it can be looked around and then removed whole, by the cascade, without

@@ -224,6 +224,18 @@ export function journalToday(db: Db, companyId: string, now: Date = new Date()):
 }
 
 /**
+ * The workspaces a day is read across: your home's day is all of them - the
+ * tasks done and calls made for a company were done by you - and a company's
+ * is its own. For someone whose home is their one company, that is the same.
+ */
+function dayScope(db: Db, companyId: string): string[] {
+  const row = db.prepare(`SELECT kind FROM companies WHERE id = ?`).get(companyId) as { kind: string } | undefined;
+  if (row?.kind !== "personal") return [companyId];
+  const all = db.prepare(`SELECT id FROM companies WHERE is_archived = 0`).all() as { id: string }[];
+  return all.map((company) => company.id);
+}
+
+/**
  * What Caulder saw happen on a day: the tasks done, the calls, the hours
  * kept, the notes caught, the money that came in, the pages written, the
  * contacts added. Beside a journal entry, so the entry is what was made of it.
@@ -236,15 +248,18 @@ export function dayRecord(db: Db, companyId: string, of: unknown, now: Date = ne
   const from = `${shiftDay(of, -1)}T00:00:00.000Z`;
   const to = `${shiftDay(of, 2)}T00:00:00.000Z`;
   const onThe = (iso: string) => dayOf(iso, timezone) === of;
+  // Your home's day is every workspace's: what you did for a company happened to you too.
+  const scope = dayScope(db, companyId);
+  const within = scope.map(() => "?").join(", ");
 
   const tasksDone = (
     db
       .prepare(
         `SELECT id, title, area, completed_at FROM tasks
-          WHERE company_id = ? AND status = 'done' AND completed_at >= ? AND completed_at < ?
+          WHERE company_id IN (${within}) AND status = 'done' AND completed_at >= ? AND completed_at < ?
           ORDER BY completed_at`,
       )
-      .all(companyId, from, to) as { id: string; title: string; area: string | null; completed_at: string }[]
+      .all(...scope, from, to) as { id: string; title: string; area: string | null; completed_at: string }[]
   )
     .filter((row) => onThe(row.completed_at))
     .map(({ id, title, area }) => ({ id, title, area }));
@@ -253,9 +268,9 @@ export function dayRecord(db: Db, companyId: string, of: unknown, now: Date = ne
     db
       .prepare(
         `SELECT c.lead_id, l.name, c.outcome, c.created_at FROM calls c JOIN leads l ON l.id = c.lead_id
-          WHERE c.company_id = ? AND c.created_at >= ? AND c.created_at < ? ORDER BY c.created_at`,
+          WHERE c.company_id IN (${within}) AND c.created_at >= ? AND c.created_at < ? ORDER BY c.created_at`,
       )
-      .all(companyId, from, to) as { lead_id: string; name: string; outcome: string; created_at: string }[]
+      .all(...scope, from, to) as { lead_id: string; name: string; outcome: string; created_at: string }[]
   )
     .filter((row) => onThe(row.created_at))
     .map((row) => ({ leadId: row.lead_id, name: row.name, spoke: row.outcome === "spoke" }));
@@ -265,8 +280,8 @@ export function dayRecord(db: Db, companyId: string, of: unknown, now: Date = ne
   const blocks = of > today
     ? []
     : (db
-        .prepare(`SELECT kind, starts_at, minutes FROM blocks WHERE company_id = ? AND day = ? AND outcome IS NULL`)
-        .all(companyId, of) as { kind: string | null; starts_at: string; minutes: number }[]);
+        .prepare(`SELECT kind, starts_at, minutes FROM blocks WHERE company_id IN (${within}) AND day = ? AND outcome IS NULL`)
+        .all(...scope, of) as { kind: string | null; starts_at: string; minutes: number }[]);
   const byKind = new Map<string, number>();
   for (const block of blocks) {
     if (clock) {
@@ -279,26 +294,26 @@ export function dayRecord(db: Db, companyId: string, of: unknown, now: Date = ne
   }
 
   const notes = db
-    .prepare(`SELECT id, body FROM notes WHERE company_id = ? AND day = ? ORDER BY created_at`)
-    .all(companyId, of) as { id: string; body: string }[];
+    .prepare(`SELECT id, body FROM notes WHERE company_id IN (${within}) AND day = ? ORDER BY created_at`)
+    .all(...scope, of) as { id: string; body: string }[];
 
   const paidIn = (
     db
       .prepare(
         `SELECT p.amount, l.name FROM payments p
            JOIN invoices i ON i.id = p.invoice_id JOIN leads l ON l.id = i.lead_id
-          WHERE p.company_id = ? AND p.paid_on = ? ORDER BY p.created_at`,
+          WHERE p.company_id IN (${within}) AND p.paid_on = ? ORDER BY p.created_at`,
       )
-      .all(companyId, of) as { amount: number; name: string }[]
+      .all(...scope, of) as { amount: number; name: string }[]
   ).map((row) => ({ amount: row.amount, from: row.name }));
 
   const written = db
     .prepare(
       `SELECT p.id, p.title, p.section, r.edited_at FROM brain_revisions r JOIN brain_pages p ON p.id = r.page_id
-        WHERE p.company_id = ? AND p.template != ? AND r.edited_at >= ? AND r.edited_at < ?
+        WHERE p.company_id IN (${within}) AND p.template != ? AND r.edited_at >= ? AND r.edited_at < ?
         ORDER BY r.edited_at`,
     )
-    .all(companyId, ENTRY_TEMPLATE, from, to) as { id: string; title: string; section: string; edited_at: string }[];
+    .all(...scope, ENTRY_TEMPLATE, from, to) as { id: string; title: string; section: string; edited_at: string }[];
   const pages: DayRecord["pages"] = [];
   for (const row of written) {
     if (onThe(row.edited_at) && !pages.some((page) => page.id === row.id)) {
@@ -308,8 +323,8 @@ export function dayRecord(db: Db, companyId: string, of: unknown, now: Date = ne
 
   const contactsAdded = (
     db
-      .prepare(`SELECT created_at FROM leads WHERE company_id = ? AND created_at >= ? AND created_at < ?`)
-      .all(companyId, from, to) as { created_at: string }[]
+      .prepare(`SELECT created_at FROM leads WHERE company_id IN (${within}) AND created_at >= ? AND created_at < ?`)
+      .all(...scope, from, to) as { created_at: string }[]
   ).filter((row) => onThe(row.created_at)).length;
 
   return {

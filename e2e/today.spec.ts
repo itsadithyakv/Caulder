@@ -78,6 +78,35 @@ test("an empty day says so rather than showing empty lists", async () => {
   await ensureCompany(page);
 
   await expect(page.getByText("Nothing is due today")).toBeVisible();
+  // One way in, the quick line: no second box for notes, and no Notes card
+  // with nothing in it.
+  await expect(page.getByLabel("Write a note")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Notes", exact: true })).toHaveCount(0);
+});
+
+test("the work comes straight after the quick line, and the joke waits beside it", async () => {
+  app = await launch();
+  const page = await app.firstWindow();
+  await ensureCompany(page);
+
+  // In the order of the page: the line, then the day's work - the aside and
+  // the memory are in the side column, after the work in the page's order.
+  const quick = page.locator(".today__quick");
+  const work = page.locator(".today__work");
+  const aside = page.locator(".today__side .today__aside");
+  await expect(quick).toBeVisible();
+  await expect(aside).toHaveCount(1);
+  expect(
+    await page.evaluate(() => {
+      const line = document.querySelector(".today__quick");
+      const first = document.querySelector(".today__work");
+      const joke = document.querySelector(".today__aside");
+      if (!line || !first || !joke) return false;
+      const follows = (a: Element, b: Element) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+      return follows(line, first) && follows(first, joke);
+    }),
+  ).toBe(true);
+  await expect(work).toBeVisible();
 });
 
 test("a task set on a lead appears on Today", async () => {

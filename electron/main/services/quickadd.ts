@@ -4,6 +4,7 @@ import { createBlock } from "../repositories/blocks";
 import { blockKindFor } from "@shared/quickadd";
 import { occurrencesOf } from "@shared/repeat";
 import { blockInput, taskInput, type QuickInput, quickInput, type Task } from "@shared/domain";
+import { addReminder } from "./nudges";
 
 /**
  * A task from the quick-add line, and the hour set aside for it.
@@ -88,6 +89,9 @@ export function quickAdd(
           }),
         )
       : null;
+
+    // Asked for in so many words: a notification at its time, or at the start of its day.
+    if (input.remind) addReminder(db, { companyId, taskId: task.id, title: input.title, day: input.day, time: input.time });
 
     if (input.time === null) return { task, blocked: false, repeats: 0, followUp };
 

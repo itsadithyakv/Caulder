@@ -3,13 +3,20 @@ import { app, BrowserWindow, dialog, nativeTheme } from "electron";
 import { join } from "node:path";
 import { openDatabase, closeDatabase, databasePath } from "./db/connection";
 import { migrate } from "./db/migrations";
+import { ensureHome } from "./services/yourhome";
 import { backupOnLaunch } from "./db/backup";
 import {
   firstTimeInTray,
   keepsInTray,
   registerIpc,
   savedCaptureShortcut,
+  savedWidget,
+  savedPet,
 } from "./ipc";
+import { hideWidget, onWidgetMove, showWidget } from "./widget";
+import { hidePet, onPetOpen, setCaulderInFront, showPet } from "./pet";
+import { setSetting } from "./repositories/settings";
+import { getDatabase } from "./db/connection";
 import { heldShortcut, setCaptureShortcut } from "./capture";
 import { shortcutToClaim } from "./popup";
 import { createTray, destroyTray, hasTray, trayNotice } from "./tray";
@@ -28,6 +35,7 @@ useStoreHome();
 claimIdentity();
 import { startNotifications, stopNotifications } from "./services/notify";
 import { startReminders, stopReminders } from "./services/remind";
+import { startNudges, stopNudges } from "./services/nudges";
 import {
   startBrainSync,
   startMailWatch,
@@ -140,6 +148,29 @@ function createWindow(): void {
   //
   // Maximised rather than sized to the display, so the title bar and the
   // window controls stay where they belong and one click restores it.
+  // Whether Caulder is the window in front decides where Ember is: inside,
+  // on the quick line, or out on the taskbar. One of her, never two.
+  mainWindow.on("focus", () => setCaulderInFront(true));
+  mainWindow.on("blur", () => setCaulderInFront(false));
+  mainWindow.on("minimize", () => setCaulderInFront(false));
+  mainWindow.on("hide", () => setCaulderInFront(false));
+
+  // A test run is silent, and Ember stays indoors. The suite launches the app
+  // forty times and ticks tasks off in most of them, and she cheers out loud
+  // for every one - in the machine's own voice, which does not go through the
+  // window's audio and so cannot be muted from here. And she wanders about on
+  // the cards, where a test's click can land on her instead of the button
+  // under her. Her own switches do both, a test's profile is thrown away
+  // afterwards, and the one spec about her lets her back out.
+  if (background()) {
+    mainWindow.webContents.setAudioMuted(true);
+    mainWindow.webContents.once("did-finish-load", () => {
+      void mainWindow?.webContents.executeJavaScript(
+        'try { localStorage.setItem("caulder.ember.sound", "off"); localStorage.setItem("caulder.ember.out", "off"); } catch {}',
+      );
+    });
+  }
+
   mainWindow.once("ready-to-show", () => {
     mainWindow?.maximize();
     // showInactive when something else is driving. A test run launches and
@@ -210,6 +241,15 @@ function startDatabase(): void {
   if (result.applied.length > 0) {
     logProblem("database", `Migrated ${result.from} -> ${result.to}: ${result.applied.join(", ")}`);
   }
+  // Your own things in a home of their own, once (services/yourhome.ts). After
+  // the backup above, like a migration; a failure is said and the app goes on
+  // exactly as it did, with home the first company.
+  try {
+    const kept = ensureHome(db);
+    if (kept.moved > 0) logProblem("database", `Your things moved into their own home: ${kept.moved} rows`);
+  } catch (error) {
+    logProblem("database", `Could not give your things their own home: ${String(error)}`);
+  }
 }
 
 // Opening Caulder again - from the Start menu, say - while it waits in the
@@ -251,11 +291,29 @@ void app.whenReady().then(() => {
   // the installed app only.
   startUpdates();
 
-  // The quick-add key: Ctrl+Alt+A unless somebody chose another, or none. A
+  // The quick-add key: Ctrl+Win+A unless somebody chose another, or none. A
   // refusal is not shown here - another application may have claimed the
   // combination since last launch, and a dialog before the window has even
   // appeared is the wrong moment. Settings and the tray say what it got.
   setCaptureShortcut(shortcutToClaim(savedCaptureShortcut()));
+
+  // The desk widget, back where it was left - and only if it was ever asked
+  // for. Dragging the pill is remembered as it happens rather than on the way
+  // out: a widget on a machine that loses power should still come back where
+  // you put it.
+  onWidgetMove((spot) => setSetting(getDatabase(), "widgetSpot", JSON.stringify(spot)));
+  const desk = savedWidget();
+  if (desk.on) showWidget(desk.level, desk.spot);
+
+  // Ember, out on the taskbar whenever Caulder is not the window in front.
+  // Not for a test run: the suite launches the app dozens of times, and a
+  // second window arriving by itself is the trap `firstWindow()` already
+  // fell into once with the widget. A spec that wants her asks for her.
+  onPetOpen(() => {
+    showMain();
+    mainWindow?.webContents.send("pet:today");
+  });
+  if (savedPet() && !background()) showPet();
 
   // Checked on a timer rather than scheduled, because the machine sleeps and
   // a scheduled 9am fires at noon on a laptop that was shut. The check itself
@@ -266,6 +324,7 @@ void app.whenReady().then(() => {
   // digest above, because ten to nine has to mean ten to nine; it reads
   // nothing at all for a workspace that has not switched reminders on.
   startReminders(() => mainWindow);
+  startNudges(() => mainWindow);
 
   // Off unless it has been switched on, and quiet for the first few seconds
   // either way - the window has just opened and nobody wants a network call
@@ -288,6 +347,7 @@ app.on("before-quit", () => {
   quitting = true;
   stopNotifications();
   stopReminders();
+  stopNudges();
   stopSyncing();
   stopMailWatch();
   stopBrainSync();
@@ -299,5 +359,10 @@ app.on("will-quit", () => {
   // Left behind, a tray icon lingers in the notification area until the
   // pointer passes over it and Windows notices the process has gone.
   destroyTray();
+  // Explicitly, and before the database closes: a widget pinned to the
+  // wallpaper is a child of the desktop, and a child of the desktop does not
+  // close cleanly on its own.
+  hideWidget();
+  hidePet();
   closeDatabase();
 });

@@ -264,7 +264,9 @@ test("a line typed like a text is read, its guess can be kept as typed, and Tune
   await page.getByLabel("Main").getByRole("button", { name: "Today", exact: true }).click();
   await line.fill("assigment friday");
   await expect(reading.locator(".quickadd__title")).toHaveText("Assignment");
-  await expect(page.locator(".quickadd__aside")).toHaveCount(0);
+  // Nothing said about the slip - only, now, that an Assignment is already there.
+  await expect(page.locator(".quickadd__aside")).not.toContainText("Read “assigment”");
+  await expect(page.locator(".quickadd__aside")).toContainText("“Assignment” is already there");
 });
 
 test("a line that says more keeps the rest as a note, and makes the reminder it asked for", async () => {
@@ -334,8 +336,9 @@ test("saying what you did finishes the task it was, and a thing said what it is 
   await line.press("Enter");
 
   const kept = await page.evaluate(async () => {
-    const { activeCompanyId } = await window.caulder.companies.list();
-    const pages = await window.caulder.brain.section(activeCompanyId ?? "", "hobbies", false);
+    // What the line remembers is yours, kept in your home.
+    const { activeCompanyId, homeCompanyId } = await window.caulder.companies.list();
+    const pages = await window.caulder.brain.section(homeCompanyId ?? activeCompanyId ?? "", "hobbies", false);
     const found = pages.find((each) => each.title === "Red Rising");
     return found ? (await window.caulder.brain.page(found.id)).body : null;
   });
@@ -383,19 +386,24 @@ test("the line does what it is asked: adds a contact, logs what was spent, goes 
 
 test("what was never connected is offered on Today, and each part of it can be waved away", async () => {
   const page = await openApp();
-  const nudge = page.locator(".card").filter({ has: page.getByRole("heading", { name: "Finish setting up" }) });
-  await expect(nudge).toContainText("Connect Google");
+  // One line under the quick line, not a card above the work.
+  const nudge = page.getByRole("region", { name: "Finish setting up" });
+  await expect(nudge).toHaveClass(/setupnudge/);
+  const google = nudge.getByRole("button", { name: "Connect Google", exact: true });
+  await expect(google).toBeVisible();
+  // What it gives is on hover, and read out with the button.
+  await expect(google).toHaveAttribute("title", /there is no Caulder account to make/);
   await expect(nudge).toContainText("there is no Caulder account to make");
 
   await nudge.getByRole("button", { name: "Skip: Connect an AI" }).click();
-  await expect(nudge).not.toContainText("Connect an AI");
+  await expect(nudge.getByRole("button", { name: "Connect an AI", exact: true })).toHaveCount(0);
 
-  // Set it up goes to the guide, which is where the steps are.
-  await nudge.getByRole("button", { name: "Set it up" }).click();
+  // The name goes to the guide, which is where the steps are.
+  await google.click();
   await expect(page.getByText("Google: your calendar, tasks, email, contacts and backups")).toBeVisible();
 
   await page.getByLabel("Main").getByRole("button", { name: "Today", exact: true }).click();
-  await nudge.getByRole("button", { name: "Skip all of this" }).click();
+  await nudge.getByRole("button", { name: "Skip all", exact: true }).click();
   await expect(nudge).toHaveCount(0);
 });
 
@@ -405,9 +413,9 @@ test("what is said about a lift or a song is kept with it, under the hobby it is
 
   // The hobbies these hang off.
   await page.evaluate(async () => {
-    const { activeCompanyId } = await window.caulder.companies.list();
+    const { activeCompanyId, homeCompanyId } = await window.caulder.companies.list();
     for (const title of ["Gym", "Guitar"]) {
-      const made = await window.caulder.brain.create(activeCompanyId ?? "", "hobbies", "hobby");
+      const made = await window.caulder.brain.create(homeCompanyId ?? activeCompanyId ?? "", "hobbies", "hobby");
       await window.caulder.brain.save(made.id, { title, body: made.body, fields: made.fields, secrets: {}, baseRevision: made.revision });
     }
   });
@@ -432,8 +440,9 @@ test("what is said about a lift or a song is kept with it, under the hobby it is
   await expect(page.locator(".quickadd__added")).toContainText("Remember under Bench Press");
 
   const kept = await page.evaluate(async () => {
-    const { activeCompanyId } = await window.caulder.companies.list();
-    const pages = await window.caulder.brain.section(activeCompanyId ?? "", "hobbies", false);
+    // What the line remembers is yours, kept in your home.
+    const { activeCompanyId, homeCompanyId } = await window.caulder.companies.list();
+    const pages = await window.caulder.brain.section(homeCompanyId ?? activeCompanyId ?? "", "hobbies", false);
     const body = async (title: string) => {
       const found = pages.find((each) => each.title === title);
       return found ? (await window.caulder.brain.page(found.id)).body : "";
@@ -468,8 +477,9 @@ test("a line that is nobody else's business is locked the moment it is kept, and
 
   // A passcode, and the journal locked again: writing still needs nothing.
   await page.evaluate(async () => {
-    const { activeCompanyId } = await window.caulder.companies.list();
-    await window.caulder.life.setPasscode(activeCompanyId ?? "", "open sesame");
+    // The journal is yours, kept in your home.
+    const { activeCompanyId, homeCompanyId } = await window.caulder.companies.list();
+    await window.caulder.life.setPasscode(homeCompanyId ?? activeCompanyId ?? "", "open sesame");
     await window.caulder.life.lockNow();
   });
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
@@ -482,26 +492,26 @@ test("a line that is nobody else's business is locked the moment it is kept, and
 
   // Locked: how many, and nothing about them - both lines, the first sealed when the passcode was set.
   const locked = await page.evaluate(async (day) => {
-    const { activeCompanyId } = await window.caulder.companies.list();
-    return window.caulder.life.privateDay(activeCompanyId ?? "", day);
+    const { activeCompanyId, homeCompanyId } = await window.caulder.companies.list();
+    return window.caulder.life.privateDay(homeCompanyId ?? activeCompanyId ?? "", day);
   }, today());
   expect(locked).toMatchObject({ count: 2, locked: true, passcode: true, lines: [] });
 
   // It went nowhere else: not a task, not a note, not today's entry.
   const elsewhere = await page.evaluate(async (day) => {
-    const { activeCompanyId } = await window.caulder.companies.list();
+    const { activeCompanyId, homeCompanyId } = await window.caulder.companies.list();
     const company = activeCompanyId ?? "";
     const plan = await window.caulder.day.get(company, day);
-    const entry = await window.caulder.life.find(company, day);
+    const entry = await window.caulder.life.find(homeCompanyId ?? company, day);
     return JSON.stringify({ tasks: plan.tasks.map((task) => task.title), notes: plan.notes, entry: entry?.body ?? "" }).toLowerCase();
   }, today());
   expect(elsewhere).not.toContain("julia");
   expect(elsewhere).not.toContain("mum");
 
   const opened = await page.evaluate(async (day) => {
-    const { activeCompanyId } = await window.caulder.companies.list();
+    const { activeCompanyId, homeCompanyId } = await window.caulder.companies.list();
     await window.caulder.life.unlock("open sesame");
-    return window.caulder.life.privateDay(activeCompanyId ?? "", day);
+    return window.caulder.life.privateDay(homeCompanyId ?? activeCompanyId ?? "", day);
   }, today());
   expect(opened.locked).toBe(false);
   expect(opened.lines.map((each) => ({ feeling: each.feeling, people: each.people }))).toEqual([
@@ -521,6 +531,7 @@ test("a thought about something to make is caught with its parts apart", async (
   await expect(page.locator(".quickadd__added")).toContainText("An idea, in the brain");
 
   const kept = await page.evaluate(async () => {
+    // An idea is the company's, in its brain's Ideas - unlike what the line remembers.
     const { activeCompanyId } = await window.caulder.companies.list();
     const pages = await window.caulder.brain.section(activeCompanyId ?? "", "ideas", false);
     const found = pages.find((each) => each.title === "Edit on helicopter by asap rockey");
@@ -553,8 +564,9 @@ test("books go on the shelf, what was counted is added up for the year, and a se
   await expect(page.locator(".quickadd__added")).toBeVisible();
 
   const kept = await page.evaluate(async () => {
-    const { activeCompanyId } = await window.caulder.companies.list();
-    const company = activeCompanyId ?? "";
+    // The shelf and the year's numbers are yours, kept in your home.
+    const { activeCompanyId, homeCompanyId } = await window.caulder.companies.list();
+    const company = homeCompanyId ?? activeCompanyId ?? "";
     const shelf = await window.caulder.life.shelf(company);
     const year = await window.caulder.life.year(company, new Date().getFullYear());
     return {
@@ -574,18 +586,21 @@ test("books go on the shelf, what was counted is added up for the year, and a se
   await expect(page.locator("#lead-email")).toBeVisible();
 });
 
-test("the map is a place of its own under Brain, and a hobby has a page made for it", async () => {
+test("the map is reached from Brain, Memories is under You, and a hobby has a page made for it", async () => {
   const page = await openApp();
   const line = page.getByLabel("Anything, in one line");
 
-  // Under Brain in the sidebar, and somewhere the line can be told to go.
+  // No row of its own: Memories is under You, after Life, and the map is somewhere the line can be told to go.
   const places = await page.getByLabel("Main").getByRole("button").allTextContents();
   const names = places.map((each) => each.trim());
-  expect(names.indexOf("Map")).toBe(names.indexOf("Brain") + 1);
+  expect(names).not.toContain("Map");
+  expect(names.indexOf("Memories")).toBe(names.indexOf("Life") + 1);
   await line.fill("go to the map");
   await expect(page.locator(".quickadd__reading .quickadd__title")).toHaveText("Go to Map");
   await line.press("Enter");
-  await expect(page.getByLabel("Main").getByRole("button", { name: "Map", exact: true })).toHaveAttribute("aria-current", "page");
+  // It stands under Brain, so Brain is the row that says where you are.
+  await expect(page.getByRole("heading", { name: "Map", exact: true })).toBeVisible();
+  await expect(page.getByLabel("Main").getByRole("button", { name: "Brain", exact: true })).toHaveAttribute("aria-current", "page");
 
   // The Gym hobby's page, from what the line was told earlier in this file: the bench press and the push ups.
   await page.getByLabel("Main").getByRole("button", { name: "Life", exact: true }).click();
@@ -639,7 +654,7 @@ test("Today says hello, takes a name in one field, and the line says little", as
   // And it is the same name Settings has, not a second copy.
   expect(await page.evaluate(() => window.caulder.share.me())).toBe("Adi Vinod");
 
-  // Under the day, an aside; pressed, it tells another, and never the same one straight after.
+  // Beside the day's work, an aside; pressed, it tells another, and never the same one straight after.
   const aside = page.locator(".today__aside");
   const told = new Set<string>();
   for (let turn = 0; turn < 6; turn += 1) {
@@ -677,9 +692,8 @@ test("a fact is kept as random knowledge, and everything remembered can be found
   await line.press("Enter");
   await expect(page.locator(".quickadd__added")).toContainText("Random knowledge");
 
-  // And there is somewhere to see them: Memories, on the Brain's rail.
-  await page.getByLabel("Main").getByRole("button", { name: "Brain", exact: true }).click();
-  await page.getByLabel("Brain sections").getByRole("button", { name: "Memories" }).click();
+  // And there is somewhere to see them: Memories, under You.
+  await page.getByLabel("Main").getByRole("button", { name: "Memories", exact: true }).click();
   const pile = page.locator(".card").filter({ has: page.getByRole("heading", { name: "Random knowledge" }) });
   // A fact opens with what it is about, so nothing is put in front of it to say so again.
   await expect(pile.locator(".memories__fact")).toHaveCount(0);
@@ -718,8 +732,7 @@ test("what is remembered branches the whole way down, and the brain, Memories an
   await expect(page.locator(".quickadd__added")).toContainText("Words Of Radiance");
 
   // Memories says the same chain, read back out of the pages.
-  await page.getByLabel("Main").getByRole("button", { name: "Brain", exact: true }).click();
-  await page.getByLabel("Brain sections").getByRole("button", { name: "Memories" }).click();
+  await page.getByLabel("Main").getByRole("button", { name: "Memories", exact: true }).click();
   const first = page.locator(".card").filter({ has: page.getByRole("heading", { name: "The Way Of Kings" }) });
   await expect(first).toContainText("Hobbies › Reading › Fantasy books › Stormlight Archive series");
   const second = page.locator(".card").filter({ has: page.getByRole("heading", { name: "Words Of Radiance" }) });
@@ -733,12 +746,210 @@ test("what is remembered branches the whole way down, and the brain, Memories an
   await expect(page.getByText("Words Of Radiance").first()).toBeVisible();
 
   // And the map draws it: one way from Memories, and every level a dot.
-  await page.getByLabel("Brain sections").getByRole("button", { name: "Memories" }).click();
+  await page.getByLabel("Main").getByRole("button", { name: "Memories", exact: true }).click();
   await page.getByRole("button", { name: "See them on your map" }).click();
   await page.getByRole("button", { name: "As a list" }).click();
   for (const level of ["Me", "Hobbies", "Reading", "Fantasy books", "Stormlight Archive series", "The Way Of Kings", "Words Of Radiance"]) {
     await expect(page.getByRole("button", { name: level, exact: true }).first()).toBeVisible();
   }
+});
+
+test("a line moved to another part of life before it is kept teaches the next one like it", async () => {
+  const page = await openApp();
+  const line = page.getByLabel("Anything, in one line");
+
+  // A thing to do, with nothing in it that says whose: in a company workspace it falls to Company.
+  await line.fill("give arjun the charger back tomorrow");
+  const area = page.getByRole("button", { name: /^Area: .*\. Change it$/ });
+  await expect(area).toHaveAccessibleName("Area: Company. Change it");
+  // Moved by hand to Personal, then kept.
+  while ((await area.getAttribute("aria-label")) !== "Area: Personal. Change it") await area.click();
+  await line.press("Enter");
+  await expect(page.locator(".quickadd__added")).toContainText("Give arjun the charger back");
+
+  // The next line like it goes to Personal by itself, and says why.
+  await line.fill("drop the charger at meera's tomorrow");
+  await expect(area).toHaveAccessibleName("Area: Personal. Change it");
+  await expect(page.locator(".quickadd__aside")).toContainText(
+    "give arjun the charger back tomorrow",
+  );
+  await line.fill("");
+
+  // And Settings lists it, with a way to take it back - after which the line is back to guessing.
+  await page.getByLabel("Main").getByRole("button", { name: "Settings" }).click();
+  const learnt = page.locator(".card").filter({ has: page.getByRole("heading", { name: "What the line has learnt" }) });
+  await expect(learnt).toContainText("give arjun the charger back tomorrow");
+  await expect(learnt).toContainText("goes in Personal");
+  await learnt.getByRole("button", { name: /Forget what was learnt from "give arjun the charger back tomorrow"/ }).click();
+  // Other tests in this file teach lessons of their own; this one is gone, and the line is back to guessing.
+  await expect(learnt).not.toContainText("give arjun the charger back tomorrow");
+});
+
+test("another mail account can be added beside Gmail, and a wrong server is said plainly", async () => {
+  const page = await openApp();
+  await page.getByLabel("Main").getByRole("button", { name: "Settings" }).click();
+  const card = page.locator(".card").filter({ has: page.getByRole("heading", { name: "Other mail accounts" }) });
+  await card.getByRole("button", { name: "Add an account" }).click();
+  // Zoho is the first offered, with where to make an app password.
+  await expect(card).toContainText("App passwords");
+  await card.getByLabel("Email address").fill("me@unifloe.com");
+  await card.getByLabel("App password").fill("not-a-real-password");
+  // A server that does not exist, so the try fails fast and nothing is kept.
+  await card.locator(".mailacct__server > summary").click();
+  await card.getByLabel("SMTP server").fill("smtp.invalid");
+  await card.getByRole("button", { name: "Try it and add" }).click();
+  await expect(card.getByRole("alert")).toContainText("smtp.invalid", { timeout: 30_000 });
+  await expect(card.getByLabel("App password")).toHaveValue("");
+  await expect(card.locator(".rule")).toHaveCount(0);
+});
+
+test("a line that says remind me says it will, and Settings has the journal nudge, the brief and a test", async () => {
+  const page = await openApp();
+  const line = page.getByLabel("Anything, in one line");
+  await line.fill("remind me tomorrow at 6pm to call the plumber");
+  await expect(page.locator(".quickadd__aside")).toContainText("A Windows notification at 6:00 PM, tomorrow");
+  await line.press("Enter");
+  await expect(page.locator(".quickadd__added")).toContainText("Call the plumber");
+  // Kept as a reminder against the task, at its day and time.
+  const kept = await page.evaluate(() => window.caulder.nudges.get());
+  expect(kept).toEqual({ journalAt: null, briefAt: null });
+
+  await page.getByLabel("Main").getByRole("button", { name: "Settings" }).click();
+  const journal = page.getByRole("switch", { name: "Remind me to write in the journal" });
+  await expect(journal).toHaveAttribute("aria-checked", "false");
+  await journal.click();
+  await expect(journal).toHaveAttribute("aria-checked", "true");
+  await page.getByRole("switch", { name: "A morning brief of what matters today" }).click();
+  await expect.poll(() => page.evaluate(() => window.caulder.nudges.get())).toEqual({ journalAt: "21:00", briefAt: "09:00" });
+
+  // The test is sent, and says where to look if Windows holds it back.
+  await page.getByRole("button", { name: "Send a test notification" }).click();
+  await expect(page.getByRole("status").filter({ hasText: /Sent|not letting/ })).toBeVisible();
+
+  await journal.click();
+  await expect.poll(() => page.evaluate(() => window.caulder.nudges.get())).toEqual({ journalAt: null, briefAt: "09:00" });
+});
+
+test("the line finishes what you type, answers what you ask, and changes what is there", async () => {
+  const page = await openApp();
+  const line = page.getByLabel("Anything, in one line");
+  await line.fill("dentist appointment tomorrow at 10am");
+  await line.press("Enter");
+  await expect(page.locator(".quickadd__added")).toContainText("Dentist appointment");
+
+  // Tab finishes a line said before.
+  await line.fill("dent");
+  await expect(page.locator(".quickadd__ghost")).toContainText("ist appointment");
+  await line.press("Tab");
+  await expect(line).toHaveValue("dentist appointment");
+
+  // A question is answered from what is kept, not filed as a note.
+  await line.fill("what's on tomorrow");
+  // Earlier tests in this file share the app, so only this test's own task is counted on.
+  await expect(page.locator(".quickadd__answer")).toContainText(/^Tomorrow: (?:one thing|\d+ things)\./);
+  await expect(page.locator(".quickadd__found")).toContainText("Dentist appointment");
+
+  // Moved by any word of it; its day stays when only an hour is said.
+  await line.fill("move dentist to 5");
+  await expect(page.locator(".quickadd__read")).toContainText("Move “Dentist appointment” to Tomorrow at 5:00 PM");
+  await line.press("Enter");
+  await expect(page.locator(".quickadd__added")).toContainText("Moved “Dentist appointment” to tomorrow at 5:00 PM");
+  await line.fill("what's on tomorrow");
+  await expect(page.locator(".quickadd__found li").filter({ hasText: "Dentist appointment" })).toContainText("5 PM");
+
+  // Cancelled, and put back.
+  await line.fill("cancel the dentist");
+  await line.press("Enter");
+  await expect(page.locator(".quickadd__added")).toContainText("Cancelled “Dentist appointment”");
+  await page.locator(".quickadd__added").getByRole("button", { name: "Undo" }).click();
+  await expect(page.locator(".quickadd__added")).toContainText("Back: “Dentist appointment”");
+
+  // "Him" is who the last line was about.
+  await line.fill("add contact rahul nair from ms puc");
+  await line.press("Enter");
+  await line.fill("met rahul nair, wants a demo");
+  await line.press("Enter");
+  await line.fill("send him the deck tomorrow");
+  await expect(page.locator(".quickadd__aside")).toContainText("“him” is Rahul Nair, from your last line.");
+
+  // Something paid every month is a running cost in Money.
+  await line.fill("netflix 649 monthly");
+  await expect(page.locator(".quickadd__read")).toContainText("Netflix: 649 a month");
+  await line.press("Enter");
+  await expect(page.locator(".quickadd__added")).toContainText("a running cost in Money");
+});
+
+test("somebody new told about in one line is a contact, with what happened and a task to follow up", async () => {
+  const page = await openApp();
+  const line = page.getByLabel("Anything, in one line");
+  await line.fill("Jyothi the principal from reva puc has accepted my linkedin connection request, i need to follow up");
+  const read = page.locator(".quickadd__read");
+  await expect(read).toContainText("New contact: Jyothi at Reva PUC");
+  await expect(read).toContainText("Principal");
+  await expect(read).toContainText("from LinkedIn");
+  await expect(read).toContainText("“Follow up with Jyothi” tomorrow");
+  await line.press("Enter");
+  await expect(page.locator(".quickadd__added")).toContainText("New contact: Jyothi at Reva PUC, with what happened on their history and “Follow up with Jyothi” tomorrow");
+
+  const kept = await page.evaluate(async () => {
+    const { activeCompanyId } = await window.caulder.companies.list();
+    const leads = await window.caulder.leads.list({ companyId: activeCompanyId ?? "", sort: "name", direction: "asc" });
+    const lead = leads.find((each) => each.name === "Reva PUC");
+    if (!lead) return null;
+    const tasks = await window.caulder.tasks.forLead(lead.id);
+    return { person: lead.contactPerson, source: lead.source, tasks: tasks.map((task) => task.title) };
+  });
+  expect(kept).toEqual({ person: "Jyothi", source: "LinkedIn", tasks: ["Follow up with Jyothi"] });
+
+  // And "her" in the next line is Jyothi.
+  await line.fill("send her the brochure friday");
+  await expect(page.locator(".quickadd__aside")).toContainText("“her” is Jyothi, from your last line.");
+});
+
+test("a life is remembered: the newer answer, a birthday coming round, and a password kept locked", async () => {
+  const page = await openApp();
+  const line = page.getByLabel("Anything, in one line");
+
+  await line.fill("i parked on level 1, spot A4");
+  await expect(page.locator(".quickadd__read")).toContainText("Where things are");
+  await line.press("Enter");
+  await expect(page.locator(".quickadd__added")).toContainText("Remembered, under Where things are");
+  await line.fill("i parked on level 3, spot B12");
+  await line.press("Enter");
+  await expect(page.locator(".quickadd__added")).toContainText("Where things are");
+
+  // Asked, it answers with the newer one.
+  await line.fill("where did i park");
+  await expect(page.locator(".quickadd__answer")).toContainText("Parked: level 3, spot B12");
+
+  // A birthday tomorrow is a memory on the person's own page, and comes round.
+  const next = new Date();
+  next.setDate(next.getDate() + 1);
+  const said = `${next.getDate()} ${next.toLocaleString("en-GB", { month: "long" })}`;
+  await line.fill(`mummy's birthday is on ${said}`);
+  await expect(page.locator(".quickadd__read")).toContainText("Mummy");
+  await line.press("Enter");
+  await expect(page.locator(".quickadd__added")).toContainText("Remembered, under Mummy");
+
+  // A password is never a memory.
+  await line.fill("my wifi password is hunter22");
+  await expect(page.locator(".quickadd__goes").getByRole("button", { name: "Private" })).toHaveAttribute("aria-pressed", "true");
+  await line.fill("");
+
+  await page.getByLabel("Main").getByRole("button", { name: "Memories", exact: true }).click();
+  await expect(page.getByRole("list", { name: "Coming up" })).toContainText("Mummy's birthday is tomorrow");
+  const where = page.locator(".card").filter({ has: page.getByRole("heading", { name: "Where things are" }) });
+  await expect(where.locator(".memories__item--earlier")).toContainText("Parked: level 1, spot A4");
+
+  // Let go of, and it is gone.
+  await where.getByRole("button", { name: "Forget: Parked: level 1, spot A4" }).click();
+  await where.getByRole("button", { name: "Forget", exact: true }).click();
+  await expect(where).not.toContainText("level 1");
+  await expect(where).toContainText("Parked: level 3, spot B12");
+
+  // The timeline has them too.
+  await page.getByRole("group", { name: "Show memories" }).getByRole("button", { name: "Timeline" }).click();
+  await expect(page.locator(".memories")).toContainText("Birthday:");
 });
 
 test("A from another screen lands in the line", async () => {

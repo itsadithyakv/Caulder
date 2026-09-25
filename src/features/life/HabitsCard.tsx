@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { fedEmber, statsChanged } from "@/features/ember/stage";
 import { Check, Flame, Plus, Repeat } from "lucide-react";
 import type { Habit, HabitsOverview } from "@shared/habits";
 import { Card } from "@/components/Card";
@@ -65,7 +66,21 @@ export function HabitsCard({
       {today.length > 0 && (
         <ul className="habits" aria-label="Today's habits">
           {today.map((habit) => (
-            <HabitRow key={habit.id} habit={habit} busy={busy} onTick={(on) => void run(() => window.caulder.habits.tick(habit.id, null, on))} />
+            <HabitRow
+              key={habit.id}
+              habit={habit}
+              busy={busy}
+              onTick={(on) =>
+                void run(() =>
+                  window.caulder.habits.tick(habit.id, null, on).then((next) => {
+                    // A habit kept is a marshmallow for Ember; one taken back is one fewer.
+                    if (on) fedEmber();
+                    else statsChanged();
+                    return next;
+                  }),
+                )
+              }
+            />
           ))}
         </ul>
       )}

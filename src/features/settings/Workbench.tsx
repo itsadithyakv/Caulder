@@ -14,6 +14,7 @@ import { messageOf } from "@/lib/errors";
 import { Card } from "@/components/Card";
 import { Explain } from "@/components/Explain";
 import { ErrorLine } from "@/components/ErrorLine";
+import { NudgeRows } from "./NudgeRows";
 
 /**
  * The parts of Settings that turn Caulder from a record into a workbench:
@@ -210,7 +211,7 @@ export function RemindersCard() {
   }
 
   return (
-    <Card title="Reminders" hint="Both off unless you switch them on.">
+    <Card title="Reminders" hint="Each off unless you switch it on - except what you tell the line to remind you about.">
       <div className="checkline">
         <button
           type="button"
@@ -289,6 +290,8 @@ export function RemindersCard() {
         />
         <ErrorLine>{followUpError}</ErrorLine>
       </label>
+
+      <NudgeRows />
 
       <Explain label="What it stays quiet about">
         <p>

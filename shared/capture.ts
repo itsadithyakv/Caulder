@@ -4,9 +4,12 @@ import { lengthIn, parseQuick } from "./quickadd";
 import { expand } from "./slang";
 import { slipAt } from "./slips";
 import { subjectOf, type Subject } from "./subjects";
-import { ROOT, trailOf, type Is, type Step } from "./branches";
+import { isLevel, ROOT, trailOf, type Is, type Step } from "./branches";
 import { readFact, TRIVIA_PAGE } from "./facts";
+import { readListItem } from "./lists";
 import { readThought, type Thought } from "./thoughts";
+import { readNewPerson } from "./newperson";
+import { isSecret, readLifeFact, REMEMBERED_SECTION } from "./lifefacts";
 
 /**
  * One line, and where it belongs (PLAN.md, part four).
@@ -51,7 +54,11 @@ export type CaptureKind = "task" | "journal" | "private" | "contact" | "hobby" |
  * - or, knowing the contacts as this does, to open one of them: "email rahul"
  * with no day on it is not a task, it is wanting to write to Rahul now.
  */
-export type Ask = Command | { do: "open"; contact: { id: string; name: string }; how: "email" | "call" | "message" | null };
+export type Ask =
+  | Command
+  | { do: "open"; contact: { id: string; name: string }; how: "email" | "call" | "message" | null }
+  /** "rahul's number is 98765 43210": the contact's phone or email, set. */
+  | { do: "update"; contact: { id: string; name: string }; phone: string | null; email: string | null };
 
 /**
  * One thing a line that reports on the day will do. "Went to the gym, hit legs
@@ -125,7 +132,7 @@ type CaptureReading = {
   options: CaptureKind[];
 };
 
-const PREFIX = /^\s*(journal|jrnl|diary|j|idea|note|task|todo|remember|memory|mem)\s*[:\-–]\s*/i;
+const PREFIX = /^\s*(journal|jrnl|diary|j|idea|note|task|todo|remember|memory|mem|urgent|important|imp|asap|priority)\s*[:\-–!]\s*/i;
 /** "Journal good day today": the word alone, when what follows is not something still to come. */
 const SAID_JOURNAL = /^\s*(journal|jrnl|diary)\s+(?=\S)/i;
 
@@ -151,6 +158,12 @@ const DOING = new Set([
 /** The ones long enough for a slip at them to be told from another word: "sumbit", "finsih". */
 const DOING_SLIPS = [...DOING].filter((word) => word.length >= 5);
 
+/** Whether a line starts with something done: "email priya", "buy eggs" - not "eggs", not "priya". */
+export function startsWithDoing(text: string): boolean {
+  const first = words(expand(text))[0] ?? "";
+  return DOING.has(first) || slipAt(first, DOING_SLIPS) !== null;
+}
+
 /**
  * Said as something meant to be done, whatever the verb: "need to", "have to",
  * "dont forget", "remind me", "i'll". Read after the short forms are written
@@ -159,6 +172,40 @@ const DOING_SLIPS = [...DOING].filter((word) => word.length >= 5);
 const MEANT =
   /^\s*(?:(?:hey|ok|okay|so|also|oh|please)[\s,]+)*(?:(?:i\s+)?(?:need|have|got|ought|want)\s+to\b|i\s+(?:must|should|shd)\b|i'll\b|i\s+will\b|let\s+me\b|i'?m\s+going\s+to\b|going\s+to\b)|\b(?:remember|rember|remeber|remmber|rmbr|rmb)\s+to\b|\bdon'?t\s+(?:let\s+me\s+)?forget\b|\bremind\s+me\b/i;
 
+/**
+ * The same, said in a later clause: "my friends jacket is in my room, have to
+ * return it". The first clause is a fact and the second is the point, so the
+ * line is a thing to do and not a note. Only after a break in the line - a
+ * mid-sentence "need to" ("the doc said i need to rest") is not one.
+ */
+const MEANT_LATER = /[,;:]\s*(?:(?:i\s+)?(?:need|have|got|ought)\s+to\b|i\s+(?:must|should|shd)\b|gotta\b|hafta\b)/i;
+
+/**
+ * A feeling said first - "feeling anxious about tomorrow", "so tired" - is the
+ * journal, whatever day it goes on to mention: the tomorrow is what it is
+ * about, not when it is due.
+ */
+const FEELING_WORDS =
+  "anxious|nervous|worried|scared|afraid|excited|tired|exhausted|drained|sleepy|sad|down|low|happy|glad|stressed|overwhelmed|lonely|bored|angry|annoyed|irritated|frustrated|grateful|thankful|proud|guilty|burnt\\s+out|burned\\s+out|sick|unwell|motivated|unmotivated|lazy|calm|hopeful|confused|lost|meh|productive|restless|pumped|hyped";
+/** Words that are a feeling on their own, and not in "good to go", "fine with it", "great for us". */
+const PLAIN_WORDS = "good|great|bad|awful|terrible|amazing|fine|off";
+const FEEL_START = new RegExp(
+  String.raw`^\s*(?:(?:i\s+(?:am|feel|felt|was)|i'm|im|feeling|felt|so|kinda|really|super)\s+)+(?:(?:so|really|very|kinda|super|pretty|quite|a\s+(?:bit|little))\s+)?(?:(?:${FEELING_WORDS})\b|(?:${PLAIN_WORDS})\b(?!\s+(?:to|with|for|like|enough)\b))`,
+  "i",
+);
+
+/**
+ * A chore said by its name alone - "laundry", "groceries", "dishes" - is a
+ * thing to do, not a note to file.
+ */
+const CHORE =
+  /^\s*(?:do\s+(?:the\s+)?)?(?:laundry|groceries|grocery\s+(?:shopping|run)|(?:the\s+)?dishes|ironing|vacuum(?:ing)?|dusting|mopping|trash|garbage|recycling|meal\s+prep|bills|clean(?:ing)?(?:\s+(?:the\s+)?[\p{L}]+)?)\s*[.!]*\s*$/iu;
+
+/** "rahul's number is 98765 43210", "rajesh email rajesh@mspuc.edu": a contact detail, said. */
+const PHONE = /(\+?\d[\d\s-]{7,}\d)/;
+const EMAIL = /([\w.+-]+@[\w-]+(?:\.[\w-]+)+)/;
+const DETAIL_CUE = /\b(?:number|no\.?|phone|mobile|cell|contact|whatsapp|email|e-?mail|mail\s+id|email\s+id)\b/i;
+
 /** Said about something that happened: a contact's history. */
 const HAPPENED = /\b(called|rang|spoke|talked|met|emailed|mailed|messaged|texted|replied|said|says|told|asked|agreed|signed|paid|wants|want|loved|liked|declined|no answer|voicemail)\b/i;
 const CALLED = /\b(called|rang|spoke|talked|phoned|no answer|voicemail)\b/i;
@@ -166,7 +213,7 @@ const MET = /\b(met|meeting|visited)\b/i;
 
 /** Said in the first person, about a day: the journal. */
 const FELT =
-  /\b(i('m| am| was| felt| feel|'ve| have| had| got| did| don't| do not| can't| cannot)|felt|feeling|today was|good day|bad day|long day|rough|tough|awful|terrible|lovely|productive|lazy|tired|exhausted|happy|sad|stressed|anxious|grateful|thankful|proud|frustrated|excited|calm|overwhelmed|slept|mood)\b/i;
+  /\b(i('m| am| was| felt| feel|'ve| have| had| got| did| don't| do not| can't| cannot)|felt|feeling|today was|(?:good|great|bad|long|amazing|awesome|terrible|awful|productive|lazy|busy|chill|nice|decent|weird|hard|tough|slow|fun|shit|crap|meh)\s+day|couldn't\s+(?:sleep|focus|stop)|can't\s+(?:sleep|focus)|slept\s+(?:badly|well|late|in|early)|rough|tough|awful|terrible|lovely|productive|lazy|tired|exhausted|happy|sad|stressed|anxious|grateful|thankful|proud|frustrated|excited|calm|overwhelmed|slept|mood)\b/i;
 
 const IDEA = /^\s*(what if|maybe we (could|should)|idea\b)/i;
 
@@ -189,6 +236,16 @@ function words(text: string): string[] {
   return text.toLowerCase().match(/[\p{L}\p{N}']+/gu) ?? [];
 }
 
+/** The names one person in the family goes by: a contact saved as any of them is called by all of them. */
+const FAMILY: readonly (readonly string[])[] = [
+  ["mom", "mum", "mummy", "mommy", "mother", "amma", "maa", "ammi", "aai", "mumma"],
+  ["dad", "daddy", "papa", "pappa", "father", "appa", "baba", "abbu", "pitaji", "pops"],
+  ["bro", "brother", "bhai", "bhaiya", "bhaiyya"],
+  ["sis", "sister", "didi", "behen", "akka", "chechi"],
+  ["grandma", "granny", "nani", "dadi", "ammamma", "paati", "ajji"],
+  ["grandpa", "thatha", "ajja", "dadu"],
+];
+
 /**
  * The contact a line names: their whole name or its start, or the name of the
  * person there, as whole words. The longest match wins, so "Oakridge
@@ -196,7 +253,7 @@ function words(text: string): string[] {
  * count.
  */
 export function namedContact(text: string, contacts: Known["contacts"]): { id: string; name: string } | null {
-  const lower = ` ${words(text).join(" ")} `;
+  const lower = ` ${words(text.replace(/['’]s\b/gi, "")).join(" ")} `;
   let best: { id: string; name: string; length: number } | null = null;
   for (const contact of contacts) {
     for (const candidate of [contact.name, contact.person]) {
@@ -217,6 +274,14 @@ export function namedContact(text: string, contacts: Known["contacts"]): { id: s
     }
   }
   if (best) return { id: best.id, name: best.name };
+
+  // Family, called what the line calls them: "mom" is the contact saved as Mummy or Amma.
+  for (const contact of contacts) {
+    for (const candidate of [contact.name, contact.person]) {
+      const family = FAMILY.find((names) => names.includes(words(candidate ?? "").join(" ")));
+      if (family?.some((name) => lower.includes(` ${name} `))) return { id: contact.id, name: contact.name };
+    }
+  }
 
   // Nobody named outright: a slip at the first word of a name - "oakrigde",
   // "pirya" - is still them. Only when exactly one contact answers to it.
@@ -266,6 +331,14 @@ const AROUND_A_HABIT = new Set([
  * Four letters of shared beginning - "study" and "studied" - or the whole of a
  * shorter word, which is as much grammar as a line like this needs.
  */
+/** "drank" is Drink water, "slept" is Sleep by 11: the plain form a habit or a task is named in. */
+const IRREGULAR: Record<string, string> = {
+  drank: "drink", ate: "eat", slept: "sleep", ran: "run", swam: "swim", went: "go", wrote: "write", woke: "wake",
+  rode: "ride", sang: "sing", drew: "draw", took: "take", did: "do", made: "make", bought: "buy", fed: "feed",
+  meditated: "meditate", practised: "practise", practiced: "practice", stretched: "stretch", journaled: "journal",
+};
+const plainly = (said: string[]) => said.map((word) => IRREGULAR[word] ?? word);
+
 function sameStem(a: string, b: string): boolean {
   const need = Math.min(4, a.length, b.length);
   if (need < 3) return false;
@@ -286,7 +359,7 @@ function namedHabit(
   text: string,
   habits: NonNullable<Known["habits"]>,
 ): { habit: { id: string; name: string }; done: boolean } | null {
-  const said = words(text);
+  const said = plainly(words(text));
   let best: { habit: { id: string; name: string }; done: boolean; size: number } | null = null;
   for (const habit of habits) {
     const all = words(habit.name).filter((word) => !/^\d+$/.test(word));
@@ -310,7 +383,14 @@ function namedHabit(
 
 /** Said in the past, at the start: what was done rather than what is to do. */
 const PAST_START =
-  /^\s*(?:i\s+)?(?:just\s+)?(?:went|did|finished|completed|attended|visited|hit|ran|swam|played|practi[sc]ed|studied|revised|worked|cooked|cleaned|walked|cycled|trained|lifted|watched|wrote|submitted|sent|paid|bought|learnt|learned|tried|started|began|managed|mastered|nailed|sang|recorded|memori[sz]ed|figured\s+out|picked\s+up|got\s+(?:to|through|back))\b/i;
+  /^\s*(?:i\s+)?(?:just\s+)?(?:went|did|finished|completed|attended|visited|hit|ran|swam|played|practi[sc]ed|studied|revised|worked|cooked|cleaned|walked|cycled|trained|lifted|watched|wrote|submitted|sent|paid|bought|learnt|learned|tried|started|began|managed|mastered|nailed|sang|recorded|memori[sz]ed|figured\s+out|picked\s+up|got\s+(?:to|through|back)|slept|woke\s+up|ate|drank|meditated|stretched|journaled|made|saw|gave|took|had|finally\s+\w+ed)\b/i;
+/**
+ * Said of what was not done: "skipped gym today", "I didn't go to office",
+ * "couldn't finish the report". About the day all the same - but it finishes
+ * nothing, ticks nothing and takes no hour on the Calendar.
+ */
+const NOT_DONE =
+  /^\s*(?:i\s+)?(?:(?:totally|completely|just)\s+)?(?:didn'?t|did\s+not|couldn'?t|could\s+not|wasn'?t\s+able\s+to|was\s+not\s+able\s+to|never\s+(?:got|went|did|made)|skipped|bunked|ditched|failed\s+to|gave\s+up\s+on)\b/i;
 /** A clause that looks back: what makes "read red rising today, loved chapter 25" a report and not a to-do. */
 const LOOKED_BACK =
   /\b(?:loved|liked|enjoyed|hated|felt|feel(?:s|ing)?\s+(?:so\s+|really\s+|pretty\s+)?(?:good|great|bad|tired|sore|amazing|strong|better|awful|fresh|pumped|dead)|(?:it|that|this)\s+was|was\s+(?:so\s+|really\s+)?(?:good|great|fun|tough|hard|boring|amazing|intense|brutal)|went\s+(?:well|badly|great|okay|ok)|crushed|nailed|smashed|killed\s+it|pr|pb|personal\s+(?:best|record)|had\s+(?:so\s+much\s+|a\s+lot\s+of\s+)?fun|had\s+a\s+(?:blast|great\s+time)|(?:is|are|was|were)\s+(?:quite\s+|so\s+|really\s+|very\s+|pretty\s+)?(?:burning|sore|dead|on\s+fire|killing\s+me|difficult|hard|easy|tricky|tough|fun))\b/i;
@@ -324,7 +404,7 @@ const REPORT_LEAD =
  * Only ever asked about what is due by today, which is a short list.
  */
 function matchingTasks(text: string, tasks: NonNullable<Known["tasks"]>): { id: string; title: string }[] {
-  const said = words(text);
+  const said = plainly(words(text));
   const found: { task: { id: string; title: string }; hits: number }[] = [];
   for (const task of tasks) {
     const names = words(task.title).filter((word) => word.length >= 3 && !AROUND_A_HABIT.has(word) && !/^\d+$/.test(word));
@@ -343,7 +423,7 @@ function namedPage(text: string, pages: NonNullable<Known["pages"]>): { id: stri
   let best: { id: string; title: string } | null = null;
   for (const page of pages) {
     const title = words(page.title).join(" ");
-    if (title.length < 4 || title === "untitled" || !lower.includes(` ${title} `)) continue;
+    if (title.length < 4 || title === "untitled" || isLevel(page.title) || !lower.includes(` ${title} `)) continue;
     if (!best || title.length > words(best.title).join(" ").length) best = { id: page.id, title: page.title };
   }
   return best;
@@ -383,7 +463,7 @@ function fallbackTopic(text: string): string {
 const CUT_SHORT = /,|\b(?:and|then|hit|feel|feeling|felt|was|loved)\b/i;
 
 type Branch = {
-  section: "hobbies" | "studies" | "ideas";
+  section: "hobbies" | "studies" | "ideas" | "remembered";
   /** The page it hangs off, when the brain already has it. */
   parent: { id: string; title: string } | null;
   /** The whole way down to it, from Me: every level, whether or not it exists yet. See shared/branches.ts. */
@@ -525,7 +605,14 @@ export function readCapture(
   const when = whenIn(text, clock);
   const { timed } = when;
   const doing = (word: string) => DOING.has(word) || slipAt(word, DOING_SLIPS) !== null;
-  const instruction = doing(first) || (first === "don't" && doing(spoken[2] ?? "")) || MEANT.test(said);
+  const instruction =
+    doing(first) ||
+    (first === "don't" && doing(spoken[2] ?? "")) ||
+    MEANT.test(said) ||
+    MEANT_LATER.test(said) ||
+    CHORE.test(said) ||
+    // "feeling like pizza tonight, order dominos": a later clause that gives an order is the point of the line.
+    said.split(/[,;]/).slice(1).some((clause) => doing(words(clause)[0] ?? ""));
 
   // What the line is about, when it is about one thing: the bench press, a
   // song called Riptide. Its own page when it has one, and the page it starts
@@ -542,21 +629,24 @@ export function readCapture(
   const topic = named !== null && branch.section === "studies" && /^[A-Za-z]{2,4}$/.test(named) ? named.toUpperCase() : named;
   // A page hangs off what it is part of, and talking about the one is doing
   // the other: a PR on the bench press is a day at the gym.
-  const implied = branch.parent?.title ?? (subject?.kind === "exercise" ? "gym" : "");
+  // A lift is a day at the gym; a run, a ride or a swim is its own thing, and finishes no gym task.
+  const cardio = subject !== null && /^(?:running|cycling|hiking|swimming|walking|body weight)$/i.test(subject.topic);
+  const implied = cardio ? "" : (branch.parent?.title ?? (subject?.kind === "exercise" ? "gym" : ""));
   const about = implied ? `${said} ${implied}` : said;
   const habit = namedHabit(about, known.habits ?? []);
 
   // A day reported: said in the past, or with a clause that looks back, and
   // not about a day still to come. "Went to the gym at 5" says when it was,
   // not when it is due - so a time does not make a task of it.
+  const notDone = NOT_DONE.test(said);
   const looksBack =
-    PAST_START.test(said) || doneWord(first) || LOOKED_BACK.test(said) || DONE.test(said) || habit?.done === true;
+    notDone || PAST_START.test(said) || doneWord(first) || LOOKED_BACK.test(said) || DONE.test(said) || habit?.done === true;
   const toCome = when.repeats || (when.day !== null && when.day > clock.today);
   const reports = looksBack && !toCome && !MEANT.test(said);
   const ahead = when.ahead && !reports;
 
   const effects: Effect[] = [];
-  if (reports) {
+  if (reports && !notDone) {
     for (const task of matchingTasks(about, known.tasks ?? []).slice(0, 2)) effects.push({ do: "finish", task });
     if (habit) effects.push({ do: "tick", habit: habit.habit });
     // What was done took up part of the day, so it goes on the Calendar: at the
@@ -576,7 +666,8 @@ export function readCapture(
     const began = said24 === null ? null : said24 > clock.now && said24 >= 12 * 60 ? said24 - 12 * 60 : said24;
     if (hobby && minutes !== null) {
       effects.push({ do: "time", hobby, minutes, startsAt: began === null ? null : clockOf(began) });
-    } else if (title && !already && (began !== null || minutes !== null)) {
+    } else if (title && !already && (began !== null || minutes !== null) && !/^(?:slept|woke|sleep|wake)\b/i.test(title)) {
+      // What was done took time on the Calendar; a night's sleep reported is not an hour to block out.
       const length = minutes ?? 60;
       // No hour said, only how long: it has just ended.
       const at = began ?? Math.max(0, Math.floor((clock.now - length) / 5) * 5);
@@ -600,9 +691,41 @@ export function readCapture(
   const verb = (reach?.[1] ?? reach?.[2] ?? reach?.[3] ?? "").toLowerCase();
   const obliged = /\b(?:need|have|got|ought)\s+to\b|\b(?:must|should|shd)\b|\b(?:remember|rmb)\s+to\b|\bforget\b|\bremind\b/i.test(said);
   const asked = prefix ? null : readCommand(said);
+  // Somebody new, told about the way you would tell a friend: kept as a contact,
+  // with what happened and what to do about them (shared/newperson.ts).
+  const met = prefix || contact || asked ? null : readNewPerson(said, known.contacts, clock, doing);
+  // "The plumber's number is 98450 12345": somebody you will want to ring again, kept as a contact.
+  const serviceNumber =
+    prefix || contact || asked ? null : /^(?:the\s+|my\s+|our\s+)?([\p{L}][\p{L} ]{1,30}?)(?:'s|s'|’s)\s+(?:number|phone(?:\s+number)?|mobile|contact(?:\s+number)?)\s+(?:is\s+|:\s*|-\s*)?(\+?\d[\d\s-]{6,}\d)\s*$/iu.exec(said);
+  const introduced: Ask | null = serviceNumber
+    ? {
+        do: "contact",
+        name: (serviceNumber[1] ?? "").trim().replace(/^\p{L}/u, (first) => first.toUpperCase()),
+        person: null,
+        phone: (serviceNumber[2] ?? "").replace(/[\s-]+/g, " ").trim(),
+        email: null,
+      }
+    : met
+    ? {
+        do: "contact",
+        name: met.company,
+        person: met.name,
+        phone: PHONE.exec(said)?.[1]?.replace(/[\s-]+/g, " ").trim() ?? null,
+        email: EMAIL.exec(said)?.[1] ?? null,
+        role: met.role,
+        source: met.source,
+        happened: met.happened,
+        then: met.then,
+      }
+    : null;
+  // A number or an address, said of somebody who is already a contact: theirs, set - not a new contact.
+  const detailPhone = contact && DETAIL_CUE.test(said) ? (PHONE.exec(said)?.[1]?.replace(/[\s-]+/g, " ").trim() ?? null) : null;
+  const detailEmail = contact && (DETAIL_CUE.test(said) || EMAIL.test(said)) ? (EMAIL.exec(said)?.[1] ?? null) : null;
+  const detail: Ask | null =
+    contact && (detailPhone || detailEmail) && !timed ? { do: "update", contact, phone: detailPhone, email: detailEmail } : null;
   const ask: Ask | null = prefix
     ? null
-    : ((asked?.do === "book" && (when.repeats || (when.day !== null && when.day > clock.today)) ? null : asked) ??
+    : detail ?? introduced ?? ((asked?.do === "book" && (when.repeats || (when.day !== null && when.day > clock.today)) ? null : asked) ??
       (contact && reach && !timed && !obliged
         ? {
             do: "open",
@@ -626,12 +749,20 @@ export function readCapture(
   // of its own to start (a song, a lift), is that page's and not this one's.
   const trivia = prefix || page || subject || MEANT.test(said) || later ? null : readFact(text);
 
+  // An item for one of the lists people keep - a film to watch, a gift idea, a quote, a link for later.
+  const listed = prefix || MEANT.test(said) || later ? null : readListItem(text);
+
+  // What a life is made of - about you, the people in it, where things are,
+  // what was lent (shared/lifefacts.ts) - and a password, which is never a memory.
+  const keepSafe = !MEANT.test(said) && isSecret(said);
+  const life = keepSafe || (prefix && !/^(?:remember|memory|mem)$/i.test(prefix[1] ?? "")) ? null : readLifeFact(said, known.contacts);
+
   // Private is always one press away, whatever the line was read as.
-  const options: CaptureKind[] = ask ? ["command", "task", "journal", "private"] : ["task", "journal", "private"];
+  const options: CaptureKind[] = ask || listed?.kind === "book" ? ["command", "task", "journal", "private"] : ["task", "journal", "private"];
   if (contact) options.push("contact");
   if (hobby) options.push("hobby");
   if (effects.length > 0) options.push("done");
-  if (page || topic || trivia) options.push("memory");
+  if (page || topic || trivia || life || listed?.kind === "page") options.push("memory");
   options.push("idea", "note");
 
   const reading = (kind: CaptureKind, because: string): CaptureReading => ({
@@ -655,8 +786,22 @@ export function readCapture(
     options,
   });
 
+  // A life fact, on its own page under Remembered: About me, Mummy, Where things are.
+  const remembered = (because: string): CaptureReading => {
+    const kept = life ? pageTitled(life.page, pages) : null;
+    return {
+      ...reading("memory", because),
+      page: kept,
+      topic: kept ? null : (life?.page ?? null),
+      branch: kept ? null : { section: REMEMBERED_SECTION, parent: null, trail: [] },
+      trail: life?.trail ?? [],
+      fact: life?.fact ?? null,
+    };
+  };
+
   if (prefix) {
     const word = (prefix[1] ?? "").toLowerCase();
+    if (life && (word === "remember" || word === "memory" || word === "mem")) return remembered(`it is about ${life.page === "About me" ? "you" : life.page}`);
     const kind: CaptureKind =
       word === "j" || word === "journal" || word === "jrnl" || word === "diary"
         ? "journal"
@@ -674,19 +819,47 @@ export function readCapture(
   // Before the contact it names, the page it could start, the report it could be:
   // a private line goes to one place, and that place is locked.
   if (secret) return reading("private", secret.because);
+  // A password, a PIN, a card number: locked, never a memory any search could find.
+  if (keepSafe) {
+    const because = "it looks like a password or a number to keep safe";
+    return { ...reading("private", because), secret: { feeling: "other", people: [], because } };
+  }
+  if (life) return remembered(`it is about ${life.page === "About me" ? "you" : life.page}`);
   if (ask) return reading("command", "it asks for something to be done");
+  if (listed?.kind === "book") {
+    return { ...reading("command", "it is a book to read"), ask: { do: "book", status: "to-read", titles: [listed.title], series: null } };
+  }
+  if (listed?.kind === "page") {
+    const kept = pageTitled(listed.page, pages);
+    const trunk: Step | null = listed.under ? { title: listed.under, section: "hobbies", template: "hobby" } : null;
+    return {
+      ...reading("memory", `it goes on your ${listed.page}`),
+      text: listed.says,
+      page: kept,
+      topic: kept ? null : listed.page,
+      branch: kept ? null : { section: listed.under ? "hobbies" : "ideas", parent: null, trail: [] },
+      trail: listed.under ? trailOf({ section: "hobbies", trunk, is: "thing", text: "", topic: listed.page }) : [ROOT],
+      fact: null,
+    };
+  }
+  // A feeling said first is the journal, before the day it mentions can make a task of it.
+  // Not when a later clause says what to do: "feeling lazy, order dominos" is an order.
+  const thenDo = said.split(/[,;]/).slice(1).some((clause) => doing(words(clause)[0] ?? ""));
+  if (FEEL_START.test(said) && !contact && !thenDo) return reading("journal", "it is how you feel");
 
   if (contact) {
     if (instruction && timed) return reading("task", `something to do for ${contact.name}, with a when`);
     // "I need to email rahul" has no day on it, and is still something to do rather than something that happened.
     if (MEANT.test(said)) return reading("task", `something to do for ${contact.name}`);
+    // "send proposal to orchids school" has no day on it and is still something to do, not something that happened.
+    if (instruction && !HAPPENED.test(said)) return reading("task", `something to do for ${contact.name}`);
     if (HAPPENED.test(said) || !timed) return reading("contact", `it is about ${contact.name}`);
     return reading("task", `something to do for ${contact.name}`);
   }
   // More than the time alone: a task to finish, a habit to tick, a page to add to.
   if (effects.some((effect) => effect.do !== "time" && effect.do !== "journal")) return reading("done", "it says what you did");
   // "I need to go to the gym today" names the gym, and is still a thing to do.
-  if (hobby && (minutes !== null || DID_IT.test(said)) && !ahead && !MEANT.test(said)) {
+  if (hobby && !notDone && (minutes !== null || DID_IT.test(said)) && !ahead && !MEANT.test(said)) {
     return reading("hobby", `time given to ${hobby.title}`);
   }
   // Kept as the fact alone, led by what it is about, on the one page they share.
@@ -724,6 +897,7 @@ export function readCapture(
   if (topic) return reading("memory", `it says what ${topic} is`);
   // Before "today" gets a say: "felt great today" is about today, not due today.
   if (FELT.test(said) || doneWord(first)) return reading("journal", "it is about your day");
+  if (reports) return reading("journal", "it is about your day");
   if (timed) return reading("task", "it says when");
   return reading("note", "kept to file later");
 }

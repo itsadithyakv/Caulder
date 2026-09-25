@@ -11,7 +11,8 @@ import { messageOf } from "@/lib/errors";
  * Your level, the week across the four areas, and achievements (PLAN.md,
  * phase 17) - three cards from one answer, all of it worked out from what
  * happened. Read again whenever `version` moves, so a tick on Today or a
- * task done shows here without a reload.
+ * task done shows here without a reload. With levels switched off in
+ * Settings only the week is left, and it no longer counts in XP.
  */
 
 export function useProgress(
@@ -94,7 +95,7 @@ function LevelCard({ progress }: { progress: Progress }) {
   );
 }
 
-function BalanceCard({ progress }: { progress: Progress }) {
+function BalanceCard({ progress, xp }: { progress: Progress; xp: boolean }) {
   const { week } = progress;
   const most = Math.max(1, ...week.areas.map((row) => row.xp));
   const quiet = week.quiet.map((area) => TASK_AREA_LABEL[area]);
@@ -118,11 +119,12 @@ function BalanceCard({ progress }: { progress: Progress }) {
               {row.xp > 0 && <span className={`balance__fill balance__fill--${row.area}`} style={{ width: `${(row.xp / most) * 100}%` }} />}
             </span>
             <span className="balance__words">
-              {/* The bar is the XP, so the XP is said: an hour kept and a task done are not the same length. */}
+              {/* The bar is the XP, so the XP is said: an hour kept and a task done are not the same length.
+                  With levels off there is no XP to speak of, and the bar is only a comparison. */}
               {row.xp > 0
-                ? [row.minutes > 0 ? `${formatDuration(row.minutes)} kept` : null, row.done > 0 ? `${row.done} done` : null, `${row.xp} XP`]
+                ? [row.minutes > 0 ? `${formatDuration(row.minutes)} kept` : null, row.done > 0 ? `${row.done} done` : null, xp ? `${row.xp} XP` : null]
                     .filter(Boolean)
-                    .join(" · ")
+                    .join(" · ") || "something"
                 : "nothing"}
             </span>
           </li>
@@ -190,15 +192,16 @@ function AchievementsCard({ progress }: { progress: Progress }) {
   );
 }
 
-/** Level, the week and achievements together, for Life's overview. */
-export function ProgressCards({ companyId, version }: { companyId: string; version: number }) {
+/** Level, the week and achievements together, for Life's overview; only the week while `levels` is off. */
+export function ProgressCards({ companyId, version, levels }: { companyId: string; version: number; levels: boolean }) {
   const { progress, error } = useProgress(companyId, version);
   if (!progress) return <ErrorLine>{error}</ErrorLine>;
+  if (!levels) return <BalanceCard progress={progress} xp={false} />;
   return (
     <>
       <div className="life__pair">
         <LevelCard progress={progress} />
-        <BalanceCard progress={progress} />
+        <BalanceCard progress={progress} xp />
       </div>
       <AchievementsCard progress={progress} />
     </>

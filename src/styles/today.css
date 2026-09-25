@@ -38,13 +38,21 @@
   gap: var(--space-4);
 }
 
-/* The day in one line, under the heading: which day, and how much is waiting. */
+/* Hello and the day, held together as one short header: two lines, then the
+ * work. The screen's own gap would open them up into two separate things. */
+.today__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* The day in one line, under the hello: which day, and how much is waiting. */
 .today__day {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: var(--space-1) var(--space-3);
-  margin: calc(var(--space-2) * -1) 0 0;
+  margin: 0;
 }
 
 /* Hello, above the day: the one line on the screen that is not about work.
@@ -87,10 +95,19 @@
   font-size: var(--text-sm);
 }
 
-/* The aside: a joke under the day. A button, because the thing to do with a joke is ask for another. */
+/* The joke and the memory, at the head of the side column: beside the work,
+ * as quiet as they were under the day, and out of its way. */
+.today__ambient {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0 var(--space-1);
+}
+
+/* The aside: a joke beside the work. A button, because the thing to do with a joke is ask for another. */
 .today__aside {
   align-self: flex-start;
-  margin: calc(var(--space-2) * -1) 0 0;
+  margin: 0;
   padding: 0;
   border: 0;
   background: none;
@@ -101,6 +118,38 @@
   line-height: var(--leading);
   text-align: left;
   cursor: pointer;
+}
+
+/* A memory brought back: under the aside, as quiet, and a door to its page. */
+.today__remember {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-self: flex-start;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+  text-align: left;
+  cursor: pointer;
+}
+
+.today__remember svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.today__remember:hover {
+  color: var(--ink);
+}
+
+.today__rememberWhen {
+  color: var(--ink-3);
 }
 
 .today__aside:hover {
@@ -130,6 +179,100 @@
   border-radius: var(--radius-pill);
   font-size: var(--text-sm);
   font-weight: 700;
+}
+
+/* Finish setting up, in one line under the quick line: what is left, each a
+ * link to the guide with a cross to wave it away, and Skip all at the end. It
+ * is an offer, so it takes the size of a hint rather than a card - the work
+ * below it is what the screen is for.
+ * features/onboarding/SetupNudge.tsx. */
+.setupnudge {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  /* Tucked up under the line it belongs with, not a full gap away. */
+  margin: calc(var(--space-2) * -1) 0 0;
+  padding: 0 var(--space-1);
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+.setupnudge__title {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.setupnudge__items {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.setupnudge__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.setupnudge__item + .setupnudge__item::before {
+  content: "\00b7";
+  margin-right: var(--space-2);
+  color: var(--ink-3);
+}
+
+.setupnudge__go {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 24px;
+  padding: 0 var(--space-1);
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: none;
+  color: var(--accent-strong);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.setupnudge__go:hover {
+  text-decoration: underline;
+}
+
+/* Small, but never smaller than a fingertip's worth: 24px square. */
+.setupnudge__skip {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.setupnudge__skip:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.setupnudge__go:focus-visible,
+.setupnudge__skip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.setupnudge__all {
+  margin-left: auto;
 }
 
 /* Nothing due is good news, said briefly: not a card-sized hole. */
@@ -736,6 +879,7 @@
 }
 
 .quickadd {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -757,13 +901,20 @@
   box-shadow: 0 0 0 3px var(--accent-halo);
 }
 
-/* ---- The star: which line this is ---------------------------------------
+/* ---- The switches: what the line does -------------------------------------
  *
- * Grey, and Caulder reads the line itself - a task, a journal line, time on
- * a hobby. Coloured, and the line is a question for the AI. One control and
- * one colour, so "where is this going" is answered by looking rather than by
- * remembering which of two boxes the cursor is in.
+ * Plain icons at the head of the line, tinted with the flame they would
+ * light: green asks the AI, violet hands the context to another one. Pressed,
+ * the switch fills with its flame, so the state is said by the fill as well
+ * as the colour, and by each switch's title and the line's placeholder.
  */
+.quickadd__modes {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 2px;
+}
+
 .quickadd__icon {
   flex-shrink: 0;
   color: var(--ink-3);
@@ -784,9 +935,17 @@
   transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
 
+.quickadd__star[data-flame] {
+  color: var(--flame-deep);
+}
+
 .quickadd__star:hover {
   color: var(--ink);
   background: var(--hover);
+}
+
+.quickadd__star[data-flame]:hover {
+  color: var(--flame-deep);
 }
 
 .quickadd__star:focus-visible {
@@ -794,12 +953,58 @@
   outline-offset: 2px;
 }
 
-/* Filled, not tinted: this is the one place on the screen where colour is
- * the whole message, so it has to be legible at a glance and in both themes. */
 .quickadd__star--on,
 .quickadd__star--on:hover {
   color: var(--ink-on-accent);
   background: var(--accent);
+}
+
+.quickadd__star--on[data-flame],
+.quickadd__star--on[data-flame]:hover {
+  color: var(--ink-on-accent);
+  background: var(--flame-deep);
+}
+
+/* ---- Ember's door ----------------------------------------------------------
+ *
+ * She lives at the end of this line, behind a little door standing on the top
+ * edge of the card - the same edge she walks along, so the door and her feet
+ * are on one line. Anchored to the card's outer edge: out past the card's
+ * padding and its border, from the line inside it.
+ *
+ * She herself is drawn over the whole window (features/ember/EmberStage.tsx);
+ * the perch holds nothing but the door, and lets every click through except
+ * the ones meant for the door.
+ * ------------------------------------------------------------------------ */
+
+.quickadd__perch {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + var(--space-5) + 1px);
+  height: 36px;
+  pointer-events: none;
+}
+
+/* The headroom. On the card rather than on the perch, so nothing overlaps
+ * whatever is above the line on Today. */
+.today__quick {
+  margin-top: 60px;
+  overflow: visible;
+}
+
+/* Nothing to ask: the flame is the mark it always was, not a button. */
+.quickadd__star--still {
+  cursor: default;
+}
+
+/* What was copied, said where what was added is said. */
+.quickadd__kept {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  color: var(--ink-2);
 }
 
 /* ---- The answers, under the line they were asked from ------------------- */
@@ -1011,6 +1216,78 @@
 }
 
 .quickadd__keep:hover { text-decoration: underline; }
+
+/* Asked for: the offer taken, said as taken. */
+.quickadd__keep--on::before {
+  content: "✓ ";
+}
+
+/* ---- What Tab would add -------------------------------------------------
+ * The input and a copy of what was typed sit on top of each other in the same
+ * type, so the offered rest starts exactly where the typing ends. The copy is
+ * invisible; only the rest shows, quieter than anything typed.
+ */
+.quickadd__field {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.quickadd__ghost {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding: var(--space-2) 0;
+  overflow: hidden;
+  color: var(--ink-3);
+  font-size: var(--text-md);
+  white-space: pre;
+  pointer-events: none;
+}
+
+.quickadd__typed {
+  visibility: hidden;
+}
+
+.quickadd__tab {
+  margin-left: var(--space-2);
+  font-size: var(--text-xs);
+  opacity: 0.8;
+}
+
+/* ---- An answer, or several tasks, under the line ------------------------ */
+.quickadd__answer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.quickadd__lead {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.quickadd__found {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0 0 0 calc(14px + var(--space-2));
+  list-style: none;
+  color: var(--ink-2);
+}
+
+.quickadd__found li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.quickadd__foundDetail {
+  color: var(--ink-3);
+}
 
 /* ---- Tune (Settings) ---------------------------------------------------
  * One question, set off the way the line's own questions are, so the two

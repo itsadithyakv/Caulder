@@ -116,6 +116,19 @@ test("a URL that is not an Apps Script deployment is refused, and nothing is kep
   expect(state.connected).toBe(false);
 });
 
+test("Import does not offer Google Contacts until Google is connected", async () => {
+  const page = await openApp();
+
+  // The offer is gated on there being a link to pull through. Showing it
+  // regardless would be a button whose only outcome is an error, on the
+  // screen somebody goes to when they have no contacts yet.
+  await page.getByRole("button", { name: "Contacts", exact: true }).click();
+  await page.locator(".leads__toolbar").getByRole("button", { name: "Import", exact: true }).click();
+
+  await expect(page.getByRole("button", { name: "Choose a file" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Read my Google Contacts" })).toHaveCount(0);
+});
+
 test("a syncing attempt with nothing connected says so rather than hanging", async () => {
   const page = await openApp();
   const id = await activeId(page);

@@ -5,6 +5,7 @@ import { newLinkedPage } from "../services/brain";
 import { addHabit, archiveHabit, editHabit, listHabits, removeHabit, tickHabit } from "../services/habits";
 import { addTile, editTile, listTiles, moveTile, removeTile } from "../services/vision";
 import { progress } from "../services/progress";
+import { emberStats } from "../services/embergrowth";
 import { checkIn, dayThemes, goalDetails, setDayTheme, setGoalDone, undoCheckIn } from "../services/goals";
 import { changePasscode, forgetPasscode, lockNow, lockState, removePasscode, setPasscode, unlock } from "../services/journal-lock";
 import {
@@ -27,6 +28,7 @@ import { jotPrivate, privateDay, removePrivate } from "../services/private";
 import { hobbyBoards, logMeasures, shelf, shelfAdd, shelfMove, shelfRemove, yearInNumbers } from "../services/tracker";
 import { coversOn, fillCovers, forgetCovers, setCovers } from "../services/covers";
 import { answerQuietDay, pulse, setPulse } from "../services/pulse";
+import { getSetting, setSetting } from "../repositories/settings";
 
 /** The founder's own half of the brain (PLAN.md, part four, phase 14). */
 export function registerLifeHandlers(): void {
@@ -121,6 +123,15 @@ export function registerLifeHandlers(): void {
   handle(CHANNELS.visionMove, (_event, id: unknown, index: unknown) => moveTile(getDatabase(), tileOf(id), index));
   handle(CHANNELS.visionRemove, (_event, id: unknown) => removeTile(getDatabase(), tileOf(id)));
   handle(CHANNELS.progressGet, (_event, companyId: unknown) => progress(getDatabase(), companyOf(companyId)));
+  // One switch, read by the screens rather than by `progress`: the level is
+  // still worked out underneath, so switching it back on loses nothing.
+  const levelsShown = () => getSetting(getDatabase(), "levelsHidden") !== "1";
+  handle(CHANNELS.progressShown, () => levelsShown());
+  handle(CHANNELS.progressSetShown, (_event, on: unknown) => {
+    setSetting(getDatabase(), "levelsHidden", on === false ? "1" : "");
+    return levelsShown();
+  });
+  handle(CHANNELS.emberStats, (_event, companyId: unknown) => emberStats(getDatabase(), companyOf(companyId)));
 
   /* ---- Keeping up with goals, and your week (after 0.4) ---- */
   handle(CHANNELS.lifeGoalDetails, (_event, companyId: unknown) => goalDetails(getDatabase(), companyOf(companyId)));

@@ -14,10 +14,14 @@ directories:
 files:
   - out/**
   - package.json
-# A .node binary cannot be loaded from inside an asar. better-sqlite3 is the
-# only native module now, and it is detected and unpacked automatically.
+# A .node binary cannot be loaded from inside an asar. better-sqlite3 is
+# detected and unpacked automatically; koffi resolves its own binary by path
+# relative to itself, so the whole package has to come out rather than only
+# the .node inside it.
 asarUnpack:
   - "**/*.node"
+  - "**/node_modules/koffi/**"
+  - "**/node_modules/@koromix/**"
 
 extraResources:
   - from: resources/appsscript

@@ -59,6 +59,8 @@ is nine o'clock, and an instant would move when the machine's timezone did.
 | 40 | what was measured, and the shelf | `hobby_logs`, `shelf_books` |
 | 41 | book covers | `shelf_books.cover` |
 | 42 | what a quiet day was | `day_checkins` |
+| 43 | lessons, and other mail accounts | `line_lessons`, `mail_accounts`, `emails.account_id` |
+| 44 | reminders | `reminders` |
 
 Each migration is one transaction, gated on `PRAGMA user_version`, with a
 backup taken before any of them runs. Additions use `ALTER TABLE ADD COLUMN`;
@@ -315,7 +317,7 @@ in `SETTING_KEYS` in `shared/domain.ts`, so a typo becomes a type error rather
 than a silently orphaned row: `activeCompanyId`, `coldAfterDays`, `followUpDays`,
 `notify`, `defaulted`, `captureShortcut`, `keepInTray`, `trayNoticed`,
 `googleConnection`, `googleAuto`, `googleScript`, `aiConnection`, `aiModels`,
-`aiModel`, `aiContext`, `thisIsMe`.
+`aiModel`, `aiContext`, `thisIsMe`, `widgetOpen`, `widgetLevel`, `widgetSpot`.
 
 **`thisIsMe`** is who this Caulder is, for two founders, as JSON: a `name`
 written on every revision it makes, and an `id` made once, which the shared
@@ -340,10 +342,20 @@ they are encrypted with the OS credential store before they are written, and
 never handed back to the window.
 
 **`captureShortcut` has three states, and two of them look alike.** Never set
-means the default, Ctrl+Alt+A. Set to an empty string means deliberately off,
+means the default, Ctrl+Win+A (`Ctrl+Super+A` to Electron). Set to an empty string means deliberately off,
 and stays off — telling those two apart is the whole reason the row is read
 raw rather than as "a key or nothing". `keepInTray` is likewise yes until it
 is set to `0`.
+
+**The three `widget` keys are the desk widget between launches**: whether it
+was showing (`widgetOpen`, never set means no - it is the one part of Caulder
+that puts something on screen you did not open), where in the stack
+(`widgetLevel`, one of `desktop`, `front`, `normal`, and anything else reads
+as `front` rather than throwing), and where the pill was dragged to
+(`widgetSpot`, `{"x":n,"y":n}`). The spot is clamped onto a real screen on
+every launch rather than only when it is moved - a widget left on a second
+monitor that is now unplugged would otherwise be somewhere nobody can reach.
+`shared/widget.ts` reads all three.
 
 Anything that belongs to one workspace goes on its `companies` row or its own
 table, never in here.
@@ -461,6 +473,55 @@ Calendar, the tasks finished, the journal's mood, the habits, what the line
 logged - and **never from `journal_private`**, which is sealed and which it
 has no key to. Switching the whole thing off (`pulseOff` in `settings`) stops
 the reading; the answers already given stay, as the person's own record.
+
+## line_lessons
+
+What the quick line learns from being corrected (`shared/lessons.ts`). A line
+moved to another part of life, or another kind, before it was kept leaves one
+row: its `words` (plain, sorted, space-separated - the words that carry
+meaning, with "friends" and "friend" as one), the `area` or `kind` it was
+moved to, `times` it has been taught that, the line it was first learnt from
+as `sample`, `created_at`, `last_seen`. The same words taught the same answer
+again add to `times`; nothing else is kept.
+
+A later line that shares words with a lesson is read that way - but a word
+taught two different answers counts for neither, and a word already one of
+Your words (`area_words`) is left to that. Each row is listed in Settings with
+a way to take it back.
+
+## reminders
+
+A reminder the quick line was asked for - "remind me in 20 mins to check the
+oven", "don't let me forget to pay rent tomorrow" (`shared/nudges.ts`). The
+`company_id` and `task_id` it belongs to, its `title`, the `day` and `time`
+where that workspace is (a null `time` is the start of that day - the morning
+brief's hour, or nine), `told_at` once Windows has shown it, `created_at`.
+
+Separate from a block's own notice, which stays behind the workspace's
+reminder switch: this was asked for in so many words, so it is sent whatever
+that switch says. A reminder for a task done first is settled without being
+sent, and deleting the task deletes it.
+
+The journal nudge and the morning brief keep no rows: their hours are
+`journalNudgeAt` and `briefAt` in `settings` (empty is off), and the day each
+was last sent is `journalNudged` and `briefed`, so each is sent once a day; `datesTold` is the day a birthday or anniversary coming round was last said.
+
+## mail_accounts
+
+Mail that is not the Google script: Zoho, Outlook, Yahoo, iCloud, a domain of
+your own. `label`, `address` it sends as, `host`, `port`, `secure` (TLS from
+the first byte, rather than STARTTLS), `username`, `is_default`, `created_at`.
+
+**`secret` is ciphertext.** The password - an app password, for every
+provider that offers one - is encrypted by the operating system before it is
+written, as `googleConnection` is, and no channel hands it back to the
+window. If the OS cannot encrypt, the account is not saved.
+
+These accounts only send. The Google script reads threads and SMTP does not,
+so a message from one of these has no reply watched for and no automatic
+follow-up; one scheduled for later is sent by Caulder when it is due, which
+means Caulder has to be running. `emails.account_id` says which account a
+message went from - null is the script, which is every message from before.
 
 ## campaigns
 

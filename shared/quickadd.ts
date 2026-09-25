@@ -1,5 +1,6 @@
 import { minutesOf, shiftDay, startOfWeek, timeOf, weekdayOf } from "./dates";
 import { expand } from "./slang";
+import { voteArea, type Lesson } from "./lessons";
 import { distance, slipAt } from "./slips";
 
 /**
@@ -109,6 +110,12 @@ type Context = {
   /** The last day of the term running now, for "until the end of term". */
   termEnd?: string | null;
   learned?: Learned;
+  /**
+   * What was learnt from lines moved to another part of life before they were
+   * kept (shared/lessons.ts). After Your words, which were taught outright,
+   * and before the built-in guesses, which are about everyone and not you.
+   */
+  lessons?: readonly Lesson[];
 };
 
 /** Which part of the day a line mentions - what settles "at 9". */
@@ -241,7 +248,7 @@ const AREA_WORDS: [string, string[]][] = [
   ["health", [
     "gym", "workout", "workouts", "yoga", "swim", "swimming", "jog", "jogging", "doctor",
     "dentist", "physio", "physiotherapy", "meds", "medicine", "medicines", "pills", "cardio",
-    "therapy", "therapist", "checkup", "check-up", "hospital", "clinic", "blood test", "eye test",
+    "therapy", "therapist", "checkup", "check-up", "hospital", "clinic", "blood test", "eye test", "vitamin", "vitamins",
     "vaccine", "vaccination", "pharmacy", "chemist", "badminton", "cricket", "football",
     "basketball", "tennis", "squash", "volleyball", "cycling", "marathon", "5k", "10k",
     "meditate", "meditation", "stretching", "pilates", "zumba", "hike", "hiking", "trek",
@@ -254,7 +261,9 @@ const AREA_WORDS: [string, string[]][] = [
     "mom", "mum", "mother", "dad", "father", "parents", "sister", "brother", "family", "grandma",
     "grandpa", "birthday", "bday", "anniversary", "haircut", "barber", "salon", "bank", "passport",
     "shopping", "cook", "cooking", "movie", "movies", "party", "gift", "gifts", "insurance",
-    "landlord",
+    "landlord", "friend", "friends", "roommate", "flatmate", "neighbour", "neighbours", "neighbor",
+    "neighbors", "cousin", "cousins", "aunt", "uncle", "wedding", "borrowed", "lent",
+    "mummy", "mumma", "amma", "appa", "papa", "nani", "dadi", "nana", "dada", "bhaiya", "didi", "bhai",
   ]],
 ];
 
@@ -593,16 +602,33 @@ type Clock = { time: number } | { ask: { hour: number; minute: number } } | null
  * the day the line mentions. Only with none of those does the old rule apply:
  * one to six is the afternoon, and seven to eleven is asked.
  */
-function resolveClock(hour: number, minute: number, meridiem: "am" | "pm" | undefined, hint: Hint | null): Clock {
+function resolveClock(hour: number, minute: number, meridiem: "am" | "pm" | undefined, hint: Hint | null, lean: Lean = null): Clock {
   if (hour > 23 || minute > 59) return null;
   if (meridiem) return hour >= 1 && hour <= 12 ? { time: clock(hour, minute, meridiem) } : null;
   if (hour >= 13 || hour === 0) return { time: hour * 60 + minute };
   if (hour === 12) return { time: hint === "night" ? minute : 12 * 60 + minute };
   if (hint === "morning") return { time: hour * 60 + minute };
   if (hint) return { time: (hour + 12) * 60 + minute };
+  // Waking up at 5 is five in the morning, whatever the hour.
+  if (lean === "dawn") return { time: hour * 60 + minute };
   if (hour <= 6) return { time: (hour + 12) * 60 + minute };
+  // Seven to eleven, settled by what it is: a dentist at 10 is the morning, a party at 9 the night.
+  if (lean) return { time: (lean === "am" ? hour : hour + 12) * 60 + minute };
   return { ask: { hour, minute } };
 }
+
+/**
+ * What the thing itself says about the hour, for seven to eleven with no part
+ * of the day said. Only things that happen one way round - "call" is a client
+ * at ten and a mother at nine, so it is not here, and those are still asked.
+ */
+const MORNING_LEAN =
+  /\b(?:appointment|appt|dentist|doctor|clinic|hospital|checkup|check-up|standup|stand-up|scrum|lecture|lectures|class|classes|school|office|interview|exam|midsem|quiz|viva|investor|breakfast|yoga|flight|check-?in|commute|assembly|attendance|jog|jogging)\b/;
+/** Said of the very start of the day, when even a 5 is the morning. */
+const DAWN_LEAN = /\b(?:wake|waking|woke|alarm|sunrise|fajr)\b/;
+/** Which half of the day an hour said bare is in, when what it is settles it. */
+type Lean = "am" | "pm" | "dawn" | null;
+const EVENING_LEAN = /\b(?:party|movie|movies|film|drinks|pub|bar|club|date\s+night|netflix|concert|gig|game\s+night|bonfire)\b/;
 
 type DateRead = { day: string | null; length: number; term?: boolean };
 
@@ -811,7 +837,7 @@ function readLine(input: string, context: Context, answers: Answers): Reading {
   claim(
     lower,
     taken,
-    /^\s*(?:\d{1,2}[.)]\s+(?=[a-z]))?(?:(?:hey|hi|ok|okay|so|also|oh|yo|please|pls|plz|kindly|can\s+you|could\s+you|would\s+you|will\s+you)[\s,]+)*(?:(?:add|create|make|new|set)\s+(?:a\s+|an\s+)?(?:new\s+)?(?:task|todo|to-do|reminder)\b[\s:,-]*(?:to\s+|for\s+)?|(?:task|todo|to-do|to\s+do|reminder)\b[\s:,-]*|note\s*[:-]\s*)?(?:(?:(?:remind|remnd|remid|remin|remimd)\s+me\s+to|(?:remind|remnd|remid|remin|remimd)\s+me|don'?t\s+(?:let\s+me\s+)?forget\s+(?:to\s+)?|do\s+not\s+forget\s+(?:to\s+)?|i\s+don'?t\s+want\s+to\s+forget\s+(?:to\s+)?|(?:remember|rember|remeber|remmber|rmbr|rmb)\s+to|i'?m\s+going\s+to|i\s+am\s+going\s+to|going\s+to|i\s+need\s+to|need\s+to|i\s+have\s+to|have\s+to|i'?ve\s+got\s+to|i\s+got\s+to|got\s+to|i\s+gotta|gotta|i\s+must|i\s+should|i\s+want\s+to|want\s+to|i\s+wanna|wanna|i'll|i\s+will|let\s+me|lemme|(?:i|we)\s+have\s+an?|(?:i|we)'?ve\s+got\s+an?|there'?s\s+an?|there\s+is\s+an?)\b[\s:,-]*)?/,
+    /^\s*(?:\d{1,2}[.)]\s+(?=[a-z]))?(?:(?:hey|hi|ok|okay|so|also|oh|yo|please|pls|plz|kindly|really|just|actually|seriously|definitely|still|urgently|can\s+you|could\s+you|would\s+you|will\s+you)[\s,]+)*(?:(?:add|create|make|new|set)\s+(?:a\s+|an\s+)?(?:new\s+)?(?:task|todo|to-do|reminder)\b[\s:,-]*(?:to\s+|for\s+)?|(?:task|todo|to-do|to\s+do|reminder)\b[\s:,-]*|note\s*[:-]\s*)?(?:(?:(?:remind|remnd|remid|remin|remimd)\s+me\s+to|(?:remind|remnd|remid|remin|remimd)\s+me|don'?t\s+(?:let\s+me\s+)?forget\s+(?:to\s+)?|do\s+not\s+forget\s+(?:to\s+)?|i\s+don'?t\s+want\s+to\s+forget\s+(?:to\s+)?|(?:remember|rember|remeber|remmber|rmbr|rmb)\s+to|i'?m\s+going\s+to|i\s+am\s+going\s+to|going\s+to|i\s+need\s+to|need\s+to|i\s+have\s+to|have\s+to|i'?ve\s+got\s+to|i\s+got\s+to|got\s+to|i\s+gotta|gotta|i\s+must|i\s+should|i\s+want\s+to|want\s+to|i\s+wanna|wanna|i'll|i\s+will|let\s+me|lemme|(?:i|we)\s+have\s+an?|(?:i|we)'?ve\s+got\s+an?|there'?s\s+an?|there\s+is\s+an?)\b[\s:,-]*)?/,
   );
   // "An exam on the subject DSA" is an exam on DSA: the words say nothing the
   // name of the subject does not.
@@ -862,6 +888,8 @@ function readLine(input: string, context: Context, answers: Answers): Reading {
           : hintWord
             ? "night"
             : null;
+
+  const lean: Lean = hint ? null : EVENING_LEAN.test(lower) ? "pm" : DAWN_LEAN.test(lower) ? "dawn" : MORNING_LEAN.test(lower) ? "am" : null;
 
   /* -- Repeats: "every monday", "mon wed fri", "daily", "weekdays" -- */
   // Declared through `as` so the compiler does not narrow them to null at the
@@ -1002,7 +1030,9 @@ function readLine(input: string, context: Context, answers: Answers): Reading {
     if (fits.length === 1 || !pm || !am) {
       const only = fits[0];
       if (only) set(only.s, only.e);
-    } else if (h1 <= 6 || h1 === 12) set(pm.s, pm.e);
+    } else if (lean === "dawn" && h1 !== 12) set(am.s, am.e);
+    else if (h1 <= 6 || h1 === 12 || lean === "pm") set(pm.s, pm.e);
+    else if (lean === "am") set(am.s, am.e);
     else {
       meridiemAsk = { hour: h1, minute: m1 };
       minutes = am.e - am.s;
@@ -1093,64 +1123,64 @@ function readLine(input: string, context: Context, answers: Answers): Reading {
         const back = m[2] === "to" || m[2] === "till" || m[2] === "til";
         const minute = m[1] === "half" ? 30 : back ? 45 : 15;
         const hour = back ? (base === 1 ? 12 : base - 1) : base;
-        return resolveClock(hour, minute, meridiemOf(m[4]), hint);
+        return resolveClock(hour, minute, meridiemOf(m[4]), hint, lean);
       },
     ],
     [
       new RegExp(String.raw`${PREFIX}?\b(\d{1,2}|${HOUR_WORD})\s*(?:o'?\s?clock|oclock)(?:\s*${MER})?`),
-      (m) => resolveClock(hourOf(m[1]), 0, meridiemOf(m[2]), hint),
+      (m) => resolveClock(hourOf(m[1]), 0, meridiemOf(m[2]), hint, lean),
     ],
     [
       // "at four thirty", "around six" - a number word is only a time with an
       // "at" in front and the end of the phrase behind: "at one point" is not one.
       new RegExp(String.raw`${PREFIX}(${HOUR_WORD})(?:[\s-]+(${PAST}))?(?:\s*${MER})?(?=\s*(?:$|[,;.!?)]|(?:${AFTER_A_TIME}|${DAY_WORD})\b))`),
-      (m) => resolveClock(hourOf(m[1]), PAST_THE_HOUR[(m[2] ?? "").replace(/[\s-]+/g, " ")] ?? 0, meridiemOf(m[3]), hint),
+      (m) => resolveClock(hourOf(m[1]), PAST_THE_HOUR[(m[2] ?? "").replace(/[\s-]+/g, " ")] ?? 0, meridiemOf(m[3]), hint, lean),
     ],
     [
       new RegExp(String.raw`\b(${HOUR_WORD})\s*${MER}`),
-      (m) => resolveClock(hourOf(m[1]), 0, meridiemOf(m[2]), hint),
+      (m) => resolveClock(hourOf(m[1]), 0, meridiemOf(m[2]), hint, lean),
     ],
     [
       // The semicolon is the colon with the shift key missed: "4;30pm". And
       // "a 4.30 pace" is how fast a run was, not when it was.
       new RegExp(String.raw`(?:${PREFIX}|\bby\s+)?\b(\d{1,2})[:.;](\d{2})(?:\s*${MER})?(?!\s*(?:pace|\/\s?km|\/\s?mi|per\s+(?:km|mile|k)|min\s*\/|min\s+per|splits?\b))`),
-      (m) => resolveClock(Number(m[1]), Number(m[2]), meridiemOf(m[3]), hint),
+      (m) => resolveClock(Number(m[1]), Number(m[2]), meridiemOf(m[3]), hint, lean),
     ],
     [
       // Run together: "430pm", "1130am" - and "at 430", which needs its "at".
       // Only on the quarter hours without an am or pm: "sell at 250" is a price.
       new RegExp(String.raw`(?:${PREFIX})?\b(\d{1,2})([0-5]\d)\s*${MER}|(?:\bat\s*|@\s*)(\d)(15|30|45)\b(?![:.]\d|\s*(?:%|percent|pages?|people|marks|points|kg|km|rs|k\b|lakhs?|crores?))`),
-      (m) => resolveClock(Number(m[1] ?? m[4]), Number(m[2] ?? m[5]), meridiemOf(m[3]), hint),
+      (m) => resolveClock(Number(m[1] ?? m[4]), Number(m[2] ?? m[5]), meridiemOf(m[3]), hint, lean),
     ],
     [
       // "5ish", "around 5.30ish": nothing but a time ends that way.
       new RegExp(String.raw`(?:${PREFIX})?\b(\d{1,2})(?:[:.](\d{2}))?\s*-?ish\b`),
-      (m) => resolveClock(Number(m[1]), Number(m[2] ?? 0), undefined, hint),
+      (m) => resolveClock(Number(m[1]), Number(m[2] ?? 0), undefined, hint, lean),
     ],
     [
       new RegExp(String.raw`(?:${PREFIX}|\bby\s+)?\b(\d{1,2})\s*${MER}`),
-      (m) => resolveClock(Number(m[1]), 0, meridiemOf(m[2]), hint),
+      (m) => resolveClock(Number(m[1]), 0, meridiemOf(m[2]), hint, lean),
     ],
     [
       /(?:\bat\s*|@\s*)(\d{1,2})\s*(a|p)(?![a-z])/,
-      (m) => resolveClock(Number(m[1]), 0, meridiemOf(m[2]), hint),
+      (m) => resolveClock(Number(m[1]), 0, meridiemOf(m[2]), hint, lean),
     ],
     [
       // "at 4", "@4", "around 4" - and "by 4", unless it is "by 4 marks".
       new RegExp(String.raw`(?:${PREFIX}|\bby\s+)(\d{1,2})\b(?![:.]\d|\s*(?:%|percent|pages?|people|marks|points|kg|km|rs|k\b|lakhs?|crores?|st\b|nd\b|rd\b|th\b))`),
-      (m) => resolveClock(Number(m[1]), 0, undefined, hint),
+      (m) => resolveClock(Number(m[1]), 0, undefined, hint, lean),
     ],
     [
       // "9 in the morning", "9 tonight" - the number the phrase is about.
       new RegExp(String.raw`\b(\d{1,2})(?:[:.](\d{2}))?(?=\s+(?:in\s+the\s+(?:morning|afternoon|evening)|at\s+night|${TONIGHT}|this\s+(?:morning|afternoon|evening)))`),
-      (m) => resolveClock(Number(m[1]), Number(m[2] ?? 0), undefined, hint),
+      (m) => resolveClock(Number(m[1]), Number(m[2] ?? 0), undefined, hint, lean),
     ],
     [
       // A bare number straight after a day, ending the phrase: "tomorrow 7",
       // "today 4 with rahul". Never "today 4 pages": what follows has to be the
       // end, or a word that starts the rest of the sentence.
       new RegExp(String.raw`(?<=\b(?:${DAY_WORD})\s+)(\d{1,2})(?![\d:.]|\s*(?:st|nd|rd|th)\b)(?=\s*(?:$|[,;.!?)]|(?:${AFTER_A_TIME})\b))`),
-      (m) => (Number(m[1]) >= 1 && Number(m[1]) <= 12 ? resolveClock(Number(m[1]), 0, undefined, hint) : null),
+      (m) => (Number(m[1]) >= 1 && Number(m[1]) <= 12 ? resolveClock(Number(m[1]), 0, undefined, hint, lean) : null),
     ],
   ];
   for (const [pattern, read] of singles) {
@@ -1260,7 +1290,7 @@ function readLine(input: string, context: Context, answers: Answers): Reading {
       ? new RegExp(String.raw`^\s+(\d{1,2})(?![\d:.]|\s*(?:st|nd|rd|th)\b)(?=\s*(?:$|[,;.!?)]|(?:${AFTER_A_TIME})\b))`).exec(lower.slice(end))
       : null;
     if (hour && Number(hour[1]) >= 1 && Number(hour[1]) <= 12 && !overlapsTaken(taken, end, end + hour[0].length)) {
-      if (settle(resolveClock(Number(hour[1]), 0, undefined, hint))) taken.push({ start: end, end: end + hour[0].length });
+      if (settle(resolveClock(Number(hour[1]), 0, undefined, hint, lean))) taken.push({ start: end, end: end + hour[0].length });
     }
   }
 
@@ -1276,6 +1306,12 @@ function readLine(input: string, context: Context, answers: Answers): Reading {
   // Your words next - a tag has already had its say - and the longest one that
   // matches wins, because "machine learning lab" is more specific than "lab".
   if (area === null) area = yourArea(rest, context.words ?? []);
+  if (area === null && context.lessons?.length) {
+    area = voteArea(rest, context.lessons, (context.words ?? []).map(({ word }) => word));
+  }
+  if (area === null && /\b(?:yoga|zumba|pilates|dance|spin|boxing|swimming|swim|gym|fitness|aerobics|karate|martial\s+arts|crossfit|hiit)\s+class(?:es)?\b/.test(rest)) {
+    area = "health";
+  }
   if (area === null) area = AREA_PATTERNS.find(([, pattern]) => pattern.test(rest))?.[0] ?? null;
 
   /* -- The title is what is left -- */
@@ -1467,7 +1503,14 @@ function blank(text: string, taken: Span[]): string {
 
 /** Strips what was understood and tidies what is left into a title. */
 function titleFrom(text: string, taken: Span[]): string {
-  const keep = [...blank(text, taken)];
+  // A filler left holding a when that was taken out - "placement drive on [5th oct], prepare
+  // resume" - goes, and the comma that ended the clause moves back onto the word before it.
+  const HELD = String.raw`(?:on|at|by|due|for|in|from|before|until|till|around|@)`;
+  const keep = [
+    ...blank(text, taken)
+      .replace(new RegExp(String.raw`([\p{L}\p{N}])(\s+)${HELD}(\s{2,})([,;])`, "giu"), "$1$4$2$3")
+      .replace(new RegExp(String.raw`(\s)${HELD}(\s{2,})$`, "gi"), "$1$2"),
+  ];
   const FILLER = new Set([
     "at", "on", "by", "due", "for", "from", "the", "this", "and", "to", "in", "before", "coming",
     "around", "until", "till", "starting", "then", "or", "@",
@@ -1488,13 +1531,16 @@ function titleFrom(text: string, taken: Span[]): string {
   // Filler is only removed from the ends. "Hand in the form" keeps its "in"
   // and its "the"; "the form due" loses the "due" it was left holding.
   while (words.length && FILLER.has((words[0]?.word ?? "").toLowerCase())) words = words.slice(1);
-  while (words.length && FILLER.has((words[words.length - 1]?.word ?? "").toLowerCase())) words = words.slice(0, -1);
+  while (words.length && (FILLER.has((words[words.length - 1]?.word ?? "").toLowerCase()) || /^(?:is|are|was|were)$/i.test(words[words.length - 1]?.word ?? ""))) {
+    words = words.slice(0, -1);
+  }
 
   const title = words
     .map(({ word, listed }, index) => (listed && index < words.length - 1 ? `${word},` : word))
     .join(" ")
     .trim();
-  return title.length === 0 ? "" : title.charAt(0).toUpperCase() + title.slice(1);
+  if (title.length === 0) return "";
+  return /^(?:https?:\/\/|www\.)/i.test(title) ? title : title.charAt(0).toUpperCase() + title.slice(1);
 }
 
 /** "Every day", "Weekdays", "Every Mon, Wed, Fri". */

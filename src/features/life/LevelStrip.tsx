@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { Zap } from "lucide-react";
 import { useProgress } from "./ProgressCards";
+import { useShowLevels } from "./levels";
 
 /**
  * Your level, on Today (PLAN.md, phase 17): one line at the top of the life
  * half of the day, read again whenever the day changes - a task done, a habit
  * ticked, a line kept - so what you just did shows at once. Crossing into a
  * new level says so for a moment; nothing else here asks for attention.
+ * Nothing at all while levels are switched off in Settings.
  */
 export function LevelStrip({
   companyId,
@@ -21,6 +23,7 @@ export function LevelStrip({
   onOpen: () => void;
 }) {
   const { progress } = useProgress(companyId, version, watch);
+  const shown = useShowLevels();
 
   // Up a level since the strip last looked: said, then let go of.
   const seen = useRef<number | null>(null);
@@ -38,7 +41,7 @@ export function LevelStrip({
     return undefined;
   }, [progress]);
 
-  if (!progress) return null;
+  if (!progress || !shown) return null;
   const { level, weekXp } = progress;
   const share = Math.round(((level.xp - level.from) / Math.max(1, level.to - level.from)) * 100);
 

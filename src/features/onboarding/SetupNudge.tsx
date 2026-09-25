@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { ArrowRight, X } from "lucide-react";
-import { Card } from "@/components/Card";
 
 /**
  * What is still unconnected, offered on Today until it is connected or waved away.
@@ -13,9 +12,14 @@ import { Card } from "@/components/Card";
  * without it none of them is anywhere to be seen.
  *
  * So this asks, for as long as there is something to ask about. Each thing can
- * be set up or skipped on its own, and "Skip all of this" is one press: a
- * nudge that cannot be dismissed is a nag. Skipping is remembered on this
- * machine only, and costs nothing - Settings has all of it, always.
+ * be set up or skipped on its own, and "Skip all" is one press: a nudge that
+ * cannot be dismissed is a nag. Skipping is remembered on this machine only,
+ * and costs nothing - Settings has all of it, always.
+ *
+ * It is one line, not a card. It used to be a card with a paragraph for each
+ * thing, and it stood between the quick line and the day's work, pushing the
+ * first overdue task off the bottom of the window. An offer is worth a line;
+ * what each one gives is on hover, and read out to a screen reader.
  */
 
 type Item = { id: "google" | "ai"; title: string; gives: string };
@@ -46,7 +50,8 @@ function readSkipped(): string[] {
 }
 
 export function SetupNudge({ companyId, onSetUp }: { companyId: string; onSetUp: () => void }) {
-  /** Null until asked: a card that appears and vanishes as the answers come in is worse than one a moment late. */
+  const id = useId();
+  /** Null until asked: a line that appears and vanishes as the answers come in is worse than one a moment late. */
   const [connected, setConnected] = useState<Record<Item["id"], boolean> | null>(null);
   const [skipped, setSkipped] = useState<string[]>(readSkipped);
 
@@ -77,32 +82,48 @@ export function SetupNudge({ companyId, onSetUp }: { companyId: string; onSetUp:
   if (left.length === 0) return null;
 
   return (
-    <Card
-      title="Finish setting up"
-      hint="Optional, and each can wait. Everything in Caulder works without them."
-      actions={
-        <button type="button" className="btn btn--sm btn--ghost" onClick={() => skip(left.map((item) => item.id))}>
-          Skip all of this
-        </button>
-      }
-    >
-      <ul className="rules" aria-label="What is left to set up">
+    <section className="setupnudge" aria-labelledby={`${id}-title`}>
+      <h2 id={`${id}-title`} className="setupnudge__title">
+        Finish setting up
+      </h2>
+      <ul className="setupnudge__items" aria-label="What is left to set up">
         {left.map((item) => (
-          <li key={item.id} className="rule">
-            <span className="rule__text">
-              <strong>{item.title}.</strong> {item.gives}
-            </span>
-            <button type="button" className="btn btn--sm btn--primary" onClick={onSetUp}>
-              Set it up
-              <ArrowRight size={14} aria-hidden />
+          <li key={item.id} className="setupnudge__item">
+            {/* The name is the button: one press to the guide, where the steps
+                are. What it gives is read out with it, and shown on hover. */}
+            <button
+              type="button"
+              className="setupnudge__go"
+              onClick={onSetUp}
+              title={item.gives}
+              aria-describedby={`${id}-${item.id}`}
+            >
+              {item.title}
+              <ArrowRight size={13} aria-hidden />
             </button>
-            <button type="button" className="btn btn--sm btn--ghost" onClick={() => skip([item.id])} aria-label={`Skip: ${item.title}`}>
-              <X size={14} aria-hidden />
-              Skip
+            <span id={`${id}-${item.id}`} className="visually-hidden">
+              {item.gives}
+            </span>
+            <button
+              type="button"
+              className="setupnudge__skip"
+              onClick={() => skip([item.id])}
+              aria-label={`Skip: ${item.title}`}
+              title="Skip this one"
+            >
+              <X size={13} aria-hidden />
             </button>
           </li>
         ))}
       </ul>
-    </Card>
+      <button
+        type="button"
+        className="btn btn--sm btn--ghost setupnudge__all"
+        onClick={() => skip(left.map((item) => item.id))}
+        title="Optional, and each can wait. Everything in Caulder works without them, and Settings has all of it."
+      >
+        Skip all
+      </button>
+    </section>
   );
 }

@@ -87,6 +87,7 @@ const api: CaulderApi = {
     batches: (companyId) => invoke(CHANNELS.importBatches, companyId),
     undo: (batchId) => invoke(CHANNELS.importUndo, batchId),
     template: () => invoke(CHANNELS.importTemplate),
+    google: () => invoke(CHANNELS.importGoogle),
   },
   documents: {
     list: (companyId, leadId) => invoke(CHANNELS.documentsList, companyId, leadId ?? null),
@@ -182,6 +183,8 @@ const api: CaulderApi = {
   },
   progress: {
     get: (companyId) => invoke(CHANNELS.progressGet, companyId),
+    shown: () => invoke(CHANNELS.progressShown),
+    setShown: (on) => invoke(CHANNELS.progressSetShown, on),
   },
   room: {
     choices: (companyId) => invoke(CHANNELS.roomChoices, companyId),
@@ -292,10 +295,13 @@ const api: CaulderApi = {
     fileNote: (noteId, section) => invoke(CHANNELS.brainFileNote, noteId, section),
     exportAll: (companyId, secrets) => invoke(CHANNELS.brainExport, companyId, secrets),
     search: (companyId, text) => invoke(CHANNELS.brainSearch, companyId, text),
+    topic: (companyId, text) => invoke(CHANNELS.brainTopic, companyId, text),
     linkTargets: (companyId, text) => invoke(CHANNELS.brainLinkTargets, companyId, text),
     backlinks: (kind, id) => invoke(CHANNELS.brainBacklinks, kind, id),
     map: (companyId, allContacts) => invoke(CHANNELS.brainMap, companyId, allContacts),
     memories: () => invoke(CHANNELS.brainMemories),
+    editMemory: (input) => invoke(CHANNELS.brainEditMemory, input),
+    forgetMemory: (input) => invoke(CHANNELS.brainForgetMemory, input),
     remember: (input) => invoke(CHANNELS.brainRemember, input),
     localMap: (companyId, kind, id, depth) => invoke(CHANNELS.brainLocalMap, companyId, kind, id, depth ?? 2),
     keepPositions: (companyId, positions) => invoke(CHANNELS.brainKeepPositions, companyId, positions),
@@ -393,6 +399,37 @@ const api: CaulderApi = {
     keepInTray: () => invoke(CHANNELS.trayKeep),
     setKeepInTray: (on: boolean) => invoke(CHANNELS.traySetKeep, on),
   },
+  widget: {
+    get: () => invoke(CHANNELS.widgetGet),
+    show: (on: boolean) => invoke(CHANNELS.widgetShow, on),
+    setLevel: (level) => invoke(CHANNELS.widgetLevel, level),
+    fit: (height: number) => invoke(CHANNELS.widgetFit, height),
+    onOpen: (fn: (open: boolean) => void) => {
+      const handler = (_event: unknown, open: boolean) => fn(open);
+      ipcRenderer.on("widget:open", handler);
+      return () => ipcRenderer.removeListener("widget:open", handler);
+    },
+  },
+  pet: {
+    get: () => invoke(CHANNELS.petGet),
+    show: (on: boolean) => invoke(CHANNELS.petShow, on),
+    hover: (over: boolean) => invoke(CHANNELS.petHover, over),
+    hold: (still: boolean) => invoke(CHANNELS.petHold, still),
+    open: () => invoke(CHANNELS.petOpen),
+    onWalk: (fn: (walk: { moving: boolean; dir: 1 | -1 }) => void) => {
+      const handler = (_event: unknown, walk: { moving: boolean; dir: 1 | -1 }) => fn(walk);
+      ipcRenderer.on("pet:walk", handler);
+      return () => ipcRenderer.removeListener("pet:walk", handler);
+    },
+    onToday: (fn: () => void) => {
+      const handler = () => fn();
+      ipcRenderer.on("pet:today", handler);
+      return () => ipcRenderer.removeListener("pet:today", handler);
+    },
+  },
+  ember: {
+    stats: (companyId: string) => invoke(CHANNELS.emberStats, companyId),
+  },
   tasks: {
     forLead: (leadId) => invoke(CHANNELS.tasksForLead, leadId),
     create: (companyId, input) => invoke(CHANNELS.tasksCreate, companyId, input),
@@ -415,6 +452,35 @@ const api: CaulderApi = {
     keep: (input) => invoke(CHANNELS.tuneKeep, input),
     answer: (input) => invoke(CHANNELS.tuneAnswer, input),
     forget: (id) => invoke(CHANNELS.tuneForget, id),
+  },
+  lines: {
+    context: (companyId, today) => invoke(CHANNELS.linesContext, companyId, today),
+    move: (taskId, to) => invoke(CHANNELS.linesMove, taskId, to),
+    cancel: (taskId) => invoke(CHANNELS.linesCancel, taskId),
+    restore: (companyId, snapshot) => invoke(CHANNELS.linesRestore, companyId, snapshot),
+    rename: (taskId, title) => invoke(CHANNELS.linesRename, taskId, title),
+    answer: (companyId, question) => invoke(CHANNELS.linesAnswer, companyId, question),
+  },
+  nudges: {
+    get: () => invoke(CHANNELS.nudgesGet),
+    set: (settings) => invoke(CHANNELS.nudgesSet, settings),
+    test: () => invoke(CHANNELS.nudgesTest),
+    onGo: (fn: (place: "today" | "journal") => void) => {
+      const handler = (_event: unknown, place: "today" | "journal") => fn(place);
+      ipcRenderer.on("nav:go", handler);
+      return () => ipcRenderer.removeListener("nav:go", handler);
+    },
+  },
+  lessons: {
+    list: () => invoke(CHANNELS.lessonsList),
+    add: (input) => invoke(CHANNELS.lessonsAdd, input),
+    remove: (id) => invoke(CHANNELS.lessonsRemove, id),
+  },
+  mailAccounts: {
+    list: () => invoke(CHANNELS.mailAccountsList),
+    add: (input) => invoke(CHANNELS.mailAccountsAdd, input),
+    remove: (id) => invoke(CHANNELS.mailAccountsRemove, id),
+    setDefault: (id) => invoke(CHANNELS.mailAccountsDefault, id),
   },
   board: {
     get: (companyId) => invoke(CHANNELS.boardGet, companyId),

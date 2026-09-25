@@ -1,4 +1,5 @@
 import { MapOf } from "@/features/brain/MapOf";
+import { MemoriesScreen } from "@/features/brain/Memories";
 import { useUpdates } from "@/features/settings/UpdatesCard";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, Sparkles, Rocket } from "lucide-react";
@@ -35,6 +36,7 @@ import { ENTRY_TEMPLATE, isPersonalSection, type BrainSectionId } from "@shared/
 import { JournalScreen } from "@/features/life/JournalScreen";
 import { LifeScreen } from "@/features/life/LifeScreen";
 import { OpenRefProvider } from "@/lib/navigate";
+import { EmberStage } from "@/features/ember/EmberStage";
 import type { LinkRef } from "@shared/links";
 
 export function App() {
@@ -90,6 +92,12 @@ function Shell() {
   const [lifeNonce, setLifeNonce] = useState(0);
   /** A tab Life should open on, asked for from Today. */
   const [lifeTab, setLifeTab] = useState<"habits" | null>(null);
+  /** A page of what was remembered, asked for from somewhere else: it opens on Memories. */
+  const [memoriesPageId, setMemoriesPageId] = useState<string | null>(null);
+  /** Bumped when Memories is chosen while already on it, so the list comes back. */
+  const [memoriesNonce, setMemoriesNonce] = useState(0);
+  /** Whether the map opens on your side rather than the company's: it does when Memories sent you. */
+  const [mapYours, setMapYours] = useState(false);
   /** A product Money should open, asked for by a link or a dot on the Map. */
   const [moneyProduct, setMoneyProduct] = useState<string | null>(null);
   /** A tab Money should open on, asked for from another screen. */
@@ -113,13 +121,17 @@ function Shell() {
         if (id === "leads") setListNonce((n) => n + 1);
         if (id === "brain") setBrainHomeNonce((n) => n + 1);
         if (id === "life") setLifeNonce((n) => n + 1);
+        if (id === "memories") setMemoriesNonce((n) => n + 1);
       } else {
         setSearchNonce(0);
         setNewLeadNonce(0);
         setListNonce(0);
         setBrainHomeNonce(0);
         setLifeNonce(0);
+        setMemoriesNonce(0);
         setQuickNonce(0);
+        // The map is the company's unless Memories asks for yours, after this.
+        setMapYours(false);
       }
       setRoute(id);
     },
@@ -156,6 +168,10 @@ function Shell() {
       .then((day) => setOverdueCount(day.overdue.length))
       .catch(() => setOverdueCount(0));
   }, [activeCompany, route]);
+
+  // Somebody clicked Ember on the taskbar. Whatever she was holding - the
+  // next block, a reply, overdue work - is on Today.
+  useEffect(() => window.caulder.pet.onToday(() => arrive("today")), [arrive]);
 
   // Only matters while the choice is "system": React needs to re-render so the
   // title bar icon follows the OS. The tokens themselves switch in CSS.
@@ -200,8 +216,11 @@ function Shell() {
 
   /**
    * A page, from anywhere: where it lives decides where it opens. A journal
-   * entry opens the journal on its day, the founder's own pages open on Life,
-   * and the company's in the brain.
+   * entry opens the journal on its day, what the line remembered opens on
+   * Memories, the founder's other pages on Life, and the company's in the
+   * brain. Remembered is a personal section without a tab on Life, so it
+   * must be caught before Life is: there it would open with its way back
+   * pointing at an Overview it has nothing to do with.
    */
   const openPage = useCallback(
     (pageId: string) => {
@@ -211,6 +230,9 @@ function Shell() {
           if (page.template === ENTRY_TEMPLATE && typeof day === "string") {
             setJournalDay(day);
             arrive("journal");
+          } else if (page.section === "remembered") {
+            setMemoriesPageId(pageId);
+            arrive("memories");
           } else if (isPersonalSection(page.section)) {
             setLifePageId(pageId);
             arrive("life");
@@ -236,6 +258,8 @@ function Shell() {
     },
     [arrive],
   );
+  // A notification clicked: the journal nudge opens today's journal, everything else Today.
+  useEffect(() => window.caulder.nudges.onGo((place) => (place === "journal" ? openJournal() : arrive("today"))), [arrive, openJournal]);
 
   /** Where a search result lives: a page where its kind of page lives, everything else on a contact or Today. */
   const openHit = useCallback(
@@ -261,6 +285,7 @@ function Shell() {
   const consumeJournalDay = useCallback(() => setJournalDay(null), []);
   const consumeLifePage = useCallback(() => setLifePageId(null), []);
   const consumeLifeTab = useCallback(() => setLifeTab(null), []);
+  const consumeMemoriesPage = useCallback(() => setMemoriesPageId(null), []);
   const consumeOpenSection = useCallback(() => setOpenSectionId(null), []);
   const consumeMoneyTab = useCallback(() => setMoneyTab(null), []);
   const consumeMoneyProduct = useCallback(() => setMoneyProduct(null), []);
@@ -356,6 +381,8 @@ function Shell() {
     <CallProvider onOpenPage={openPage}>
     <div className="shell">
       {titleBar}
+      {/* Ember, when she is off her perch - and the fire, when she has had enough. */}
+      <EmberStage personal={activeCompany?.kind === "personal"} home={route === "today"} companyId={activeCompany?.id ?? null} />
 
       <div className="shell__body">
         <div className="sidebar-wrap">
@@ -386,7 +413,9 @@ function Shell() {
                 </button>
               </div>
             )}
-            {sample && (
+            {/* On Today only: it is said once where the app opens, and not
+                again above every screen somebody goes on to look round. */}
+            {sample && route === "today" && (
               <div className="hintbar hintbar--sample">
                 <Sparkles size={16} className="hintbar__icon" aria-hidden />
                 <p className="hintbar__text">
@@ -411,6 +440,13 @@ function Shell() {
                 <button type="button" className="btn btn--sm" onClick={() => go("leads")}>
                   <ArrowLeft size={15} aria-hidden />
                   All contacts
+                </button>
+              )}
+              {/* The map has no row, so it keeps the way back to where it was opened from. */}
+              {route === "map" && (
+                <button type="button" className="btn btn--sm" onClick={() => go(mapYours ? "memories" : "brain")}>
+                  <ArrowLeft size={15} aria-hidden />
+                  {mapYours ? "Memories" : "Brain"}
                 </button>
               )}
             </div>
@@ -507,10 +543,25 @@ function Shell() {
                   arrive("leads");
                 }}
               />
+            ) : route === "memories" ? (
+              <MemoriesScreen
+                openPageId={memoriesPageId}
+                onConsumeOpenPage={consumeMemoriesPage}
+                homeNonce={memoriesNonce}
+                onOpenMap={() => {
+                  go("map");
+                  setMapYours(true);
+                }}
+                onOpenContact={(leadId) => {
+                  setOpenLeadId(leadId);
+                  arrive("leads");
+                }}
+              />
             ) : route === "map" && activeCompany ? (
               <MapOf
                 key={`map-${activeCompany.id}`}
                 companyId={activeCompany.id}
+                startYours={mapYours}
                 onOpenPage={openPage}
                 onOpenContact={(leadId) => {
                   setOpenLeadId(leadId);

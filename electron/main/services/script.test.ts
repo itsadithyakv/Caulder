@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { runInNewContext } from "node:vm";
+import { SCRIPT_VERSION } from "@shared/script";
 
 /**
  * The Apps Script itself, run here.
@@ -239,7 +240,10 @@ describe("setting up", () => {
 
   it("says its version and who email goes out as", () => {
     const hello = h.post("hello").data;
-    expect(hello.version).toBe(4);
+    // Read from shared/script.ts rather than written here: the app refuses to
+    // talk to a script older than it expects, and a number typed twice is a
+    // number that goes stale on one side.
+    expect(hello.version).toBe(SCRIPT_VERSION);
     expect(hello.mail).toEqual({ address: ME, remaining: 100 });
     expect(hello.mailError).toBeNull();
   });
@@ -445,6 +449,19 @@ describe("contacts and backups", () => {
             kept.set(name, { ...body, resourceName: name });
             return { resourceName: name };
           },
+          // One person per page, whatever pageSize says. Google pages at 200
+          // and nobody writes 200 fixtures; what needs proving is that the
+          // script follows the token rather than reading one page and
+          // calling it the address book.
+          Connections: {
+            list: (_who: string, options: { pageToken?: string }) => {
+              const all = [...kept.values()];
+              const at = options.pageToken ? Number(options.pageToken) : 0;
+              const page = all.slice(at, at + 1);
+              const next = at + 1 < all.length ? String(at + 1) : null;
+              return { connections: page, nextPageToken: next };
+            },
+          },
         },
       },
     };
@@ -490,6 +507,55 @@ describe("contacts and backups", () => {
     const refused = loose(h.post("saveContact", { contact: rahul }));
     expect(refused.ok).toBe(false);
     expect(refused.error).toContain("add the People API");
+  });
+
+  it("refuses to read the address book without the People service, and says what is missing", () => {
+    const refused = loose(h.post("pullContacts", {}));
+    expect(refused.ok).toBe(false);
+    expect(refused.error).toContain("add the People API");
+  });
+
+  it("reads the address book to the end rather than one page of it", () => {
+    const google = people();
+    const with_ = harness(google);
+    with_.script.setUp();
+    // Three, served one to a page by the stub, so a script that read only the
+    // first page would answer with one.
+    for (const name of ["Asha Rao", "Ravi Kumar", "Meera Iyer"]) {
+      const [givenName, familyName] = name.split(" ");
+      google.kept.set(`people/${givenName}`, {
+        resourceName: `people/${givenName}`,
+        names: [{ givenName: givenName ?? "", familyName: familyName ?? "" }],
+        organizations: [],
+      });
+    }
+
+    const pulled = loose(with_.post("pullContacts", {}));
+    expect(pulled.ok).toBe(true);
+    expect(pulled.data["contacts"]).toHaveLength(3);
+    expect(pulled.data["complete"]).toBe(true);
+  });
+
+  // The lesson pullTasks has an essay about, on the one list a person is
+  // certain to have more than a hundred of. Stopping is fine; saying it
+  // finished when it did not is what loses people.
+  it("says so when it stopped before the end", () => {
+    const google = people();
+    const with_ = harness(google);
+    with_.script.setUp();
+    for (let i = 0; i < 40; i += 1) {
+      google.kept.set(`people/c${i}`, {
+        resourceName: `people/c${i}`,
+        names: [{ givenName: `Person${i}`, familyName: "Test" }],
+        organizations: [],
+      });
+    }
+
+    const pulled = loose(with_.post("pullContacts", {}));
+    expect(pulled.data["complete"]).toBe(false);
+    // Everything it did read is still handed over - a short answer is worth
+    // more than none, as long as it is labelled.
+    expect(pulled.data["contacts"]).toHaveLength(25);
   });
 
   it("files a person under their own name, at the company", () => {

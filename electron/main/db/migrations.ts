@@ -2540,6 +2540,69 @@ const M042_CHECKINS = `
   );
 `;
 
+/**
+ * What the line learns from being corrected, and mail that is not Gmail.
+ *
+ * `line_lessons`: a line moved to another part of life, or to another kind,
+ * before it was kept - its words, plain and sorted, and the choice
+ * (shared/lessons.ts). The same words taught the same answer again count up
+ * rather than adding a row.
+ *
+ * `mail_accounts`: Zoho, Outlook, a domain of your own - any SMTP server.
+ * `secret` is the password encrypted by the operating system, never text.
+ * `emails.account_id` says which one a message went out from; null is the
+ * Google script, as every message was before.
+ */
+const M043_LESSONS_AND_MAIL = `
+  CREATE TABLE line_lessons (
+    id         TEXT PRIMARY KEY,
+    words      TEXT NOT NULL,
+    area       TEXT,
+    kind       TEXT,
+    times      INTEGER NOT NULL DEFAULT 1,
+    sample     TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    last_seen  TEXT NOT NULL,
+    CHECK (area IS NOT NULL OR kind IS NOT NULL)
+  );
+
+  CREATE TABLE mail_accounts (
+    id         TEXT PRIMARY KEY,
+    label      TEXT NOT NULL,
+    address    TEXT NOT NULL,
+    host       TEXT NOT NULL,
+    port       INTEGER NOT NULL CHECK (port BETWEEN 1 AND 65535),
+    secure     INTEGER NOT NULL CHECK (secure IN (0, 1)),
+    username   TEXT NOT NULL,
+    secret     TEXT NOT NULL,
+    is_default INTEGER NOT NULL DEFAULT 0 CHECK (is_default IN (0, 1)),
+    created_at TEXT NOT NULL
+  );
+
+  ALTER TABLE emails ADD COLUMN account_id TEXT REFERENCES mail_accounts (id) ON DELETE SET NULL;
+`;
+
+/**
+ * Reminders the line was asked for: "remind me in 20 mins to check the oven".
+ * Its day and time where the workspace is - null time is the start of that day
+ * - kept against the task so a task done first is never reminded about, and
+ * `told_at` so each is said once.
+ */
+const M044_REMINDERS = `
+  CREATE TABLE reminders (
+    id         TEXT PRIMARY KEY,
+    company_id TEXT NOT NULL REFERENCES companies (id) ON DELETE CASCADE,
+    task_id    TEXT REFERENCES tasks (id) ON DELETE CASCADE,
+    title      TEXT NOT NULL,
+    day        TEXT NOT NULL,
+    time       TEXT,
+    told_at    TEXT,
+    created_at TEXT NOT NULL
+  );
+
+  CREATE INDEX reminders_waiting ON reminders (told_at, day);
+`;
+
 export const MIGRATIONS: readonly Migration[] = [
   { version: 1, name: "companies, stages, settings", sql: M001_COMPANIES },
   { version: 2, name: "leads, activities", sql: M002_LEADS },
@@ -2583,6 +2646,8 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 40, name: "what was measured, and the shelf", sql: M040_TRACKER },
   { version: 41, name: "book covers", sql: M041_COVERS },
   { version: 42, name: "what a quiet day was", sql: M042_CHECKINS },
+  { version: 43, name: "lessons, and other mail accounts", sql: M043_LESSONS_AND_MAIL },
+  { version: 44, name: "reminders", sql: M044_REMINDERS },
 ];
 
 export function currentVersion(db: Db): number {

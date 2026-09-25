@@ -11,10 +11,14 @@ import {
   type SimulationNodeDatum,
 } from "d3-force";
 import {
+  LABEL_EMS,
   MAP_LOOK,
   adjacency,
+  clipLabel,
+  labelsShown,
   matching,
   radiusOf,
+  type LabelBox,
   type MapGraph,
   type MapKind,
   type MapLook,
@@ -32,7 +36,9 @@ import {
  * weave. Hold Shift as it is let go to leave it where it was put, pinned;
  * double-click a pinned dot to let it go. Hover a dot and everything else
  * fades - gradually, not in a blink - while its lines light up. Labels grow
- * in as you zoom, and the ones that matter show earlier. Under reduced motion
+ * in as you zoom, and the ones that matter show earlier; a long one is cut
+ * short, and where two would run into each other the quieter dot's waits for
+ * a hover, a search or a closer zoom. Under reduced motion
  * the layout is worked out before the first frame and the fades are instant.
  *
  * Where the map can link (the whole Map, not a page's little one), a hovered
@@ -75,6 +81,13 @@ function seedOf(key: string): number {
 function reducedMotion(): boolean {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
+
+/** The labels' face, and the size they are measured at: widths scale with the size, so one measure serves every zoom. */
+const LABEL_FONT = "system-ui, sans-serif";
+const MEASURE_PX = 100;
+
+/** Measured and cut labels kept past this many are forgotten and measured again: a bound, not a limit anyone meets. */
+const LABEL_CACHE = 20_000;
 
 /** How far the rest fades while one dot is looked at. */
 const FADED = 0.12;
@@ -169,6 +182,11 @@ export function MapCanvas({
     pressed: false,
     canLink: false,
     canPick: false,
+    /** Label widths at MEASURE_PX, and labels cut to fit, by weight and text: measuring every label every frame is slow. */
+    widths: new Map<string, number>(),
+    clipped: new Map<string, string>(),
+    /** The labels drawn last frame, which keep their place in a tie, so a settling map does not flicker. */
+    labelled: new Set<string>(),
   });
 
   const openRef = useRef(onOpen);
@@ -256,6 +274,29 @@ export function MapCanvas({
         return false;
       }
       return true;
+    };
+
+    /** How wide a label is at MEASURE_PX, measured once. */
+    const widthOf = (text: string, weight: number): number => {
+      const key = `${weight} ${text}`;
+      const known = s.widths.get(key);
+      if (known !== undefined) return known;
+      if (s.widths.size > LABEL_CACHE) s.widths.clear();
+      context.font = `${weight} ${MEASURE_PX}px ${LABEL_FONT}`;
+      const width = context.measureText(text).width;
+      s.widths.set(key, width);
+      return width;
+    };
+
+    /** A label cut to LABEL_EMS of its own font, worked out once per label. */
+    const shortLabel = (label: string, weight: number): string => {
+      const key = `${weight} ${label}`;
+      const known = s.clipped.get(key);
+      if (known !== undefined) return known;
+      if (s.clipped.size > LABEL_CACHE) s.clipped.clear();
+      const cut = clipLabel(label, LABEL_EMS * MEASURE_PX, (text) => widthOf(text, weight));
+      s.clipped.set(key, cut);
+      return cut;
     };
 
     const paint = () => {
@@ -364,10 +405,16 @@ export function MapCanvas({
 
       // Labels grow in as you zoom past the chosen point; the busiest dots and
       // whatever is looked at are labelled sooner. They are world-sized, as in
-      // Obsidian, but never smaller on screen than can be read.
+      // Obsidian, but never smaller on screen than can be read. A long label
+      // is cut to a width with an ellipsis, and where two would overlap only
+      // the busier is drawn (see `labelsShown`) - except the dot looked at,
+      // the page's own and what the search found, which always show in full.
       context.textAlign = "center";
       context.textBaseline = "top";
       const zoomIn = Math.max(0, Math.min(1, (k - look.labelsAt * 0.7) / (look.labelsAt * 0.35)));
+      const size = Math.max(12, 11 / k);
+      const wanted: { dot: Dot; text: string; top: number; show: number; looked: boolean }[] = [];
+      const boxes: LabelBox[] = [];
       for (const dot of s.dots) {
         const looked =
           dot.key === lit ||
@@ -378,10 +425,28 @@ export function MapCanvas({
         const busy = dot.node.degree >= 4 ? Math.max(zoomIn, 0.9) : zoomIn;
         const show = looked || found ? 1 : busy * (lit ? 1 - s.fade : 1);
         if (show < 0.04) continue;
-        const size = Math.max(12, 11 / k);
-        context.font = `${looked ? 700 : 600} ${size}px system-ui, sans-serif`;
-        const text = dot.node.label.length > 36 ? `${dot.node.label.slice(0, 35)}…` : dot.node.label;
+        const always = found || dot.key === lit || dot.key === s.focus || dot.key === linking?.to?.key;
+        const weight = looked ? 700 : 600;
+        const text = always ? dot.node.label : shortLabel(dot.node.label, weight);
+        const width = (widthOf(text, weight) * size) / MEASURE_PX;
         const top = (dot.y ?? 0) + dot.r + 4 / k;
+        wanted.push({ dot, text, top, show, looked });
+        boxes.push({
+          key: dot.key,
+          x: (dot.x ?? 0) - width / 2,
+          y: top,
+          width,
+          height: size,
+          always,
+          // A hovered dot's neighbours before the rest; then the busier; then what was showing.
+          rank: (looked ? 1e6 : 0) + dot.node.degree + (s.labelled.has(dot.key) ? 0.5 : 0),
+        });
+      }
+      const room = labelsShown(boxes, 3 / k);
+      s.labelled = room;
+      for (const { dot, text, top, show, looked } of wanted) {
+        if (!room.has(dot.key)) continue;
+        context.font = `${looked ? 700 : 600} ${size}px ${LABEL_FONT}`;
         context.globalAlpha = Math.min(show, alphaOf(dot) < 1 && !looked ? alphaOf(dot) + 0.1 : 1);
         context.lineWidth = 3 / k;
         context.strokeStyle = palette["halo"] ?? "";

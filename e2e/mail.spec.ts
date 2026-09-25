@@ -44,7 +44,8 @@ async function installScript() {
       followUp: { status: string; sentAt: null; error: null } | null;
     };
     const fake = {
-      version: 3,
+      // The script this build ships (shared/script.ts): anything older is asked to update.
+      version: 5,
       calls: [] as unknown[],
       jobs: new Map<string, Job>(),
       replied: new Set<string>(),
@@ -283,7 +284,7 @@ test("an older script is explained on Settings, and a contact falls back to the 
   });
 
   await goTo(page, "Settings");
-  await expect(page.getByText(/Your script is version 1\. Version 3 sends email/)).toBeVisible();
+  await expect(page.getByText(/Your script is version 1\. Version \d+ sends email/)).toBeVisible();
   await expect(page.getByRole("button", { name: "Copy the new script" })).toBeVisible();
   await expect(page.getByText(/Deploy › Manage deployments/)).toBeVisible();
 

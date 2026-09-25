@@ -47,6 +47,8 @@ test.afterAll(async () => {
 
 test("a picture goes on the board made smaller, with words beside it, and the tiles reorder", async () => {
   await goTo(page, "Life");
+  // The board sits on Goals, above the goals it is for, not on the overview.
+  await page.getByRole("tablist", { name: "Life" }).getByRole("tab", { name: "Goals" }).click();
   const board = page.locator(".card", { has: page.getByRole("heading", { name: "Vision board" }) });
   await expect(board.getByText("What is this year for?")).toBeVisible();
 
@@ -80,8 +82,9 @@ test("a picture goes on the board made smaller, with words beside it, and the ti
 
   // Kept at the size a tile is ever shown at, as WebP.
   const kept = await page.evaluate(async () => {
-    const company = (await window.caulder.companies.list()).activeCompanyId as string;
-    const [tile] = await window.caulder.vision.list(company);
+    // The board is yours, kept in your home whichever company is chosen.
+    const { homeCompanyId, activeCompanyId } = await window.caulder.companies.list();
+    const [tile] = await window.caulder.vision.list((homeCompanyId ?? activeCompanyId) as string);
     return { width: tile?.width, height: tile?.height, type: tile?.picture?.slice(0, 15) };
   });
   expect(kept).toEqual({ width: 1400, height: 788, type: "data:image/webp" });
@@ -103,10 +106,12 @@ test("a picture goes on the board made smaller, with words beside it, and the ti
 
 test("your level moves on Today as things are done, and Life says where it came from", async () => {
   await page.evaluate(async () => {
-    const company = (await window.caulder.companies.list()).activeCompanyId as string;
+    const { activeCompanyId, homeCompanyId } = await window.caulder.companies.list();
+    const company = activeCompanyId as string;
     const today = new Date().toLocaleDateString("en-CA");
     await window.caulder.tasks.create(company, { title: "Send the proposal", dueOn: today, kind: "todo", area: "company" } as never);
-    await window.caulder.habits.add(company, { name: "Gym", area: "health" });
+    // A habit is yours, kept in your home.
+    await window.caulder.habits.add((homeCompanyId ?? company) as string, { name: "Gym", area: "health" });
   });
   await goTo(page, "Today");
   const strip = page.getByRole("button", { name: /^Level 1, 0 XP/ });

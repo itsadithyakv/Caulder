@@ -10,8 +10,8 @@ const SIZE = { width: 560, height: 260 };
 const BOTTOM = { x: 0, y: 0, width: 1920, height: 1040 };
 
 describe("which key to claim", () => {
-  it("claims Ctrl+Alt+A when nobody has chosen", () => {
-    expect(shortcutToClaim(null)).toBe("Ctrl+Alt+A");
+  it("claims Ctrl+Win+A when nobody has chosen", () => {
+    expect(shortcutToClaim(null)).toBe("Ctrl+Super+A");
   });
 
   it("keeps a key that was turned off turned off, across restarts", () => {
@@ -73,6 +73,7 @@ describe("the tray itself", () => {
 
   it("says what the key does when hovered, and only when there is one", () => {
     expect(trayTooltip("Ctrl+Alt+A")).toBe("Caulder - Ctrl+Alt+A adds a task from anywhere");
+    expect(trayTooltip("Ctrl+Super+A")).toBe("Caulder - Ctrl+Win+A adds a task from anywhere");
     expect(trayTooltip(null)).toBe("Caulder");
   });
 });

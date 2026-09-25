@@ -53,6 +53,8 @@ export function LeadEmail({
   const [followUp, setFollowUp] = useState(false);
   const [followUpTemplate, setFollowUpTemplate] = useState("");
   const [followUpDays, setFollowUpDays] = useState("4");
+  /** The account picked to send from, by id - "script" for the Google script. Empty until one is picked. */
+  const [from, setFrom] = useState("");
   const [busy, setBusy] = useState(false);
   const [asking, setAsking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -69,7 +71,7 @@ export function LeadEmail({
       .state()
       .then(setMail)
       .catch((cause: unknown) =>
-        setMail({ ready: false, reason: messageOf(cause), address: null, remaining: null }),
+        setMail({ ready: false, reason: messageOf(cause), address: null, remaining: null, senders: [] }),
       );
     window.caulder.mail
       .forLead(lead.id)
@@ -103,6 +105,10 @@ export function LeadEmail({
       : "No email address on this contact.";
 
   const ready = mail?.ready === true;
+  // Which account it goes from: the one picked, else the first - the script when it is ready, since it sees replies.
+  const senders = mail?.senders ?? [];
+  const sender = senders.find((each) => (each.id ?? "script") === from) ?? senders[0] ?? null;
+  const seesReplies = sender?.seesReplies ?? true;
 
   function reset() {
     setComposing(false);
@@ -129,6 +135,11 @@ export function LeadEmail({
     }
   }
 
+  // A follow-up needs the script, which is what sees whether they answered.
+  useEffect(() => {
+    if (!seesReplies) setFollowUp(false);
+  }, [seesReplies]);
+
   async function send() {
     let when: string | null = null;
     if (later) {
@@ -142,6 +153,7 @@ export function LeadEmail({
     await act(async () => {
       const next = await window.caulder.mail.send({
         leadId: lead.id,
+        accountId: sender?.id ?? null,
         subject: render(subject, context),
         body: render(body, context),
         sendAt: when,
@@ -230,9 +242,9 @@ export function LeadEmail({
         </p>
       ) : ready && emails.length === 0 && !composing ? (
         <p className="card__hint">
-          Sends from {mail?.address ?? "your Gmail"}
-          {mail?.remaining != null ? `, ${mail.remaining} more today` : ""}. Replies show up
-          here and on Today.
+          Sends from {sender?.address ?? mail?.address ?? "your Gmail"}
+          {sender?.id == null && mail?.remaining != null ? `, ${mail.remaining} more today` : ""}.{" "}
+          {seesReplies ? "Replies show up here and on Today." : "Replies go to that inbox; Caulder does not see them."}
         </p>
       ) : null}
 
@@ -257,6 +269,21 @@ export function LeadEmail({
                   { value: "", label: "Write from scratch" },
                   ...templates.map((template) => ({ value: template.id, label: template.name })),
                 ]}
+              />
+            </div>
+          )}
+
+          {ready && senders.length > 1 && (
+            <div className="field">
+              <span className="field__label" id="lead-email-from">
+                From
+              </span>
+              <Select
+                value={(sender?.id ?? "script") as string}
+                onChange={setFrom}
+                aria-label="Send from"
+                disabled={busy || asking}
+                options={senders.map((each) => ({ value: each.id ?? "script", label: `${each.label} · ${each.address}` }))}
               />
             </div>
           )}
@@ -334,7 +361,7 @@ export function LeadEmail({
                   type="checkbox"
                   className="tickbox"
                   checked={followUp}
-                  disabled={busy || templates.length === 0}
+                  disabled={busy || templates.length === 0 || !seesReplies}
                   aria-label="Follow up if they do not reply"
                   onChange={(event) => {
                     setFollowUp(event.target.checked);
@@ -346,9 +373,11 @@ export function LeadEmail({
                 <span className="checkline__text">
                   <span className="checkline__title">Follow up if they do not reply</span>
                   <span className="card__hint">
-                    {templates.length === 0
-                      ? "Write a template in Settings first: the follow-up is sent from one."
-                      : "Sent in the same thread, and dropped the moment they answer."}
+                    {!seesReplies
+                      ? "Only Gmail through the script can do this: it is the one that sees whether they answered."
+                      : templates.length === 0
+                        ? "Write a template in Settings first: the follow-up is sent from one."
+                        : "Sent in the same thread, and dropped the moment they answer."}
                   </span>
                 </span>
               </label>

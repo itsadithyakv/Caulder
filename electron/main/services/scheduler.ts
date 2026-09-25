@@ -5,7 +5,7 @@ import { syncNow } from "./gsync";
 import { syncBrain } from "./brainsync";
 import { isFault, logProblem } from "../log";
 import { hasEmailWork } from "../repositories/mail";
-import { syncEmails } from "./mail";
+import { sendDueAccountMail, syncEmails } from "./mail";
 
 /**
  * Keeping Google in step without being asked.
@@ -213,11 +213,36 @@ export function startMailWatch(): void {
   stopMailWatch();
   // Not at once: the window has just opened, and it comes first.
   mailTimer = setTimeout(() => void watchMail(), 30_000);
+  accountTimer = setTimeout(() => void sendDue(), 15_000);
 }
 
 export function stopMailWatch(): void {
   if (mailTimer) clearTimeout(mailTimer);
   mailTimer = null;
+  if (accountTimer) clearTimeout(accountTimer);
+  accountTimer = null;
+}
+
+/*
+ * Mail from other accounts that was set to go later is sent by Caulder, so it
+ * is looked for every minute rather than every ten: a message due at nine
+ * should not go at ten past. It is a local query until something is due.
+ */
+const ACCOUNT_EVERY_MS = 60 * 1000;
+let accountTimer: NodeJS.Timeout | null = null;
+let lastAccountProblem: string | null = null;
+
+async function sendDue(): Promise<void> {
+  try {
+    await sendDueAccountMail(getDatabase());
+    lastAccountProblem = null;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message !== lastAccountProblem) logProblem("email", error);
+    lastAccountProblem = message;
+  } finally {
+    accountTimer = setTimeout(() => void sendDue(), ACCOUNT_EVERY_MS);
+  }
 }
 
 /* ---- The shared brain ----------------------------------------------------- */

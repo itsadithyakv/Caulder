@@ -1,12 +1,19 @@
 import { describe, expect, it } from "vitest";
 import {
+  MAP_LOOK,
   asOf,
+  clipLabel,
+  isJournalDay,
+  labelsShown,
+  lookFrom,
   mapKindOf,
   matching,
   neighbourhood,
   radiusOf,
   replaySteps,
   withKinds,
+  withoutJournalDays,
+  type LabelBox,
   type MapGraph,
   type MapNode,
 } from "./map";
@@ -91,10 +98,83 @@ describe("filters", () => {
     expect(pages.links).toEqual([graph.links[0]]);
   });
 
+  it("leaves the journal's days off, and their lines, but not the rest of your own", () => {
+    const day = { ...node("page:day", "2026-09-23", "own"), label: "Wednesday 23 September 2026", section: "journal" as const };
+    const hobby = { ...node("page:pottery", "2026-09-01", "own"), section: "hobbies" as const };
+    const withDays: MapGraph = {
+      nodes: [...graph.nodes, day, hobby],
+      links: [...graph.links, { source: "page:day", target: "page:pottery", createdAt: "2026-09-23" }],
+    };
+    expect(isJournalDay(day)).toBe(true);
+    expect(isJournalDay(hobby)).toBe(false);
+    const without = withoutJournalDays(withDays);
+    expect(keys(without)).toEqual([...keys(graph), "page:pottery"]);
+    expect(without.links).toEqual(graph.links);
+  });
+
+  it("keeps the journal off unless a stored look asks for it", () => {
+    expect(MAP_LOOK.journal).toBe(false);
+    expect(lookFrom({}).journal).toBe(false);
+    expect(lookFrom({ journal: "yes" }).journal).toBe(false);
+    expect(lookFrom({ journal: true }).journal).toBe(true);
+  });
+
   it("matches a search anywhere in the name, ignoring case", () => {
     const pricing = { ...node("page:p", "2026-09-01"), label: "Pricing for schools" };
     expect(matching(pricing, "SCHOOL")).toBe(true);
     expect(matching(pricing, "  ")).toBe(true);
     expect(matching(pricing, "grant")).toBe(false);
+  });
+});
+
+describe("labels", () => {
+  // Every letter seven wide, and the ellipsis too.
+  const measure = (text: string) => text.length * 7;
+
+  it("leaves a label that fits as it is", () => {
+    expect(clipLabel("Read 12 books this year", 200, measure)).toBe("Read 12 books this year");
+  });
+
+  it("cuts a long one where the width runs out, with an ellipsis and no space before it", () => {
+    const cut = clipLabel("Wednesday 23 September 2026", 100, measure);
+    expect(cut).toBe("Wednesday 23…");
+    expect(measure(cut)).toBeLessThanOrEqual(100);
+    expect(clipLabel("Wednesday", 7, measure)).toBe("…");
+  });
+
+  const box = (key: string, x: number, rank: number, always = false): LabelBox => ({
+    key,
+    x,
+    y: 0,
+    width: 100,
+    height: 12,
+    always,
+    rank,
+  });
+
+  it("shows every label that has room", () => {
+    expect(labelsShown([box("a", 0, 1), box("b", 200, 1), box("c", 400, 1)])).toEqual(new Set(["a", "b", "c"]));
+  });
+
+  it("gives the busier of two overlapping labels the room, and hides the quieter", () => {
+    expect(labelsShown([box("day", 0, 1), box("books", 60, 5)])).toEqual(new Set(["books"]));
+    // A hidden label claims nothing: the one past it still shows.
+    expect(labelsShown([box("a", 0, 9), box("b", 80, 5), box("c", 160, 1)])).toEqual(new Set(["a", "c"]));
+  });
+
+  it("always shows what is looked at or found, however busy its neighbour", () => {
+    const shown = labelsShown([box("hub", 0, 50), box("found", 40, 0, true)]);
+    expect(shown).toEqual(new Set(["found"]));
+    expect(labelsShown([box("x", 0, 0, true), box("y", 10, 0, true)])).toEqual(new Set(["x", "y"]));
+  });
+
+  it("keeps a little air between labels when asked", () => {
+    expect(labelsShown([box("a", 0, 2), box("b", 103, 1)])).toEqual(new Set(["a", "b"]));
+    expect(labelsShown([box("a", 0, 2), box("b", 103, 1)], 4)).toEqual(new Set(["a"]));
+  });
+
+  it("decides the same way whatever order the labels come in", () => {
+    const boxes = [box("a", 0, 1), box("b", 50, 1), box("c", 100, 1), box("d", 150, 1)];
+    expect(labelsShown([...boxes].reverse())).toEqual(labelsShown(boxes));
   });
 });

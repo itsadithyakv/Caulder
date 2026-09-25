@@ -4,7 +4,7 @@ import { migrate } from "../db/migrations";
 import { createCompany } from "../repositories/companies";
 import { groupMemories, memoriesOf, trailsOf, underOf } from "@shared/memories";
 import { newPage, savePage } from "./brain";
-import { allMemories } from "./memories";
+import { allMemories, editMemory, forgetMemory } from "./memories";
 
 let db: Database.Database;
 let home: string;
@@ -34,8 +34,28 @@ describe("what the line was told to remember", () => {
       body: "Part of [[Gym|page:g]].\n\n- **PR: 45 kg × 3** · hit a pr on the bench _(2026-09-18)_\n- felt heavy today _(2026-09-20)_\n- a bullet somebody wrote by hand\n\n## Notes\nfree text _(not a date)_\n",
     });
     expect(found).toEqual([
-      { pageId: "p", pageTitle: "Bench Press", section: "hobbies", day: "2026-09-18", fact: "PR: 45 kg × 3", says: "hit a pr on the bench" },
-      { pageId: "p", pageTitle: "Bench Press", section: "hobbies", day: "2026-09-20", fact: null, says: "felt heavy today" },
+      {
+        pageId: "p",
+        pageTitle: "Bench Press",
+        section: "hobbies",
+        day: "2026-09-18",
+        fact: "PR: 45 kg × 3",
+        says: "hit a pr on the bench",
+        raw: "- **PR: 45 kg × 3** · hit a pr on the bench _(2026-09-18)_",
+        key: "pr",
+        current: true,
+      },
+      {
+        pageId: "p",
+        pageTitle: "Bench Press",
+        section: "hobbies",
+        day: "2026-09-20",
+        fact: null,
+        says: "felt heavy today",
+        raw: "- felt heavy today _(2026-09-20)_",
+        key: null,
+        current: true,
+      },
     ]);
   });
 
@@ -104,5 +124,34 @@ describe("what the line was told to remember", () => {
     expect(groupMemories(memories, "honey").flatMap((group) => group.memories.map((each) => each.fact))).toEqual(["Honey"]);
     expect(groupMemories(memories, "riptide")).toHaveLength(1);
     expect(groupMemories(memories, "nothing like this")).toEqual([]);
+  });
+});
+
+describe("a memory changed or let go", () => {
+  const body = "Part of [[Me|page:me]].\n\n- **Parked: level 1** · parked on level 1 _(2026-09-01)_\n- **Spare key: under the pot** · the spare key is under the pot _(2026-09-02)_\n";
+
+  it("is said differently in its place, keeping its day, and the page's history has what it said", () => {
+    const where = page(home, "remembered", "Where things are", body);
+    const raw = "- **Spare key: under the pot** · the spare key is under the pot _(2026-09-02)_";
+    const after = editMemory(db, { pageId: where, raw, fact: "Spare key: with Meera", says: "gave meera the\nspare key" }, NOW);
+    expect(after.map((memory) => memory.raw)).toEqual([
+      "- **Parked: level 1** · parked on level 1 _(2026-09-01)_",
+      "- **Spare key: with Meera** · gave meera the spare key _(2026-09-02)_",
+    ]);
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM brain_revisions WHERE page_id = ?`).get(where)).toMatchObject({ n: expect.any(Number) });
+  });
+
+  it("is taken off its page, and the page stays", () => {
+    const where = page(home, "remembered", "Where things are", body);
+    const after = forgetMemory(db, { pageId: where, raw: "- **Parked: level 1** · parked on level 1 _(2026-09-01)_" }, NOW);
+    expect(after.map((memory) => memory.fact)).toEqual(["Spare key: under the pot"]);
+    expect(allMemories(db).memories).toHaveLength(1);
+  });
+
+  it("is refused when the line has changed on its page since, or is not yours", () => {
+    const where = page(home, "remembered", "Where things are", body);
+    expect(() => forgetMemory(db, { pageId: where, raw: "- something else _(2026-09-01)_" }, NOW)).toThrow("changed on its page");
+    const theirs = page(work, "ideas", "Pitch", "- said at the offsite _(2026-09-20)_\n");
+    expect(() => forgetMemory(db, { pageId: theirs, raw: "- said at the offsite _(2026-09-20)_" }, NOW)).toThrow("not one of your memories");
   });
 });

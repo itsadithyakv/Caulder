@@ -84,7 +84,7 @@
  * ========================================================================= */
 
 /** Caulder reads this to know what the script can do. Email arrived in 2, the shared brain in 3, contacts and Drive backups in 4. */
-var SCRIPT_VERSION = 4;
+var SCRIPT_VERSION = 5;
 
 /** Run once, by hand. Grants permission and prints the key. */
 function setUp() {
@@ -200,6 +200,8 @@ function handle(request) {
       return brainPull(request);
     case "saveContact":
       return saveContact(request);
+    case "pullContacts":
+      return pullContacts(request);
     case "backupPut":
       return backupPut(request);
     case "backupList":
@@ -264,10 +266,12 @@ function hello() {
  * One contact into Google Contacts - which is what a phone's address book
  * syncs with, so a contact added in Caulder is one that rings with a name.
  *
- * One way only, and on purpose. Caulder writes the contact and remembers which
- * one it wrote (`resourceName`), so saving again updates it rather than making
- * a second. It never reads your address book: nothing about the people in it
- * who are not in Caulder ever leaves Google.
+ * Caulder writes the contact and remembers which one it wrote
+ * (`resourceName`), so saving again updates it rather than making a second.
+ *
+ * Reading the other way is `pullContacts` below, and it happens only when
+ * somebody presses the button for it - there is no background read of your
+ * address book, and nothing about the people in it leaves Google on its own.
  *
  * A contact deleted on the phone and saved again from Caulder is made again,
  * because a contact you are still working with is one you still want to reach.
@@ -306,6 +310,57 @@ function saveContact(request) {
   }
   var made = People.People.createContact(body);
   return { resourceName: made.resourceName, made: true };
+}
+
+/**
+ * Your address book, once, because you asked for it.
+ *
+ * The other half of `saveContact`, and deliberately not a sync: Caulder pulls
+ * the list when somebody presses Import, shows it to them, and lets them
+ * choose what to keep. Nothing here runs on a timer.
+ *
+ * Followed to the end, for the reason `pullTasks` has an essay about: a page
+ * is not a list, and an address book is the one place a person is certain to
+ * have more than a hundred of something. It says plainly whether it finished,
+ * and Caulder tells them when it did not rather than quietly importing a
+ * prefix.
+ *
+ * Only the fields Caulder has a column for are asked for. Birthdays, photos,
+ * relations and the rest stay in Google.
+ */
+function pullContacts(request) {
+  if (typeof People === "undefined") {
+    throw new Error(
+      "Your Google script cannot read contacts yet. Open it, press + beside Services, add the People API, then run setUp once more.",
+    );
+  }
+
+  var fields = "names,organizations,emailAddresses,phoneNumbers,addresses,urls,biographies";
+  var out = [];
+  var token = null;
+  var pages = 0;
+  var complete = true;
+
+  do {
+    var options = { personFields: fields, pageSize: 200 };
+    if (token) options.pageToken = token;
+
+    var response = People.People.Connections.list("people/me", options);
+    var people = response.connections || [];
+    for (var i = 0; i < people.length; i += 1) out.push(people[i]);
+
+    token = response.nextPageToken || null;
+    pages += 1;
+
+    // The same guard the tasks have. Stopping is fine; claiming to have
+    // finished would not be.
+    if (pages >= 25 && token) {
+      complete = false;
+      break;
+    }
+  } while (token);
+
+  return { contacts: out, complete: complete };
 }
 
 /* ---- Backups, in Drive -------------------------------------------------- */

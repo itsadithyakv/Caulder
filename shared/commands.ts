@@ -17,17 +17,35 @@
  */
 
 import { readBook, type ShelfStatus } from "./books";
+import type { NewPerson } from "./newperson";
 
 /** The screens, by the ids the app routes on (src/app/routes.ts). */
-type Place = "today" | "day" | "leads" | "pipeline" | "money" | "import" | "brain" | "map" | "journal" | "life" | "settings";
+type Place = "today" | "day" | "leads" | "pipeline" | "money" | "import" | "brain" | "map" | "journal" | "life" | "memories" | "settings";
 
 export type Command =
   | { do: "go"; place: Place; label: string }
   /** Whole units of the workspace's currency; negative for money that came back. */
   | { do: "spend"; amount: number; what: string; daysAgo: number }
-  | { do: "contact"; name: string; person: string | null; phone: string | null; email: string | null }
+  | {
+      do: "contact";
+      name: string;
+      person: string | null;
+      phone: string | null;
+      email: string | null;
+      /**
+       * Said of somebody new rather than asked for (shared/newperson.ts): what
+       * they are there, where they came from, what happened - for their
+       * history - and what to do about them, as their task.
+       */
+      role?: string | null;
+      source?: string | null;
+      happened?: string | null;
+      then?: NewPerson["then"];
+    }
   /** "I want to read the percy jackson series": books, and the pile they go on (shared/books.ts). */
-  | { do: "book"; status: ShelfStatus; titles: string[]; series: string | null };
+  | { do: "book"; status: ShelfStatus; titles: string[]; series: string | null }
+  /** "Netflix 649 monthly": something paid again and again, kept as a running cost in the brain's Money. */
+  | { do: "cost"; title: string; amount: number; cycle: "monthly" | "quarterly" | "yearly"; day: number | null };
 
 const PLACES: readonly { place: Place; label: string; words: RegExp }[] = [
   { place: "today", label: "Today", words: /^(?:today|home|dashboard|start)$/ },
@@ -36,7 +54,8 @@ const PLACES: readonly { place: Place; label: string; words: RegExp }[] = [
   { place: "pipeline", label: "Pipeline", words: /^(?:pipeline|board|deals?|sales|kanban)$/ },
   { place: "money", label: "Money", words: /^(?:money|finances?|invoices?|quotes?|costs?|expenses?|spend|spending|payments?|billing|runway)$/ },
   { place: "import", label: "Import", words: /^(?:import|imports|importer)$/ },
-  { place: "brain", label: "Brain", words: /^(?:brain|pages?|notes|knowledge|wiki|memories|memory|docs?|documents?)$/ },
+  { place: "brain", label: "Brain", words: /^(?:brain|pages?|notes|knowledge|wiki|handbook|docs?|documents?)$/ },
+  { place: "memories", label: "Memories", words: /^(?:memories|memory|remembered|what\s+i\s+remember(?:ed)?)$/ },
   { place: "map", label: "Map", words: /^(?:map|graph|connections|links|network|mind\s?map)$/ },
   { place: "journal", label: "Journal", words: /^(?:journal|diary)$/ },
   { place: "life", label: "Life", words: /^(?:life|habits?|hobbies|hobby|goals?|studies|study|courses?|me)$/ },
@@ -58,8 +77,35 @@ const SPENT = new RegExp(
  * nobody spent is worse than one that has to be typed the other way round.
  */
 const COST = new RegExp(String.raw`^\s*(?:the\s+)?(.+?)\s+(?:cost(?:s|ed)?(?:\s+(?:me|us))?|came\s+to|set\s+(?:me|us)\s+back)\s+${AMOUNT}\s*$`, "i");
+/**
+ * "Uber 340", "coffee 150", "lunch 250": what it was, then what it cost, and
+ * nothing else. Only for the things people actually buy this way - "room 101"
+ * and "chapter 4" are not money, so an unknown word before a number is not
+ * read as spending.
+ */
+const SPENT_ON =
+  /^\s*(uber|ola|rapido|auto|cab|taxi|metro|bus|train\s+ticket|flight|petrol|fuel|diesel|parking|toll|coffee|chai|tea|lunch|dinner|breakfast|snacks?|groceries|grocery|swiggy|zomato|blinkit|zepto|instamart|food|drinks|beer|movie|movies|movie\s+tickets?|netflix|spotify|recharge|haircut|laundry|gym|medicines?|pharmacy|books?|stationery|amazon|flipkart|rent|electricity|wifi|internet)\s+(?:rs\.?|inr|₹)?\s*(\d[\d,]*(?:\.\d+)?)\s*(k)?\s*$/i;
+
 const REFUND = new RegExp(
   String.raw`^\s*(?:(?:i|we)\s+)?(?:got\s+)?(?:an?\s+)?refund(?:ed)?\s+(?:of\s+)?${AMOUNT}\s*(?:from|for|on|by|-|:)?\s*(.*?)\s*$`,
+  "i",
+);
+
+/**
+ * Money that came in: "got salary 50k", "received 5000 from rahul", "stipend
+ * credited 12000". Kept in Money as money in, the way a refund is.
+ */
+const INCOME = new RegExp(
+  String.raw`^\s*(?:(?:i|we)\s+)?(?:just\s+)?(?:got|received|recieved|earned|made|collected)\s+(?:my\s+|the\s+|a\s+)?(?:(salary|stipend|pocket\s+money|allowance|bonus|incentive|commission|pay(?:check)?|rent|interest|dividend|payment|fees?)\s+(?:of\s+)?)?${AMOUNT}(?:\s+(?:as\s+)?(salary|stipend|pocket\s+money|allowance|bonus|incentive|commission|rent|interest|dividend))?(?:\s+(?:from|for|by)\s+(.+?))?\s*$`,
+  "i",
+);
+const CREDITED = new RegExp(
+  String.raw`^\s*(salary|stipend|pocket\s+money|allowance|bonus|incentive|commission|pay(?:check)?|rent|interest|dividend)\s+(?:of\s+)?${AMOUNT}\s+(?:credited|received|came(?:\s+in)?|in|got\s+credited|deposited)\s*$|^\s*(salary|stipend|bonus|pay(?:check)?)\s+(?:credited|received|came(?:\s+in)?|deposited)\s*(?:[:-]\s*)?${AMOUNT}\s*$`,
+  "i",
+);
+/** "Netflix 649 monthly", "spotify 119 a month", "aws 3000 every month on the 5th", "domain 900 yearly". */
+const RECURRING = new RegExp(
+  String.raw`^\s*(?:(?:my|the|our)\s+)?(.+?)\s+(?:subscription\s+|plan\s+|bill\s+|membership\s+)?(?:is\s+|costs?\s+|of\s+)?${AMOUNT}\s*(?:(?:a|per|\/|every|each)\s*(month|mo|year|yr|quarter)|(monthly|yearly|annually|annual|quarterly))(?:\s+on\s+the\s+(\d{1,2})(?:st|nd|rd|th)?)?\s*$`,
   "i",
 );
 
@@ -83,6 +129,8 @@ function whenSpent(what: string): { what: string; daysAgo: number } {
   if (!match) return { what, daysAgo: 0 };
   return { what: what.slice(0, match.index).trim(), daysAgo: /^y/i.test(match[1] ?? "") ? 1 : 0 };
 }
+
+const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 const SMALL_IN_A_NAME = new Set(["of", "and", "the", "for", "de", "la", "van", "von", "bin", "al", "el", "st", "&"]);
 
@@ -138,11 +186,51 @@ export function readCommand(line: string): Command | null {
   const book = readBook(line);
   if (book) return { do: "book", ...book };
 
+  const recurring = RECURRING.exec(line);
+  if (recurring) {
+    const amount = amountOf(recurring[2], recurring[3]);
+    const per = (recurring[4] ?? recurring[5] ?? "").toLowerCase().replace(/\./g, "");
+    const cycle = /^(?:year|yr|yearly|annually|annual)$/.test(per) ? "yearly" : /^quarter/.test(per) ? "quarterly" : "monthly";
+    const title = (recurring[1] ?? "").trim();
+    const day = recurring[6] ? Number(recurring[6]) : null;
+    // A price said with no thing to pay for, or a thing that is plainly not a bill, is not a running cost.
+    if (amount > 0 && title && !/^(?:i|we|it|this|that|spent|paid|salary|stipend|allowance|pocket\s+money|income|pay)\b/i.test(title) && (day === null || (day >= 1 && day <= 31))) {
+      // "aws" is AWS: a name of three letters or fewer is nearly always initials.
+      const name = /^[a-z]{2,3}$/i.test(title) ? title.toUpperCase() : title.charAt(0).toUpperCase() + title.slice(1);
+      return { do: "cost", title: name, amount, cycle, day };
+    }
+  }
+
+  const income = INCOME.exec(line) ;
+  if (income) {
+    const amount = amountOf(income[2], income[3]);
+    const kind = (income[1] ?? income[4] ?? "").trim();
+    const from = (income[5] ?? "").trim();
+    const what = kind ? capital(kind) + (from ? ` from ${from}` : "") : from ? `From ${from}` : "Money in";
+    // "Got 3 marks", "made 2 friends": money is a sum, not a small count of something.
+    if (amount >= 10 && !/\b(?:marks?|points?|friends?|goals?|runs?|km|kg|hours?|pages?|%)\b/i.test(line)) {
+      return { do: "spend", amount: -amount, what, daysAgo: 0 };
+    }
+  }
+  const credited = CREDITED.exec(line);
+  if (credited) {
+    const amount = amountOf(credited[2] ?? credited[5], credited[3] ?? credited[6]);
+    const kind = (credited[1] ?? credited[4] ?? "").trim();
+    if (amount > 0) return { do: "spend", amount: -amount, what: capital(kind), daysAgo: 0 };
+  }
+
   const refund = REFUND.exec(line);
   if (refund) {
     const amount = amountOf(refund[1], refund[2]);
     const { what, daysAgo } = whenSpent(refund[3] ?? "");
     return amount > 0 ? { do: "spend", amount: -amount, what: what ? `Refund: ${what}` : "Refund", daysAgo } : null;
+  }
+
+  const short = SPENT_ON.exec(line);
+  if (short) {
+    const amount = amountOf(short[2], short[3]);
+    const what = (short[1] ?? "").trim();
+    return amount > 0 ? { do: "spend", amount, what: what.charAt(0).toUpperCase() + what.slice(1), daysAgo: 0 } : null;
   }
 
   const spent = SPENT.exec(line);

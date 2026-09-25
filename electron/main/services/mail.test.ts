@@ -122,7 +122,19 @@ describe("whether a contact's page can send", () => {
       reason: null,
       address: "founder@gmail.com",
       remaining: 90,
+      senders: [{ id: null, label: "Gmail, through the script", address: "founder@gmail.com", seesReplies: true }],
     });
+  });
+
+  it("is ready without the script when another account is connected, and sends from it", async () => {
+    connected = false;
+    db.prepare(
+      `INSERT INTO mail_accounts (id, label, address, host, port, secure, username, secret, is_default, created_at)
+       VALUES ('zoho', 'Zoho work', 'me@unifloe.com', 'smtp.zoho.com', 465, 1, 'me@unifloe.com', 'x', 1, ?)`,
+    ).run(NOW.toISOString());
+    const state = await mailState(db);
+    expect(state).toMatchObject({ ready: true, address: "me@unifloe.com" });
+    expect(state.senders).toEqual([{ id: "zoho", label: "Zoho work", address: "me@unifloe.com", seesReplies: false }]);
   });
 });
 

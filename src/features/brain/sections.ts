@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  BookHeart,
   Building2,
   CalendarClock,
   ChartLine,
@@ -42,5 +43,6 @@ export const SECTION_ICON: Record<BrainSectionId, LucideIcon> = {
   studies: GraduationCap,
   hobbies: Palette,
   goals: Mountain,
+  remembered: BookHeart,
   journal: NotebookPen,
 };

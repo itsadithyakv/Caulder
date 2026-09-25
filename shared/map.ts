@@ -155,13 +155,121 @@ export function matching(node: MapNode, search: string): boolean {
   return text.length === 0 || node.label.toLowerCase().includes(text);
 }
 
-export function withKinds(graph: MapGraph, kinds: ReadonlySet<MapKind>): MapGraph {
-  const nodes = graph.nodes.filter((node) => kinds.has(node.kind));
+/** The graph with only the dots `keep` allows, and the lines between them. */
+function keeping(graph: MapGraph, keep: (node: MapNode) => boolean): MapGraph {
+  const nodes = graph.nodes.filter(keep);
   const present = new Set(nodes.map((node) => node.key));
   return {
     nodes,
     links: graph.links.filter((link) => present.has(link.source) && present.has(link.target)),
   };
+}
+
+export function withKinds(graph: MapGraph, kinds: ReadonlySet<MapKind>): MapGraph {
+  return keeping(graph, (node) => kinds.has(node.kind));
+}
+
+/**
+ * A day of the journal. The journal holds nothing but its entries (its one
+ * template is ENTRY_TEMPLATE), so the section is enough to know one.
+ */
+export function isJournalDay(node: MapNode): boolean {
+  return node.ref === "page" && node.section === "journal";
+}
+
+/**
+ * The graph without the journal's days, unless they are asked for. A dot a
+ * day is mostly dates - dozens of them crowding the hobbies, books and people
+ * the map is for - so they are off until Display turns them on. A day that
+ * links to something is still in that thing's Linked here; this is only the
+ * drawing.
+ */
+export function withoutJournalDays(graph: MapGraph): MapGraph {
+  return keeping(graph, (node) => !isJournalDay(node));
+}
+
+/* ---- Labels ----------------------------------------------------------------- */
+
+/** How wide a label may be before it is cut short, in ems of its own font. */
+export const LABEL_EMS = 13;
+
+/**
+ * A label cut to fit `maxWidth`, ending in an ellipsis when it had to be cut.
+ * `measure` is how wide a piece of text is - the canvas's, in the window - so
+ * the cut is where the width runs out rather than at a fixed count of letters.
+ */
+export function clipLabel(text: string, maxWidth: number, measure: (text: string) => number): string {
+  if (measure(text) <= maxWidth) return text;
+  // The longest start that still fits with the ellipsis after it.
+  let low = 0;
+  let high = text.length;
+  while (low < high) {
+    const mid = Math.ceil((low + high) / 2);
+    if (measure(`${text.slice(0, mid).trimEnd()}…`) <= maxWidth) low = mid;
+    else high = mid - 1;
+  }
+  return `${text.slice(0, low).trimEnd()}…`;
+}
+
+/** Where a label would be drawn: its box, top left and size, and how much it matters. */
+export type LabelBox = {
+  key: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** Shown whatever it covers: the dot looked at, the page's own, what the search found. */
+  always: boolean;
+  /** Among the rest, the higher keeps its place when two would overlap - the busier dot, usually. */
+  rank: number;
+};
+
+/**
+ * Which labels to draw, so that none runs into another. The ones that must
+ * show claim their room first; then, busiest first, each label is drawn only
+ * if its box is clear of every one already placed - the quieter of two
+ * neighbours waits for a hover, a search or a closer zoom. `pad` keeps a
+ * little air between boxes.
+ *
+ * The placed boxes are kept in a grid of cells about a label wide, so a
+ * label is tested against the few near it rather than all of them: this runs
+ * every frame the map moves.
+ */
+export function labelsShown(boxes: readonly LabelBox[], pad = 0): Set<string> {
+  const shown = new Set<string>();
+  if (boxes.length === 0) return shown;
+
+  const order = [...boxes].sort(
+    (a, b) => Number(b.always) - Number(a.always) || b.rank - a.rank || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0),
+  );
+  const cell = Math.max(1, boxes.reduce((sum, box) => sum + box.width, 0) / boxes.length + pad * 2);
+  const grid = new Map<string, LabelBox[]>();
+  const cellsOf = (box: LabelBox, visit: (key: string) => boolean | void) => {
+    const x0 = Math.floor((box.x - pad) / cell);
+    const x1 = Math.floor((box.x + box.width + pad) / cell);
+    const y0 = Math.floor((box.y - pad) / cell);
+    const y1 = Math.floor((box.y + box.height + pad) / cell);
+    for (let cx = x0; cx <= x1; cx += 1) {
+      for (let cy = y0; cy <= y1; cy += 1) {
+        if (visit(`${cx},${cy}`) === true) return true;
+      }
+    }
+    return false;
+  };
+  const overlaps = (a: LabelBox, b: LabelBox) =>
+    a.x - pad < b.x + b.width && b.x - pad < a.x + a.width && a.y - pad < b.y + b.height && b.y - pad < a.y + a.height;
+
+  for (const box of order) {
+    const clashes = !box.always && cellsOf(box, (key) => grid.get(key)?.some((other) => overlaps(box, other)) === true);
+    if (clashes) continue;
+    shown.add(box.key);
+    cellsOf(box, (key) => {
+      const bucket = grid.get(key);
+      if (bucket) bucket.push(box);
+      else grid.set(key, [box]);
+    });
+  }
+  return shown;
 }
 
 /**
@@ -178,12 +286,14 @@ export type MapLook = {
   /** Dots and lines, scaled. */
   size: number;
   lines: number;
-  /** The zoom past which every label shows; below it, only the busiest and what is lit. */
+  /** The zoom past which every label with room shows; below it, only the busiest and what is lit. */
   labelsAt: number;
   /** Which way a link was written, as an arrow at the far end. */
   arrows: boolean;
   /** Dots with no line at all. */
   orphans: boolean;
+  /** The journal's days, a dot each - off unless asked for (see `withoutJournalDays`). */
+  journal: boolean;
 };
 
 export const MAP_LOOK: MapLook = {
@@ -195,6 +305,7 @@ export const MAP_LOOK: MapLook = {
   labelsAt: 1.1,
   arrows: false,
   orphans: true,
+  journal: false,
 };
 
 /** A stored look, checked value by value: anything missing or out of range takes its default. */
@@ -213,5 +324,6 @@ export function lookFrom(raw: unknown): MapLook {
     labelsAt: num("labelsAt", 0.3, 3),
     arrows: value["arrows"] === true,
     orphans: value["orphans"] !== false,
+    journal: value["journal"] === true,
   };
 }

@@ -74,8 +74,9 @@ test("the brain has its own row, a key, and a list of what to write first", asyn
   await page.keyboard.press("b");
   await expect(page.getByRole("heading", { name: "Brain", exact: true })).toBeVisible();
   await expect(page.getByRole("img", { name: "0 of 12 written down" })).toBeVisible();
-  // Home, the Map, Memories, All sections and Share and export: a section joins the rail when it holds something.
-  await expect(rail().getByRole("button")).toHaveCount(5);
+  // Home, the Map, All sections and Share and export: a section joins the rail when it holds something.
+  // Memories are yours, so they are under You and not here.
+  await expect(rail().getByRole("button")).toHaveCount(4);
   await shot("home-empty");
 });
 
@@ -187,17 +188,21 @@ test("Ctrl+K finds pages and contacts, and opens what it finds", async () => {
 
 test("a caught note can be filed into Ideas, or put back", async () => {
   await goTo(page, "Today");
-  const notes = page.getByLabel("Write a note");
+  // Today has one way in, the quick line: "note:" says it outright, and the
+  // note waits at the foot of Today to be filed.
+  const line = page.getByLabel("Anything, in one line");
+  await expect(page.getByLabel("Write a note")).toHaveCount(0);
 
-  await notes.fill("Referral bonus for schools");
-  await page.getByRole("button", { name: "Keep it" }).click();
+  await line.fill("note: Referral bonus for schools");
+  await line.press("Enter");
+  await expect(page.locator(".quickadd__added")).toContainText("A note, at the foot of Today");
   await page.getByRole("button", { name: 'File "Referral bonus for schools" in the brain' }).click();
   await page.getByRole("button", { name: "File it", exact: true }).click();
   await expect(page.getByText("Filed in Ideas as “Referral bonus for schools”.")).toBeVisible();
   await expect(page.locator(".note", { hasText: "Referral bonus for schools" })).toHaveCount(0);
 
-  await notes.fill("Parents newsletter");
-  await page.getByRole("button", { name: "Keep it" }).click();
+  await line.fill("note: Parents newsletter");
+  await line.press("Enter");
   await page.getByRole("button", { name: 'File "Parents newsletter" in the brain' }).click();
   await page.getByRole("button", { name: "File it", exact: true }).click();
   await page.getByRole("button", { name: "Undo" }).click();

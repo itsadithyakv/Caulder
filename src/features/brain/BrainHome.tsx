@@ -1,7 +1,8 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { ArrowRight, Check, ChevronDown, ChevronUp, Circle, Waypoints } from "lucide-react";
 import { AskBox } from "./AskBox";
-import type { MapGraph, MapNode } from "@shared/map";
+import { ContextCard } from "./ContextCard";
+import { withoutJournalDays, type MapGraph, type MapNode } from "@shared/map";
 import {
   CHECKLIST_STEPS,
   CHECKLIST_STEP_LABEL,
@@ -85,6 +86,8 @@ export function BrainHome({
 
         <AskBox companyId={companyId} onOpenPage={onOpenPage} onOpenContact={onOpenContact} onGoToSettings={onGoToSettings} />
 
+        <ContextCard companyId={companyId} />
+
         <Checklist items={home.checklist} onOpen={open} />
 
         <Card title={home.pinned.length > 0 ? "Pinned and recent" : "Recently written"}>
@@ -132,7 +135,8 @@ function SmallMap({
     let live = true;
     window.caulder.brain
       .map(companyId, false)
-      .then((found) => live && setGraph(found))
+      // Journal days are left off, as on the map itself unless switched on there.
+      .then((found) => live && setGraph(withoutJournalDays(found)))
       .catch(() => live && setGraph(null));
     return () => {
       live = false;
