@@ -7,13 +7,16 @@ import {
   generateKeyPairSync,
   hkdfSync,
   randomBytes,
+  randomInt,
   scryptSync,
   type KeyObject,
 } from "node:crypto";
 import type { Db } from "../db/connection";
 import { ENTRY_TEMPLATE } from "@shared/brain";
+import { addToEntry } from "@shared/capture";
 import { today as todayIn } from "@shared/dates";
-import type { JournalLockState } from "@shared/life";
+import type { JournalLockState, JournalRecovery } from "@shared/life";
+import { MAX_PASSCODE, passcodeStrength } from "@shared/passcode";
 import { getSetting, setSetting } from "../repositories/settings";
 
 /**
@@ -24,22 +27,41 @@ import { getSetting, setSetting } from "../repositories/settings";
  * half is kept as it is and seals text, and needs nothing to do it; the
  * private half, the only thing that opens what was sealed, is kept encrypted
  * with a key made from the passcode. So a day that has ended is sealed
- * without asking - today's entry stays open to write in until midnight - and
- * reading one back means the passcode, once, until it locks again.
+ * without asking - and reading one back means the passcode, once, until it
+ * locks again.
  *
  * Sealed means the words are nowhere else: the page's text, every earlier
  * version of it and the search index are emptied, and the words live only
  * as ciphertext in journal_sealed. The mood stays, so the calendar keeps its
- * faces. Forget the passcode and nobody can read those days - not Caulder,
- * not you - which the screen says before one is set.
+ * faces.
+ *
+ * After 0.4.5 (PLAN.md, *The journal, locked properly*):
+ *  - **Today can be locked as it is written** (`lockToday`), not at
+ *    midnight. Writing still needs nothing: a line added while the journal is
+ *    locked is sealed as a part of its own, and the parts are read together.
+ *  - **A recovery key** opens the same private half, so a forgotten passcode
+ *    need not mean the days are gone. It is shown once and kept nowhere.
+ *  - **A slower key from the passcode** for passcodes set from now on, and
+ *    new passcodes need some length. A passcode set before still opens.
  */
 
-type LockRecord = { v: 1; publicKey: string; salt: string; iv: string; tag: string; box: string };
+/** The private half, encrypted with a key made from a passcode or a recovery key. `n` is scrypt's cost, as a power of two. */
+type Wrapped = { salt: string; iv: string; tag: string; box: string; n?: number };
+type LockRecord = { v: 1; publicKey: string; recovery?: Wrapped } & Wrapped;
 type SealedBox = { v: 1; eph: string; iv: string; tag: string; data: string };
+/** An entry sealed in parts: written into while the journal was locked. Read in order, as one. */
+type SealedParts = { v: 2; parts: SealedBox[] };
 
 /** Unlocked stays unlocked this long without being used, then locks itself. */
 const IDLE_MS = 15 * 60 * 1000;
-const MIN_LENGTH = 4;
+/** What a passcode set before 0.4.5 was made with. */
+const OLD_WORK = 15;
+/** About a third of a second on a laptop: nothing to wait for once, a great deal to wait for a billion times. */
+let work = 17;
+
+/** Crockford's letters: no I, L, O or U, so a key read off paper is not misread. */
+const RECOVERY_LETTERS = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+const RECOVERY_LENGTH = 25;
 
 let open: { key: KeyObject; at: number } | null = null;
 
@@ -57,44 +79,81 @@ function lockRecord(db: Db): LockRecord | null {
   }
 }
 
-/** A key from the passcode: slow on purpose, so guessing it is slow too. */
-function passKey(passcode: string, salt: Buffer): Buffer {
-  return scryptSync(passcode.normalize("NFC"), salt, 32, { N: 2 ** 15, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
+/** A key from a passcode: slow on purpose, so guessing it is slow too. */
+function passKey(secret: string, salt: Buffer, n: number): Buffer {
+  return scryptSync(secret.normalize("NFC"), salt, 32, { N: 2 ** n, r: 8, p: 1, maxmem: 256 * 1024 * 1024 });
 }
 
-function checkedPasscode(value: unknown): string {
-  if (typeof value !== "string" || value.length < MIN_LENGTH) {
-    throw new Error(`A passcode needs at least ${MIN_LENGTH} characters.`);
-  }
-  if (value.length > 200) throw new Error("That passcode is too long.");
+/** A passcode typed to open something: any it was ever set to. */
+function givenPasscode(value: unknown): string {
+  if (typeof value !== "string" || value.length === 0) throw new Error("Type the passcode.");
+  if (value.length > MAX_PASSCODE) throw new Error("That passcode is too long.");
   return value;
 }
 
-function wrapPrivate(privateKey: KeyObject, passcode: string, publicKey: KeyObject): LockRecord {
+/** A passcode about to be set: held to `passcodeStrength`. */
+function newPasscode(value: unknown): string {
+  if (typeof value !== "string") throw new Error("Type a passcode.");
+  if (value.length > MAX_PASSCODE) throw new Error("That passcode is too long.");
+  const strength = passcodeStrength(value);
+  if (!strength.ok) throw new Error(strength.hint ?? "Choose a longer passcode.");
+  return value;
+}
+
+function wrap(privateKey: KeyObject, secret: string): Wrapped {
   const salt = randomBytes(16);
   const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", passKey(passcode, salt), iv);
+  const cipher = createCipheriv("aes-256-gcm", passKey(secret, salt, work), iv);
   const box = Buffer.concat([cipher.update(privateKey.export({ type: "pkcs8", format: "der" })), cipher.final()]);
+  return { salt: b64(salt), iv: b64(iv), tag: b64(cipher.getAuthTag()), box: b64(box), n: work };
+}
+
+function unwrap(wrapped: Wrapped, secret: string, wrong: string): KeyObject {
+  try {
+    const decipher = createDecipheriv("aes-256-gcm", passKey(secret, unb64(wrapped.salt), wrapped.n ?? OLD_WORK), unb64(wrapped.iv));
+    decipher.setAuthTag(unb64(wrapped.tag));
+    const der = Buffer.concat([decipher.update(unb64(wrapped.box)), decipher.final()]);
+    return createPrivateKey({ key: der, format: "der", type: "pkcs8" });
+  } catch {
+    throw new Error(wrong);
+  }
+}
+
+function lockWith(privateKey: KeyObject, passcode: string, recovery: Wrapped | undefined): LockRecord {
+  const publicKey = createPublicKey(privateKey);
   return {
     v: 1,
     publicKey: b64(publicKey.export({ type: "spki", format: "der" })),
-    salt: b64(salt),
-    iv: b64(iv),
-    tag: b64(cipher.getAuthTag()),
-    box: b64(box),
+    ...wrap(privateKey, passcode),
+    ...(recovery ? { recovery } : {}),
   };
 }
 
-function unwrapPrivate(record: LockRecord, passcode: string): KeyObject {
-  try {
-    const decipher = createDecipheriv("aes-256-gcm", passKey(passcode, unb64(record.salt)), unb64(record.iv));
-    decipher.setAuthTag(unb64(record.tag));
-    const der = Buffer.concat([decipher.update(unb64(record.box)), decipher.final()]);
-    return createPrivateKey({ key: der, format: "der", type: "pkcs8" });
-  } catch {
-    throw new Error("That is not the passcode.");
-  }
+const unwrapPasscode = (record: LockRecord, passcode: string) => unwrap(record, passcode, "That is not the passcode.");
+
+/* ---- The recovery key ------------------------------------------------------ */
+
+function makeRecoverySecret(): string {
+  const letters = Array.from({ length: RECOVERY_LENGTH }, () => RECOVERY_LETTERS[randomInt(RECOVERY_LETTERS.length)]).join("");
+  return letters.match(/.{5}/g)?.join("-") ?? letters;
 }
+
+/**
+ * A recovery key as typed: any case, any spacing or dashes, and the letters
+ * people misread for the digits they look like.
+ */
+export function recoveryOf(value: unknown): string {
+  if (typeof value !== "string") throw new Error("Type the recovery key.");
+  const letters = value
+    .toUpperCase()
+    .replace(/[^0-9A-Z]/g, "")
+    .replace(/O/g, "0")
+    .replace(/[IL]/g, "1");
+  if (letters.length !== RECOVERY_LENGTH) throw new Error(`A recovery key is ${RECOVERY_LENGTH} letters and numbers.`);
+  return letters.match(/.{5}/g)?.join("-") ?? letters;
+}
+
+/* ---- Sealing a text ---------------------------------------------------------- */
 
 /** A key for one sealed box, from a throwaway key pair and the journal's own. */
 function boxKey(shared: Buffer, eph: Buffer): Buffer {
@@ -121,6 +180,21 @@ function openText(privateKey: KeyObject, box: SealedBox): string {
   return Buffer.concat([decipher.update(unb64(box.data)), decipher.final()]).toString("utf8");
 }
 
+function partsOf(stored: string): SealedBox[] {
+  const parsed = JSON.parse(stored) as SealedBox | SealedParts;
+  return parsed.v === 2 ? parsed.parts : [parsed];
+}
+
+/**
+ * An entry's sealed words, every part, as one text. A part added later goes
+ * where a line added to an open entry would (`addToEntry`), so Guided finds
+ * it under Today, not under Tomorrow.
+ */
+function openEntry(privateKey: KeyObject, stored: string): string {
+  const [first = "", ...added] = partsOf(stored).map((part) => openText(privateKey, part));
+  return added.filter((text) => text.trim().length > 0).reduce((body, line) => addToEntry(body, line), first);
+}
+
 /** The private key, if the journal is unlocked and has been used recently. */
 function openKey(now = Date.now()): KeyObject | null {
   if (!open) return null;
@@ -133,8 +207,14 @@ function openKey(now = Date.now()): KeyObject | null {
 }
 
 export function lockState(db: Db): JournalLockState {
-  const set = lockRecord(db) !== null;
-  return { set, open: set && openKey() !== null };
+  const record = lockRecord(db);
+  const set = record !== null;
+  return {
+    set,
+    open: set && openKey() !== null,
+    recovery: record?.recovery !== undefined,
+    lockToday: set && getSetting(db, "journalLockToday") === "on",
+  };
 }
 
 /* ---- Sealing ------------------------------------------------------------- */
@@ -151,7 +231,11 @@ function entryRows(db: Db, companyId: string): EntryRow[] {
     .all(companyId, ENTRY_TEMPLATE) as EntryRow[];
 }
 
-/** Seals one entry's words, now, and takes them out of everywhere else. */
+/**
+ * Seals one entry's words, now, and takes them out of everywhere else. The
+ * body is the whole of the entry - the editor saves what it opened, parts and
+ * all - so it replaces whatever was sealed before.
+ */
 function sealEntry(db: Db, record: LockRecord, pageId: string, body: string, now: Date): void {
   db.transaction(() => {
     db.prepare(
@@ -165,29 +249,78 @@ function sealEntry(db: Db, record: LockRecord, pageId: string, body: string, now
 }
 
 /**
- * Seals every entry for a day that is over and is not sealed yet, or was
- * written in again while unlocked. Called whenever the journal is read, so
- * yesterday is sealed by the first look today. Nothing happens without a passcode.
+ * The words were on the page, briefly, before they were sealed. Deleted
+ * content is overwritten as it goes (`secure_delete`, in `db/connection.ts`),
+ * and folding the write-ahead log back into the file clears the copies it
+ * held. A no-op for a database in memory.
+ */
+function scrub(db: Db): void {
+  try {
+    db.pragma("wal_checkpoint(TRUNCATE)");
+  } catch {
+    // Busy: the next one will do it.
+  }
+}
+
+function todayOf(db: Db, companyId: string, now: Date): string | null {
+  const tz = (db.prepare(`SELECT timezone FROM companies WHERE id = ?`).get(companyId) as { timezone: string } | undefined)?.timezone;
+  return tz ? todayIn(tz, now) : null;
+}
+
+/**
+ * Seals every entry that should be and is not yet, or was written in again
+ * while unlocked: the days that are over, and today too when the journal
+ * locks as it is written. Called whenever the journal is read and after every
+ * save, so yesterday is sealed by the first look today. Nothing happens
+ * without a passcode.
  */
 export function sealPast(db: Db, companyId: string, now: Date = new Date()): void {
   const record = lockRecord(db);
   if (!record) return;
-  const tz = (db.prepare(`SELECT timezone FROM companies WHERE id = ?`).get(companyId) as { timezone: string } | undefined)?.timezone;
-  if (!tz) return;
-  const today = todayIn(tz, now);
+  const today = todayOf(db, companyId, now);
+  if (!today) return;
+  const lockToday = getSetting(db, "journalLockToday") === "on";
+  let sealed = false;
   for (const row of entryRows(db, companyId)) {
-    if (!row.day || row.day >= today) continue;
+    if (!row.day || row.day > today || (row.day === today && !lockToday)) continue;
     if (row.sealed > 0 && row.body === "") continue;
     sealEntry(db, record, row.id, row.body, now);
+    sealed = true;
   }
+  if (sealed) scrub(db);
 }
 
-/** After a save: an entry for a day that is over goes straight back under the seal. */
+/** After a save: an entry that should be sealed goes straight back under the seal. */
 export function resealIfPast(db: Db, pageId: string, now: Date = new Date()): void {
   const row = db.prepare(`SELECT company_id, template FROM brain_pages WHERE id = ?`).get(pageId) as
     | { company_id: string; template: string }
     | undefined;
   if (row?.template === ENTRY_TEMPLATE) sealPast(db, row.company_id, now);
+}
+
+/** Whether an entry's words are sealed right now, so adding to them means adding a part. */
+export function isSealedEmpty(db: Db, pageId: string): boolean {
+  const row = db
+    .prepare(`SELECT p.body FROM brain_pages p JOIN journal_sealed s ON s.page_id = p.id WHERE p.id = ?`)
+    .get(pageId) as { body: string } | undefined;
+  return row !== undefined && row.body === "";
+}
+
+/**
+ * Words added to a sealed entry - a line from Today, a note moved into its
+ * day - without the passcode: sealed as a part of their own, after the rest.
+ * Opening the entry reads the parts together; saving it opened makes them one.
+ */
+export function addSealedPart(db: Db, pageId: string, words: string, now: Date = new Date()): void {
+  const record = lockRecord(db);
+  if (!record) throw new Error("The journal has no passcode to seal with.");
+  const row = db.prepare(`SELECT box FROM journal_sealed WHERE page_id = ?`).get(pageId) as { box: string } | undefined;
+  const parts = [...(row ? partsOf(row.box) : []), sealText(record, words)];
+  const stored: SealedParts = { v: 2, parts };
+  db.prepare(
+    `INSERT INTO journal_sealed (page_id, box, sealed_at) VALUES (?, ?, ?)
+     ON CONFLICT (page_id) DO UPDATE SET box = excluded.box, sealed_at = excluded.sealed_at`,
+  ).run(pageId, JSON.stringify(stored), now.toISOString());
 }
 
 /**
@@ -201,7 +334,7 @@ export function readableBody(db: Db, pageId: string, stored: string): { body: st
   const key = openKey();
   if (!key) return { body: "", locked: true };
   try {
-    return { body: openText(key, JSON.parse(row.box) as SealedBox), locked: false };
+    return { body: openEntry(key, row.box), locked: false };
   } catch {
     return { body: "", locked: true };
   }
@@ -213,23 +346,35 @@ export function isSealed(db: Db, pageId: string): boolean {
 
 /* ---- The passcode --------------------------------------------------------- */
 
-export function setPasscode(db: Db, companyId: string, rawPasscode: unknown, now: Date = new Date()): JournalLockState {
+/** A passcode, set: the journal's key pair is made, and a recovery key with it, shown this once. */
+export function setPasscode(db: Db, companyId: string, rawPasscode: unknown, now: Date = new Date()): JournalRecovery {
   if (lockRecord(db)) throw new Error("The journal already has a passcode. Change it instead.");
-  const passcode = checkedPasscode(rawPasscode);
+  const passcode = newPasscode(rawPasscode);
   const pair = generateKeyPairSync("x25519");
-  setSetting(db, "journalLock", JSON.stringify(wrapPrivate(pair.privateKey, passcode, pair.publicKey)));
+  const recoveryKey = makeRecoverySecret();
+  setSetting(db, "journalLock", JSON.stringify(lockWith(pair.privateKey, passcode, wrap(pair.privateKey, recoveryKey))));
   // Just set: open for now, so the person who set it is not locked out mid-thought.
   open = { key: pair.privateKey, at: Date.now() };
   sealPast(db, companyId, now);
   sealPrivateLines(db);
-  return lockState(db);
+  return { state: lockState(db), recoveryKey };
 }
 
 export function unlock(db: Db, rawPasscode: unknown): JournalLockState {
   const record = lockRecord(db);
   if (!record) return lockState(db);
-  open = { key: unwrapPrivate(record, checkedPasscode(rawPasscode)), at: Date.now() };
+  open = { key: unwrapPasscode(record, givenPasscode(rawPasscode)), at: Date.now() };
   return lockState(db);
+}
+
+/**
+ * The passcode, asked for again although the journal may be open: what
+ * sending the journal anywhere takes, so it is a decision and not a click.
+ */
+export function checkPasscode(db: Db, rawPasscode: unknown): void {
+  const record = lockRecord(db);
+  if (!record) throw new Error("The journal has no passcode.");
+  unwrapPasscode(record, givenPasscode(rawPasscode));
 }
 
 export function lockNow(db: Db): JournalLockState {
@@ -237,14 +382,67 @@ export function lockNow(db: Db): JournalLockState {
   return lockState(db);
 }
 
-/** A new passcode for the same key: nothing has to be sealed again. */
-export function changePasscode(db: Db, oldPasscode: unknown, newPasscode: unknown): JournalLockState {
+/** A new passcode for the same key: nothing has to be sealed again, and the recovery key still works. */
+export function changePasscode(db: Db, oldPasscode: unknown, rawNew: unknown): JournalLockState {
   const record = lockRecord(db);
   if (!record) throw new Error("The journal has no passcode to change.");
-  const privateKey = unwrapPrivate(record, checkedPasscode(oldPasscode));
-  const publicKey = createPublicKey(privateKey);
-  setSetting(db, "journalLock", JSON.stringify(wrapPrivate(privateKey, checkedPasscode(newPasscode), publicKey)));
+  const privateKey = unwrapPasscode(record, givenPasscode(oldPasscode));
+  setSetting(db, "journalLock", JSON.stringify(lockWith(privateKey, newPasscode(rawNew), record.recovery)));
   open = { key: privateKey, at: Date.now() };
+  return lockState(db);
+}
+
+/**
+ * A recovery key, new: for a journal locked before there were any, or to
+ * replace one that was lost. The journal has to be open; any earlier key
+ * stops working.
+ */
+export function makeRecoveryKey(db: Db): JournalRecovery {
+  const record = lockRecord(db);
+  if (!record) throw new Error("Set a passcode first.");
+  const privateKey = openKey();
+  if (!privateKey) throw new Error("Unlock the journal first.");
+  const recoveryKey = makeRecoverySecret();
+  setSetting(db, "journalLock", JSON.stringify({ ...record, recovery: wrap(privateKey, recoveryKey) }));
+  return { state: lockState(db), recoveryKey };
+}
+
+/** The passcode is forgotten but the recovery key is not: a new passcode, and every day still there. */
+export function recoverWith(db: Db, rawKey: unknown, rawNew: unknown): JournalLockState {
+  const record = lockRecord(db);
+  if (!record) throw new Error("The journal has no passcode.");
+  if (!record.recovery) throw new Error("This journal has no recovery key.");
+  const privateKey = unwrap(record.recovery, recoveryOf(rawKey), "That is not the recovery key.");
+  setSetting(db, "journalLock", JSON.stringify(lockWith(privateKey, newPasscode(rawNew), record.recovery)));
+  open = { key: privateKey, at: Date.now() };
+  return lockState(db);
+}
+
+/**
+ * Whether today is locked as it is written. On, today is sealed at the next
+ * save; off takes the journal open, because today's words come out of their
+ * box and back onto the page.
+ */
+export function setLockToday(db: Db, companyId: string, on: unknown, now: Date = new Date()): JournalLockState {
+  const record = lockRecord(db);
+  if (!record) throw new Error("Set a passcode first.");
+  if (on === true) {
+    setSetting(db, "journalLockToday", "on");
+    sealPast(db, companyId, now);
+    return lockState(db);
+  }
+  const privateKey = openKey();
+  if (!privateKey) throw new Error("Unlock the journal to leave today open.");
+  const today = todayOf(db, companyId, now);
+  db.transaction(() => {
+    for (const row of entryRows(db, companyId)) {
+      if (row.day !== today || row.sealed === 0) continue;
+      const box = db.prepare(`SELECT box FROM journal_sealed WHERE page_id = ?`).get(row.id) as { box: string };
+      db.prepare(`UPDATE brain_pages SET body = ? WHERE id = ? AND body = ''`).run(openEntry(privateKey, box.box), row.id);
+      db.prepare(`DELETE FROM journal_sealed WHERE page_id = ?`).run(row.id);
+    }
+    setSetting(db, "journalLockToday", "");
+  })();
   return lockState(db);
 }
 
@@ -252,12 +450,11 @@ export function changePasscode(db: Db, oldPasscode: unknown, newPasscode: unknow
 export function removePasscode(db: Db, rawPasscode: unknown): JournalLockState {
   const record = lockRecord(db);
   if (!record) return lockState(db);
-  const privateKey = unwrapPrivate(record, checkedPasscode(rawPasscode));
+  const privateKey = unwrapPasscode(record, givenPasscode(rawPasscode));
   const rows = db.prepare(`SELECT page_id, box FROM journal_sealed`).all() as { page_id: string; box: string }[];
   db.transaction(() => {
     for (const row of rows) {
-      const body = openText(privateKey, JSON.parse(row.box) as SealedBox);
-      db.prepare(`UPDATE brain_pages SET body = ? WHERE id = ? AND body = ''`).run(body, row.page_id);
+      db.prepare(`UPDATE brain_pages SET body = ? WHERE id = ? AND body = ''`).run(openEntry(privateKey, row.box), row.page_id);
     }
     db.prepare(`DELETE FROM journal_sealed`).run();
     // Private lines come out of their boxes too: no lock means nothing is sealed.
@@ -269,14 +466,16 @@ export function removePasscode(db: Db, rawPasscode: unknown): JournalLockState {
       );
     }
     setSetting(db, "journalLock", "");
+    setSetting(db, "journalLockToday", "");
   })();
   open = null;
   return lockState(db);
 }
 
 /**
- * The passcode is gone for good: the lock comes off and what it sealed goes
- * with it. The days, their moods and whatever is still being written today stay.
+ * The passcode is gone for good, and so is the recovery key: the lock comes
+ * off and what it sealed goes with it. The days, their moods and whatever is
+ * still being written today stay.
  */
 export function forgetPasscode(db: Db): JournalLockState {
   db.transaction(() => {
@@ -284,8 +483,10 @@ export function forgetPasscode(db: Db): JournalLockState {
     // Sealed private lines cannot be opened by anybody now, so they go as the sealed days do.
     db.prepare(`DELETE FROM journal_private WHERE box IS NOT NULL`).run();
     setSetting(db, "journalLock", "");
+    setSetting(db, "journalLockToday", "");
   })();
   open = null;
+  scrub(db);
   return lockState(db);
 }
 
@@ -317,9 +518,11 @@ function sealPrivateLines(db: Db): void {
       db.prepare(`UPDATE journal_private SET box = ?, body = NULL WHERE id = ?`).run(JSON.stringify(sealText(record, line.body)), line.id);
     }
   })();
+  if (lines.length > 0) scrub(db);
 }
 
-/** For tests: the process-wide unlocked key, forgotten. */
+/** For tests: the process-wide unlocked key forgotten, and a quick key from the passcode so the suite stays quick. */
 export function resetForTests(): void {
   open = null;
+  work = 10;
 }

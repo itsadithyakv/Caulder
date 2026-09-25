@@ -36,6 +36,10 @@ export function openDatabase(): Db {
   // disks. WAL plus NORMAL loses at most the last transaction on a power cut,
   // never the file.
   connection.pragma("synchronous = NORMAL");
+  // Deleted content is overwritten, not left in free pages: a journal day
+  // that is sealed is emptied from its page, and the words should not
+  // linger in the file after it (services/journal-lock.ts).
+  connection.pragma("secure_delete = ON");
 
   db = connection;
   return db;

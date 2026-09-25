@@ -46,7 +46,20 @@ import type { MailAccount, MailAccountInput } from "./mailaccounts";
 import type { PageTasks } from "./steps";
 import type { ImportOutcome, InvitationPreview, ShareState } from "./share";
 import type { HandbookInput, HandbookOutcome, RoomChoices, RoomInput, RoomOutcome } from "./dataroom";
-import type { DayRecord, GoalRow, HobbyRow, JournalDay, JournalLockState, JournalMonth, PageTime, StudiesOverview, TimeInput } from "./life";
+import type {
+  DayRecord,
+  GoalRow,
+  HobbyRow,
+  JournalDay,
+  JournalLockState,
+  JournalMonth,
+  JournalRecovery,
+  JournalSearch,
+  PageTime,
+  StudiesOverview,
+  TimeInput,
+} from "./life";
+import type { LocalModel, LookBackInput, LookBackPlan, LookBackReading, LookBackSpan } from "./lookback";
 import type { Mood } from "./brain";
 import type { HabitInput, HabitsOverview } from "./habits";
 import type { VisionInput, VisionPicture, VisionTile } from "./vision";
@@ -348,6 +361,15 @@ export const CHANNELS = {
   lifeLockChange: "life:lock-change",
   lifeLockRemove: "life:lock-remove",
   lifeLockForget: "life:lock-forget",
+  lifeLockToday: "life:lock-today",
+  lifeRecoveryMake: "life:recovery-make",
+  lifeRecover: "life:recover",
+  lifeSearch: "life:search",
+  lifeShield: "life:shield",
+  lookBackPlan: "life:lookback-plan",
+  lookBackRead: "life:lookback-read",
+  lookBackLocal: "life:lookback-local",
+  lookBackSetLocal: "life:lookback-set-local",
   lifeGoalDetails: "life:goal-details",
   lifeCheckIn: "life:check-in",
   lifeUndoCheckIn: "life:undo-check-in",
@@ -1073,7 +1095,8 @@ export type LifeApi = {
   logTime: (pageId: string, minutes: number, startsAt?: string | null) => Promise<PageTime>;
   /** The journal's passcode: writing needs none; reading a day that is over does. */
   lockState: () => Promise<JournalLockState>;
-  setPasscode: (companyId: string, passcode: string) => Promise<JournalLockState>;
+  /** Sets it, and makes a recovery key, handed back this once. */
+  setPasscode: (companyId: string, passcode: string) => Promise<JournalRecovery>;
   unlock: (passcode: string) => Promise<JournalLockState>;
   lockNow: () => Promise<JournalLockState>;
   changePasscode: (oldPasscode: string, newPasscode: string) => Promise<JournalLockState>;
@@ -1081,6 +1104,25 @@ export type LifeApi = {
   removePasscode: (passcode: string) => Promise<JournalLockState>;
   /** The passcode is forgotten: the lock comes off, and what it sealed is gone. */
   forgetPasscode: () => Promise<JournalLockState>;
+  /** Today locked as it is written, or left open until midnight. Leaving it open takes the journal unlocked. */
+  lockToday: (companyId: string, on: boolean) => Promise<JournalLockState>;
+  /** A new recovery key, with the journal open: any earlier one stops working. */
+  makeRecoveryKey: () => Promise<JournalRecovery>;
+  /** A forgotten passcode replaced, with the recovery key. */
+  recover: (recoveryKey: string, newPasscode: string) => Promise<JournalLockState>;
+  /** The journal searched, locked days included while it is open. Nothing of it is kept. */
+  search: (companyId: string, query: string) => Promise<JournalSearch>;
+  /** Screenshots and screen sharing show nothing of the window while private words are on it. */
+  shield: (on: boolean) => Promise<void>;
+  /** The journal locked on its own: the computer was locked, or went to sleep. */
+  onLocked: (fn: (state: JournalLockState) => void) => () => void;
+  /** Looking back: what a reading of a stretch would take, and whether a model on this computer is there. */
+  lookBackPlan: (companyId: string, span: LookBackSpan) => Promise<LookBackPlan>;
+  /** A reading. Nothing of it is kept. */
+  lookBack: (companyId: string, input: LookBackInput) => Promise<LookBackReading>;
+  lookBackLocal: () => Promise<LocalModel>;
+  /** Which model on this computer; the address has to be this computer's. */
+  setLookBackLocal: (input: { address: string; model: string | null }) => Promise<LocalModel>;
   /** Every goal of yours, with its check-ins and how it is doing against its day. */
   goalDetails: (companyId: string) => Promise<GoalDetail[]>;
   /** A goal moved: "+1", or where it stands now, and a word about it. */

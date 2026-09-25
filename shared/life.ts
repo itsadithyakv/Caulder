@@ -20,8 +20,25 @@ export type JournalDay = {
   locked?: boolean;
 };
 
-/** Whether the journal has a passcode, and whether it is open right now. */
-export type JournalLockState = { set: boolean; open: boolean };
+/**
+ * Whether the journal has a passcode, and whether it is open right now.
+ * `recovery` says a recovery key was made; `lockToday` that today is locked
+ * as it is written, rather than at midnight.
+ */
+export type JournalLockState = { set: boolean; open: boolean; recovery: boolean; lockToday: boolean };
+
+/** A passcode just set, or a recovery key just made: the key is shown once and never again. */
+export type JournalRecovery = { state: JournalLockState; recoveryKey: string };
+
+/** One place a search of the journal found the words: a day's entry, or a private line. */
+export type JournalFound = { day: string; kind: "entry" | "private"; snippet: string };
+
+/**
+ * A search of the journal, locked days included. It happens in memory, while
+ * the journal is open, and nothing of it is kept: sealed days are never put
+ * back in the search index.
+ */
+export type JournalSearch = { query: string; found: JournalFound[]; locked: boolean };
 
 export type JournalMonth = {
   /** "2026-09". */

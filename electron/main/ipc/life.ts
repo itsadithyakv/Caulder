@@ -7,7 +7,21 @@ import { addTile, editTile, listTiles, moveTile, removeTile } from "../services/
 import { progress } from "../services/progress";
 import { emberStats } from "../services/embergrowth";
 import { checkIn, dayThemes, goalDetails, setDayTheme, setGoalDone, undoCheckIn } from "../services/goals";
-import { changePasscode, forgetPasscode, lockNow, lockState, removePasscode, setPasscode, unlock } from "../services/journal-lock";
+import { BrowserWindow } from "electron";
+import {
+  changePasscode,
+  forgetPasscode,
+  lockNow,
+  lockState,
+  makeRecoveryKey,
+  recoverWith,
+  removePasscode,
+  setLockToday,
+  setPasscode,
+  unlock,
+} from "../services/journal-lock";
+import { searchJournal } from "../services/journalread";
+import { localModel, planLookBack, readLookBack, setLocalModel } from "../services/lookback";
 import {
   dayRecord,
   findEntry,
@@ -99,6 +113,26 @@ export function registerLifeHandlers(): void {
   );
   handle(CHANNELS.lifeLockRemove, (_event, passcode: unknown) => removePasscode(getDatabase(), passcode));
   handle(CHANNELS.lifeLockForget, () => forgetPasscode(getDatabase()));
+  handle(CHANNELS.lifeLockToday, (_event, companyId: unknown, on: unknown) => setLockToday(getDatabase(), companyOf(companyId), on));
+  handle(CHANNELS.lifeRecoveryMake, () => makeRecoveryKey(getDatabase()));
+  handle(CHANNELS.lifeRecover, (_event, recoveryKey: unknown, passcode: unknown) => recoverWith(getDatabase(), recoveryKey, passcode));
+  handle(CHANNELS.lifeSearch, (_event, companyId: unknown, query: unknown) => searchJournal(getDatabase(), companyOf(companyId), query));
+  // Windows leaves the window out of screenshots, recordings and shared screens
+  // while this is on. Counted, because the journal and Looking back each ask:
+  // closing one must not take the shield off the other.
+  const shields = new Map<number, number>();
+  handle(CHANNELS.lifeShield, (event, on: unknown) => {
+    const id = event.sender.id;
+    const count = Math.max(0, (shields.get(id) ?? 0) + (on === true ? 1 : -1));
+    shields.set(id, count);
+    BrowserWindow.fromWebContents(event.sender)?.setContentProtection(count > 0);
+  });
+
+  /* ---- Looking back ---- */
+  handle(CHANNELS.lookBackPlan, (_event, companyId: unknown, span: unknown) => planLookBack(getDatabase(), companyOf(companyId), span));
+  handle(CHANNELS.lookBackRead, (_event, companyId: unknown, input: unknown) => readLookBack(getDatabase(), companyOf(companyId), input));
+  handle(CHANNELS.lookBackLocal, () => localModel(getDatabase()));
+  handle(CHANNELS.lookBackSetLocal, (_event, input: unknown) => setLocalModel(getDatabase(), input));
 
   /* ---- Habits ---- */
   const habitOf = (value: unknown) => assertId(value, "habit id");

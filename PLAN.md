@@ -1119,6 +1119,38 @@ ambition sit together: fix all of it.
 - **The map shows what matters**: journal days only when asked for, and labels
   that give way to each other instead of running together.
 
+### After 0.4.5 - The journal, locked properly, and looking back - *done 25 September 2026*
+
+Asked for on 25 September 2026: somewhere to write deeply private things,
+locked up, and still able to read them back; and a way to see how you have
+grown, by a model on this computer, or sent away only after a warning and the
+passcode.
+
+- **Today can be locked as it is written**, not at midnight - offered, ticked,
+  when a passcode is set. Writing still needs nothing: a line added while the
+  journal is locked is sealed as a part of its own and read with the rest.
+- **It locks when you leave**: locking the computer, closing the lid or
+  sleep, as well as after fifteen idle minutes. With a passcode, the journal
+  is kept out of screenshots, recordings and shared screens.
+- **Read back**: a search of the journal, locked days and private lines
+  included while it is open, done in memory and never indexed.
+- **A recovery key**, made with the passcode and shown once, opens the
+  journal with a new passcode. Forgetting both is still the end of those days.
+- **Stronger passcodes**: new ones need eight characters and are not the
+  first anybody would try, with a meter as they are typed; a slower key is
+  made from them (scrypt 2^17). Passcodes set before still open.
+- **Nothing lingers**: deleted content is overwritten (`secure_delete`),
+  search forgets what it is told to (migration 45), and the write-ahead log
+  is folded back after a seal.
+- **Looking back**: a reading of a month, a season, a year or all of it -
+  how you have changed, work and ambition, what kept coming up, what went
+  well - beside the numbers for each month. Read by Ollama on this computer
+  by default; sent to the connected AI only after saying who gets how many
+  days and the passcode typed again (SEND without one). Nothing of it is
+  kept, and private lines never go.
+- **A loss fixed on the way**: a note moved into a day that was already
+  sealed used to seal over what was there. It is added as a part now.
+
 ---
 
 # Part five: understanding, on this machine
@@ -1193,7 +1225,7 @@ chip still teaches a lesson.
   unpacked from the asar like `better-sqlite3` and `koffi`. Only the Windows
   x64 binary may ship, not every platform's. `architecture.md` says why it
   earns its place.
-- **Vectors in SQLite.** Migration 45 adds `vectors`:
+- **Vectors in SQLite.** A new migration (46 as this is written) adds `vectors`:
   - Each row is `(company_id, kind, ref, model, text_hash, vec)`, stored as
     384 bytes of int8.
   - `kind` is one of page, memory, contact, task, note, history or person.
@@ -1227,7 +1259,7 @@ chip still teaches a lesson.
 
 ## Phases, continued
 
-### Phase 18 - Close the two leaks first
+### Phase 18 - Close the two leaks first - *done 25 September 2026*
 
 Before anything reads more, stop sending what it should not.
 
@@ -1247,7 +1279,7 @@ Before anything reads more, stop sending what it should not.
   int8 packing and the vote.
 - `electron/main/understand/` holds the utility process, the port and
   the queue job.
-- Migration 45 and the `understand:` channels (state, read, similar,
+- That migration and the `understand:` channels (state, read, similar,
   rebuild).
 - `onnxruntime-node` in `package.json`, `asarUnpack` and a file filter in
   `electron-builder.yml`, checked in both the NSIS and the Store package.

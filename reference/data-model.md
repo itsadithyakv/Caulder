@@ -61,6 +61,7 @@ is nine o'clock, and an instant would move when the machine's timezone did.
 | 42 | what a quiet day was | `day_checkins` |
 | 43 | lessons, and other mail accounts | `line_lessons`, `mail_accounts`, `emails.account_id` |
 | 44 | reminders | `reminders` |
+| 45 | search forgets what it is told to | `brain_search` set to `secure-delete`, and optimised |
 
 Each migration is one transaction, gated on `PRAGMA user_version`, with a
 backup taken before any of them runs. Additions use `ALTER TABLE ADD COLUMN`;
@@ -318,6 +319,18 @@ than a silently orphaned row: `activeCompanyId`, `coldAfterDays`, `followUpDays`
 `notify`, `defaulted`, `captureShortcut`, `keepInTray`, `trayNoticed`,
 `googleConnection`, `googleAuto`, `googleScript`, `aiConnection`, `aiModels`,
 `aiModel`, `aiContext`, `thisIsMe`, `widgetOpen`, `widgetLevel`, `widgetSpot`.
+
+**`journalLock`** is the journal's lock as JSON: the public key, the private
+key encrypted under a key made from the passcode, how slow that key was to
+make (`n`, scrypt's cost as a power of two; 15 when missing, from before
+0.4.5), and **`recovery`**, the same private key encrypted under the recovery
+key, when one was made. **`journalLockToday`** is `on` when today is sealed as
+it is written. **`lookBackLocal`** is which model on this computer Looking
+back uses, as JSON - an address that must be this computer's, and a model name.
+
+The connection opens with `secure_delete` on (`db/connection.ts`), so deleted
+content is overwritten rather than left in free pages - a sealed journal day
+does not linger in the file.
 
 **`thisIsMe`** is who this Caulder is, for two founders, as JSON: a `name`
 written on every revision it makes, and an `id` made once, which the shared
@@ -931,9 +944,17 @@ opens it), `sealed_at`.
   `brain_revisions.body` for it and so the search index are emptied. The
   title (the date) and the fields - the mood - stay, so the calendar keeps its
   faces. Links written in the entry stay in `brain_links`.
-- **Today is never sealed**, and neither is a day while it is being written:
-  a past day written into while the journal is open is sealed again as soon
+- **Today is sealed only when the journal locks as it is written**
+  (`journalLockToday`, after 0.4.5); otherwise it stays open until midnight.
+  A past day written into while the journal is open is sealed again as soon
   as it is saved, and any day that is over is sealed by the next read.
+- **Parts.** `box` is one sealed text, or `{ "v": 2, "parts": [...] }`: words
+  added to a sealed entry while the journal is locked - a line from Today, a
+  note moved into its day - are sealed as a part of their own with the public
+  key, and read after the rest as if added to the open page. Saving the entry
+  open makes it one box again.
+- **A recovery key** (`recovery` in the `journalLock` setting) opens the same
+  private key, so a new passcode can be set without it.
 - Forgetting the passcode means those days cannot be opened; *I forgot the
   passcode* deletes the boxes and the lock, and leaves the days and moods.
 

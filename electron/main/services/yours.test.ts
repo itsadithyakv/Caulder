@@ -99,7 +99,7 @@ describe("what never goes", () => {
   it("leaves out a journal day that is locked", () => {
     wrote("2026-09-17", "The thing I would not want read.");
     // A passcode seals every day that is already over.
-    setPasscode(db, companyId, "1234", now);
+    setPasscode(db, companyId, "tiger lily at dawn", now);
 
     const said = text();
     expect(said).not.toContain("The thing I would not want read");

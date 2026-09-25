@@ -23,6 +23,7 @@ import { createTray, destroyTray, hasTray, trayNotice } from "./tray";
 import { claimIdentity, registerIdentity } from "./identity";
 import { guardContents } from "./links";
 import { logProblem } from "./log";
+import { lockOnLeave } from "./leave";
 import { useStoreHome } from "./store-home";
 
 // A Store copy keeps its data in its package's own folder, which Explorer can
@@ -282,6 +283,9 @@ void app.whenReady().then(() => {
 
   registerIpc(() => mainWindow);
   createWindow();
+
+  // The journal locks when the computer does, or sleeps.
+  lockOnLeave();
 
   // The icon by the clock. Before the key, so the menu can show the key it
   // ends up with.

@@ -2603,6 +2603,18 @@ const M044_REMINDERS = `
   CREATE INDEX reminders_waiting ON reminders (told_at, day);
 `;
 
+/**
+ * Search forgets what it is told to (after 0.4.5). An FTS5 index keeps the
+ * words of a deleted row in its segments until they happen to be merged, so a
+ * journal day emptied by sealing could still be found in the file, if not
+ * through the app. `secure-delete` removes them as the row goes, and
+ * `optimize` rewrites what is there now, dropping anything deleted before.
+ */
+const M045_SEARCH_FORGETS = `
+  INSERT INTO brain_search (brain_search, rank) VALUES ('secure-delete', 1);
+  INSERT INTO brain_search (brain_search) VALUES ('optimize');
+`;
+
 export const MIGRATIONS: readonly Migration[] = [
   { version: 1, name: "companies, stages, settings", sql: M001_COMPANIES },
   { version: 2, name: "leads, activities", sql: M002_LEADS },
@@ -2648,6 +2660,7 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 42, name: "what a quiet day was", sql: M042_CHECKINS },
   { version: 43, name: "lessons, and other mail accounts", sql: M043_LESSONS_AND_MAIL },
   { version: 44, name: "reminders", sql: M044_REMINDERS },
+  { version: 45, name: "search forgets what it is told to", sql: M045_SEARCH_FORGETS },
 ];
 
 export function currentVersion(db: Db): number {

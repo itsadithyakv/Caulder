@@ -159,6 +159,20 @@ const api: CaulderApi = {
     changePasscode: (oldPasscode, newPasscode) => invoke(CHANNELS.lifeLockChange, oldPasscode, newPasscode),
     removePasscode: (passcode) => invoke(CHANNELS.lifeLockRemove, passcode),
     forgetPasscode: () => invoke(CHANNELS.lifeLockForget),
+    lockToday: (companyId, on) => invoke(CHANNELS.lifeLockToday, companyId, on),
+    makeRecoveryKey: () => invoke(CHANNELS.lifeRecoveryMake),
+    recover: (recoveryKey, newPasscode) => invoke(CHANNELS.lifeRecover, recoveryKey, newPasscode),
+    search: (companyId, query) => invoke(CHANNELS.lifeSearch, companyId, query),
+    shield: (on) => invoke(CHANNELS.lifeShield, on),
+    onLocked: (fn) => {
+      const handler = (_event: unknown, state: Parameters<typeof fn>[0]) => fn(state);
+      ipcRenderer.on("journal:locked", handler);
+      return () => ipcRenderer.removeListener("journal:locked", handler);
+    },
+    lookBackPlan: (companyId, span) => invoke(CHANNELS.lookBackPlan, companyId, span),
+    lookBack: (companyId, input) => invoke(CHANNELS.lookBackRead, companyId, input),
+    lookBackLocal: () => invoke(CHANNELS.lookBackLocal),
+    setLookBackLocal: (input) => invoke(CHANNELS.lookBackSetLocal, input),
     goalDetails: (companyId) => invoke(CHANNELS.lifeGoalDetails, companyId),
     checkIn: (goalId, input) => invoke(CHANNELS.lifeCheckIn, goalId, input),
     undoCheckIn: (checkinId) => invoke(CHANNELS.lifeUndoCheckIn, checkinId),

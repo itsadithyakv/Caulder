@@ -68,12 +68,20 @@ test.afterAll(async () => {
 test("a passcode locks the days that are over, and today still needs none", async () => {
   await goTo(page, "Journal");
   await page.getByRole("button", { name: "Passcode" }).click();
-  await page.getByRole("menuitem", { name: /Lock past days with a passcode/ }).click();
-  const form = page.getByRole("form", { name: "Lock past days" });
+  await page.getByRole("menuitem", { name: /Lock the journal with a passcode/ }).click();
+  const form = page.getByRole("form", { name: "Lock the journal" });
   await expect(form).toContainText("nobody can open those days");
+  await form.getByLabel("A passcode").fill("tiger");
+  await expect(form).toContainText("Too short");
   await form.getByLabel("A passcode").fill("tiger lily");
   await form.getByLabel("Once more").fill("tiger lily");
-  await form.getByRole("button", { name: "Lock past days" }).click();
+  await form.getByRole("button", { name: "Lock it" }).click();
+  // The recovery key, shown once, and only let go of once it is written down.
+  await expect(page.getByText("Your recovery key")).toBeVisible();
+  await expect(page.locator(".recoverykey")).toHaveText(/^[0-9A-Z]{5}(-[0-9A-Z]{5}){4}$/);
+  await expect(page.getByRole("button", { name: "Done" })).toBeDisabled();
+  await page.getByLabel("I have written it down").check();
+  await page.getByRole("button", { name: "Done" }).click();
   await expect(page.getByRole("button", { name: "Unlocked" })).toBeVisible();
 
   await page.getByRole("button", { name: "Unlocked" }).click();
@@ -103,4 +111,38 @@ test("a wrong passcode is refused, and the right one opens the day", async () =>
   // Written before the day had parts: Guided reads it as the day's Today.
   await expect(page.getByLabel("The entry: Today", { exact: true })).toHaveText("Told Asha the pilot slipped.");
   await shot("open");
+});
+
+test("today is added to while locked, and the journal searched once it is open", async () => {
+  await page.getByRole("button", { name: "Unlocked" }).click();
+  await page.getByRole("menuitem", { name: "Lock now" }).click();
+  await page.locator(".journalentry__head").getByRole("button", { name: "Today", exact: true }).click();
+  // Locked as it was written, and still taking words without the passcode.
+  await expect(page.getByText("Today is locked as you write it.")).toBeVisible();
+  await page.getByLabel("Or add to today without unlocking").fill("Later: the call went well.");
+  await page.getByRole("button", { name: "Add it, locked" }).click();
+  await expect(page.getByText("Added and locked.")).toBeVisible();
+
+  const search = page.getByRole("searchbox", { name: "Search the journal" });
+  await search.fill("pilot");
+  await expect(page.getByText("Locked days were not searched")).toBeVisible();
+
+  const locked = page.getByRole("form", { name: "Unlock the journal" });
+  await locked.getByLabel("Passcode").fill("tiger lily");
+  await locked.getByRole("button", { name: "Unlock" }).click();
+  await expect(page.locator(".journalsearch__hit").first()).toContainText("Told Asha the pilot slipped.");
+  const today = page.getByLabel("The entry: Today", { exact: true });
+  await expect(today).toContainText("A good day.");
+  await expect(today).toContainText("Later: the call went well.");
+  await shot("search");
+});
+
+test("looking back shows the numbers, and says where it would be read", async () => {
+  await page.getByRole("button", { name: "Looking back" }).click();
+  const panel = page.locator(".lookback");
+  await expect(panel.getByRole("heading", { name: "Looking back" })).toBeVisible();
+  await expect(panel.getByText(/On this computer/).first()).toBeVisible();
+  await shot("lookback");
+  await panel.getByRole("button", { name: "Close" }).first().click();
+  await expect(panel).toHaveCount(0);
 });

@@ -1,6 +1,6 @@
 import type { Db } from "../db/connection";
 import { ENTRY_TEMPLATE, isMood, type BrainPage, type Mood } from "@shared/brain";
-import { isSealed, readableBody, sealPast } from "./journal-lock";
+import { addSealedPart, isSealed, isSealedEmpty, readableBody, resealIfPast, sealPast } from "./journal-lock";
 import { addMonths, dayOf, isDay, shiftDay, startOfWeek, timeNow, today as todayIn, weekdayOf } from "@shared/dates";
 import { daysLeftOf } from "@shared/deadlines";
 import { plainText } from "@shared/markdown";
@@ -343,13 +343,22 @@ export function dayRecord(db: Db, companyId: string, of: unknown, now: Date = ne
 /** A caught note, added to its day's entry under its Today heading rather than made a page of its own. */
 export function appendToEntry(db: Db, companyId: string, of: string, words: string, now: Date = new Date()): BrainPage {
   const entry = journalEntry(db, companyId, of, now);
-  const row = findPageRow(db, entry.id);
-  if (!row) throw new Error("That entry no longer exists.");
-  const body = addToEntry(row.body, words);
-  savePageRow(db, entry.id, { title: row.title, body, fields: row.stored }, row.revision, now.toISOString());
+  // A sealed entry's page is empty, so adding to the page would put these
+  // words back in the clear and then seal them over the rest. They are
+  // sealed as a part of their own instead, which needs no passcode.
+  if (isSealedEmpty(db, entry.id)) {
+    addSealedPart(db, entry.id, words.trim(), now);
+  } else {
+    const row = findPageRow(db, entry.id);
+    if (!row) throw new Error("That entry no longer exists.");
+    const body = addToEntry(row.body, words);
+    savePageRow(db, entry.id, { title: row.title, body, fields: row.stored }, row.revision, now.toISOString());
+    // Today, when the journal locks as it is written: under the seal now, not at the next look.
+    resealIfPast(db, entry.id, now);
+  }
   const page = findPage(db, entry.id);
   if (!page) throw new Error("That entry no longer exists.");
-  return page;
+  return readable(db, page);
 }
 
 /** A line from Today's line into today's entry. */

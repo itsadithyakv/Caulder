@@ -2000,3 +2000,403 @@
   color: var(--ink-2);
   font-size: var(--text-sm);
 }
+
+/* ---- Looking back -------------------------------------------------------
+ * The journal over a stretch, read by a model. The numbers sit in a table
+ * that scrolls inside its own frame, so the page never moves sideways; the
+ * two places it can be read are quiet boxes, the one that sends it away
+ * behind a button and a warning in words.
+ * ---------------------------------------------------------------------- */
+
+.lookback {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.lookback__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.lookback__title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+
+.lookback__lede { margin: calc(var(--space-2) * -1) 0 0; }
+
+.lookback__subtitle {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-base);
+  font-weight: 700;
+}
+
+.lookback__empty {
+  margin: 0;
+  padding: var(--space-4);
+  color: var(--ink-3);
+  text-align: center;
+  background: var(--surface-sunken);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+}
+
+.lookback__numbers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.lookback__summary { margin: 0; }
+
+.lookback__tableWrap {
+  max-width: 100%;
+  overflow-x: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.lookback__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.lookback__table th,
+.lookback__table td {
+  padding: var(--space-2) var(--space-3);
+  text-align: right;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--soft-line);
+}
+
+.lookback__table thead th {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  background: var(--surface-sunken);
+}
+
+.lookback__table tbody th {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.lookback__table th:first-child,
+.lookback__table td:first-child { text-align: left; }
+
+.lookback__table td { color: var(--ink-2); }
+
+.lookback__table tbody tr:last-child > * { border-bottom: none; }
+
+.lookback__days {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.lookback__bar {
+  display: block;
+  width: 40px;
+  height: 4px;
+  overflow: hidden;
+  background: var(--surface-sunken);
+  border-radius: 2px;
+}
+
+.lookback__barFill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+}
+
+.lookback__mood {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.lookback__moodDots {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.lookback__dot {
+  width: 6px;
+  height: 6px;
+  background: var(--border-strong);
+  border-radius: var(--radius-pill);
+}
+
+.lookback__dot--on { background: var(--accent); }
+
+.lookback__none { color: var(--ink-3); }
+
+.lookback__unlock { align-items: flex-start; }
+
+.lookback__inlineIcon {
+  margin-right: var(--space-1);
+  vertical-align: -2px;
+  color: var(--ink-3);
+}
+
+.lookback__where {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.lookback__choice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.lookback__choice p { margin: 0; }
+.lookback__choice .actions { margin-top: var(--space-1); }
+
+.lookback__choice--away {
+  background: var(--warn-soft);
+  border-color: color-mix(in srgb, var(--warn) 35%, var(--warn-soft));
+}
+
+.lookback__choiceTitle {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.lookback__model {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.lookback__code {
+  padding: 1px var(--space-1);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  white-space: nowrap;
+}
+
+.lookback__address { margin-top: 0; }
+.lookback__address .actions { margin-top: var(--space-2); }
+
+.lookback__busy {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.lookback__reading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+.lookback__meta {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+}
+
+.lookback__reading .prose + .lookback__meta { margin-top: var(--space-2); }
+
+/* ---- The journal, locked properly (after 0.4.5) --------------------------
+ * How strong a new passcode is, the recovery key shown once, adding to a
+ * locked today, and the journal's own search beside the month.
+ * ---------------------------------------------------------------------- */
+
+.passstrength {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin-top: calc(var(--space-2) * -1);
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+}
+
+.passstrength__bar {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.passstrength__step {
+  width: 22px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+}
+
+.passstrength--0 .passstrength__step--on,
+.passstrength--1 .passstrength__step--on { background: var(--danger); }
+.passstrength--2 .passstrength__step--on { background: var(--warn); }
+.passstrength--3 .passstrength__step--on,
+.passstrength--4 .passstrength__step--on { background: var(--ok); }
+
+.passstrength__label {
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
+.passstrength__hint {
+  flex-basis: 100%;
+}
+
+.recoverykey {
+  margin: 0;
+  padding: var(--space-3);
+  background: var(--surface);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: var(--text-lg);
+  letter-spacing: 0.08em;
+  text-align: center;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.input--mono {
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+}
+
+.journallock__open {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.journallock__add {
+  width: min(480px, 100%);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+  text-align: left;
+}
+
+.journallock__add textarea {
+  resize: vertical;
+  min-height: 72px;
+}
+
+.journallock__added {
+  color: var(--ok);
+  font-size: var(--text-sm);
+}
+
+.journalsearch {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.journalsearch__field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink-3);
+}
+
+.journalsearch__field .input {
+  flex: 1;
+  min-width: 0;
+}
+
+.journalsearch__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 320px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.journalsearch__hit {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: var(--space-2);
+  background: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.journalsearch__hit:hover,
+.journalsearch__hit:focus-visible {
+  background: var(--surface-sunken);
+}
+
+.journalsearch__day {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink-2);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.journalsearch__kind {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-weight: 500;
+}
+
+.journalsearch__snippet {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.journalsearch__locked {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.journalscreen__lookback {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}

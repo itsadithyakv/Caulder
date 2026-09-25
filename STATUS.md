@@ -26,8 +26,21 @@ same commit as the work, not afterwards. What is planned is in
 
 ## Done lately
 
-See the dated phases in PLAN.md. The latest is *After 0.4, again - You apart,
-memories yours, and Today about the work* (25 September 2026).
+See the dated phases in PLAN.md. The latest is *After 0.4.5 - The journal,
+locked properly, and looking back* (25 September 2026): today locked as it is
+written, locking when the computer does, a recovery key, stronger passcodes,
+the journal's own search, screen capture shielded, and Looking back through
+Ollama on this computer. **Not committed yet.** Checked: typecheck, lint,
+knip, and the lock, private-line and Looking back unit tests. The journal-lock
+e2e spec was updated and needs a run after `npm run build`.
+
+**Phase 18, done 25 September 2026, not committed yet.** Nothing of yours
+reaches an AI without the switch: `mayGoToAi` in `shared/brain.ts` is the
+one check, used by `about()` in `services/ask.ts` and by the dossier. A
+journal page never goes by that road, and anything in your home workspace
+counts as yours whatever its section. Life facts (`remembered`) now go in
+the You document when the switch is on. The full unit run passes: 2,286
+tests in 144 files, with the journal work above in the same tree.
 
 ## In progress
 
@@ -36,38 +49,25 @@ memories yours, and Today about the work* (25 September 2026).
   and chooses what goes to an AI. **Planned, not started; decided 25
   September 2026:** all-MiniLM-L6-v2 (int8, 23 MB) through `onnxruntime-node`
   in a utility process, on by default, repeats marked on their own, every
-  other arrangement asked. Starts with phase 18.
+  other arrangement asked. Phase 18 is done; phase 19, the model itself, is
+  next.
 
 ## Known problems
 
 Most important first. Each names the place to fix.
 
-1. **Privacy: Today's Ask line can send your own pages with "your own pages"
-   off.** `about()` in `electron/main/services/ask.ts` (around line 426)
-   searches with `searchEverything`, which has no section filter
-   (`repositories/search.ts`), then sends page bodies of up to 2,500
-   characters. Asked from the home workspace, that can include Remembered,
-   hobby, studies and goals pages, and journal days not yet sealed. Private
-   lines are safe. No test covers it.
-2. **Privacy: `ideas` pages go into the dossier regardless of the setting.**
-   `RUNNING_SECTIONS` in `services/dossier.ts` (line 76) includes `ideas`,
-   which `yours.ts` treats as personal. That means Random knowledge, Gift
-   ideas and Quotes are sent when the dossier is built for the home workspace.
-3. **Life facts never reach Ask**, even with "your own pages" on: `yours.ts`
-   (line 35) leaves out `remembered`. It was decided on 25 September 2026 that
-   they should go when the setting is on. This is fixed in phase 18.
-4. `shared/email.ts` opens with "Caulder never sends anything", which is out
+1. `shared/email.ts` opens with "Caulder never sends anything", which is out
    of date since email through the script.
-5. The `campaigns` table can no longer be filled from anywhere in the UI;
+2. The `campaigns` table can no longer be filled from anywhere in the UI;
    leads and the spend list still read it as a label.
-6. Coverage gaps: no e2e test for WhatsApp, do-not-contact or the built-in
+3. Coverage gaps: no e2e test for WhatsApp, do-not-contact or the built-in
    follow-up; no unit test for `services/scheduler.ts` or for custom fields;
    updates are tested only through `store-home.test.ts`.
-7. PLAN.md, part one, still lists the Tour as removed. A one-time Today tour
+4. PLAN.md, part one, still lists the Tour as removed. A one-time Today tour
    exists (`src/components/Tour.tsx`).
 
 ## Next
 
 1. Package and smoke-test 0.4.5, then commit the version.
-2. Phase 18: close problems 1 to 3, with tests.
+2. Commit the journal work and phase 18.
 3. Phase 19: the model, its index and the measuring stick.

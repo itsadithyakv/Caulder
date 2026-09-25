@@ -50,7 +50,7 @@ The systems everything else plugs into.
 | Put a page under another | A first line `Part of [[Parent|page:id]]` (`services/remember.ts`), walked by `underOf` / `trailsOf` (`shared/memories.ts`). | A parent column. |
 | Remember a fact | `remember()` (`services/remember.ts`): a dated line `- **fact** · said _(YYYY-MM-DD)_` on a page. **Memories are not a table**; they are read back out of page text by `shared/memories.ts`. A fact about an existing contact goes on that contact's history instead. | A `memories` table beside the pages. |
 | Keep personal things apart from the company | The home workspace (`companies.kind = 'personal'`, `services/yourhome.ts`, `homeCompanyId`). Personal sections: `PERSONAL_SQL` / `isPersonalSection` in `shared/brain.ts`. | A mode toggle, a second "personal" flag, a personal workspace in the switcher. |
-| Send context to an AI | Company: `buildDossier` (`services/dossier.ts`). Personal, only with `aiPersonal` on: `services/yours.ts`. Both go through `services/ask.ts`. For the clipboard: the topic brief (`services/topic.ts`). | Assembling documents for a model anywhere else. |
+| Send context to an AI | Company: `buildDossier` (`services/dossier.ts`). Personal, only with `aiPersonal` on: `services/yours.ts`. Both go through `services/ask.ts`. For the clipboard: the topic brief (`services/topic.ts`). The journal, only for Looking back and only as it says: `services/lookback.ts`. | Assembling documents for a model anywhere else. |
 | Say who a contact is at a glance | `MAIN_DEAL(lead)` (`repositories/main-deal.ts`), worked out in the query. Stage moves only through `repositories/deals.ts`. | A stored copy of the stage on the contact. |
 | Turn text in a page into tasks | `shared/steps.ts` + `services/steps.ts` (`- [ ]` lines with `@owner`, `(day N)`, `(by date)`). | A separate checklist feature. |
 | Talk to Google | `callScript` in `services/gsync.ts` - the person's own Apps Script (`resources/appsscript/Caulder.gs`). | OAuth from the app. |
@@ -61,7 +61,7 @@ The systems everything else plugs into.
 | Handle a date | `shared/dates.ts`. A due date is a `YYYY-MM-DD` day in the company's timezone; a time is `HH:MM`. | `Date` arithmetic in local time; a date library. |
 | Fail | Throw an `Error` whose message is the sentence the person reads; Zod schemas state their own sentences. `handle()` (`ipc/handle.ts`) cleans it on the way out. | `ipcMain.handle` directly. |
 | Add an IPC call | Constant and type in `shared/ipc.ts`, handler through `handle()` with Zod validation, method in `electron/preload/index.ts`. | Node in the window. |
-| Change the schema | Append a step to `electron/main/db/migrations.ts` (latest: 44). Never edit or renumber one. Enums are checked in TypeScript, not SQL `CHECK`s. | A down-migration. |
+| Change the schema | Append a step to `electron/main/db/migrations.ts` (latest: 45). Never edit or renumber one. Enums are checked in TypeScript, not SQL `CHECK`s. | A down-migration. |
 | Draw a colour | A token in `src/styles/tokens.css` (a test enforces it). | A literal colour in a component. |
 
 ---
@@ -381,11 +381,16 @@ Quick notes at the foot of Today, also from the quick window. There is no Notes 
 - UI: `src/features/notes/NotesScreen.tsx` (inside Today), `Capture.tsx` · Main: `repositories/notes.ts` · Tables: `notes` · IPC: `notes:`, `capture:`
 
 ### Journal, private lines and the lock
-Journal days are pages in a personal section (three prompts, a mood, what the day held). Private lines live in their own table. A passcode seals finished days and relocks after 15 idle minutes.
-- UI: `src/features/life/JournalScreen.tsx`, `JournalCalendar.tsx`, `JournalCard.tsx`, `JournalLock.tsx`, `PrivateLines.tsx`, `DayRecordCard.tsx`
-- Logic: `shared/life.ts`, `entry.ts`, `private.ts` · Main: `services/life.ts`, `private.ts`, `journal-lock.ts`, `ipc/life.ts`
-- Tables: `journal_private`, `journal_sealed` · IPC: `life:` · Tests: `services/life.test.ts`, `journal-lock.test.ts`, `private.test.ts`; e2e `journal-lock.spec.ts`
+Journal days are pages in a personal section (three prompts, a mood, what the day held). Private lines live in their own table. A passcode seals finished days - and today as it is written, when asked - and relocks after 15 idle minutes, when the computer locks or sleeps. A recovery key, shown once, can replace a forgotten passcode. New passcodes are held to `passcodeStrength`. Words added to a sealed entry are sealed as parts, without the passcode. The journal has its own search, which reads locked days in memory while it is open. With a passcode the window is kept out of screen capture.
+- UI: `src/features/life/JournalScreen.tsx`, `JournalCalendar.tsx`, `JournalCard.tsx`, `JournalLock.tsx`, `JournalSearch.tsx`, `PrivateLines.tsx`, `DayRecordCard.tsx`
+- Logic: `shared/life.ts`, `entry.ts`, `private.ts`, `passcode.ts` · Main: `services/life.ts`, `private.ts`, `journal-lock.ts`, `journalread.ts`, `leave.ts` (locks on leaving), `ipc/life.ts`
+- Tables: `journal_private`, `journal_sealed` · Settings: `journalLock`, `journalLockToday` · IPC: `life:` · Tests: `services/life.test.ts`, `journal-lock.test.ts`, `private.test.ts`; e2e `journal-lock.spec.ts`
 - Never read by Ask, the "You" document or the topic brief when private or sealed.
+
+### Looking back
+A reading of the journal over a month, a season, a year or everything, by a model, beside the numbers for each month (days written, words, mood, tasks done, calls, habits kept, contacts added). Ollama on this computer by default (`isOnThisComputer` holds it to a local address); the connected AI only after a warning and the passcode typed again, or SEND without one. Long journals are read a part at a time and the notes brought together. Nothing is kept; private lines never go.
+- UI: `src/features/life/LookBack.tsx` (opened from the journal) · Logic: `shared/lookback.ts` · Main: `services/lookback.ts` (Ollama's `/api/chat` directly; the connected AI through `completeAway` in `services/ask.ts`)
+- Setting: `lookBackLocal` · IPC: `life:lookback-*` · Tests: `shared/lookback.test.ts`, `services/lookback.test.ts`; e2e `journal-lock.spec.ts`
 
 ### Life, studies, hobbies and the shelf
 The You overview. Studies (courses, grades, exams, time), hobbies (measures, a heat grid, time), terms, a reading shelf with optional Open Library covers, your year.

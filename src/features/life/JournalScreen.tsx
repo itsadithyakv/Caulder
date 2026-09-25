@@ -1,6 +1,6 @@
 import { PrivateLines } from "./PrivateLines";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronLeft, ChevronRight, Lock } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, History, Lock } from "lucide-react";
 import { ENTRY_TEMPLATE, isMood, templateOf, type BrainPage, type Mood } from "@shared/brain";
 import { shiftDay, today as todayIn } from "@shared/dates";
 import {
@@ -23,7 +23,9 @@ import type { SlashExtra } from "@/features/brain/editor/completions";
 import { MoodPicker } from "./MoodPicker";
 import { DayRecordCard } from "./DayRecordCard";
 import { JournalCalendar } from "./JournalCalendar";
-import { LockedDay, PasscodeForm, PasscodeMenu } from "./JournalLock";
+import { LockedDay, PasscodeForm, PasscodeMenu, type LockMode } from "./JournalLock";
+import { JournalSearch } from "./JournalSearch";
+import { LookBack } from "./LookBack";
 
 /**
  * The journal (PLAN.md, part four): a row of its own, because it is the
@@ -109,8 +111,10 @@ export function JournalScreen({
   /** What Caulder saw happen on the day, for `/` - what you did today. */
   const [record, setRecord] = useState<DayRecord | null>(null);
   /** The passcode: whether there is one and whether it is open, and a form for it when one is open. */
-  const [lock, setLock] = useState<JournalLockState>({ set: false, open: false });
-  const [lockMode, setLockMode] = useState<"set" | "change" | "remove" | "forget" | null>(null);
+  const [lock, setLock] = useState<JournalLockState>({ set: false, open: false, recovery: false, lockToday: false });
+  const [lockMode, setLockMode] = useState<LockMode | null>(null);
+  /** Looking back, open above the entry: a reading of the journal by a model, kept nowhere. */
+  const [lookingBack, setLookingBack] = useState(false);
   /** Bumped to read the day again: after it is unlocked, locked, or the passcode changes. */
   const [reread, setReread] = useState(0);
 
@@ -195,6 +199,16 @@ export function JournalScreen({
     setReread((n) => n + 1);
     setVersion((n) => n + 1);
   }, []);
+
+  // The computer was locked or went to sleep: the journal locked with it, and nothing opened stays on screen.
+  useEffect(() => window.caulder.life.onLocked(afterLock), [afterLock]);
+
+  // With a passcode, the journal is left out of screenshots, recordings and shared screens.
+  useEffect(() => {
+    if (!lock.set) return;
+    void window.caulder.life.shield(true).catch(() => undefined);
+    return () => void window.caulder.life.shield(false).catch(() => undefined);
+  }, [lock.set]);
 
   useEffect(() => {
     if (!companyId) return;
@@ -303,6 +317,7 @@ export function JournalScreen({
   return (
     <div className="journalscreen">
       <div className="journalscreen__main">
+        {lookingBack && <LookBack companyId={companyId} onClose={() => setLookingBack(false)} onUnlocked={afterLock} />}
         <section className="card journalentry">
           <header className="journalentry__head">
             <button type="button" className="btn btn--sm btn--ghost" aria-label="The day before" onClick={() => setDay(shiftDay(day, -1))}>
@@ -343,17 +358,44 @@ export function JournalScreen({
             </div>
             <PasscodeMenu
               state={lock}
-              onPick={(pick) => (pick === "lock" ? void window.caulder.life.lockNow().then(afterLock) : setLockMode(pick))}
+              onPick={(pick) => {
+                if (pick === "lock") void window.caulder.life.lockNow().then(afterLock);
+                else if (pick === "today") {
+                  flush();
+                  window.caulder.life.lockToday(companyId, !lock.lockToday).then(afterLock, (cause: unknown) => setError(messageOf(cause)));
+                } else setLockMode(pick);
+              }}
             />
           </header>
 
-          {lockMode && <PasscodeForm mode={lockMode} companyId={companyId} onDone={afterLock} onCancel={() => setLockMode(null)} />}
+          {lockMode && (
+            <PasscodeForm
+              key={lockMode}
+              mode={lockMode}
+              state={lock}
+              companyId={companyId}
+              onDone={afterLock}
+              onCancel={() => setLockMode(null)}
+              onMode={setLockMode}
+            />
+          )}
 
           <MoodPicker value={mood} busy={!loaded} onPick={feel} label="How the day felt" compact />
 
           {page?.locked ? (
             // Its words are sealed: nothing is shown, so nothing can be saved over them.
-            <LockedDay onOpened={afterLock} />
+            <LockedDay
+              onOpened={afterLock}
+              isToday={day === today}
+              onAdd={
+                day === today
+                  ? async (text) => {
+                      await window.caulder.life.jot(companyId, text);
+                      setVersion((n) => n + 1);
+                    }
+                  : undefined
+              }
+            />
           ) : mode === "guided" ? (
             <div className="journalparts">
               {ENTRY_PARTS.map((part) => (
@@ -411,7 +453,11 @@ export function JournalScreen({
           <p className="journalentry__private">
             <Lock size={12} aria-hidden />
             Kept on this computer only: never shared with a co-founder, never in an export for an assistant.
-            {lock.set ? " Days that are over are locked with your passcode." : " A passcode can lock the days that are over."}
+            {lock.set
+              ? lock.lockToday
+                ? " Every day, today too, is locked with your passcode as it is written."
+                : " Days that are over are locked with your passcode."
+              : " A passcode can lock the days that are over."}
           </p>
           <p className="liveedit__hint">
             <kbd>@</kbd> links a page or contact · <kbd>/</kbd> for lists, steps and what you did today · select words to
@@ -425,6 +471,13 @@ export function JournalScreen({
 
       <aside className="journalscreen__side">
         <JournalCalendar companyId={companyId} selected={day} version={version} onPick={(next) => setDay(next)} />
+        <JournalSearch companyId={companyId} open={lock.open} version={reread} onPick={(next) => setDay(next)} />
+        {!lookingBack && (
+          <button type="button" className="btn btn--sm journalscreen__lookback" onClick={() => setLookingBack(true)}>
+            <History size={14} aria-hidden />
+            Looking back
+          </button>
+        )}
       </aside>
     </div>
   );

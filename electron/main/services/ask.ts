@@ -597,3 +597,27 @@ export async function askBrain(db: Db, companyId: string, raw: unknown, now: Dat
     usage: reply.usage,
   };
 }
+
+/**
+ * One request to the connected AI with nothing of Caulder's added: for
+ * Looking back (`services/lookback.ts`), which puts together what it sends
+ * itself and has asked for the journal's passcode before it gets here.
+ */
+export async function completeAway(
+  db: Db,
+  system: string,
+  context: string,
+  question: string,
+): Promise<{ text: string; service: string; model: string }> {
+  const connection = readConnection(db);
+  if (!connection) throw new Error("Connect an AI in Settings first.");
+  const service = serviceOf(connection.service) as AiService;
+  const model = getSetting(db, "aiModel");
+  if (!model) throw new Error(`Pick a ${service.label} model in Settings.`);
+  const reply = await complete(connection, model, system, context, [], question);
+  return {
+    text: reply.text.trim(),
+    service: service.label,
+    model: readModels(db).find((option) => option.id === model)?.label ?? model,
+  };
+}

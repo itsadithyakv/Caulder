@@ -1634,19 +1634,49 @@ page*): `@` links a page or contact, `/` offers lists and steps and, here,
 *What I did today* - the tasks ticked and calls made, from Caulder - and *A
 question* to write to.
 
-**A passcode can lock the days that are over** (*Passcode* in the journal's
-heading). Writing never asks for it: today stays open, and a day written into
-later is locked again as soon as it is kept. Reading a day that is over asks
-once, and stays open for a quarter of an hour of use, or until *Lock now*.
-Locked is real, not a screen over the words: each day is encrypted with the
-journal's public key when it ends, and only the private key - itself
-encrypted with the passcode - opens it, so the words are not in the database,
-its backups or search. The mood stays visible, so the calendar keeps its
-faces. *Change the passcode*, *Take the passcode off* (every day is opened and
-kept as it was) and *I forgot the passcode* are in the same menu; forgetting
-it means those days cannot be read by anyone, which the screen says before
-one is set, and *I forgot the passcode* erases what was locked to take the
-lock off.
+**A passcode can lock the journal** (*Passcode* in the journal's heading).
+Writing never asks for it. A day that is over is locked, and so is today as it
+is written when *Lock today as I write it* is on - it is ticked when the
+passcode is set, and the menu turns it off again. Reading a locked day asks
+once, and stays open for a quarter of an hour of use, until *Lock now*, or
+until the computer is locked, its lid closed or it goes to sleep. Locked is
+real, not a screen over the words: each day is encrypted with the journal's
+public key, and only the private key - itself encrypted with the passcode -
+opens it, so the words are not in the database, its backups or search, and
+deleted words are overwritten in the file rather than left behind. The mood
+stays visible, so the calendar keeps its faces.
+
+- **Today, locked, still takes words**: *Or add to today without unlocking*
+  under the passcode field, and a journal line from Today's line, are sealed
+  as they are kept and read with the rest once it is open - in Today's part,
+  as any added line is.
+- **A new passcode needs some length** - eight characters, and not one of
+  the first anybody would try - and a meter under the field says how strong
+  it is. A few words is the easy way. A passcode set before still opens.
+- **A recovery key** is made with the passcode: twenty-five letters and
+  numbers, shown once, to be written on paper, with no button to copy it.
+  *I forgot the passcode* asks for it and a new passcode, and every day stays
+  as it was. *Make a new recovery key* (with the journal open) replaces it.
+  Without either, *I do not have the key either* erases what was locked to
+  take the lock off, which the screen says before a passcode is set.
+- **Search the journal**, beside the month: every entry and private line,
+  locked days included while the journal is open. It is done in memory and
+  kept nowhere; while it is locked, it says the locked days were not searched.
+- **Out of screenshots**: with a passcode, the journal's window shows as
+  blank in screenshots, recordings and shared screens.
+- *Change the passcode* and *Take the passcode off* (every day is opened and
+  kept as it was) are in the same menu.
+
+**Looking back**, under the search, is a reading of your journal over the last
+month, three months, year or all of it: how you have changed, work and
+ambition, what kept coming up, what went well, and a few questions for the
+months ahead. Beside it, worked out on this computer, are the numbers for each
+month - days written, words, mood, tasks done, calls, habits kept, contacts
+added. It is read by a model on this computer, through Ollama: nothing leaves.
+If the AI connected in Settings is elsewhere, *Send to ... instead* says who
+will receive how many days, and asks for the passcode again (SEND, for a
+journal without one) before anything goes. The reading is not kept anywhere,
+and private lines are never part of it.
 
 - **An entry is made by writing in it**, a word or a face; opening a day does
   not make one. One entry a day.

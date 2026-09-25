@@ -920,6 +920,8 @@ export const SETTING_KEYS = [
    * is set. See services/journal-lock.ts.
    */
   "journalLock",
+  "journalLockToday",
+  "lookBackLocal",
   /** "on" when book covers may be looked up at Open Library; anything else is off. */
   "shelfCovers",
   /** "off" when how somebody has been is not to be watched; anything else, it is. */
