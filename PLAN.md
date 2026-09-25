@@ -1221,7 +1221,7 @@ chip still teaches a lesson.
   vocabulary, about 30,000 words. Splitting into WordPiece, mean pooling and
   normalising are pure functions in `shared/`, so only the one matrix
   multiply-heavy call needs the runtime.
-- **A seventh runtime dependency.** `onnxruntime-node` is native, so it must be
+- **A thirteenth runtime dependency.** `onnxruntime-node` is native, so it must be
   unpacked from the asar like `better-sqlite3` and `koffi`. Only the Windows
   x64 binary may ship, not every platform's. `architecture.md` says why it
   earns its place.
@@ -1365,7 +1365,7 @@ Before anything reads more, stop sending what it should not.
 1. **The model: all-MiniLM-L6-v2, int8, 23 MB**, in a utility process
    through `onnxruntime-node`.
    - It reads word order and context, which is what a short line needs.
-   - The cost is accepted: a seventh runtime dependency, a native one, and a
+   - The cost is accepted: a thirteenth runtime dependency, a native one, and a
      process of its own.
    - potion-base-8M was the alternative. It is pure TypeScript with no
      dependency, but reads words and not their order.

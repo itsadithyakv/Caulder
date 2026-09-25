@@ -30,9 +30,10 @@ feature and say so; do not build a parallel one.
   or renumbered. Migration 20's trigger SQL is frozen.
 - The quick line has one parser: `readCapture` and `parseQuick`. To add a
   kind, follow "Adding a kind to the line" in the feature map.
-- Runtime dependencies are six (`better-sqlite3`, `electron-updater`,
-  `exceljs`, `koffi`, `nodemailer`, `zod`). Adding one is a decision for
-  PLAN.md, not a convenience.
+- Runtime dependencies are twelve: six CodeMirror packages for the page
+  editor, and `better-sqlite3`, `electron-updater`, `exceljs`, `koffi`,
+  `nodemailer`, `zod`. Adding one is a decision for PLAN.md, not a
+  convenience.
 - Nothing leaves the machine unless the person set it up; anything that acts
   on its own is off until switched on.
 - Colour lives only in `src/styles/tokens.css`.
