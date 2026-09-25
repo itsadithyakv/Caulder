@@ -30,7 +30,7 @@ const LINK_TALK =
 
 /** The things people make, said as things: followed by what they are of, about or for. */
 const MAKING =
-  /^\s*(?:an?\s+|new\s+)?(?:edit|video|reel|short|vlog|post|thread|blog|article|essay|newsletter|song|beat|track|remix|mix|cover|design|logo|poster|thumbnail|animation|sketch|drawing|painting|photo|shoot|script|story|poem|app|tool|feature|project|concept|startup|business|product|game|podcast|series|talk|workshop)\s+(?:idea\s+)?(?:on|of|about|for|with|using|inspired\s+by|like|idea|concept)\b/i;
+  /^\s*(?:an?\s+|new\s+)?(?:edit|video|reel|short|vlog|post|thread|blog|article|essay|newsletter|song|beat|track|remix|mix|cover|design|logo|poster|thumbnail|animation|sketch|drawing|painting|photo|shoot|script|story|poem|app|tool|feature|project|concept|startup|business|product|game|podcast|series|talk|workshop)\s+(?:idea\s+)?(?:on|of|about|for|with|using|inspired\s+by|like|idea|concept|that|which|where)\b/i;
 
 /** The thought in a line, or null when the line is not one. */
 export function readThought(line: string): Thought | null {

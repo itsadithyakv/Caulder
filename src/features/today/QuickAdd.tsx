@@ -521,8 +521,10 @@ export function QuickAdd({
     said: string,
     /** The part to read first - "PR: 45 kg x 3" - so a page of these reads down its left edge. */
     fact: string | null,
+    /** The contact a person's page is about, which it then links to. */
+    about: { id: string; name: string } | null = null,
   ): Promise<string> {
-    const kept = await window.caulder.brain.remember({ pageId: known?.id ?? null, topic, section, trail, said, fact, day: today });
+    const kept = await window.caulder.brain.remember({ pageId: known?.id ?? null, topic, section, trail, said, fact, day: today, about });
     return kept.title;
   }
 
@@ -681,7 +683,7 @@ export function QuickAdd({
         }
         summary ||= sayAsk(ask);
       } else if (goesTo === "memory") {
-        const title = await remember(reading.page, reading.topic, reading.branch?.section ?? "ideas", reading.trail, said, reading.fact);
+        const title = await remember(reading.page, reading.topic, reading.branch?.section ?? "ideas", reading.trail, said, reading.fact, reading.about ?? null);
         summary = `Remembered, under ${title} in the brain`;
       } else if (goesTo === "idea") {
         const page = await window.caulder.brain.create(companyId, "ideas", "idea");

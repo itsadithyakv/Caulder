@@ -220,12 +220,16 @@ away; **Keep** (or Enter) puts it there.
   when the line says what kind of thing it is.
 - **A fact** - said to be one (*fun fact:*, *did you know*, *TIL*, a closing
   *interesting question* or *who knew*) or shaped like one (*Shivajinagar was
-  called Blackpally*, *NASA stands for…*, *Canberra is the capital of…*). All
+  called Blackpally*, *NASA stands for…*, *Canberra is the capital of…*, what
+  a thing always does - *honey never spoils* - or a thing measured - *the
+  eiffel tower grows 15cm in summer*). All
   of them go on one page, **Random knowledge**, in Ideas, kept without the
   words that only said it was a fact (`shared/facts.ts`). Never a line that
   opens with *I*, *my*, *it* or *this*, and never ahead of a task, a contact,
   or a page the fact is about.
-- **An idea** - *what if…*, or *idea:* - is a page in the brain's Ideas.
+- **An idea** - *what if…*, *could partner with…*, *we should try…*, *how
+  about a…*, *an app that…*, or *idea:* - is a page in the brain's Ideas.
+  *Could you send it* is asking somebody, and is not one.
 - **A note** - anything it is unsure of, kept at the foot of Today to file
   later: nothing is lost by the line being unsure.
 - A prefix says so outright: *journal:*, *idea:*, *note:*, *task:*.
@@ -2065,7 +2069,8 @@ workspace whichever company is open, so this shows the same thing in every
 company, and says so. The journal is never read for it.
 
 - **What a life is made of** (`shared/lifefacts.ts`) goes on its own page in
-  **Remembered**, a personal section that never leaves the machine: *my blood
+  **Remembered**, a personal section that goes to your AI only when *your own
+  pages* is on in Settings: *my blood
   group is O+*, *i'm allergic to peanuts*, *my car number is…* on **About
   me**; *mummy's birthday is 15 march*, *arjun likes filter coffee*, *meera
   just got engaged*, *dad's shirt size is XL* on a page for each person under
@@ -2074,7 +2079,10 @@ company, and says so. The journal is never read for it.
   the drill* on **Lent and borrowed**. What it is about leads the line -
   **Blood group: O+** - so a later memory about the same thing is the newer
   answer, and the one before is shown as *earlier*. Somebody already a contact
-  keeps theirs on their history. *My exam is on friday* is still a task and *my
+  gets a page too, named as they are kept and starting *About [[them]]*, so
+  their contact page lists it under Linked here and *what's amma's bp tablet*
+  is answered - except what a contact *likes*, which is where a deal stands
+  and stays on their history. *My exam is on friday* is still a task and *my
   head is killing me* still the journal.
 - **A password is never a memory.** *My wifi password is…*, a PIN, a card or
   account number, an OTP go to **Private**, locked behind the journal's

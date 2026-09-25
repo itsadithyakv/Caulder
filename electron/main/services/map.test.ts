@@ -142,6 +142,27 @@ describe("what [[ offers", () => {
     expect(map.linkTargetsFor(db, companyId, "old")).toEqual([]);
     expect(map.linkTargetsFor(db, companyId, "50%").map((t) => t.name)).toEqual(["50% discount"]);
   });
+
+  it("offers your pages every company's contacts, and a company's pages nothing of yours", () => {
+    const home = createCompany(db, { name: "Me", accent: "coffee", timezone: "Asia/Kolkata", kind: "personal" }).id;
+    const oakridge = createLead(db, companyId, leadInput.parse({ name: "Oakridge School" }));
+    const mine = brain.newPage(db, home, "hobbies", "page", NOW);
+    brain.savePage(db, mine.id, { title: "Oak carving", body: "", fields: {}, baseRevision: mine.revision }, NOW);
+
+    // The journal mentions Oakridge; the link is kept, and named.
+    expect(map.linkTargetsFor(db, home, "oak").map((t) => `${t.kind}:${t.name}`)).toEqual(["page:Oak carving", "contact:Oakridge School"]);
+    const day = brain.newPage(db, home, "journal", "page", NOW);
+    const said = brain.savePage(
+      db,
+      day.id,
+      { title: "Today", body: `Met ${linkToken("Oakridge School", { kind: "contact", id: oakridge.id })}.`, fields: {}, baseRevision: day.revision },
+      NOW,
+    );
+    expect(said.links).toMatchObject({ [`contact:${oakridge.id}`]: { name: "Oakridge School" } });
+
+    // The company's brain can be shared: it is never offered your pages.
+    expect(map.linkTargetsFor(db, companyId, "oak").map((t) => t.name)).toEqual(["Oakridge School"]);
+  });
 });
 
 describe("the map", () => {

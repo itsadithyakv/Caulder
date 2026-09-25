@@ -4,7 +4,9 @@ import { migrate } from "../db/migrations";
 import { createCompany } from "../repositories/companies";
 import { readCapture } from "@shared/capture";
 import { getPage, newPage, savePage } from "./brain";
-import { wholeMap } from "./map";
+import { backlinks, wholeMap } from "./map";
+import { createLead } from "../repositories/leads";
+import { leadInput } from "@shared/domain";
 import { allMemories } from "./memories";
 import { remember } from "./remember";
 
@@ -155,5 +157,32 @@ describe("kept where it belongs", () => {
     say("fun fact: honey never spoils");
     expect(getPage(db, entry.id).body).toBe("dear diary\n");
     expect(pages().filter((page) => page.title === "Random knowledge")).toHaveLength(2);
+  });
+});
+
+describe("somebody who is a contact", () => {
+  it("gets a page under People that links to them, once, and the line can answer from it", () => {
+    const amma = createLead(db, work, leadInput.parse({ name: "Amma" }));
+    const contacts = [{ id: amma.id, name: "Amma", person: null }];
+    const tell = (line: string) => {
+      const read = readCapture(line, { contacts, hobbies: [], pages: known() }, CLOCK);
+      expect(read.kind).toBe("memory");
+      expect(read.about).toEqual({ id: amma.id, name: "Amma" });
+      return remember(
+        db,
+        { pageId: read.page?.id ?? null, topic: read.topic, section: read.branch?.section ?? "ideas", trail: read.trail, said: read.text, fact: read.fact, day: CLOCK.today, about: read.about ?? null },
+        NOW,
+      );
+    };
+
+    const kept = tell("amma's bp tablet is telma 40");
+    tell("amma's birthday is 15 march");
+    const page = getPage(db, kept.pageId);
+    expect(page.title).toBe("Amma");
+    expect(above("Amma")).toEqual(["Me", "People"]);
+    expect(page.body.match(/\[\[Amma\|contact:/g)).toHaveLength(1);
+    // The contact's own page lists it; the memory is found by asking.
+    expect(backlinks(db, "contact", amma.id).map((each) => each.title)).toEqual(["Amma"]);
+    expect(allMemories(db).memories.some((memory) => memory.fact === "Bp tablet: telma 40")).toBe(true);
   });
 });

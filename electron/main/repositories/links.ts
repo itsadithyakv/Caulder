@@ -1,4 +1,5 @@
 import type { Db } from "../db/connection";
+import { isHomeWorkspace } from "./companies";
 import type { BrainSectionId } from "@shared/brain";
 import { keyOf, type LinkKind, type LinkRef, type LinkTarget, type LinkedName } from "@shared/links";
 import { mapKindOf, type MapGraph, type MapLink, type MapNode, type MapPosition } from "@shared/map";
@@ -48,30 +49,47 @@ export function replaceLinks(
     db.prepare(`DELETE FROM brain_links WHERE from_page = ?`).run(pageId);
     for (const target of targets) {
       const key = keyOf(target);
-      // Only to something that exists in this company, and never to itself.
+      // Only to something that exists where this page can reach (`reachFrom`), and never to itself.
       if (!known[key] || (target.kind === "page" && target.id === pageId)) continue;
       insert.run(companyId, pageId, target.kind, target.id, target.label, before.get(key) ?? now);
     }
   })();
 }
 
+/**
+ * The workspaces a page may link into. A company's page links within the
+ * company - its brain can be shared, and must never point into your own
+ * things. A page of yours, in your home, reaches every company as well:
+ * the journal is where you write about Rahul from the company and Amma alike.
+ */
+function reachFrom(db: Db, companyId: string): string[] {
+  if (!isHomeWorkspace(db, companyId)) return [companyId];
+  const others = db
+    .prepare(`SELECT id FROM companies WHERE id <> ? AND is_archived = 0 ORDER BY created_at`)
+    .all(companyId) as { id: string }[];
+  return [companyId, ...others.map((row) => row.id)];
+}
+
+const within = (ids: readonly string[]) => `company_id IN (${ids.map(() => "?").join(", ")})`;
+
 /** Where each kind of thing is found, and its name there. */
 const NAMED: Record<LinkKind, string> = {
-  page: `SELECT id, title AS name, section FROM brain_pages WHERE id = ? AND company_id = ?`,
-  contact: `SELECT id, name, NULL AS section FROM leads WHERE id = ? AND company_id = ?`,
-  product: `SELECT id, name, NULL AS section FROM products WHERE id = ? AND company_id = ?`,
-  person: `SELECT id, name, NULL AS section FROM people WHERE id = ? AND company_id = ?`,
-  document: `SELECT id, name, NULL AS section FROM documents WHERE id = ? AND company_id = ?`,
+  page: `SELECT id, title AS name, section FROM brain_pages WHERE id = ? AND `,
+  contact: `SELECT id, name, NULL AS section FROM leads WHERE id = ? AND `,
+  product: `SELECT id, name, NULL AS section FROM products WHERE id = ? AND `,
+  person: `SELECT id, name, NULL AS section FROM people WHERE id = ? AND `,
+  document: `SELECT id, name, NULL AS section FROM documents WHERE id = ? AND `,
 };
 
-/** The current name of each target that still exists in this company. */
+/** The current name of each target that still exists where this company's pages can reach. */
 export function resolveNames(
   db: Db,
   companyId: string,
   refs: readonly LinkRef[],
 ): Record<string, LinkedName> {
   const out: Record<string, LinkedName> = {};
-  const found = (kind: LinkKind, id: string) => db.prepare(NAMED[kind]).get(id, companyId) as TargetRow | undefined;
+  const reach = reachFrom(db, companyId);
+  const found = (kind: LinkKind, id: string) => db.prepare(NAMED[kind] + within(reach)).get(id, ...reach) as TargetRow | undefined;
   for (const ref of refs) {
     const row = found(ref.kind, ref.id);
     if (row) out[keyOf(ref)] = { name: row.name, kind: mapKindOf(ref.kind, row.section) };
@@ -102,46 +120,48 @@ export function linkCandidates(db: Db, companyId: string, text: string, limit = 
   const query = text.trim();
   const like = `%${query.replace(/[\\%_]/g, "\\$&")}%`;
   const starts = `${query.replace(/[\\%_]/g, "\\$&")}%`;
+  const reach = reachFrom(db, companyId);
+  const where = within(reach);
 
   const pages = db
     .prepare(
       `SELECT id, title AS name, section FROM brain_pages
-       WHERE company_id = ? AND is_archived = 0 AND title LIKE ? ESCAPE '\\'
+       WHERE ${where} AND is_archived = 0 AND title LIKE ? ESCAPE '\\'
        ORDER BY (title LIKE ? ESCAPE '\\') DESC, updated_at DESC LIMIT ?`,
     )
-    .all(companyId, like, starts, limit) as TargetRow[];
+    .all(...reach, like, starts, limit) as TargetRow[];
 
   const contacts = db
     .prepare(
       `SELECT id, name, city AS section FROM leads
-       WHERE company_id = ? AND (name LIKE ? ESCAPE '\\' OR contact_person LIKE ? ESCAPE '\\')
+       WHERE ${where} AND (name LIKE ? ESCAPE '\\' OR contact_person LIKE ? ESCAPE '\\')
        ORDER BY (name LIKE ? ESCAPE '\\') DESC, updated_at DESC LIMIT ?`,
     )
-    .all(companyId, like, like, starts, limit) as { id: string; name: string; section: string | null }[];
+    .all(...reach, like, like, starts, limit) as { id: string; name: string; section: string | null }[];
 
   const products = db
     .prepare(
       `SELECT id, name, unit AS detail FROM products
-       WHERE company_id = ? AND name LIKE ? ESCAPE '\\'
+       WHERE ${where} AND name LIKE ? ESCAPE '\\'
        ORDER BY (name LIKE ? ESCAPE '\\') DESC, name LIMIT ?`,
     )
-    .all(companyId, like, starts, limit) as { id: string; name: string; detail: string | null }[];
+    .all(...reach, like, starts, limit) as { id: string; name: string; detail: string | null }[];
 
   const people = db
     .prepare(
       `SELECT id, name, kind, role FROM people
-       WHERE company_id = ? AND name LIKE ? ESCAPE '\\'
+       WHERE ${where} AND name LIKE ? ESCAPE '\\'
        ORDER BY (name LIKE ? ESCAPE '\\') DESC, name LIMIT ?`,
     )
-    .all(companyId, like, starts, limit) as { id: string; name: string; kind: PersonKind; role: string | null }[];
+    .all(...reach, like, starts, limit) as { id: string; name: string; kind: PersonKind; role: string | null }[];
 
   const documents = db
     .prepare(
       `SELECT id, name, category FROM documents
-       WHERE company_id = ? AND name LIKE ? ESCAPE '\\'
+       WHERE ${where} AND name LIKE ? ESCAPE '\\'
        ORDER BY (name LIKE ? ESCAPE '\\') DESC, updated_at DESC LIMIT ?`,
     )
-    .all(companyId, like, starts, limit) as { id: string; name: string; category: DocumentCategory }[];
+    .all(...reach, like, starts, limit) as { id: string; name: string; category: DocumentCategory }[];
 
   const lower = query.toLowerCase();
   const ranked: LinkTarget[] = [

@@ -267,3 +267,21 @@ describe("read rightly after the second pass (25 September 2026)", () => {
     expect(reading("grateful for amma's food, call her tonight").kind).toBe("task");
   });
 });
+
+describe("facts and ideas said with no word to mark them (25 September 2026)", () => {
+  it("keeps a plain fact of nature, and leaves a complaint shaped like one as a note", () => {
+    expect(read("honey never spoils").kind).toBe("memory");
+    expect(read("the eiffel tower grows 15cm in summer").kind).toBe("memory");
+    expect(read("a cat sleeps 16 hours a day").kind).toBe("memory");
+    expect(read("the server never responds").kind).toBe("note");
+    expect(read("the drive takes 2 hours").kind).toBe("note");
+  });
+
+  it("hears an idea floated, and not a request or a thing to do said softly", () => {
+    expect(read("could partner with coaching centres").kind).toBe("idea");
+    expect(read("we should try a referral scheme").kind).toBe("idea");
+    expect(read("how about a yearly plan").kind).toBe("idea");
+    expect(read("app that reminds teachers to fill attendance").kind).toBe("idea");
+    expect(read("could you send the deck").kind).not.toBe("idea");
+  });
+});

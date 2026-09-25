@@ -83,22 +83,30 @@ the code, and 85 realistic lines put through the quick line. Items marked
 4. **Your data card** says what connections send, rather than that nothing
    is sent.
 
-### Found while checking those
+### Also fixed on 25 September 2026
 
-- **In the journal, `@` offers none of the company's contacts.** The journal
-  lives in your home workspace since 0.4.5, and `linkCandidates`
-  (`repositories/links.ts`) looks only in the page's own workspace; the names
-  of links are resolved the same way. This came with 0.4.5, which was
-  committed without the e2e suite. `e2e/writing.spec.ts`'s first test fails
-  on it, and the tests after it in that file then do not run.
+- **The journal's `@` offers every company's contacts again.** Pages in your
+  home reach every company (`reachFrom`, `repositories/links.ts`); a company's
+  pages still reach only their own company. The journal had lost this in
+  0.4.5, which was committed without the e2e suite.
+- **A fact about a contact's life is a memory**, on their page under People,
+  which links to the contact once. Before, it went on their history, where
+  "what's amma's bp tablet" had nothing to answer from. What a contact *likes*
+  still goes on their history: for a client that is where a deal stands.
+  "bp tablet", "thyroid pills" and the like are now facts too.
+- **Plain facts and ideas with no marker word**:
+  - "honey never spoils" and "the eiffel tower grows 15cm in summer" are
+    facts;
+  - "could partner with…", "we should try…", "how about a…" and "an app
+    that…" are ideas.
+  - Only those shapes: "the server never responds" is still a note. The
+    wider middle is phase 20's.
 
-### Still to settle on the line
+### Flaky
 
-- A fact or a debt about a contact goes on the contact's history; the same
-  line about somebody who is not a contact goes to a memory. That is by design
-  (`shared/lifefacts.ts`), but it reads as inconsistent. It needs a decision.
-- Trivia and ideas with no lead-in ("honey never spoils", "could partner with
-  coaching centres") fall to note. This is phase 20's job.
+- `services/journal-lock.test.ts` can time out (5 s) in a full parallel run,
+  because the passcode's key is slow to make on purpose (scrypt 2^17). It
+  passes alone. It wants a longer timeout.
 
 ### Built underneath, but no screen offers it
 

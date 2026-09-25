@@ -44,8 +44,21 @@ describe("the people in it", () => {
     expect(read(line)).toMatchObject({ kind: "person", page, fact, trail: [{ title: "Me" }, { title: "People" }] });
   });
 
-  it("leaves a contact's to their history", () => {
-    expect(read("rahul's daughter is called anya")).toBeNull();
+  it("keeps what is said of a contact's life on a page for them, linked to them", () => {
+    const amma = [{ id: "c9", name: "Amma", person: null }];
+    // A fact about their life is a memory like anybody's: "what's amma's bp tablet" is answered from memories.
+    expect(readLifeFact("amma's bp tablet is telma 40", amma)).toEqual({
+      kind: "person",
+      page: "Amma",
+      trail: expect.any(Array),
+      fact: "Bp tablet: telma 40",
+      date: null,
+      contact: { id: "c9", name: "Amma" },
+    });
+    expect(read("rahul's daughter is called anya")).toMatchObject({ kind: "person", page: "Rahul", fact: "Daughter: Anya" });
+  });
+
+  it("leaves what a contact likes to their history: that is where a deal stands", () => {
     expect(read("rahul likes the proposal")).toBeNull();
   });
 });

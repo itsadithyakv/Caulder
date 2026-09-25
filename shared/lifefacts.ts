@@ -33,7 +33,12 @@ type LifeFact = {
   fact: string;
   /** For a birthday or an anniversary: the day it comes round. */
   date: { month: number; day: number } | null;
+  /** Said about somebody who is a contact: their page links to them. */
+  contact?: { id: string; name: string };
 };
+
+/** Everybody already kept. The id is there when the line has it, so a person's page can link to them. */
+type Known = readonly { id?: string; name: string; person: string | null }[];
 
 export const REMEMBERED_SECTION = "remembered" as const;
 const ABOUT_ME = "About me";
@@ -82,7 +87,7 @@ export function isSecret(said: string): boolean {
 
 /** What a person keeps about themselves or somebody else, said "my X is Y". */
 const KEYS =
-  /^(?:favou?rite\s+[\p{L} ]{1,24}|fav\s+[\p{L} ]{1,24}|blood\s+(?:group|type)|(?:shoe|shirt|t-?shirt|pant|jeans|dress|ring|bra|jacket|kurta)\s+size|size|waist|height|weight|birthday|bday|birth\s?day|date\s+of\s+birth|dob|anniversary|wedding\s+anniversary|address|home\s+address|pin\s?code|postcode|zip(?:\s+code)?|car(?:\s+number)?|bike(?:\s+number)?|scooter(?:\s+number)?|vehicle(?:\s+number)?|number\s+plate|licen[cs]e(?:\s+number)?|locker(?:\s+number)?|seat(?:\s+number)?|roll\s+(?:number|no)|usn|reg(?:istration)?\s+(?:number|no)|employee\s+(?:id|number|no)|student\s+id|flat(?:\s+number)?|house\s+number|room\s+number|apartment|gate\s+code|wifi(?:\s+name)?|star\s+sign|zodiac(?:\s+sign)?|sun\s+sign|allergy|allergies|medication|medicines?|doctor|dentist|gp|gym|tailor|barber|hairdresser|landlord|insurance(?:\s+company)?|insurer|bank|diet|go-?to\s+order|usual\s+order|coffee\s+order|hometown|native(?:\s+place)?|college|school|university|major|branch|team|club|church|temple|nickname|middle\s+name|maiden\s+name|full\s+name)$/iu;
+  /^(?:favou?rite\s+[\p{L} ]{1,24}|fav\s+[\p{L} ]{1,24}|blood\s+(?:group|type)|(?:shoe|shirt|t-?shirt|pant|jeans|dress|ring|bra|jacket|kurta)\s+size|size|waist|height|weight|birthday|bday|birth\s?day|date\s+of\s+birth|dob|anniversary|wedding\s+anniversary|address|home\s+address|pin\s?code|postcode|zip(?:\s+code)?|car(?:\s+number)?|bike(?:\s+number)?|scooter(?:\s+number)?|vehicle(?:\s+number)?|number\s+plate|licen[cs]e(?:\s+number)?|locker(?:\s+number)?|seat(?:\s+number)?|roll\s+(?:number|no)|usn|reg(?:istration)?\s+(?:number|no)|employee\s+(?:id|number|no)|student\s+id|flat(?:\s+number)?|house\s+number|room\s+number|apartment|gate\s+code|wifi(?:\s+name)?|star\s+sign|zodiac(?:\s+sign)?|sun\s+sign|allergy|allergies|medication|medicines?|(?:[\p{L}]+\s+)?(?:tablets?|pills?|inhaler|insulin|meds)|doctor|dentist|gp|gym|tailor|barber|hairdresser|landlord|insurance(?:\s+company)?|insurer|bank|diet|go-?to\s+order|usual\s+order|coffee\s+order|hometown|native(?:\s+place)?|college|school|university|major|branch|team|club|church|temple|nickname|middle\s+name|maiden\s+name|full\s+name)$/iu;
 /** Said of something still to come: a task, not a fact about anybody. */
 const EVENTISH = /^(?:exam|test|flight|train|bus|meeting|class|lecture|appointment|interview|deadline|submission|match|game|show|party|trip|call|demo|presentation|shift|slot|turn|order|delivery)s?$/i;
 const WHENISH = /\b(?:today|tomorrow|tonight|yesterday|due|at\s+\d|next\s+(?:week|month|mon|tue|wed|thu|fri|sat|sun)\w*|this\s+(?:week|weekend|evening)|in\s+\d+\s+(?:days?|weeks?|hours?|mins?))\b/i;
@@ -135,18 +140,35 @@ const personName = (text: string) =>
     .map((word) => (word === word.toLowerCase() ? capital(word) : word))
     .join(" ");
 
-function aPerson(name: string, contacts: readonly { name: string; person: string | null }[]): boolean {
-  const words = name.toLowerCase().split(/\s+/);
-  if (words.some((word) => NOT_A_PERSON.has(word))) return false;
-  // Somebody already a contact is theirs: what is said about them goes on their history.
-  const said = words.join(" ");
-  return !contacts.some((contact) =>
-    [contact.name, contact.person].some((known) => known !== null && known.toLowerCase().split(/\s+/)[0] === words[0] && known.toLowerCase().startsWith(said)),
-  );
+function aPerson(name: string): boolean {
+  return !name.toLowerCase().split(/\s+/).some((word) => NOT_A_PERSON.has(word));
 }
 
-function person(name: string): { page: string; trail: Step[] } {
+/**
+ * The page a person's facts go on, under People. Somebody who is already a
+ * contact gets one too, named as they are kept and linked to them: what Amma
+ * takes for her blood pressure is a thing to remember and to be asked about -
+ * which the line answers from memories - not an entry in a history. It was
+ * put on the contact's history once, and "what's amma's bp tablet" then had
+ * nothing to answer from.
+ */
+function person(name: string, contacts: Known): { page: string; trail: Step[]; contact?: { id: string; name: string } } {
+  const known = contactNamed(name, contacts);
+  if (known?.id) return { page: personName(known.as), trail: [ROOT, PEOPLE], contact: { id: known.id, name: known.name } };
   return { page: personName(name.replace(/^my\s+/i, "")), trail: [ROOT, PEOPLE] };
+}
+
+/** The contact a name is, by their name or the person there, and which of the two it was said as. */
+function contactNamed(name: string, contacts: Known): { id?: string; name: string; as: string } | null {
+  const words = name.toLowerCase().replace(/^my\s+/, "").split(/\s+/);
+  const said = words.join(" ");
+  for (const contact of contacts) {
+    const as = [contact.person, contact.name].find(
+      (each) => each !== null && each.toLowerCase().split(/\s+/)[0] === words[0] && each.toLowerCase().startsWith(said),
+    );
+    if (as) return { ...(contact.id ? { id: contact.id } : {}), name: contact.name, as };
+  }
+  return null;
 }
 
 /**
@@ -154,7 +176,7 @@ function person(name: string): { page: string; trail: Step[] } {
  * forms written out (shared/slang.ts); `contacts` are everybody already kept,
  * who are not given a page here.
  */
-export function readLifeFact(said: string, contacts: readonly { name: string; person: string | null }[]): LifeFact | null {
+export function readLifeFact(said: string, contacts: Known): LifeFact | null {
   const line = tidy(said.replace(/^(?:remember(?:\s+that)?|fyi|note(?:\s+that)?|btw)[:,\s]+/i, "").replace(/’/g, "'"));
   if (!line || isSecret(line) || /\b(?:need\s+to|have\s+to|remind\s+me|don'?t\s+forget|should|must|gotta|got\s+to)\b/i.test(line)) return null;
   const me = (fact: string, date: LifeFact["date"] = null): LifeFact => ({ kind: "me", page: ABOUT_ME, trail: [ROOT], fact, date });
@@ -228,36 +250,38 @@ export function readLifeFact(said: string, contacts: readonly { name: string; pe
 
   // The people in it.
   const theirDay = new RegExp(String.raw`^(?:my\s+)?${NAME}(?:'s|s')\s+(birth\s?day|bday|(?:wedding\s+)?anniversary)\s+is\s+(?:on\s+)?(.+)$`, "iu").exec(line);
-  if (theirDay && aPerson(theirDay[1] ?? "", contacts)) {
+  if (theirDay && aPerson(theirDay[1] ?? "")) {
     const date = monthDayOf(theirDay[3] ?? "");
     if (date) {
       const what = /anniversary/i.test(theirDay[2] ?? "") ? "Anniversary" : "Birthday";
-      return { kind: "person", ...person(theirDay[1] ?? ""), fact: `${what}: ${sayMonthDay(date)}`, date };
+      return { kind: "person", ...person(theirDay[1] ?? "", contacts), fact: `${what}: ${sayMonthDay(date)}`, date };
     }
   }
   const family = new RegExp(String.raw`^(?:my\s+)?${NAME}(?:'s|s')\s+${RELATION}(?:'s\s+name)?\s+(?:is\s+called|is\s+named|is|are|name\s+is|names\s+are)\s+(.+)$`, "iu").exec(line);
-  if (family && aPerson(family[1] ?? "", contacts)) {
-    return { kind: "person", ...person(family[1] ?? ""), fact: `${capital(family[2] ?? "")}: ${personName(tidy(family[3] ?? ""))}`, date: null };
+  if (family && aPerson(family[1] ?? "")) {
+    return { kind: "person", ...person(family[1] ?? "", contacts), fact: `${capital(family[2] ?? "")}: ${personName(tidy(family[3] ?? ""))}`, date: null };
   }
   const theirs = new RegExp(String.raw`^(?:my\s+)?${NAME}(?:'s|s')\s+([\p{L} -]{2,30}?)\s+(?:is|are)\s+(.+)$`, "iu").exec(line);
-  if (theirs && aPerson(theirs[1] ?? "", contacts) && KEYS.test(tidy(theirs[2] ?? "")) && !WHENISH.test(theirs[3] ?? "")) {
-    return { kind: "person", ...person(theirs[1] ?? ""), fact: `${capital(tidy(theirs[2] ?? ""))}: ${tidy(theirs[3] ?? "")}`, date: null };
+  if (theirs && aPerson(theirs[1] ?? "") && KEYS.test(tidy(theirs[2] ?? "")) && !WHENISH.test(theirs[3] ?? "")) {
+    return { kind: "person", ...person(theirs[1] ?? "", contacts), fact: `${capital(tidy(theirs[2] ?? ""))}: ${tidy(theirs[3] ?? "")}`, date: null };
   }
   const likes = new RegExp(String.raw`^(?:my\s+)?${NAME}\s+${LIKE_VERBS}\s+(.+)$`, "iu").exec(line);
-  if (likes && aPerson(likes[1] ?? "", contacts) && !WHENISH.test(likes[3] ?? "")) {
+  // What a contact likes is left to their history: "rahul likes the proposal"
+  // is where a deal stands, not a thing about Rahul to remember.
+  if (likes && aPerson(likes[1] ?? "") && !contactNamed(likes[1] ?? "", contacts) && !WHENISH.test(likes[3] ?? "")) {
     const key = LIKES.find(([verb]) => verb.test(tidy(likes[2] ?? "")))?.[1] ?? "Likes";
-    return { kind: "person", ...person(likes[1] ?? ""), fact: `${key}: ${tidy(likes[3] ?? "")}`, date: null };
+    return { kind: "person", ...person(likes[1] ?? "", contacts), fact: `${key}: ${tidy(likes[3] ?? "")}`, date: null };
   }
   const lives = new RegExp(String.raw`^(?:my\s+)?${NAME}\s+(lives\s+in|moved\s+to|works\s+at|works\s+for|joined|started\s+at|started\s+working\s+at|studies\s+at|goes\s+to|got\s+into)\s+(.+)$`, "iu").exec(line);
-  if (lives && aPerson(lives[1] ?? "", contacts) && !WHENISH.test(lives[3] ?? "")) {
+  if (lives && aPerson(lives[1] ?? "") && !WHENISH.test(lives[3] ?? "")) {
     const key = WHERE_VERBS.find(([verb]) => verb.test(tidy(lives[2] ?? "")))?.[1] ?? "About";
-    return { kind: "person", ...person(lives[1] ?? ""), fact: `${key}: ${tidy(lives[3] ?? "")}`, date: null };
+    return { kind: "person", ...person(lives[1] ?? "", contacts), fact: `${key}: ${tidy(lives[3] ?? "")}`, date: null };
   }
   // The name ends where the news starts: "meera just got engaged" is Meera.
   const news = new RegExp(String.raw`^(?:my\s+)?${NAME}\s+(?=(?:just|recently|finally)\s|(?:got|is|had|graduated|passed|retired|broke|bought|moved|cleared|won)\b)(.+)$`, "iu").exec(line);
-  if (news && aPerson(news[1] ?? "", contacts)) {
+  if (news && aPerson(news[1] ?? "")) {
     const happened = NEWS.exec(news[2] ?? "");
-    if (happened) return { kind: "person", ...person(news[1] ?? ""), fact: `News: ${tidy(`${happened[2] ?? ""}${happened[3] ?? ""}`)}`, date: null };
+    if (happened) return { kind: "person", ...person(news[1] ?? "", contacts), fact: `News: ${tidy(`${happened[2] ?? ""}${happened[3] ?? ""}`)}`, date: null };
   }
   return null;
 }

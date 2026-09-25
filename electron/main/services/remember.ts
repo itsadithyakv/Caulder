@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { Db } from "../db/connection";
 import { BRAIN_SECTIONS } from "@shared/brain";
 import type { Remembered } from "@shared/branches";
+import { linkToken } from "@shared/links";
 import { homeCompanyId } from "../repositories/companies";
 import { getPage, newPage, savePage } from "./brain";
 
@@ -39,6 +40,8 @@ const rememberInput = z.object({
   /** What leads the line: a lift's numbers. */
   fact: z.string().trim().max(200).nullable(),
   day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  /** Said about somebody who is a contact: their page links to them, once. */
+  about: z.object({ id: z.string().min(1), name: z.string().trim().min(1).max(160) }).nullable().default(null),
 });
 
 const PART_OF = /^\s*Part of \[\[/im;
@@ -98,18 +101,25 @@ export function remember(db: Db, raw: unknown, now: Date): Remembered {
     const wanted = handed?.section === "journal" ? null : handed;
     const topic = input.topic ?? handed?.title ?? null;
     const existing = wanted?.id ?? (topic ? titled(db, companyId, topic) : null);
+    // A person who is a contact: their page says so, once, and the contact's
+    // own page lists it under Linked here.
+    const about = (body: string) =>
+      input.about && !body.includes(`contact:${input.about.id}]]`)
+        ? `About ${linkToken(input.about.name, { kind: "contact", id: input.about.id })}.`
+        : "";
     if (!existing) {
-      const made = start(topic ?? "Untitled", input.section, "page", line);
+      const made = start(topic ?? "Untitled", input.section, "page", [about(""), line].filter(Boolean).join("\n\n"));
       return { pageId: made.id, title: made.title, trail: input.trail.map((each) => each.title), started };
     }
 
     const page = wanted ?? getPage(db, existing);
     // Hung where it belongs only if it hangs nowhere: what its owner wrote about where it goes stands.
     const hang = above && above.id !== page.id && !PART_OF.test(page.body) ? `Part of [[${above.title}|page:${above.id}]].\n\n` : "";
+    const whose = about(page.body);
     // Straight under the last memory, and a blank line clear of anything that is not one.
     const written = page.body.trimEnd();
     const gap = written === "" ? "" : /(^|\n)\s*- [^\n]*$/.test(written) ? "\n" : "\n\n";
-    const body = `${hang}${written}${gap}${line}\n`;
+    const body = `${hang}${whose ? `${whose}\n\n` : ""}${written}${gap}${line}\n`;
     savePage(db, page.id, { title: page.title, body, fields: page.fields, secrets: {}, baseRevision: page.revision }, now);
     return { pageId: page.id, title: page.title, trail: input.trail.map((each) => each.title), started };
   })();

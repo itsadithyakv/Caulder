@@ -48,7 +48,12 @@ const TAIL = new RegExp(
 );
 
 /** The way a fact is put: what comes after the thing it is about. */
-const ENCYCLOPAEDIC = String.raw`(?:(?:is|are|was|were)\s+(?:also\s+|once\s+|originally\s+|formerly\s+|first\s+|actually\s+)?(?:called|known\s+as|named(?:\s+after)?|founded|built|invented|discovered|established|born|written\s+by|composed\s+by|designed\s+by|made\s+of|located\s+in|the\s+(?:capital|largest|smallest|biggest|first|last|only|longest|shortest|tallest|oldest|youngest|fastest|deepest|highest|national)\b)|(?:stands?\s+for|means?|comes?\s+from|originated\s+(?:in|from)|invented|discovered|founded)\s+\S)`;
+const ENCYCLOPAEDIC = String.raw`(?:(?:is|are|was|were)\s+(?:also\s+|once\s+|originally\s+|formerly\s+|first\s+|actually\s+)?(?:called|known\s+as|named(?:\s+after)?|founded|built|invented|discovered|established|born|written\s+by|composed\s+by|designed\s+by|made\s+of|located\s+in|the\s+(?:capital|largest|smallest|biggest|first|last|only|longest|shortest|tallest|oldest|youngest|fastest|deepest|highest|national)\b)|(?:stands?\s+for|means?|comes?\s+from|originated\s+(?:in|from)|invented|discovered|founded)\s+\S` +
+  // "Honey never spoils", "sharks never stop swimming": what a thing always
+  // does. Only these verbs - "the server never responds" is a complaint.
+  String.raw`|(?:never|always)\s+(?:spoils?|dies?|sleeps?|freezes?|melts?|rots?|expires?|stops?\s+(?:growing|swimming|moving)|forgets?|blinks?)\b` +
+  // "The eiffel tower grows 15cm in summer", "a cat sleeps 16 hours a day": a thing measured.
+  String.raw`|(?:grows?|shrinks?|weighs?|lives?\s+(?:for\s+)?|travels?|beats?|blinks?|sleeps?|measures?|produces?|lays?)\s+(?:up\s+to\s+|about\s+|around\s+|over\s+|nearly\s+)?\d[\d,.]*\s*(?:cm|mm|km|m|kg|g|tons?|tonnes?|years?|days?|hours?|minutes?|seconds?|times|percent|km\/h|kmph|mph|litres?|liters?|degrees?)\b)`;
 
 const SHAPED = new RegExp(String.raw`^\s*((?:[\p{L}\p{N}'’.&-]+\s+){0,5}?[\p{L}\p{N}'’.&-]+)\s+${ENCYCLOPAEDIC}`, "iu");
 

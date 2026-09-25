@@ -39,6 +39,8 @@ export type RememberInput = {
   said: string;
   fact: string | null;
   day: string;
+  /** A person's page that is about a contact links to them. */
+  about?: { id: string; name: string } | null;
 };
 
 /** What was kept, and which pages had to be started to keep it there. */

@@ -48,7 +48,7 @@ The systems everything else plugs into.
 | Record that something happened with a contact | `writeActivity` (`repositories/leads.ts`) - the append-only history. | A new log table. Editing a history entry (a correction is a new entry). |
 | Link two things | A `[[Label|kind:id]]` token in page text (`shared/links.ts`). `brain_links` is rebuilt from the text on every save. Kinds: `page`, `contact`, `product`, `person`, `document`. | Writing `brain_links` directly. |
 | Put a page under another | A first line `Part of [[Parent|page:id]]` (`services/remember.ts`), walked by `underOf` / `trailsOf` (`shared/memories.ts`). | A parent column. |
-| Remember a fact | `remember()` (`services/remember.ts`): a dated line `- **fact** · said _(YYYY-MM-DD)_` on a page. **Memories are not a table**; they are read back out of page text by `shared/memories.ts`. A fact about an existing contact goes on that contact's history instead. | A `memories` table beside the pages. |
+| Remember a fact | `remember()` (`services/remember.ts`): a dated line `- **fact** · said _(YYYY-MM-DD)_` on a page. **Memories are not a table**; they are read back out of page text by `shared/memories.ts`. A fact about a contact's life goes on a People page that links to the contact (`about` on the remember input); what a contact *likes* stays on their history. | A `memories` table beside the pages. |
 | Keep personal things apart from the company | The home workspace (`companies.kind = 'personal'`, `services/yourhome.ts`, `homeCompanyId`). Personal sections: `PERSONAL_SQL` / `isPersonalSection` in `shared/brain.ts`. | A mode toggle, a second "personal" flag, a personal workspace in the switcher. |
 | Send context to an AI | Company: `buildDossier` (`services/dossier.ts`). Personal, only with `aiPersonal` on: `services/yours.ts`. Both go through `services/ask.ts`. For the clipboard: the topic brief (`services/topic.ts`). The journal, only for Looking back and only as it says: `services/lookback.ts`. | Assembling documents for a model anywhere else. |
 | Say who a contact is at a glance | `MAIN_DEAL(lead)` (`repositories/main-deal.ts`), worked out in the query. Stage moves only through `repositories/deals.ts`. | A stored copy of the stage on the contact. |
@@ -234,6 +234,7 @@ Every save is a revision; History shows a line diff and restores. Saves within f
 - UI: `editor/completions.ts`, `LinkedEditor.tsx`, `BrainLinks.tsx` · Logic: `shared/links.ts` · Main: `repositories/links.ts`
 - Tables: `brain_links` · IPC: `brain:link-targets`, `brain:backlinks` · Tests: `shared/links.test.ts`, `electron/main/links.test.ts`; e2e `maplink.spec.ts`
 - Note: some Map edges are worked out, never stored (person to contact, document to contact or page, product to invoiced contact) in `buildGraph`.
+- Reach (`reachFrom` in `repositories/links.ts`): a company's page links within its company only, because a company's brain can be shared. A page in your home (the journal, memories) reaches every company as well. The picker and the names of links both go through it.
 
 ### The Map
 A force-directed canvas of pages, contacts, products, people and documents; positions kept; drag a dot onto another to write a link.

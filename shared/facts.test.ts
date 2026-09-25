@@ -13,7 +13,8 @@ describe("a fact worth keeping", () => {
       says: "Shivajinagar was called black pally",
       marked: true,
     });
-    expect(readFact("fun fact: honey never spoils")).toEqual({ subject: null, says: "Honey never spoils", marked: true });
+    // What a thing always does is shaped like a fact too, so it is led by what it is about.
+    expect(readFact("fun fact: honey never spoils")).toEqual({ subject: "Honey", says: "Honey never spoils", marked: true });
     expect(readFact("did you know octopuses have three hearts")?.says).toBe("Octopuses have three hearts");
     expect(readFact("TIL the eiffel tower grows 15cm in summer")?.says).toBe("The eiffel tower grows 15cm in summer");
     expect(readFact("apparently bananas are berries")?.says).toBe("Bananas are berries");

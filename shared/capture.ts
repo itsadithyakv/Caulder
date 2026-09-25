@@ -114,6 +114,12 @@ type CaptureReading = {
   trail: Step[];
   /** The part of a memory worth reading first, when there is one: "PR: 45 kg × 3". */
   fact: string | null;
+  /**
+   * For a fact about somebody who is a contact - "amma's bp tablet is telma
+   * 40" - the contact their page under People links to. Only then: a line that
+   * merely names a contact is not about them.
+   */
+  about?: { id: string; name: string } | null;
   /** For an idea that is a thing to make: its title, what it should be like, and its links, apart. */
   thought: Thought | null;
   /** What it was asked to do, when it was asked to do something. */
@@ -218,7 +224,14 @@ const FELT =
 /** Thanks said first: "grateful for", "so thankful that", "proud of". */
 const THANKS_START = /^\s*(?:(?:i'?m|i\s+am|i\s+feel|feeling|so|really|very|super)\s+)*(?:grateful|thankful|blessed|proud)\s+(?:for|of|to|that)\b/i;
 
-const IDEA = /^\s*(what if|maybe we (could|should)|idea\b)/i;
+/**
+ * A thought floated, not a thing to do: "what if", "could partner with coaching
+ * centres", "we should try a referral scheme", "how about a yearly plan". Not
+ * "could you send it" - that is asking somebody - and not "should call rahul",
+ * which is a thing to do said softly.
+ */
+const IDEA =
+  /^\s*(?:what\s+if|maybe\s+(?:we\s+)?(?:could|should)|idea\b|(?:we\s+)?could\s+(?!(?:you|u|i|he|she|they)\b)\w+|(?:we\s+)?should\s+(?:try|build|make|start|launch|offer|add|experiment|pilot)\b|how\s+about\s+(?:a|an|we|making|building|trying|adding|offering)\b|what\s+about\s+(?:a|an|making|building|trying|adding|offering)\b)/i;
 
 /** A line that starts by saying what was done - "shipped the pricing page" - is the day, looked back on. */
 const NOT_PAST = new Set(["need", "feed", "seed", "speed", "red", "bed", "shed", "embed", "proceed", "exceed", "succeed"]);
@@ -829,6 +842,7 @@ export function readCapture(
       branch: kept ? null : { section: REMEMBERED_SECTION, parent: null, trail: [] },
       trail: life?.trail ?? [],
       fact: life?.fact ?? null,
+      about: life?.contact ?? null,
     };
   };
 
