@@ -663,6 +663,8 @@ export type Task = {
   leadId: string | null;
   /** Denormalised for display: Today lists tasks, not leads. */
   leadName: string | null;
+  /** The contact is marked do not contact, so a task cannot start a call to it. */
+  leadDoNotContact: boolean;
   /** The page that made it - a playbook's step - so the task can say where it came from. */
   pageId: string | null;
   pageTitle: string | null;

@@ -13,6 +13,7 @@ type TaskRow = {
   company_id: string;
   lead_id: string | null;
   lead_name: string | null;
+  lead_do_not_contact: number | null;
   page_id: string | null;
   page_title: string | null;
   title: string;
@@ -33,6 +34,7 @@ function toTask(row: TaskRow): Task {
     companyId: row.company_id,
     leadId: row.lead_id,
     leadName: row.lead_name,
+    leadDoNotContact: row.lead_do_not_contact === 1,
     pageId: row.page_id,
     pageTitle: row.page_title,
     title: row.title,
@@ -54,7 +56,7 @@ function toTask(row: TaskRow): Task {
  * comes too, so a playbook's step can say which playbook.
  */
 const SELECT = `
-  SELECT t.*, l.name AS lead_name, p.title AS page_title
+  SELECT t.*, l.name AS lead_name, l.do_not_contact AS lead_do_not_contact, p.title AS page_title
   FROM tasks t
   LEFT JOIN leads l ON l.id = t.lead_id
   LEFT JOIN brain_pages p ON p.id = t.page_id

@@ -39,6 +39,12 @@ describe("what was spent", () => {
     expect(readCommand(line)).toEqual({ do: "spend", amount, what, daysAgo: 0 });
   });
 
+  it("hears the day said after a quick spend, and last night as yesterday", () => {
+    expect(readCommand("zomato 450 last night")).toEqual({ do: "spend", amount: 450, what: "Zomato", daysAgo: 1 });
+    expect(readCommand("uber 340 this morning")).toEqual({ do: "spend", amount: 340, what: "Uber", daysAgo: 0 });
+    expect(readCommand("spent 800 on a cab last night")).toEqual({ do: "spend", amount: 800, what: "A cab", daysAgo: 1 });
+  });
+
   it("hears yesterday, and money that came back", () => {
     expect(readCommand("spent 800 on a cab yesterday")).toEqual({ do: "spend", amount: 800, what: "A cab", daysAgo: 1 });
     expect(readCommand("got a refund of 500 from aws")).toEqual({ do: "spend", amount: -500, what: "Refund: aws", daysAgo: 0 });

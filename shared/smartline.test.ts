@@ -38,6 +38,13 @@ const edit = (line: string, lastLine: LastLine | null = last) => readEdit(line, 
 describe("a question, answered instead of kept", () => {
   it("reads the day, the hour, the contact and the money it asks about", () => {
     expect(readQuestion("what's on tomorrow", clock)).toEqual({ ask: "day", day: "2026-09-24", label: "Tomorrow" });
+    // Said in Hinglish: the day turned round, the "kya" not.
+    expect(readQuestion("kal kya hai", clock)).toEqual({ ask: "day", day: "2026-09-24", label: "Tomorrow" });
+    expect(readQuestion("aaj kya kya karna hai", clock)).toMatchObject({ ask: "day", day: "2026-09-23" });
+    // "Did i..." is asked, and answered, never ticked; "did 45 min guitar" is still a day reported.
+    expect(readQuestion("did i go to gym this week", clock)).toEqual({ ask: "did", about: "gym", from: "2026-09-21", to: "2026-09-23", label: "This week" });
+    expect(readQuestion("have i meditated today", clock)).toMatchObject({ ask: "did", about: "meditated", from: "2026-09-23" });
+    expect(readQuestion("did 45 min guitar", clock)).toBeNull();
     expect(readQuestion("whats on friday?", clock)).toMatchObject({ ask: "day", day: "2026-09-25" });
     expect(readQuestion("am i free at 5", clock)).toEqual({ ask: "free", day: "2026-09-23", time: "17:00", label: "Today" });
     expect(readQuestion("am i free tomorrow at 10", clock)).toMatchObject({ day: "2026-09-24", time: "10:00" });

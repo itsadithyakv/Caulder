@@ -151,6 +151,19 @@ describe("sending from one", () => {
     expect(sent).toEqual([]);
   });
 
+  it("stops one kept for later when its contact is marked do not contact afterwards", async () => {
+    const [zoho] = await accounts.addMailAccount(db, ZOHO, NOW);
+    const later = new Date(NOW.getTime() + 60 * 60 * 1000).toISOString();
+    await mail.sendEmail(db, { leadId, accountId: zoho?.id, subject: "Later", body: "Later", sendAt: later, followUp: null }, NOW);
+    // However the flag was set - the form, an import - the due pass looks again.
+    db.prepare(`UPDATE leads SET do_not_contact = 1 WHERE id = ?`).run(leadId);
+
+    const due = new Date(NOW.getTime() + 2 * 60 * 60 * 1000);
+    expect(await mail.sendDueAccountMail(db, due)).toBe(0);
+    expect(sent).toEqual([]);
+    expect(listEmailsForLead(db, leadId).map((each) => each.status)).toEqual(["cancelled"]);
+  });
+
   it("keeps one for later, sends it when it is due, and marks one it could not send as failed", async () => {
     const [zoho] = await accounts.addMailAccount(db, ZOHO, NOW);
     const later = new Date(NOW.getTime() + 60 * 60 * 1000).toISOString();

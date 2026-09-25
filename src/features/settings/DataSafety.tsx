@@ -62,9 +62,10 @@ export function DataSafety({
     <section className="card datasafety">
       <h2 className="card__title">Your data</h2>
       <p className="card__hint">
-        Everything lives in one file on this machine. Nothing is sent anywhere,
-        which also means nothing is kept anywhere else &mdash; so a copy off this
-        computer is worth having.
+        Everything lives in one file on this machine. What you connect sends
+        only what it is for &mdash; Google your calendar and mail, your AI the
+        questions you ask &mdash; and none of that is a copy of this file, so a
+        copy off this computer is worth having.
       </p>
 
       {error && (

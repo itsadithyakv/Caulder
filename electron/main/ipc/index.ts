@@ -133,6 +133,7 @@ import {
   rememberScript,
   scriptInfo,
   sendEmail,
+  stopBarredMail,
   syncEmails,
 } from "../services/mail";
 import { listEmailsForLead } from "../repositories/mail";
@@ -432,9 +433,15 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     createLead(getDatabase(), assertId(companyId, "company id"), leadInput.parse(raw)),
   );
 
-  handle(CHANNELS.leadsUpdate, (_event, id: unknown, raw: unknown) =>
-    updateLead(getDatabase(), assertId(id, "lead id"), leadInput.parse(raw)),
-  );
+  handle(CHANNELS.leadsUpdate, (_event, id: unknown, raw: unknown) => {
+    const db = getDatabase();
+    const lead = updateLead(db, assertId(id, "lead id"), leadInput.parse(raw));
+    // Marked do not contact: what was scheduled before goes nowhere. Not
+    // awaited - the edit is saved whatever the script says, and a script out
+    // of reach is asked again on the next mail pass.
+    if (lead.doNotContact) void stopBarredMail(db, { leadId: lead.id });
+    return lead;
+  });
 
   handle(CHANNELS.leadsDelete, (_event, id: unknown) => {
     deleteLead(getDatabase(), assertId(id, "lead id"));

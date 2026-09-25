@@ -289,7 +289,10 @@ exists instead of adding another:
 - **Answer a question** (`shared/questions.ts`): *what's on tomorrow*, *am I
   free at 5*, *rahul's number*, *how much did I spend this week* (or *on food
   this month*), *what did I note about red rising*, *when's mummy's
-  birthday*, *what's due*. The answer is under the line, with what it was read
+  birthday*, *what's due*, *did I go to gym this week* (from habits ticked,
+  hours on the calendar, time on a hobby and tasks done, in your home and the
+  company both - asking ticks nothing), and in Hinglish *kal kya hai*. The
+  answer is under the line, with what it was read
   from; nothing is kept, and **Keep it instead** files the line as usual. Only
   a whole line said as a question: *what if we priced it yearly*, *find a flat*
   and *plan for tomorrow* are what they always were.
@@ -1258,6 +1261,13 @@ hiding a button: sending an email, opening one in your mail app and opening
 WhatsApp all refuse it in the main process, whatever the screen shows. A flag only the screen respects is
 not a flag.
 
+Marking a contact also **stops what was already on its way**: a message
+scheduled for later, from the script or another account, and a follow-up the
+script is holding, are cancelled at once. If the script cannot be reached
+then, the next mail pass asks again, and Caulder's own scheduled mail is never
+sent to a marked contact whatever happens. Today offers no Call on a task for
+one.
+
 Marked on the lead and on the board card, in the danger colour and bold —
 acting on that card by mistake is the one error here that reaches a real
 person.
@@ -1313,8 +1323,10 @@ already understood there.
 
 ### Your data
 
-Stated plainly: everything lives in one file on this machine, nothing is sent
-anywhere, and that also means nothing is kept anywhere else.
+Stated plainly: everything lives in one file on this machine. What you connect
+sends only what it is for - Google your calendar and mail, your AI the
+questions you ask - and none of that is a copy of the file, so a copy off the
+computer is worth having.
 
 - **Export everything** — CSVs for contacts (with the main deal's stage and
   value), deals, history, calls, tasks, products and their prices, quotes and

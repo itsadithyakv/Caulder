@@ -33,12 +33,12 @@ vi.mock("./gsync", () => ({
 }));
 vi.mock("./credentials", () => ({ isConnected: () => connected }));
 
-const { cancelEmail, mailState, rememberScript, sendEmail, syncEmails } = await import("./mail");
+const { cancelEmail, mailState, rememberScript, sendEmail, stopBarredMail, syncEmails } = await import("./mail");
 const { migrate } = await import("../db/migrations");
 const { createCompany } = await import("../repositories/companies");
 const { createLead } = await import("../repositories/leads");
 const { createTemplate } = await import("../repositories/email");
-const { listRecentReplies } = await import("../repositories/mail");
+const { findEmail, listRecentReplies } = await import("../repositories/mail");
 const { leadInput } = await import("@shared/domain");
 
 const NOW = new Date("2026-09-17T09:00:00.000Z");
@@ -309,5 +309,46 @@ describe("cancelling", () => {
   it("refuses when nothing is waiting", async () => {
     const [sent] = await sendEmail(db, message(), NOW);
     await expect(cancelEmail(db, sent!.id)).rejects.toThrow("Nothing about that email");
+  });
+});
+
+describe("marked do not contact after something was scheduled", () => {
+  const cancelled = (_action: string, payload: Record<string, unknown>) => ({
+    ...sentView(String(payload["id"])),
+    status: "cancelled",
+    sentAt: null,
+  });
+
+  it("asks the script to stop what it holds for that contact", async () => {
+    const [scheduled] = await sendEmail(db, message({ sendAt: "2026-09-18T09:00:00.000Z" }), NOW);
+    db.prepare(`UPDATE leads SET do_not_contact = 1 WHERE id = ?`).run(leadId);
+    calls.length = 0;
+    answer = cancelled;
+
+    expect(await stopBarredMail(db, { leadId })).toBe(1);
+    expect(calls).toEqual([{ action: "cancelEmail", payload: { id: scheduled!.id } }]);
+    expect(findEmail(db, scheduled!.id)?.status).toBe("cancelled");
+  });
+
+  it("tries again on the next pass when the script could not be reached", async () => {
+    const [scheduled] = await sendEmail(db, message({ sendAt: "2026-09-18T09:00:00.000Z" }), NOW);
+    db.prepare(`UPDATE leads SET do_not_contact = 1 WHERE id = ?`).run(leadId);
+    answer = () => {
+      throw new Error("Your Google script did not answer.");
+    };
+    expect(await stopBarredMail(db, { leadId })).toBe(0);
+    expect(findEmail(db, scheduled!.id)?.status).toBe("scheduled");
+
+    answer = (action, payload) =>
+      action === "cancelEmail" ? cancelled(action, payload) : { emails: [], remaining: null };
+    await syncEmails(db, NOW);
+    expect(findEmail(db, scheduled!.id)?.status).toBe("cancelled");
+  });
+
+  it("leaves everybody else's mail alone", async () => {
+    await sendEmail(db, message({ sendAt: "2026-09-18T09:00:00.000Z" }), NOW);
+    calls.length = 0;
+    expect(await stopBarredMail(db)).toBe(0);
+    expect(calls).toEqual([]);
   });
 });

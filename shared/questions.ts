@@ -99,6 +99,16 @@ const RULES: { says: RegExp; ask: (m: RegExpExecArray, clock: Clock) => Question
     },
   },
   {
+    // "kal kya hai", "aaj kya kya karna hai", "kal ka plan kya hai" - after the
+    // Hinglish has been turned round (shared/hinglish.ts) the day is English
+    // and the "kya" is not: "kya tomorrow", "need to do kya kya today".
+    says: new RegExp(String.raw`^(?:(?:plan|schedule)\s+)?(?:need\s+to\s+do\s+)?kya(?:\s+kya)?\s+(${DAY_WORDS}|day\s+after\s+tomorrow)$`, "i"),
+    ask: (m, clock) => {
+      const day = dayOf(m[1] ?? "today", clock);
+      return day ? { ask: "day", day: day.day, label: day.label } : null;
+    },
+  },
+  {
     says: new RegExp(String.raw`^(?:what(?:'?s|\s+is)\s+my\s+day(?:\s+like)?|how(?:'?s|\s+is|\s+does)\s+(${DAY_WORDS})\s+look(?:ing)?(?:\s+like)?)$`, "i"),
     ask: (m, clock) => {
       const day = dayOf(m[1] ?? "today", clock);
@@ -175,6 +185,18 @@ const RULES: { says: RegExp; ask: (m: RegExpExecArray, clock: Clock) => Question
     // "when's mummy's birthday", "when is the dentist", "when do i have the demo"
     says: /^when(?:'?s|\s+is|\s+was|\s+are|\s+do\s+i\s+have|\s+am\s+i\s+(?:meeting|seeing))\s+(?:my\s+|the\s+)?(.+)$/i,
     ask: (m) => ({ ask: "when", about: (m[1] ?? "").trim() }),
+  },
+  {
+    // "did i go to gym this week", "have i meditated today", "did i call rahul
+    // yesterday". Asked, not reported: "did 45 min guitar" has no "i", and is
+    // a day reported, read the way it always was.
+    says: /^(?:did|have)\s+i\s+(?:(?:go|been|gone|went)\s+(?:to\s+(?:the\s+)?|for\s+(?:a\s+|my\s+)?)?)?(.+?)(?:\s+(today|yesterday|this\s+week|last\s+week|past\s+week|this\s+month|last\s+month|past\s+month|this\s+year))?$/i,
+    ask: (m, clock) => {
+      const about = (m[1] ?? "").trim();
+      if (!about) return null;
+      const span = spanOf(m[2] ?? "today", clock.today);
+      return { ask: "did", about, from: span.from, to: span.to, label: span.label };
+    },
   },
   {
     says: /^(?:what(?:'?s|\s+is)\s+(?:due|overdue|pending|left|remaining|on\s+my\s+plate)|what\s+(?:do|should)\s+i\s+(?:have|need)\s+to\s+do|to-?\s?do(?:\s+list)?|my\s+tasks)(?:\s+today)?$/i,

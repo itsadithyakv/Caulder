@@ -77,14 +77,19 @@ const SPENT = new RegExp(
  * nobody spent is worse than one that has to be typed the other way round.
  */
 const COST = new RegExp(String.raw`^\s*(?:the\s+)?(.+?)\s+(?:cost(?:s|ed)?(?:\s+(?:me|us))?|came\s+to|set\s+(?:me|us)\s+back)\s+${AMOUNT}\s*$`, "i");
+/** The days a spend is said on, at the end of the line: "yesterday", "last night", "this morning". */
+const SPENT_WHEN = String.raw`yesterday|yday|ystd|last\s+night|today|tonight|just\s+now|earlier(?:\s+today)?|this\s+(?:morning|afternoon|evening)`;
+
 /**
  * "Uber 340", "coffee 150", "lunch 250": what it was, then what it cost, and
  * nothing else. Only for the things people actually buy this way - "room 101"
  * and "chapter 4" are not money, so an unknown word before a number is not
  * read as spending.
  */
-const SPENT_ON =
-  /^\s*(uber|ola|rapido|auto|cab|taxi|metro|bus|train\s+ticket|flight|petrol|fuel|diesel|parking|toll|coffee|chai|tea|lunch|dinner|breakfast|snacks?|groceries|grocery|swiggy|zomato|blinkit|zepto|instamart|food|drinks|beer|movie|movies|movie\s+tickets?|netflix|spotify|recharge|haircut|laundry|gym|medicines?|pharmacy|books?|stationery|amazon|flipkart|rent|electricity|wifi|internet)\s+(?:rs\.?|inr|₹)?\s*(\d[\d,]*(?:\.\d+)?)\s*(k)?\s*$/i;
+const SPENT_ON = new RegExp(
+  String.raw`^\s*(uber|ola|rapido|auto|cab|taxi|metro|bus|train\s+ticket|flight|petrol|fuel|diesel|parking|toll|coffee|chai|tea|lunch|dinner|breakfast|snacks?|groceries|grocery|swiggy|zomato|blinkit|zepto|instamart|food|drinks|beer|movie|movies|movie\s+tickets?|netflix|spotify|recharge|haircut|laundry|gym|medicines?|pharmacy|books?|stationery|amazon|flipkart|rent|electricity|wifi|internet)\s+(?:rs\.?|inr|₹)?\s*(\d[\d,]*(?:\.\d+)?)\s*(k)?(?:\s+(${SPENT_WHEN}))?\s*$`,
+  "i",
+);
 
 const REFUND = new RegExp(
   String.raw`^\s*(?:(?:i|we)\s+)?(?:got\s+)?(?:an?\s+)?refund(?:ed)?\s+(?:of\s+)?${AMOUNT}\s*(?:from|for|on|by|-|:)?\s*(.*?)\s*$`,
@@ -125,9 +130,10 @@ function amountOf(digits: string | undefined, scale: string | undefined): number
 
 /** "Yesterday" is the one day worth hearing: what was spent is nearly always logged the day it was, or the day after. */
 function whenSpent(what: string): { what: string; daysAgo: number } {
-  const match = /\s*\b(yesterday|yday|ystd|today|just\s+now)\b\s*$/i.exec(what);
+  // "Last night" is yesterday's dinner; this morning, tonight and earlier are today.
+  const match = new RegExp(String.raw`\s*\b(${SPENT_WHEN})\b\s*$`, "i").exec(what);
   if (!match) return { what, daysAgo: 0 };
-  return { what: what.slice(0, match.index).trim(), daysAgo: /^y/i.test(match[1] ?? "") ? 1 : 0 };
+  return { what: what.slice(0, match.index).trim(), daysAgo: /^(?:y|last)/i.test(match[1] ?? "") ? 1 : 0 };
 }
 
 const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
@@ -230,7 +236,7 @@ export function readCommand(line: string): Command | null {
   if (short) {
     const amount = amountOf(short[2], short[3]);
     const what = (short[1] ?? "").trim();
-    return amount > 0 ? { do: "spend", amount, what: what.charAt(0).toUpperCase() + what.slice(1), daysAgo: 0 } : null;
+    return amount > 0 ? { do: "spend", amount, what: what.charAt(0).toUpperCase() + what.slice(1), daysAgo: whenSpent(short[4] ?? "").daysAgo } : null;
   }
 
   const spent = SPENT.exec(line);

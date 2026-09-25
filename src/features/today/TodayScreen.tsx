@@ -170,7 +170,8 @@ export function TodayScreen({
       onReschedule={(dueOn) => void act(() => window.caulder.tasks.reschedule(task.id, dueOn))}
       onDelete={() => void act(() => window.caulder.tasks.remove(task.id))}
       onCall={
-        startCall && task.kind === "call" && task.leadId
+        // Not for a contact marked do not contact, as on the contact's own page.
+        startCall && task.kind === "call" && task.leadId && !task.leadDoNotContact
           ? () => startCall(task.leadId as string, { taskId: task.id, onLogged: reload })
           : undefined
       }

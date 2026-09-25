@@ -59,34 +59,46 @@ September 2026: code swept for unwired calls, the documents checked against
 the code, and 85 realistic lines put through the quick line. Items marked
 *read, not run* were found by reading the code.
 
-### Wrong, and a person would hit it
+### Fixed on 25 September 2026
 
-1. **Do not contact does not stop mail already scheduled.** The flag is checked
-   only when a message is made (`services/mail.ts`, `sendEmail`);
-   `dueAccountEmails` (`repositories/mail.ts`) sends scheduled mail from other
-   accounts without looking again, and a follow-up the Google script holds is
-   not cancelled. Call from a Today task still opens the prompter for a
-   flagged contact (`TodayScreen.tsx`); dialling itself is refused.
-2. **Ctrl+K in a page's editor both types `[[` and opens search** (*read, not
-   run*): the window's handler (`src/lib/shortcuts.ts`) runs whatever
-   `defaultPrevented` says, after the editor's `Mod-k` has already acted.
-3. **The quick line's early rules misfire** (about 80% of 85 realistic lines
-   land right; tasks, feelings and life facts do well):
-   - "book train tickets" ticks the Read habit, and so does any line with
-     "book" in it.
-   - "atomic habits: 1% better every day" makes a daily repeating task.
-   - "did i go to gym this week" is read as a report and ticks Gym instead
-     of being answered.
-   - A contact named with "today" becomes a task ("grateful for amma's food
-     today").
-   - A fact or a debt about a contact goes to the contact, and the same line
-     about a non-contact goes to a memory.
-   - "zomato 450 last night" is not read as money; only "yesterday" is.
-   - Trivia and ideas with no lead-in ("honey never spoils", "could partner
-     with coaching centres") fall to note. Phase 20 can help with these; the
-     misfires above it cannot, because they happen before the model is asked.
-4. **Your data card says "Nothing is sent anywhere"** (`DataSafety.tsx`),
-   which is false once Google, mail, an AI, sharing or updates are on.
+1. **Do not contact now stops what was scheduled.** `stopBarredMail`
+   (`services/mail.ts`) cancels a contact's waiting mail when it is marked,
+   and again on each mail pass for anything the script could not be reached
+   about. `dueAccountEmails` never picks up mail to a marked contact. Today
+   offers no Call for one.
+2. **Ctrl+K in a page's editor starts a link and nothing else**:
+   `src/lib/shortcuts.ts` leaves it alone when the editor has already acted,
+   as Escape does. Checked in a window by `e2e/writing.spec.ts`.
+3. **The quick line's misfires**:
+   - "book train tickets" ticks nothing. What a line hangs off (Reading)
+     can name a habit but never says it was done.
+   - A when inside what a heading says ("atomic habits: 1% better every
+     day") makes no task.
+   - "did i go to gym this week" is a question, answered from habits,
+     hours, hobby time and done tasks across home and company. Nothing is
+     ticked.
+   - Thanks said first is the journal.
+   - "last night" and "this morning" are heard on money.
+   - "kal kya hai" is a question about tomorrow.
+4. **Your data card** says what connections send, rather than that nothing
+   is sent.
+
+### Found while checking those
+
+- **In the journal, `@` offers none of the company's contacts.** The journal
+  lives in your home workspace since 0.4.5, and `linkCandidates`
+  (`repositories/links.ts`) looks only in the page's own workspace; the names
+  of links are resolved the same way. This came with 0.4.5, which was
+  committed without the e2e suite. `e2e/writing.spec.ts`'s first test fails
+  on it, and the tests after it in that file then do not run.
+
+### Still to settle on the line
+
+- A fact or a debt about a contact goes on the contact's history; the same
+  line about somebody who is not a contact goes to a memory. That is by design
+  (`shared/lifefacts.ts`), but it reads as inconsistent. It needs a decision.
+- Trivia and ideas with no lead-in ("honey never spoils", "could partner with
+  coaching centres") fall to note. This is phase 20's job.
 
 ### Built underneath, but no screen offers it
 
@@ -133,7 +145,6 @@ the code, and 85 realistic lines put through the quick line. Items marked
 ## Next
 
 1. Package and smoke-test 0.4.5, then commit the version.
-2. Fix 1 to 4 above: two are privacy and trust, two are the line doing the
-   wrong thing confidently.
+2. Items 5 to 13: things built underneath that no screen offers.
 3. Phase 19: the model, its index and the measuring stick. The 85 lines from
    the second pass are the start of the measuring stick.

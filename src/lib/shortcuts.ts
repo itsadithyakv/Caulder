@@ -115,7 +115,12 @@ export function useShortcuts(handlers: {
       // convention everywhere else and muscle memory beats consistency here.
       // It works from inside a field too: it types nothing, and "find that
       // page" is a thought people have mid-sentence.
+      //
+      // Except where something nearer has already taken it: in a page's editor
+      // Ctrl+K starts a link, and without this check one press would type
+      // `[[` AND open search over it - the same rule Escape keeps above.
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        if (event.defaultPrevented) return;
         event.preventDefault();
         handlers.onSearchAll();
         return;

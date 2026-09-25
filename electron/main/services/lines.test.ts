@@ -12,6 +12,7 @@ const { quickAdd } = await import("./quickadd");
 const { answerQuestion, cancelTask, lineContext, moveTask, renameTask, restoreTask } = await import("./lines");
 const { leadInput } = await import("@shared/domain");
 const { newPage, savePage } = await import("./brain");
+const { addHabit, tickHabit } = await import("./habits");
 
 let db: Database.Database;
 let home: string;
@@ -100,6 +101,24 @@ describe("a question, answered from what is kept", () => {
     expect(answer.say).toBe("Tomorrow: 2 things.");
     expect(answer.items.map((item) => item.label)).toEqual(["Dentist", "Buy milk"]);
     expect(answerQuestion(db, home, { ask: "day", day: "2026-09-29", label: "Tuesday" }).say).toBe("Nothing on tuesday yet.");
+  });
+
+  it("says whether something was done, from your habits and the company's tasks alike, and ticks nothing", () => {
+    const company = createCompany(db, { name: "Unifloe", accent: "blue", timezone: "Asia/Kolkata" }).id;
+    const gym = addHabit(db, home, { name: "Gym", weekdays: [1, 2, 3, 4, 5, 6, 7] }).habits[0]!;
+    tickHabit(db, gym.id, "2026-09-21", true);
+    tickHabit(db, gym.id, "2026-09-22", true);
+    const call = quickAdd(db, company, { title: "Call Rahul", day: "2026-09-22", time: null, minutes: null, kind: "call", area: null, priority: null, leadId: null, notes: null, followUp: null, repeat: null, remind: false }).task!;
+    // Finished at 11pm in Kolkata on the 22nd, which is still the 22nd there.
+    db.prepare(`UPDATE tasks SET status = 'done', completed_at = '2026-09-22T17:30:00.000Z' WHERE id = ?`).run(call.id);
+
+    const week = { from: "2026-09-21", to: "2026-09-23", label: "This week" };
+    // Asked in the company: your gym is still found, in your home.
+    expect(answerQuestion(db, company, { ask: "did", about: "gym", ...week }).say).toBe("Yes - 2 days this week.");
+    expect(answerQuestion(db, company, { ask: "did", about: "call rahul", ...week }).items).toEqual([{ label: "Call Rahul", detail: "2026-09-22" }]);
+    expect(answerQuestion(db, company, { ask: "did", about: "swim", ...week }).say).toBe("Not that Caulder can see, this week.");
+    const ticks = db.prepare(`SELECT COUNT(*) AS n FROM habit_checks`).get() as { n: number };
+    expect(ticks.n).toBe(2);
   });
 
   it("says whether an hour is free", () => {

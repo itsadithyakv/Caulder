@@ -281,9 +281,33 @@ export function dueAccountEmails(db: Db, nowIso: string): { id: string; accountI
     .prepare(
       `SELECT id, account_id AS accountId, to_email AS "to", subject, body FROM emails
         WHERE account_id IS NOT NULL AND status = 'scheduled' AND send_at IS NOT NULL AND send_at <= ?
+          AND NOT EXISTS (SELECT 1 FROM leads WHERE leads.id = emails.lead_id AND leads.do_not_contact = 1)
         ORDER BY send_at LIMIT 50`,
     )
     .all(nowIso) as { id: string; accountId: string; to: string; subject: string; body: string }[];
+}
+
+/**
+ * Mail still waiting to go to somebody now marked do not contact: a message
+ * not yet sent, or a follow-up still held. The flag is checked when a message
+ * is written, but it can be set afterwards - and then what was scheduled
+ * before it has to be stopped, not merely left unsent.
+ *
+ * `own` narrows it to mail Caulder sends itself, which can be stopped without
+ * asking the script.
+ */
+export function heldForBarred(db: Db, options: { leadId?: string; own?: boolean } = {}): string[] {
+  const rows = db
+    .prepare(
+      `SELECT e.id FROM emails e JOIN leads l ON l.id = e.lead_id
+        WHERE l.do_not_contact = 1
+          AND (e.status = 'scheduled' OR e.follow_up_status = 'waiting')
+          AND (@leadId IS NULL OR e.lead_id = @leadId)
+          AND (@own = 0 OR e.account_id IS NOT NULL)
+        ORDER BY e.created_at`,
+    )
+    .all({ leadId: options.leadId ?? null, own: options.own ? 1 : 0 }) as { id: string }[];
+  return rows.map((row) => row.id);
 }
 
 /** Nothing more will happen to it: an account sees no replies, so a sent message is done with. */

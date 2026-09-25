@@ -235,3 +235,35 @@ describe("not fooled by the lines that look like something else", () => {
     expect(read("made dinner for everyone").kind).toBe("journal");
   });
 });
+
+describe("read rightly after the second pass (25 September 2026)", () => {
+  const withReading = {
+    ...KNOWN,
+    contacts: [...KNOWN.contacts, { id: "c3", name: "Amma", person: null }],
+    hobbies: [...KNOWN.hobbies, { id: "h3", title: "Reading" }],
+    habits: [...KNOWN.habits, { id: "b3", name: "Read" }],
+  };
+  const reading = (line: string) => readCapture(line, withReading, CLOCK);
+
+  it("books a ticket without reading anything: the hobby a line hangs off is not something said", () => {
+    const tickets = reading("book train tickets for diwali");
+    expect(tickets.kind).toBe("task");
+    expect(tickets.effects).toEqual([]);
+    // A book said to be finished still ticks Read.
+    expect(reading("finished the book").effects).toContainEqual({ do: "tick", habit: { id: "b3", name: "Read" } });
+  });
+
+  it("does not make a repeating task of a when inside what a heading says", () => {
+    expect(read("atomic habits: 1% better every day").kind).not.toBe("task");
+    // A heading told its when is still a plan.
+    expect(read("gym: every day at 6").kind).toBe("task");
+    expect(read("dentist: tomorrow at 5").kind).toBe("task");
+  });
+
+  it("puts thanks in the journal, even when it names a contact and a day", () => {
+    expect(reading("grateful for amma's food today").kind).toBe("journal");
+    expect(reading("so thankful for my team").kind).toBe("journal");
+    // Unless a later clause says what to do.
+    expect(reading("grateful for amma's food, call her tonight").kind).toBe("task");
+  });
+});

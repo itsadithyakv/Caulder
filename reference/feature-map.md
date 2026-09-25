@@ -185,8 +185,8 @@ Main builds the `wa.me` link from a contact id; it is logged only on "it went".
 - UI: `src/features/leads/LeadWhatsApp.tsx` · Main: `services/outreach.ts` · IPC: `outreach:whatsapp` · Tests: `services/outreach.test.ts` (no e2e)
 
 ### Do not contact
-One flag on a contact, refused in main by email, mail-app and WhatsApp.
-- Enforced in `services/outreach.ts` and `services/mail.ts`; shown on the board, the call prompter and the contact · Tests: `outreach.test.ts`, `mail.test.ts` (no e2e)
+One flag on a contact, refused in main by email, mail-app and WhatsApp; setting it stops mail already scheduled.
+- Enforced in `services/outreach.ts` and `services/mail.ts` (`sendEmail`, and `stopBarredMail` from `leads:update` and each mail pass); `dueAccountEmails` skips a marked contact. Shown on the board, the call prompter, the contact, and Today's call tasks (`Task.leadDoNotContact`) · Tests: `outreach.test.ts`, `mail.test.ts`, `mailaccounts.test.ts` (no e2e)
 
 ### Google: Calendar, Tasks, Contacts, Drive
 One script in the person's own account: blocks and tasks both ways, Contacts into Import, save a contact to the phone, a backup to Drive.
@@ -325,7 +325,7 @@ One line to a task: title, day, time, length, repeat, priority, area, kind (call
 - Tests: all seven `shared/capture*.test.ts` files, and a test per reader
 
 ### Questions, edits and the rest
-Answer a question from what is stored; move, cancel or rename a task; carry "him" or "also" over from the last line; split one line into several; suggest the usual hour; tidy a paste.
+Answer a question from what is stored (the day, free hours, a contact, money, memories, "did I..."); move, cancel or rename a task; carry "him" or "also" over from the last line; split one line into several; suggest the usual hour; tidy a paste.
 - Logic: `shared/questions.ts`, `edits.ts`, `followon.ts`, `together.ts`, `habitual.ts`, `pasteline.ts`, `lines.ts` (there is **no** `shared/smartline.ts`; `smartline.test.ts` tests these)
 - Main: `services/lines.ts` (`lineContext`, `answerQuestion`, `moveTask`, `cancelTask`, `restoreTask`, `renameTask`). Answers never leave the machine; memories are answered by `recall`.
 - IPC: `lines:` · Tests: `shared/smartline.test.ts`, `services/lines.test.ts`

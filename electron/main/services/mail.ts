@@ -17,6 +17,7 @@ import {
   dueAccountEmails,
   findEmail,
   forgettableEmailIds,
+  heldForBarred,
   listEmailsForLead,
   markForgotten,
   recordEmail,
@@ -27,6 +28,7 @@ import { getSetting, setSetting } from "../repositories/settings";
 import { isConnected } from "./credentials";
 import { callScript, hello, type Hello } from "./gsync";
 import { mailSenders, sendFromAccount } from "./mailaccounts";
+import { isFault, logProblem } from "../log";
 
 /**
  * Sending email through the script in the user's own Google account.
@@ -263,6 +265,9 @@ async function sendByAccount(
  * or failed on its own, so one refused address does not hold up the rest.
  */
 export async function sendDueAccountMail(db: Db, now: Date = new Date()): Promise<number> {
+  // Stopped here too, not only skipped: skipped, it would sit as "scheduled"
+  // for ever. This part is local, so it costs nothing to do every minute.
+  await stopBarredMail(db, { own: true });
   let sent = 0;
   for (const email of dueAccountEmails(db, now.toISOString())) {
     try {
@@ -276,6 +281,26 @@ export async function sendDueAccountMail(db: Db, now: Date = new Date()): Promis
     settleAccountEmail(db, email.id);
   }
   return sent;
+}
+
+/**
+ * Stops everything still waiting to go to contacts marked do not contact -
+ * one contact's, just after it was marked, or everybody's on a background
+ * pass. Each is stopped on its own, so a script that cannot be reached leaves
+ * its messages for the next pass without holding up Caulder's own. Returns
+ * how many were stopped.
+ */
+export async function stopBarredMail(db: Db, options: { leadId?: string; own?: boolean } = {}): Promise<number> {
+  let stopped = 0;
+  for (const id of heldForBarred(db, options)) {
+    try {
+      await cancelEmail(db, id);
+      stopped += 1;
+    } catch (error) {
+      if (isFault(error)) logProblem("email", error);
+    }
+  }
+  return stopped;
 }
 
 /** Stops a message that has not gone, or a follow-up that is still waiting. */
@@ -306,6 +331,9 @@ export async function cancelEmail(db: Db, id: string): Promise<EmailRecord[]> {
  * on the way simply asks again next time.
  */
 export async function syncEmails(db: Db, now: Date = new Date()): Promise<number> {
+  // A contact marked do not contact while the script was out of reach still
+  // has mail waiting there; this is where that is stopped once it answers.
+  await stopBarredMail(db);
   const ids = watchedEmailIds(db);
   const forget = forgettableEmailIds(db);
   if (ids.length === 0 && forget.length === 0) return 0;

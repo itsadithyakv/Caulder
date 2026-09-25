@@ -153,23 +153,31 @@ export function matches(memory: Memory, search: string): boolean {
 }
 
 /**
+ * The words of a question that carry its meaning, cut to a stem - "parked" is
+ * found by "park", "keys" by "key" - for looking through what is kept. The
+ * question's own words (what, did, have...) are left out.
+ */
+export function askedStems(about: string): string[] {
+  return about
+    .toLowerCase()
+    .replace(/['’]s\b/g, "")
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((word) => word.length >= 3 && !/^(?:the|and|what|where|when|who|did|does|have|has|that|this|with|from|about|your|mine)$/.test(word))
+    .map((word) => word.replace(/(?:ing|ed|es|s)$/, ""));
+}
+
+/**
  * The memories that answer a question - "where did i park", "mummy's birthday",
  * "what does arjun like" - the current ones first, by how many of its words
  * each has, then the newest.
  */
 export function recall(memories: readonly Memory[], about: string): Memory[] {
-  const words = about
-    .toLowerCase()
-    .replace(/['’]s\b/g, "")
-    .split(/[^\p{L}\p{N}]+/u)
-    .filter((word) => word.length >= 3 && !/^(?:the|and|what|where|when|who|did|does|have|has|that|this|with|from|about|your|mine)$/.test(word));
+  const words = askedStems(about);
   if (words.length === 0) return [];
-  // "Parked" is found by "park", "keys" by "key".
-  const stem = (word: string) => word.replace(/(?:ing|ed|es|s)$/, "");
   const scored = memories
     .map((memory) => {
       const said = `${memory.pageTitle} ${memory.fact ?? ""} ${memory.says}`.toLowerCase();
-      const hits = words.filter((word) => said.includes(stem(word))).length;
+      const hits = words.filter((word) => said.includes(word)).length;
       return { memory, hits };
     })
     .filter(({ hits }) => hits > 0);

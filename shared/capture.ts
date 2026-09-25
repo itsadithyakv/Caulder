@@ -215,6 +215,9 @@ const MET = /\b(met|meeting|visited)\b/i;
 const FELT =
   /\b(i('m| am| was| felt| feel|'ve| have| had| got| did| don't| do not| can't| cannot)|felt|feeling|today was|(?:good|great|bad|long|amazing|awesome|terrible|awful|productive|lazy|busy|chill|nice|decent|weird|hard|tough|slow|fun|shit|crap|meh)\s+day|couldn't\s+(?:sleep|focus|stop)|can't\s+(?:sleep|focus)|slept\s+(?:badly|well|late|in|early)|rough|tough|awful|terrible|lovely|productive|lazy|tired|exhausted|happy|sad|stressed|anxious|grateful|thankful|proud|frustrated|excited|calm|overwhelmed|slept|mood)\b/i;
 
+/** Thanks said first: "grateful for", "so thankful that", "proud of". */
+const THANKS_START = /^\s*(?:(?:i'?m|i\s+am|i\s+feel|feeling|so|really|very|super)\s+)*(?:grateful|thankful|blessed|proud)\s+(?:for|of|to|that)\b/i;
+
 const IDEA = /^\s*(what if|maybe we (could|should)|idea\b)/i;
 
 /** A line that starts by saying what was done - "shipped the pricing page" - is the day, looked back on. */
@@ -358,21 +361,29 @@ function sameStem(a: string, b: string): boolean {
 function namedHabit(
   text: string,
   habits: NonNullable<Known["habits"]>,
+  /**
+   * What the line is part of, added by the reader rather than said - the
+   * Reading a book hangs off. It can name a habit, but it never says one was
+   * done: "book train tickets" hung off Reading is not "reading" said.
+   */
+  implied = "",
 ): { habit: { id: string; name: string }; done: boolean } | null {
   const said = plainly(words(text));
+  const added = plainly(words(implied)).filter((word) => !said.includes(word));
+  const heard = [...said, ...added];
   let best: { habit: { id: string; name: string }; done: boolean; size: number } | null = null;
   for (const habit of habits) {
     const all = words(habit.name).filter((word) => !/^\d+$/.test(word));
     const telling = all.filter((word) => word.length >= 4);
     const names = telling.length > 0 ? telling : all;
     if (names.length === 0) continue;
-    const hit = (name: string) => said.filter((word) => word === name || sameStem(word, name) || slipAt(word, [name]) === name);
+    const hit = (name: string) => heard.filter((word) => word === name || sameStem(word, name) || slipAt(word, [name]) === name);
     const hits = names.map(hit);
     if (hits.some((found) => found.length === 0)) continue;
     const used = new Set(hits.flat());
     const rest = said.filter((word) => !used.has(word) && !AROUND_A_HABIT.has(word) && !/^\d+$/.test(word));
     // Said in another form than its name - "meditated" for Meditate - is said as done.
-    const past = [...used].some((word) => /(?:ed|ing)$/.test(word) && !all.includes(word));
+    const past = [...used].some((word) => /(?:ed|ing)$/.test(word) && !all.includes(word) && said.includes(word));
     const size = names.join(" ").length;
     if (!best || size > best.size) best = { habit: { id: habit.id, name: habit.name }, done: rest.length === 0 || past, size };
   }
@@ -568,6 +579,26 @@ function whenIn(
   return { timed, ahead: timed && !onlyToday, day: task.day, time: task.time, either, repeats: task.repeat !== null, title: task.title };
 }
 
+/** A heading and what is said under it: "atomic habits: 1% better every day". */
+const HEADED = /^\s*([^:\n]{2,40}):\s+(\S.*)$/;
+/** What starts a when: "gym: every day at 6", "dentist: tomorrow 5", "call: 9am". Not "1%". */
+const WHEN_FIRST =
+  /^(?:every|each|daily|weekly|monthly|today|tonight|tomorrow|tmrw|tmr|mon|tues?|wed|thu|thurs|fri|sat|sun|next|this|at|on|by|from|in\s+\d|\d{1,2}(?:[:.]\d{2})?\s*(?:am|pm)?(?![\d%.,]))\b/i;
+
+/**
+ * "Atomic habits: 1% better every day" is a line about a book, and "every
+ * day" is in what it says - not when anything is due. After a heading a when
+ * counts only when it is what the heading is told: it comes first ("gym: every
+ * day at 6"), or something to do does ("dentist: go at 5").
+ */
+function whenOnlyInPassing(said: string): boolean {
+  const headed = HEADED.exec(said);
+  if (!headed) return false;
+  const told = (headed[2] ?? "").trim();
+  if (WHEN_FIRST.test(told) || MEANT.test(told)) return false;
+  return !DOING.has(words(told)[0] ?? "");
+}
+
 export function readCapture(
   line: string,
   known: Known,
@@ -602,7 +633,9 @@ export function readCapture(
   const logged: CaptureReading["logged"] = CALLED.test(said) ? "call" : MET.test(said) ? "meeting" : "note";
   const spoken = words(said);
   const first = spoken[0] ?? "";
-  const when = whenIn(text, clock);
+  const when = whenOnlyInPassing(said)
+    ? { timed: false, ahead: false, day: null, time: null, either: [], repeats: false, title: said }
+    : whenIn(text, clock);
   const { timed } = when;
   const doing = (word: string) => DOING.has(word) || slipAt(word, DOING_SLIPS) !== null;
   const instruction =
@@ -633,7 +666,7 @@ export function readCapture(
   const cardio = subject !== null && /^(?:running|cycling|hiking|swimming|walking|body weight)$/i.test(subject.topic);
   const implied = cardio ? "" : (branch.parent?.title ?? (subject?.kind === "exercise" ? "gym" : ""));
   const about = implied ? `${said} ${implied}` : said;
-  const habit = namedHabit(about, known.habits ?? []);
+  const habit = namedHabit(said, known.habits ?? [], implied);
 
   // A day reported: said in the past, or with a clause that looks back, and
   // not about a day still to come. "Went to the gym at 5" says when it was,
@@ -846,6 +879,9 @@ export function readCapture(
   // Not when a later clause says what to do: "feeling lazy, order dominos" is an order.
   const thenDo = said.split(/[,;]/).slice(1).some((clause) => doing(words(clause)[0] ?? ""));
   if (FEEL_START.test(said) && !contact && !thenDo) return reading("journal", "it is how you feel");
+  // Gratitude said first is the journal whoever it names: "grateful for amma's
+  // food today" is about Amma, and there is nothing to do for her in it.
+  if (THANKS_START.test(said) && !thenDo) return reading("journal", "it is what you are grateful for");
 
   if (contact) {
     if (instruction && timed) return reading("task", `something to do for ${contact.name}, with a when`);

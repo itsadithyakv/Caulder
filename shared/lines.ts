@@ -92,6 +92,18 @@ export const question = z.discriminatedUnion("ask", [
   /** "Where did i park", "what's my blood group", "what does arjun like": answered from your memories. */
   z.object({ ask: z.literal("recall"), about: z.string().trim().min(1).max(120), label: z.string().max(80) }),
   z.object({ ask: z.literal("due"), day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }),
+  /**
+   * "Did i go to gym this week", "have i meditated today": answered from the
+   * habits ticked, the hours on the calendar, the time on a hobby and the
+   * tasks done - never by ticking anything.
+   */
+  z.object({
+    ask: z.literal("did"),
+    about: z.string().trim().min(1).max(80),
+    from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    label: z.string().max(40),
+  }),
 ]);
 export type Question = z.infer<typeof question>;
 

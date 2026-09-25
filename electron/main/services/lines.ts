@@ -3,11 +3,12 @@ import { createTask, deleteTask, findTask, rescheduleTask, updateTask } from "..
 import { createBlock, deleteBlock, moveBlock } from "../repositories/blocks";
 import { search } from "./brain";
 import { allMemories } from "./memories";
-import { recall, type Memory } from "@shared/memories";
+import { askedStems, recall, type Memory } from "@shared/memories";
 import { addReminder } from "./nudges";
 import { blockKindFor } from "@shared/quickadd";
 import { blockInput, taskInput, type Task, type TaskKind } from "@shared/domain";
-import { shiftDay } from "@shared/dates";
+import { shiftDay, today as todayIn } from "@shared/dates";
+import { withHome } from "../repositories/companies";
 import {
   moveInput,
   question,
@@ -16,6 +17,7 @@ import {
   type Busy,
   type LineContext,
   type OpenTask,
+  type Question,
   type Said,
   type TaskSnapshot,
   type Timed,
@@ -425,5 +427,62 @@ export function answerQuestion(db: Db, companyId: string, raw: unknown): Answer 
         ],
       };
     }
+    case "did":
+      return whatWasDone(db, companyId, asked);
   }
+}
+
+/**
+ * "Did i go to gym this week": looked for in everything that says a thing was
+ * done - a habit ticked, an hour on the calendar, time on a hobby, a task
+ * finished - in your home and the company both, since the gym is yours and
+ * the call to Rahul the company's. Something counts when it shares a word
+ * that means something with the question. Nothing is ticked by asking.
+ */
+function whatWasDone(db: Db, companyId: string, asked: Extract<Question, { ask: "did" }>): Answer {
+  const stems = askedStems(asked.about).filter((stem) => !/^(?:go|went|gone|been|get|got|make|made)$/.test(stem));
+  const span = asked.label.toLowerCase();
+  if (stems.length === 0) return { say: `Nothing to look for ${span}.`, items: [] };
+  const ids = withHome(db, companyId);
+  const list = ids.map(() => "?").join(", ");
+  const zone = (db.prepare(`SELECT timezone FROM companies WHERE id = ?`).get(ids[0]) as { timezone: string } | undefined)?.timezone ?? "UTC";
+
+  const done: { label: string; day: string }[] = [
+    ...(db
+      .prepare(
+        `SELECT h.name AS label, c.day FROM habit_checks c JOIN habits h ON h.id = c.habit_id
+          WHERE h.company_id IN (${list}) AND c.day BETWEEN ? AND ?`,
+      )
+      .all(...ids, asked.from, asked.to) as { label: string; day: string }[]),
+    ...(db
+      .prepare(`SELECT title AS label, day FROM blocks WHERE company_id IN (${list}) AND day BETWEEN ? AND ?`)
+      .all(...ids, asked.from, asked.to) as { label: string; day: string }[]),
+    ...(db
+      .prepare(`SELECT topic AS label, day FROM hobby_logs WHERE company_id IN (${list}) AND day BETWEEN ? AND ?`)
+      .all(...ids, asked.from, asked.to) as { label: string; day: string }[]),
+    // Finished is an instant; the day it fell on is the day in your timezone.
+    ...(db
+      .prepare(`SELECT title AS label, completed_at FROM tasks WHERE company_id IN (${list}) AND status = 'done' AND completed_at IS NOT NULL`)
+      .all(...ids) as { label: string; completed_at: string }[])
+      .map((task) => ({ label: task.label, day: todayIn(zone, new Date(task.completed_at)) }))
+      .filter((task) => task.day >= asked.from && task.day <= asked.to),
+  ];
+
+  const found = new Map<string, { label: string; day: string }>();
+  for (const each of done) {
+    const title = each.label.toLowerCase();
+    if (!stems.some((stem) => title.includes(stem))) continue;
+    found.set(`${each.day} ${title}`, each);
+  }
+  const items = [...found.values()].sort((a, b) => a.day.localeCompare(b.day));
+  const days = new Set(items.map((item) => item.day)).size;
+  return {
+    say:
+      days === 0
+        ? `Not that Caulder can see, ${span}.`
+        : asked.from === asked.to
+          ? `Yes, ${span}.`
+          : `Yes - ${days === 1 ? "one day" : `${days} days`} ${span}.`,
+    items: items.map((item) => ({ label: item.label, detail: item.day })),
+  };
 }
