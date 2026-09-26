@@ -46,6 +46,7 @@ import {
   periodOf,
 } from "@shared/deadlines";
 import { shiftDay } from "@shared/dates";
+import { localeFor } from "@shared/countries";
 import { listOpenings, listPeople } from "../repositories/people";
 import { buildMetrics } from "./metrics";
 import {
@@ -90,8 +91,9 @@ const OUTCOME_WORDS: Record<CallOutcome, string> = {
   spoke: "spoke",
 };
 
-function moneyIn(currency: string): (value: number) => string {
-  const format = new Intl.NumberFormat(currency === "INR" ? "en-IN" : "en-US", { maximumFractionDigits: 0 });
+/** "INR 1,85,000": the code, then the number grouped the way it is where the company is. */
+function moneyIn(currency: string, country: string | null): (value: number) => string {
+  const format = new Intl.NumberFormat(localeFor(country) ?? (currency === "INR" ? "en-IN" : "en-US"), { maximumFractionDigits: 0 });
   return (value) => `${currency} ${format.format(value)}`;
 }
 
@@ -185,12 +187,12 @@ export function buildDossier(
   options: DossierOptions,
   now: Date = new Date(),
 ): DossierDocument[] {
-  const company = db.prepare(`SELECT name, currency, timezone FROM companies WHERE id = ?`).get(companyId) as
-    | { name: string; currency: string; timezone: string }
+  const company = db.prepare(`SELECT name, currency, country, timezone FROM companies WHERE id = ?`).get(companyId) as
+    | { name: string; currency: string; country: string | null; timezone: string }
     | undefined;
   if (!company) throw new Error("That company no longer exists.");
 
-  const money = moneyIn(company.currency);
+  const money = moneyIn(company.currency, company.country);
   // The company's pages only. Your own travel in the You document, under
   // their own switch - never in here, whatever section they were filed in.
   const inHome = isHomeWorkspace(db, companyId);

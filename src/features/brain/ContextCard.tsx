@@ -5,6 +5,7 @@ import { Card } from "@/components/Card";
 import { Ember, useEmberMood } from "@/components/Ember";
 import { ErrorLine } from "@/components/ErrorLine";
 import { messageOf } from "@/lib/errors";
+import { numberText } from "@/lib/format";
 
 /**
  * Everything about one topic, for an AI that is not Caulder's.
@@ -86,7 +87,7 @@ export function ContextCard({ companyId }: { companyId: string }) {
       {copied ? (
         <p className="card__hint" role="status">
           <ClipboardCheck size={14} aria-hidden /> <strong>{copied.topic}</strong> is on the clipboard &mdash;{" "}
-          {copied.chars.toLocaleString()} characters
+          {numberText(copied.chars)} characters
           {copied.went.length > 0 ? `: ${copied.went.join(", ")}` : ", and Caulder holds no record of it"}.
           {copied.cut ? " It did not all fit; the longest pages say where they were cut." : ""}
         </p>

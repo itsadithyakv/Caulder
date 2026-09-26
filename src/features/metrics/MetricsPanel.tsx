@@ -18,14 +18,14 @@ import { Card } from "@/components/Card";
 import { Chips } from "@/components/Select";
 import { ErrorLine } from "@/components/ErrorLine";
 import { useResource } from "@/lib/resource";
-import { formatDay, formatValue } from "@/lib/format";
+import { formatDay, formatValue, numberText } from "@/lib/format";
 import { messageOf } from "@/lib/errors";
 import { useWorkspace } from "@/lib/workspace";
 import { MetricChart, monthLabel } from "./MetricChart";
 
 /** A metric's number, as it is measured. */
 function formatter(metric: Pick<Metric, "kind" | "unitLabel">, currency: string): (value: number) => string {
-  const number = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 });
+  const number = { format: (value: number) => numberText(value, 1) };
   if (metric.kind === "money") return (value) => formatValue(Math.round(value), currency);
   if (metric.kind === "percent") return (value) => `${number.format(value)}%`;
   return (value) => (metric.unitLabel ? `${number.format(value)} ${metric.unitLabel}` : number.format(value));

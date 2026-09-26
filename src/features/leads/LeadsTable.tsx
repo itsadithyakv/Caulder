@@ -10,7 +10,7 @@ import {
   type SortDirection,
 } from "@shared/domain";
 import { StageBadge } from "./StageBadge";
-import { formatValue, relativeDay } from "@/lib/format";
+import { formatValue, region, relativeDay } from "@/lib/format";
 import { describeDue, today } from "@shared/dates";
 
 /**
@@ -290,7 +290,7 @@ function NextStep({ lead, day }: { lead: LeadListRow; day: string }) {
       title={lead.nextTaskTitle ?? undefined}
     >
       <span className="leadrow__nextKind">{kind}</span>
-      {describeDue(lead.nextTaskDue, day)}
+      {describeDue(lead.nextTaskDue, day, region())}
     </span>
   );
 }

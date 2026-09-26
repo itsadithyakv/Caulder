@@ -22,9 +22,16 @@ import { ArrowRight, X } from "lucide-react";
  * what each one gives is on hover, and read out to a screen reader.
  */
 
-type Item = { id: "google" | "ai"; title: string; gives: string };
+type Item = { id: "copy" | "google" | "ai"; title: string; gives: string };
 
 const ITEMS: readonly Item[] = [
+  {
+    // First: the one that protects what is already here (phase 24).
+    id: "copy",
+    title: "Keep a copy elsewhere",
+    gives:
+      "Every backup copied into a folder OneDrive, Dropbox or Google Drive keeps in step, so your data is not only on this computer. One click when one of them is here; free, and no account of Caulder's.",
+  },
   {
     id: "google",
     title: "Connect Google",
@@ -59,9 +66,10 @@ export function SetupNudge({ companyId, onSetUp }: { companyId: string; onSetUp:
     let live = true;
     // Both are cheap and offline: what is stored, not a request to anybody.
     Promise.all([
+      window.caulder.data.mirror().then((folder) => folder !== null, () => true),
       window.caulder.google.state(companyId).then((state) => state.connected, () => true),
       window.caulder.ask.state().then((state) => state.connected, () => true),
-    ]).then(([google, ai]) => live && setConnected({ google, ai }));
+    ]).then(([copy, google, ai]) => live && setConnected({ copy, google, ai }));
     return () => {
       live = false;
     };

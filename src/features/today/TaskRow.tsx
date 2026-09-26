@@ -3,6 +3,7 @@ import { Check, Pencil, Phone, Trash2 } from "lucide-react";
 import { TASK_AREA_LABEL, TASK_KIND_LABEL, type Task, type TaskArea } from "@shared/domain";
 import { describeDue, shiftDay } from "@shared/dates";
 import { useOpenRef } from "@/lib/navigate";
+import { region } from "@/lib/format";
 
 /**
  * How long a completed row is held on screen before the parent is told.
@@ -107,7 +108,7 @@ export function TaskRow({
   if (!hide.due) {
     meta.push(
       <span key="due" className={overdue ? "taskrow__due taskrow__due--late" : "taskrow__due"}>
-        {describeDue(task.dueOn, day)}
+        {describeDue(task.dueOn, day, region())}
       </span>,
     );
   }

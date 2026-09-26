@@ -9,7 +9,9 @@ import {
 } from "react";
 import type { Workspace } from "@shared/ipc";
 import type { AccentId, Company, CompanyInput } from "@shared/domain";
+import { localeFor } from "@shared/countries";
 import { messageOf } from "./errors";
+import { setRegion } from "./format";
 
 /**
  * Holds the companies and which one is open.
@@ -122,6 +124,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     () => state.companies.find((c) => c.id === state.homeCompanyId) ?? activeCompany,
     [state, activeCompany],
   );
+
+  // Money and dates read the way they do where the company is (phase 24):
+  // the chosen company's country, else your own. Set here, during the
+  // draw and before any screen formats, so the first frame is already right.
+  setRegion(localeFor(activeCompany?.country ?? home?.country));
 
   // The app wears one face whichever company is chosen: coffee, set on the
   // page itself (index.html) so it is there before the first paint. A

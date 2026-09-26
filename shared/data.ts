@@ -39,3 +39,6 @@ export type ExportEverything = {
   files: string[];
   rows: number;
 };
+
+/** A folder OneDrive, Dropbox or Google Drive keeps in step, and where Caulder's copies would go in it (phase 24). */
+export type SyncedFolder = { id: "onedrive" | "dropbox" | "gdrive"; name: string; folder: string };

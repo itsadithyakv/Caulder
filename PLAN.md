@@ -1634,7 +1634,33 @@ The plan as written:
   installed copy. It is published through GitHub Pages as the Store's privacy
   URL, and About Caulder links to it.
 
-### Phase 24 - A first run for any founder
+### Phase 24 - A first run for any founder - *done 27 September 2026*
+
+What was built:
+- **Money and dates by region.** `localeFor(country)` is `en-` and the
+  company's country: English words, the region's ways. The workspace sets it
+  before anything draws; `src/lib/format.ts` makes every formatter from it,
+  and the screens that built their own now use `numberText` and
+  `dateFormatter`. Invoices, the data room, the dossier and the line's money
+  answers use the company's country in main.
+- **Found on the way:** a stored day (midnight UTC) was formatted in the
+  local clock, so the Calendar, the week, the quick line and due dates read
+  one day early anywhere west of Greenwich. Now written in UTC.
+- **The sample** is a one-person studio that builds small apps and sites for
+  clients in eight cities, priced in dollars and set in the person's own
+  country.
+- **The first run** says what Caulder is for: *Your company, and your life
+  around it*. It does not name Market or Make, which do not exist until
+  phases 26 and 27; their screens join the first run when they do.
+- **A copy somewhere else** is the setup guide's first step, and first on
+  Today's *Finish setting up*. OneDrive, Dropbox and Google Drive are found
+  on this computer (`db/synced.ts`) and offered by name; one copy is made at
+  once.
+- **Checked:** unit tests for the formats and the synced folders; e2e demo,
+  companies, money, today, week and support specs, and the setup line in
+  quickadd (34 tests).
+
+The plan as written:
 
 - Money and dates in the company's own format, set beside its currency
   (item 16).

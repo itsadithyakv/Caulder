@@ -28,9 +28,10 @@ export type InvoiceDocument = {
   notes: string | null;
 };
 
-export function money(value: number, currency: string): string {
+/** Money as it is written where the company is (`localeFor` its country); this computer's way when none is said. */
+export function money(value: number, currency: string, locale?: string): string {
   try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 0 }).format(value);
+    return new Intl.NumberFormat(locale, { style: "currency", currency, maximumFractionDigits: 0 }).format(value);
   } catch {
     return `${currency} ${value.toLocaleString()}`;
   }

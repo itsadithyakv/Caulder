@@ -11,7 +11,7 @@ import {
 import { Chips, Select } from "@/components/Select";
 import { ErrorLine } from "@/components/ErrorLine";
 import { messageOf } from "@/lib/errors";
-import { formatDay } from "@/lib/format";
+import { dateFormatter, formatDay, numberText } from "@/lib/format";
 import type { JournalLockState } from "@shared/life";
 import { Markdown } from "../brain/Markdown";
 
@@ -32,12 +32,11 @@ const SPAN_OPTIONS = LOOKBACK_SPANS.map((span) => ({ value: span.id, label: span
 
 const MOOD_WORDS = ["Rough", "Low", "Okay", "Good", "Great"] as const;
 
-const monthFormat = new Intl.DateTimeFormat(undefined, { month: "short", year: "numeric" });
 
 /** "2026-09" as "Sep 2026", built from its parts so no time zone moves it. */
 function monthLabel(month: string): string {
   const [year, m] = month.split("-").map(Number);
-  return monthFormat.format(new Date(year ?? 1970, (m ?? 1) - 1, 1));
+  return dateFormatter({ month: "short", year: "numeric" }).format(new Date(year ?? 1970, (m ?? 1) - 1, 1));
 }
 
 function moodWord(mood: number): string {
@@ -45,7 +44,7 @@ function moodWord(mood: number): string {
 }
 
 function plural(n: number, one: string, many: string): string {
-  return `${n.toLocaleString()} ${n === 1 ? one : many}`;
+  return `${numberText(n)} ${n === 1 ? one : many}`;
 }
 
 type Busy = null | "local" | "away";
@@ -276,7 +275,7 @@ function MonthRow({ month, most }: { month: LookBackMonth; most: number }) {
           {month.days}
         </span>
       </td>
-      <td>{month.words.toLocaleString()}</td>
+      <td>{numberText(month.words)}</td>
       <td>
         {month.mood === null ? (
           <span className="lookback__none">-</span>

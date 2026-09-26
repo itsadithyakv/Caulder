@@ -128,6 +128,7 @@ import {
 import { buildBoard } from "../services/pipeline";
 import { exportEverything } from "../services/export";
 import { backupNow, mirrorFolder, setMirrorFolder, listBackups, restoreBackup } from "../db/backup";
+import { syncedFolders } from "../db/synced";
 import { backupsDir, closeDatabase, databasePath, openDatabase } from "../db/connection";
 import { shell } from "electron";
 import { logProblem, logsDir } from "../log";
@@ -630,6 +631,16 @@ function registerDataHandlers(getWindow: () => BrowserWindow | null) {
     const taken = backupNow();
     if (taken.mirrored?.error) throw new Error(`Caulder could not copy a backup there: ${taken.mirrored.error}`);
     return folder;
+  });
+  // A folder another service keeps in step, named by the window and found here (phase 24).
+  handle(CHANNELS.dataSynced, () => syncedFolders());
+  handle(CHANNELS.dataUseSynced, (_event, id: unknown) => {
+    const chosen = syncedFolders().find((each) => each.id === id);
+    if (!chosen) throw new Error("That folder is not on this computer any more.");
+    setMirrorFolder(chosen.folder);
+    const taken = backupNow();
+    if (taken.mirrored?.error) throw new Error(`Caulder could not copy a backup there: ${taken.mirrored.error}`);
+    return chosen.folder;
   });
   handle(CHANNELS.dataStopMirror, () => {
     setMirrorFolder(null);

@@ -10,6 +10,7 @@ import { attachmentsDir } from "./files";
 import { documentNumber } from "@shared/domain";
 import { invoiceHtml, money } from "./invoice-html";
 import { invoiceIssuer } from "./brain";
+import { localeFor } from "@shared/countries";
 
 /**
  * An invoice as a file.
@@ -28,9 +29,11 @@ export async function writeInvoicePdf(db: Db, companyId: string, invoiceId: stri
   if (invoice.status === "void") throw new Error("A void invoice is not worth a file.");
 
   const company = db
-    .prepare(`SELECT name, currency FROM companies WHERE id = ?`)
-    .get(companyId) as { name: string; currency: string } | undefined;
+    .prepare(`SELECT name, currency, country FROM companies WHERE id = ?`)
+    .get(companyId) as { name: string; currency: string; country: string | null } | undefined;
   if (!company) throw new Error("That company no longer exists.");
+  // Written the way money is where the company is: ₹1,85,000 in India, $185,000 in the US.
+  const locale = localeFor(company.country);
 
   const lead = db
     .prepare(`SELECT name, contact_person, email, location, city FROM leads WHERE id = ?`)
@@ -51,12 +54,12 @@ export async function writeInvoicePdf(db: Db, companyId: string, invoiceId: stri
     lines: invoice.lines.map((line) => ({
       description: line.description,
       quantity: line.quantity,
-      unitPrice: money(line.unitPrice, company.currency),
-      total: money(Math.round(line.quantity * line.unitPrice), company.currency),
+      unitPrice: money(line.unitPrice, company.currency, locale),
+      total: money(Math.round(line.quantity * line.unitPrice), company.currency, locale),
     })),
-    total: money(invoice.total, company.currency),
-    paid: invoice.paid > 0 ? money(invoice.paid, company.currency) : null,
-    owed: money(invoice.total - invoice.paid, company.currency),
+    total: money(invoice.total, company.currency, locale),
+    paid: invoice.paid > 0 ? money(invoice.paid, company.currency, locale) : null,
+    owed: money(invoice.total - invoice.paid, company.currency, locale),
     notes: invoice.notes,
   });
 

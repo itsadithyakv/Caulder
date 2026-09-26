@@ -107,7 +107,7 @@ the hidden home workspace for your own things.
 - Touches: every company table cascades from it. Country sets currency, dial code and filing presets; timezone sets "today".
 
 ### Sample company
-"Look around with sample data": a real import batch, removed when a real company is made.
+"Look around with sample data": a one-person studio with clients anywhere, in dollars, set in your own country (phase 24); a real import batch, removed when a real company is made.
 - Main: `services/demo.ts` · UI: `FirstRun.tsx`, sample banner in `App.tsx` · IPC: `companies:seed-demo`, `companies:demo-batch`
 - Tests: `services/demo.test.ts`; e2e `demo.spec.ts`
 - Touches: reuses Import's batch undo; never moved into the home workspace.
@@ -473,6 +473,7 @@ A pill on the desktop: now, next, late. Three levels, one pinned behind the wall
 
 ### Backups, restore and export
 A backup on every launch (ten kept), on demand, a mirror folder, a Drive copy; restore checks the file and can be undone; export everything.
+- The mirror is asked for on the first run (phase 24): the setup guide's first step (`onboarding/SafeCopy.tsx`) and Today's *Finish setting up* line. Folders OneDrive, Dropbox or Google Drive keep in step are found by `db/synced.ts` and offered by name (`data:synced`, `data:use-synced`, the window naming one, main working out the path).
 - The copies on Drive are listed on the Data card when asked (`google.driveBackups`), never on draw. No link to open one (the script sends none); restoring one means downloading it into the backups folder, where Restore lists it.
 - UI: `src/features/settings/DataSafety.tsx` · Main: `electron/main/db/backup.ts`, `services/export.ts`, `services/gmore.ts` · IPC: `data:` · Tests: `db/backup.test.ts`, `services/export.test.ts`
 
@@ -489,6 +490,11 @@ About Caulder in Settings (the ways to help, Privacy, Licences), and the ask for
 
 ### Logs and problem reports
 - Main: `electron/main/log.ts`, `problem.ts` · UI: `ErrorBoundary.tsx`, `DataSafety.tsx` · IPC: `app:`
+
+### Money and dates by region
+Formatted the way they are where the company is, in English: `localeFor(country)` (`shared/countries.ts`) gives `en-IN`, `en-US`...; the workspace calls `setRegion` before anything draws, and every formatter in `src/lib/format.ts` (`formatValue`, `formatDay`, `numberText`, `dateFormatter`) reads it. Invoices, the data room, the dossier and the line's money answers take the same locale in main. A stored day is formatted with `timeZone: "UTC"`.
+- A screen that builds its own Intl formatter or calls `toLocaleString()` is the parallel thing not to write: use `numberText` or `dateFormatter`.
+- Tests: `src/lib/format.test.ts`
 
 ### Theme
 Light, dark or system before first paint; an accent per company; colour only in `tokens.css`. See `design-language.md`.

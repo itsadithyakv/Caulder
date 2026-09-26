@@ -28,7 +28,10 @@ until asked.
 
 ## First run
 
-One screen: a company name, **the country it is in**, and one button. The
+*Your company, and your life around it*: Caulder says what it is - where a
+one-person company is run, who you sell to, your money, your days and you, in
+one file with no account - and then asks one screen: a company name, **the
+country it is in**, and one button. The
 country is guessed from the computer's language setting (*en-IN* is India),
 then from a timezone only one country uses, and is one pick to correct; it
 decides the currency a company starts on, the calling code a bare phone
@@ -37,6 +40,12 @@ filings or the general set. The funnel shape, the logo, the company's colour,
 the currency and the timezone are folded away under one disclosure, and all
 of them can be changed in Settings. Any currency in the world can be chosen;
 nothing is ever converted.
+
+**Money and dates are written the way they are where the company is**
+(phase 24), in English: ₹1,85,000 and *26 Sept* in India, $185,000 and
+*Sep 26* in the United States, a 24-hour clock in Germany. The country sets
+it, not this computer's language setting. A day is written in UTC, the way it
+is stored, so nobody west of Greenwich sees the day before.
 
 ### The tour
 
@@ -51,23 +60,29 @@ beside it; Next, Back, the arrow keys, or Skip. It is shown once; `?` has
 
 A real company opens on it; a look round with sample data does not. Caulder
 itself needs no setting up - one file on this machine, nothing to sign in to -
-so the guide is about the two things that live in somebody else's console,
-and it says so first:
+so the guide starts with a copy of it somewhere else, then the two things
+that live in somebody else's console:
 
-1. **Google: your calendar, your tasks, your email.** The same card as
+1. **A copy somewhere else** (*Recommended - 1 min*). Caulder backs itself up
+   on every launch; this points those backups at a folder OneDrive, Dropbox or
+   Google Drive keeps in step, found on this computer and offered by name -
+   *Keep a copy in OneDrive* - or any folder chosen. One copy is made at once,
+   so the folder is proven. A Store copy is told why it matters most for it:
+   Windows removes its own folder when it is uninstalled.
+2. **Google: your calendar, your tasks, your email.** The same card as
    Settings, with its steps already open: copy the script, open Apps Script,
    add the Calendar and Tasks services, run *setUp* and allow it, deploy as a
    web app *Execute as me / Anyone*, paste the URL and the key - each step a
    sentence beside a drawing of the screen it happens on.
-2. **An AI, to ask the brain.** The services, what each costs, and the steps
+3. **An AI, to ask the brain.** The services, what each costs, and the steps
    for the one picked. Gemini is free and first.
 
-Each of the two says how long it takes on its heading - *Optional - 5 min*,
+Each step says how long it takes on its heading - *Optional - 5 min*,
 *Optional - 2 min* - because the question somebody skipping has is not whether
 it is worth it but whether it is worth it now.
-3. **Your contacts.** Import a spreadsheet or paste a list, or add one by
+4. **Your contacts.** Import a spreadsheet or paste a list, or add one by
    hand.
-4. **What the company knows.** The brain's *write these down first*, and what
+5. **What the company knows.** The brain's *write these down first*, and what
    the company pays for, which is what makes renewals appear on Today and the
    runway add up.
 
@@ -81,14 +96,17 @@ at the foot of the sidebar, under everything else.
 list you have already built, which makes an empty first launch the worst
 possible introduction to it — six screens of nothing, and no way to tell what
 the app is for by looking at it. So the first run offers **Look around with
-sample data**: a company called *Sample company*, eight schools part-way
-through a funnel, a day with a lecture, a call and the gym in it, and an invoice
-paid, one open and a quote out, with a banner on every screen saying what it is and a
+sample data**: a company called *Sample company* - a one-person studio that
+builds small apps and sites for clients anywhere, priced in dollars and set
+in your own country so its dates read your way - with eight clients part-way
+through a funnel, a day with focused work, a class, a call and the gym in it,
+and an invoice paid, one open and a quote out, with a banner on every screen saying what it is and a
 button to set up the real thing. The moment a real company is created the
 sample company is removed, so nobody has to find it and delete it. A real
 company is never seeded.
 
-The sample is eight schools part-way through a funnel: a call two days overdue,
+The eight clients are in San Francisco, Oslo, London, Madrid, Toronto,
+Bengaluru, Lagos and Austin: a call two days overdue,
 two things due today, one lead gone quiet, a signed one, a lost one, and a
 completed task in somebody's history. Every date is relative to now, so it
 never looks stale.

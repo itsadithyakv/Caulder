@@ -98,6 +98,14 @@ tests in 144 files, with the journal work above in the same tree.
     - The ask for support sits at the foot of Today (setting `supportAsk`).
     - The licences are written by every build and ship with the package.
     - The privacy page is `docs/privacy.md`.
+  - **Phase 24 was done on 27 September 2026.**
+    - Money and dates are written the way they are where the company is.
+      Days no longer read one early in the Americas: they were formatted in
+      the local clock from midnight UTC.
+    - The sample is a one-person studio with clients anywhere, in dollars.
+    - The first run says what Caulder is for, and the setup guide starts
+      with a copy off this computer, offering OneDrive, Dropbox or Google
+      Drive by name.
   - **Three things only you can do before handing it out:** enrol in GitHub
     Sponsors, choose a UPI ID (`SUPPORT` in `shared/support.ts`), and switch
     on GitHub Pages for `/docs`.
@@ -207,7 +215,8 @@ the code, and 85 realistic lines put through the quick line. Items marked
 14. An invoice can be deleted whatever its status; the draft-only rule lives
     only on the screen (`repositories/money.ts`).
 15. Class, Study and Admin share one grey on the Calendar (`day.css`).
-16. Money and dates follow the computer's locale, not the company's.
+16. ~~Money and dates follow the computer's locale, not the company's.~~
+    Fixed in phase 24, with days one early west of Greenwich.
 17. Coverage: no e2e test for WhatsApp, do-not-contact or the built-in
     follow-up; no unit test for `services/scheduler.ts` or custom fields.
 18. Dead ends: `day.setHabit`, `life.lookBackLocal`, `activeCompanyGet`,
@@ -227,13 +236,10 @@ the code, and 85 realistic lines put through the quick line. Items marked
 ## Next
 
 1. Decide the typeface (above), and do the three things for phase 23.
-2. Phase 24: a first run for any founder - formats by the company's region
-   (item 16), a sample that is not Indian schools, and a backup folder asked
-   for on the first run.
-3. Phase 25: 0.5.0 - Electron updated, the invoice rule (item 14), the whole
+2. Phase 25: 0.5.0 - Electron updated, the invoice rule (item 14), the whole
    e2e suite, packaged, smoke-tested (phases 20 to 23 are in no installer
    yet), and the Store package tried by hand.
-4. Measure the line's second opinion again on new lines, not the 89 its
+3. Measure the line's second opinion again on new lines, not the 89 its
    thresholds were tuned on, before moving them.
-5. Campaigns (item 10) are settled by phase 26, Market. Ctrl+K for products
+4. Campaigns (item 10) are settled by phase 26, Market. Ctrl+K for products
    and deals (item 12) needs a migration.

@@ -6,6 +6,7 @@ import { Card } from "@/components/Card";
 import { ErrorLine } from "@/components/ErrorLine";
 import { messageOf } from "@/lib/errors";
 import { Markdown } from "./Markdown";
+import { numberText } from "@/lib/format";
 
 type Exchange = { question: string; answer: AskAnswer | null; error: string | null };
 
@@ -204,14 +205,14 @@ function Answer({
         <p>
           To {answer.service} ({answer.model}): the question, the conversation before it, and{" "}
           {sent.documents.length} documents (
-          {sent.documents.join(", ")}) - {sent.characters.toLocaleString()} characters, numbers masked.{" "}
+          {sent.documents.join(", ")}) - {numberText(sent.characters)} characters, numbers masked.{" "}
           {sent.leftOut > 0
             ? `${sent.contacts} contacts in full; ${sent.leftOut} left out to fit, chosen by the question.`
             : `All ${sent.contacts} contacts.`}{" "}
           {sent.personal && "Your own pages went too, which you allowed in Settings; locked and private journal days never do. "}
-          {answer.usage.input.toLocaleString()} tokens in
-          {answer.usage.cached > 0 ? ` (${answer.usage.cached.toLocaleString()} from the cache)` : ""},{" "}
-          {answer.usage.output.toLocaleString()} out.
+          {numberText(answer.usage.input)} tokens in
+          {answer.usage.cached > 0 ? ` (${numberText(answer.usage.cached)} from the cache)` : ""},{" "}
+          {numberText(answer.usage.output)} out.
         </p>
       </details>
     </div>

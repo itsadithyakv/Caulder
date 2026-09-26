@@ -5,7 +5,7 @@ import { BLOCK_KINDS, BLOCK_KIND_LABEL, type BlockKind } from "@shared/domain";
 import { clashesIn } from "@shared/priority";
 import { minutesOf, shiftDay, startOfWeek, timeOf, today as todayIn } from "@shared/dates";
 import { useWorkspace } from "@/lib/workspace";
-import { formatDuration, formatTime } from "@/lib/format";
+import { dateFormatter, formatDuration, formatTime } from "@/lib/format";
 import { BlockForm } from "./BlockForm";
 import { Timetable } from "./Timetable";
 import { WeekGrid } from "./WeekGrid";
@@ -643,17 +643,13 @@ function nextFreeHour(blocks: readonly LaidOutBlock[]): string {
   return timeOf(Math.ceil(end / 60) * 60);
 }
 
-const longFormat = new Intl.DateTimeFormat(undefined, {
-  weekday: "long",
-  day: "numeric",
-  month: "long",
-});
-
+// A stored day is midnight UTC, so it is written in UTC: in the Americas the
+// local clock would make it the evening before (phase 24).
 function longDay(day: string): string {
-  return longFormat.format(new Date(`${day}T00:00:00Z`));
+  return dateFormatter({ weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(`${day}T00:00:00Z`));
 }
 
-const shortFormat = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" });
+const shortFormat = { format: (date: Date) => dateFormatter({ day: "numeric", month: "short", timeZone: "UTC" }).format(date) };
 
 /** "7 Sep – 13 Sep", the week named by what it contains. */
 function spanOf(from: string): string {

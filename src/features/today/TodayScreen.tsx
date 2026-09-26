@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { CalendarClock, CalendarPlus, MailCheck, Receipt, RefreshCw, Snowflake, Sunrise } from "lucide-react";
 import { documentNumber } from "@shared/domain";
-import { formatValue, relativeDay } from "@/lib/format";
+import { dateFormatter, formatValue, region, relativeDay } from "@/lib/format";
 import type { TaskInput, Today } from "@shared/domain";
 import { describeDue } from "@shared/dates";
 import { useResource } from "@/lib/resource";
@@ -408,6 +408,7 @@ export function TodayScreen({
                     ? `Next up: ${today.upcoming[0]?.title} ${describeDue(
                         today.upcoming[0]?.dueOn ?? today.day,
                         today.day,
+                        region(),
                       ).toLowerCase()}.`
                     : today.cold.length > 0
                       ? "Add a task, or pick someone up from Going quiet."
@@ -617,7 +618,7 @@ function rememberMode(set: (mode: LineMode) => void, mode: LineMode): void {
 /** "Saturday, 19 September": the day as it is said, built from its parts so it is never the day before. */
 function longDay(day: string): string {
   const [year, month, date] = day.split("-").map(Number);
-  return new Intl.DateTimeFormat(undefined, { weekday: "long", day: "numeric", month: "long" }).format(
+  return dateFormatter({ weekday: "long", day: "numeric", month: "long" }).format(
     new Date(year ?? 1970, (month ?? 1) - 1, date ?? 1),
   );
 }

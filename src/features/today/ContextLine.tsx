@@ -6,6 +6,7 @@ import { messageOf } from "@/lib/errors";
 import { ErrorLine } from "@/components/ErrorLine";
 import { useEmberMood } from "@/components/Ember";
 import { LineModes } from "./LineModes";
+import { numberText } from "@/lib/format";
 
 /**
  * The same line again, in its third mode: a topic in, and everything Caulder
@@ -101,7 +102,7 @@ export function ContextLine({
         <div className="quickadd__read" role="status">
           <span className="quickadd__kept">
             <ClipboardCheck size={14} aria-hidden />
-            <strong>{copied.topic}</strong> copied &mdash; {copied.chars.toLocaleString()} characters
+            <strong>{copied.topic}</strong> copied &mdash; {numberText(copied.chars)} characters
             {copied.went.length > 0 ? `: ${copied.went.join(", ")}` : ", and Caulder holds no record of it"}.
             {copied.cut ? " It did not all fit; the longest pages say where they were cut." : ""} Paste it into any
             AI. Locked journal days and anything you marked private were left out, and the paste says so at its

@@ -4,7 +4,7 @@ import { TASK_AREA_LABEL, type TaskArea } from "@shared/domain";
 import { describeDue } from "@shared/dates";
 import { daysInWords, type GoalDetail } from "@shared/goals";
 import { ErrorLine } from "@/components/ErrorLine";
-import { formatDay } from "@/lib/format";
+import { formatDay, numberText, region } from "@/lib/format";
 import { messageOf } from "@/lib/errors";
 import { GoalChart } from "./GoalChart";
 
@@ -17,7 +17,7 @@ import { GoalChart } from "./GoalChart";
  * level.
  */
 
-const format = (value: number) => value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+const format = (value: number) => numberText(value, 2);
 
 /** The word for how a goal is doing, and what it is for the colour. */
 function standing(goal: GoalDetail): { words: string; tone: "good" | "warn" | "quiet" } | null {
@@ -156,7 +156,7 @@ export function GoalCard({
           )}
           {last && (
             <span className="goalcard__last">
-              Last: {describeDue(last.day, goal.today).toLowerCase()}
+              Last: {describeDue(last.day, goal.today, region()).toLowerCase()}
               {last.note ? `, "${last.note}"` : ""}
               <button
                 type="button"

@@ -395,6 +395,14 @@ test("what was never connected is offered on Today, and each part of it can be w
   await expect(google).toHaveAttribute("title", /there is no Caulder account to make/);
   await expect(nudge).toContainText("there is no Caulder account to make");
 
+  // First, a copy off this computer (phase 24): it goes to the guide's first step.
+  const copy = nudge.getByRole("button", { name: "Keep a copy elsewhere", exact: true });
+  await expect(copy).toBeVisible();
+  await copy.click();
+  await expect(page.getByText("A copy somewhere else")).toBeVisible();
+  await expect(page.locator(".safecopy").getByRole("button", { name: /Choose a folder/ })).toBeVisible();
+  await page.getByLabel("Main").getByRole("button", { name: "Today", exact: true }).click();
+
   await nudge.getByRole("button", { name: "Skip: Connect an AI" }).click();
   await expect(nudge.getByRole("button", { name: "Connect an AI", exact: true })).toHaveCount(0);
 

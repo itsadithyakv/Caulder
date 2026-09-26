@@ -8,6 +8,7 @@ import { useEmberMood } from "@/components/Ember";
 import { Markdown } from "@/features/brain/Markdown";
 import { modeInfo, type LineMode } from "@shared/ember";
 import { LineModes } from "./LineModes";
+import { numberText } from "@/lib/format";
 
 /**
  * The same line on Today, asked of your AI instead of read by Caulder.
@@ -206,12 +207,12 @@ function Answer({
         <summary>What was sent</summary>
         <p>
           To {answer.service} ({answer.model}): the question and {answer.sent.documents.length} documents (
-          {answer.sent.documents.join(", ")}) &mdash; {answer.sent.characters.toLocaleString()} characters, numbers
+          {answer.sent.documents.join(", ")}) &mdash; {numberText(answer.sent.characters)} characters, numbers
           masked.{" "}
           {answer.sent.personal
             ? "Your own pages went too, which you allowed in Settings. Locked and private journal days never do."
             : "None of your own pages went; Settings can allow that."}{" "}
-          {answer.usage.input.toLocaleString()} tokens in, {answer.usage.output.toLocaleString()} out.
+          {numberText(answer.usage.input)} tokens in, {numberText(answer.usage.output)} out.
         </p>
       </details>
     </div>

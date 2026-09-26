@@ -125,7 +125,7 @@ import type {
   EmailTemplate,
   TemplateInput,
 } from "./email";
-import type { BackupFile, DriveBackup, DriveBackups, ExportEverything, UpdateState } from "./data";
+import type { BackupFile, DriveBackup, DriveBackups, ExportEverything, SyncedFolder, UpdateState } from "./data";
 import type {
   ChosenFile,
   ColumnMapping,
@@ -539,6 +539,8 @@ export const CHANNELS = {
   dataMirror: "data:mirror",
   dataChooseMirror: "data:choose-mirror",
   dataStopMirror: "data:stop-mirror",
+  dataSynced: "data:synced",
+  dataUseSynced: "data:use-synced",
   dataRestore: "data:restore",
   dataExportAll: "data:export-all",
   dataRevealFolder: "data:reveal-folder",
@@ -1553,6 +1555,10 @@ export type DataApi = {
   /** Asks for a folder, copies a backup there at once, and keeps copying. Null if cancelled. */
   chooseMirror: () => Promise<string | null>;
   stopMirror: () => Promise<null>;
+  /** Folders OneDrive, Dropbox or Google Drive keep in step here, each with where the copies would go (phase 24). */
+  synced: () => Promise<SyncedFolder[]>;
+  /** Copies backups into that service's folder, named rather than given as a path; one is copied at once. */
+  useSynced: (id: SyncedFolder["id"]) => Promise<string>;
 };
 
 export type CaulderApi = {

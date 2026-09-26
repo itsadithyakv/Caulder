@@ -5,6 +5,7 @@ import { describeDue, shiftDay, today as todayIn } from "@shared/dates";
 import { useWorkspace } from "@/lib/workspace";
 import { TaskForm } from "@/features/today/TaskForm";
 import { messageOf } from "@/lib/errors";
+import { region } from "@/lib/format";
 
 /**
  * The follow-ups on one lead.
@@ -157,7 +158,7 @@ export function LeadTasks({
                           task.dueOn < day ? "taskrow__due taskrow__due--late" : "taskrow__due"
                         }
                       >
-                        {describeDue(task.dueOn, day)}
+                        {describeDue(task.dueOn, day, region())}
                       </span>
                     </span>
                   </p>

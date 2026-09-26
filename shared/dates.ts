@@ -230,7 +230,7 @@ export function overlaps(
  * How a due date reads to a person. "Today" and "Tomorrow" are what the eye
  * looks for; past that, a count is easier to judge than a date.
  */
-export function describeDue(due: Day, todayDay: Day): string {
+export function describeDue(due: Day, todayDay: Day, locale?: string): string {
   const delta = daysBetween(todayDay, due);
 
   if (delta === 0) return "Today";
@@ -239,9 +239,12 @@ export function describeDue(due: Day, todayDay: Day): string {
   if (delta < 0) return `${Math.abs(delta)} days ago`;
   if (delta < 7) return `In ${delta} days`;
 
-  return new Intl.DateTimeFormat(undefined, {
+  // Midnight UTC, written in UTC: in the Americas the local clock would make
+  // it the evening before (phase 24).
+  return new Intl.DateTimeFormat(locale, {
     day: "numeric",
     month: "short",
+    timeZone: "UTC",
     ...(due.slice(0, 4) === todayDay.slice(0, 4) ? {} : { year: "numeric" }),
   }).format(new Date(`${due}T00:00:00Z`));
 }

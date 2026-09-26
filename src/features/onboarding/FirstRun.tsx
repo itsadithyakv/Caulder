@@ -136,10 +136,10 @@ export function FirstRun({
       kind: "solo",
       mode,
       logo: sample ? null : logo,
-      // The sample is a company in India, whatever the computer: its schools,
-      // numbers and prices were written there.
-      country: sample ? "IN" : country,
-      currency: sample ? "INR" : money,
+      // The sample is a studio with clients anywhere, priced in dollars. It
+      // sits where you are, so its dates and numbers read your way.
+      country: sample ? (country ?? "US") : country,
+      currency: sample ? "USD" : money,
     });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Check the details above.");
@@ -182,11 +182,12 @@ export function FirstRun({
       >
         {!onCancel && <span className="brandmark firstrun__mark anim-mark" aria-hidden />}
         <h1 className="firstrun__title">
-          {onCancel ? "Add a company" : "Set up your company"}
+          {onCancel ? "Add a company" : "Your company, and your life around it"}
         </h1>
         <p className="firstrun__body">
-          Its contacts, deals, calendar and tasks all live here. A second company
-          gets its own, and the sidebar switches between them.
+          {onCancel
+            ? "Its contacts, deals, money and pages live here. The sidebar switches between companies; your days, journal and memories stay yours across all of them."
+            : "Caulder is where a one-person company is run: who you sell to, your money, your days, and you. All of it in one file on this computer, with no account."}
         </p>
 
         <div className="field firstrun__wide">

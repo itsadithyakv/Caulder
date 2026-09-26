@@ -728,6 +728,18 @@
 
 .setup__lead + .setup__lead { margin-top: var(--space-2); }
 
+/* A copy somewhere else, on the first run (phase 24): where backups now go. */
+.safecopy__done {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.safecopy__done svg { flex: none; color: var(--accent-strong); }
+
 /* Adding a mail account: the provider, the address and password, and the server tucked away unless it is needed. */
 .mailacct {
   display: flex;

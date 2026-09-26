@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { LaidOutBlock, WeekPlan } from "@shared/domain";
 import { themeOn, type DayTheme } from "@shared/goals";
 import { minutesOf, timeOf } from "@shared/dates";
-import { formatDuration, formatTime } from "@/lib/format";
+import { dateFormatter, formatDuration, formatTime } from "@/lib/format";
 import { HOUR_PX, PER_MINUTE, hourWindow, snapTo } from "./grid";
 
 /**
@@ -290,8 +290,9 @@ function DraggedInto({ week, drag, top }: { week: WeekPlan; drag: Drag; top: num
   );
 }
 
-const weekdayFormat = new Intl.DateTimeFormat(undefined, { weekday: "short" });
-const dateFormat = new Intl.DateTimeFormat(undefined, { day: "numeric" });
+// Midnight UTC, written in UTC, so the Americas do not see the day before.
+const weekdayFormat = { format: (date: Date) => dateFormatter({ weekday: "short", timeZone: "UTC" }).format(date) };
+const dateFormat = { format: (date: Date) => dateFormatter({ day: "numeric", timeZone: "UTC" }).format(date) };
 
 function weekdayName(day: string): string {
   return weekdayFormat.format(new Date(`${day}T00:00:00Z`));

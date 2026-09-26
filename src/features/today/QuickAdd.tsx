@@ -30,7 +30,7 @@ import { areaOpinion, secondOpinion, type Example } from "@shared/opinion";
 import { REMIND_ME } from "@shared/nudges";
 import { occurrencesOf } from "@shared/repeat";
 import { daysBetween, minutesOf, timeNow, today as todayIn } from "@shared/dates";
-import { formatDuration, formatTime } from "@/lib/format";
+import { dateFormatter, formatDuration, formatTime, numberText } from "@/lib/format";
 import { messageOf } from "@/lib/errors";
 
 /**
@@ -100,7 +100,7 @@ function sayAsk(ask: Ask): string {
     case "update":
       return `Save ${[ask.phone, ask.email].filter(Boolean).join(" and ")} on ${ask.contact.name}`;
     case "cost":
-      return `${ask.title}: ${ask.amount.toLocaleString()} ${ask.cycle === "monthly" ? "a month" : ask.cycle === "yearly" ? "a year" : "a quarter"}`;
+      return `${ask.title}: ${numberText(ask.amount)} ${ask.cycle === "monthly" ? "a month" : ask.cycle === "yearly" ? "a year" : "a quarter"}`;
   }
 }
 
@@ -1452,14 +1452,13 @@ function whenLabel(day: string, today: string): string {
   if (ahead === 0) return "Today";
   if (ahead === 1) return "Tomorrow";
   if (ahead > 1 && ahead < 7) {
-    return new Intl.DateTimeFormat(undefined, { weekday: "long" }).format(
-      new Date(`${day}T00:00:00Z`),
-    );
+    return dateFormatter({ weekday: "long", timeZone: "UTC" }).format(new Date(`${day}T00:00:00Z`));
   }
-  return new Intl.DateTimeFormat(undefined, {
+  return dateFormatter({
     weekday: "short",
     day: "numeric",
     month: "short",
+    timeZone: "UTC",
     ...(day.slice(0, 4) === today.slice(0, 4) ? {} : { year: "numeric" }),
   }).format(new Date(`${day}T00:00:00Z`));
 }

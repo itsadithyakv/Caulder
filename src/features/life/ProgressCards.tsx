@@ -4,7 +4,7 @@ import { TASK_AREA_LABEL } from "@shared/domain";
 import { HAPPENING_LABEL, type Progress } from "@shared/progress";
 import { Card } from "@/components/Card";
 import { ErrorLine } from "@/components/ErrorLine";
-import { formatDay, formatDuration } from "@/lib/format";
+import { formatDay, formatDuration, numberText } from "@/lib/format";
 import { messageOf } from "@/lib/errors";
 
 /**
@@ -56,10 +56,10 @@ function LevelCard({ progress }: { progress: Progress }) {
         </p>
         <div className="level__progress">
           <p className="level__xp">
-            <strong>{level.xp.toLocaleString()} XP</strong>
+            <strong>{numberText(level.xp)} XP</strong>
             <span className="card__hint">
               {" "}
-              · {left.toLocaleString()} to level {level.level + 1}
+              · {numberText(left)} to level {level.level + 1}
             </span>
           </p>
           <span
@@ -80,8 +80,8 @@ function LevelCard({ progress }: { progress: Progress }) {
           {sources.map((source) => (
             <li key={source.kind} className="level__source">
               <span className="level__sourceName">{HAPPENING_LABEL[source.kind]}</span>
-              <span className="level__sourceCount">{source.kind === "time" ? formatDuration(source.count) : source.count.toLocaleString()}</span>
-              <span className="level__sourceXp">{source.xp.toLocaleString()} XP</span>
+              <span className="level__sourceCount">{source.kind === "time" ? formatDuration(source.count) : numberText(source.count)}</span>
+              <span className="level__sourceXp">{numberText(source.xp)} XP</span>
             </li>
           ))}
         </ul>

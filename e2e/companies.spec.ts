@@ -47,7 +47,7 @@ test("first run creates a company and the sidebar shows it", async () => {
 
   // No company yet, so the app opens straight into setup rather than an
   // empty shell.
-  await expect(page.getByRole("heading", { name: "Set up your company" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your company, and your life around it" })).toBeVisible();
 
   await page.getByLabel("Company name").fill("Unifloe");
   // The accent is folded away with the logo and the timezone.
@@ -79,7 +79,7 @@ test("the company and its accent survive a restart", async () => {
 
   // Setup must not reappear now that a company exists.
   await expect(
-    page.getByRole("heading", { name: "Set up your company" }),
+    page.getByRole("heading", { name: "Your company, and your life around it" }),
   ).toHaveCount(0);
 });
 

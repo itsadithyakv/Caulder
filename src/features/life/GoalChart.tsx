@@ -1,6 +1,6 @@
 import { daysBetween } from "@shared/dates";
 import type { GoalDetail } from "@shared/goals";
-import { formatDay } from "@/lib/format";
+import { formatDay, numberText } from "@/lib/format";
 
 /**
  * A goal's line: where it has been, where it should be by now, and where it
@@ -18,7 +18,7 @@ import { formatDay } from "@/lib/format";
  * pointed at. The whole is one picture to a screen reader, with a sentence.
  */
 
-const format = (value: number) => value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+const format = (value: number) => numberText(value, 2);
 
 export function GoalChart({ goal, summary }: { goal: GoalDetail; summary: string }) {
   const target = goal.target;

@@ -4,7 +4,7 @@ import type { StudiesOverview } from "@shared/life";
 import { describeDue } from "@shared/dates";
 import { Card } from "@/components/Card";
 import { ErrorLine } from "@/components/ErrorLine";
-import { formatDay, formatDuration } from "@/lib/format";
+import { formatDay, formatDuration, region } from "@/lib/format";
 import { messageOf } from "@/lib/errors";
 
 /**
@@ -68,7 +68,7 @@ export function StudiesPanel({
                   <span className="coldrow__meta">
                     {[exam.course?.title, formatDay(exam.on), exam.at].filter(Boolean).join(" · ")}
                   </span>
-                  <span className={`coldrow__days${exam.daysLeft <= 3 ? " life__soon" : ""}`}>{describeDue(exam.on, data.today)}</span>
+                  <span className={`coldrow__days${exam.daysLeft <= 3 ? " life__soon" : ""}`}>{describeDue(exam.on, data.today, region())}</span>
                 </button>
               </li>
             ))}

@@ -3,6 +3,7 @@ import { Card } from "@/components/Card";
 import { ErrorLine } from "@/components/ErrorLine";
 import { messageOf } from "@/lib/errors";
 import type { UnderstandState } from "@shared/understand";
+import { numberText } from "@/lib/format";
 
 /**
  * Understanding, on this machine (PLAN.md, part five): a small model that
@@ -80,8 +81,8 @@ export function UnderstandCard() {
       {state?.here && state.on && (
         <p className="card__hint" role="status">
           {state.waiting > 0
-            ? `Read ${state.read.toLocaleString()} so far; ${state.waiting.toLocaleString()} waiting.`
-            : `Read ${state.read.toLocaleString()} things, and up to date.`}
+            ? `Read ${numberText(state.read)} so far; ${numberText(state.waiting)} waiting.`
+            : `Read ${numberText(state.read)} things, and up to date.`}
         </p>
       )}
 

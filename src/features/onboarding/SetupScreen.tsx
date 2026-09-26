@@ -3,6 +3,7 @@ import type { RouteId } from "@/app/routes";
 import { Card } from "@/components/Card";
 import { GoogleCard } from "@/features/settings/GoogleCard";
 import { AiCard } from "@/features/settings/AiCard";
+import { SafeCopy } from "./SafeCopy";
 
 /**
  * What to connect, once, after the company is made.
@@ -34,9 +35,10 @@ export function SetupScreen({
           on this computer &mdash; nothing to sign in to, nothing sent anywhere.
         </p>
         <p className="setup__lead">
-          The two below belong to somebody else, which is the only reason they take any setting up:{" "}
-          <strong>Google</strong>, for your calendar, tasks and email, and an <strong>AI</strong>, to
-          ask the brain questions. Both optional, both can wait.
+          First, a copy of it somewhere other than this computer. Then two things that belong to somebody
+          else, which is the only reason they take any setting up: <strong>Google</strong>, for your
+          calendar, tasks and email, and an <strong>AI</strong>, to ask the brain questions. Both
+          optional, both can wait.
         </p>
         <div className="actions">
           <button type="button" className="btn btn--sm btn--ghost" onClick={onDone}>
@@ -46,9 +48,20 @@ export function SetupScreen({
         </div>
       </Card>
 
+      {/* First, because it is the one thing here that protects what is
+          already yours: a copy of it somewhere other than this computer. */}
       <section className="setup__step">
         <h2 className="setup__title">
           <span className="setup__num">1</span>
+          A copy somewhere else
+          <span className="badge badge--neutral">Recommended &middot; 1 min</span>
+        </h2>
+        <SafeCopy />
+      </section>
+
+      <section className="setup__step">
+        <h2 className="setup__title">
+          <span className="setup__num">2</span>
           Google: your calendar, tasks, email, contacts and backups
           <span className="badge badge--neutral">Optional &middot; 5 min</span>
         </h2>
@@ -57,7 +70,7 @@ export function SetupScreen({
 
       <section className="setup__step">
         <h2 className="setup__title">
-          <span className="setup__num">2</span>
+          <span className="setup__num">3</span>
           An AI, to ask the brain
           <span className="badge badge--neutral">Optional &middot; 2 min</span>
         </h2>
@@ -71,7 +84,7 @@ export function SetupScreen({
 
       <section className="setup__step">
         <h2 className="setup__title">
-          <span className="setup__num">3</span>
+          <span className="setup__num">4</span>
           Your contacts
         </h2>
         <Card title="Bring the list you already have">
@@ -94,7 +107,7 @@ export function SetupScreen({
 
       <section className="setup__step">
         <h2 className="setup__title">
-          <span className="setup__num">4</span>
+          <span className="setup__num">5</span>
           What the company knows
         </h2>
         <Card title="Write down the things you keep looking up">

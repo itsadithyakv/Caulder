@@ -540,6 +540,8 @@ const api: CaulderApi = {
     mirror: () => invoke(CHANNELS.dataMirror),
     chooseMirror: () => invoke(CHANNELS.dataChooseMirror),
     stopMirror: () => invoke(CHANNELS.dataStopMirror),
+    synced: () => invoke(CHANNELS.dataSynced),
+    useSynced: (id) => invoke(CHANNELS.dataUseSynced, id),
   },
 };
 

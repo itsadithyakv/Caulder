@@ -8,6 +8,7 @@ import { addReminder } from "./nudges";
 import { blockKindFor } from "@shared/quickadd";
 import { blockInput, taskInput, type Task, type TaskKind } from "@shared/domain";
 import { shiftDay, today as todayIn } from "@shared/dates";
+import { localeFor } from "@shared/countries";
 import { withHome } from "../repositories/companies";
 import {
   moveInput,
@@ -399,9 +400,10 @@ export function answerQuestion(
       const biggest = db
         .prepare(`SELECT what, SUM(amount) AS amount FROM spend WHERE company_id = ? AND amount > 0 AND spent_on BETWEEN ? AND ? AND what LIKE ? GROUP BY lower(what) ORDER BY amount DESC LIMIT 3`)
         .all(companyId, asked.from, asked.to, like) as { what: string; amount: number }[];
-      const currency = (db.prepare(`SELECT currency FROM companies WHERE id = ?`).get(companyId) as { currency: string } | undefined)?.currency ?? "INR";
-      const money = (amount: number) =>
-        new Intl.NumberFormat(currency === "INR" ? "en-IN" : undefined, { style: "currency", currency, maximumFractionDigits: 0 }).format(amount);
+      const place = db.prepare(`SELECT currency, country FROM companies WHERE id = ?`).get(companyId) as { currency: string; country: string | null } | undefined;
+      const currency = place?.currency ?? "INR";
+      const locale = localeFor(place?.country) ?? (currency === "INR" ? "en-IN" : undefined);
+      const money = (amount: number) => new Intl.NumberFormat(locale, { style: "currency", currency, maximumFractionDigits: 0 }).format(amount);
       return {
         say:
           total.n === 0

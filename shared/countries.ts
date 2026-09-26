@@ -121,6 +121,17 @@ export function guessCountry(language: string | undefined, timezone: string | un
   return null;
 }
 
+/**
+ * How money and dates are written for a company in this country (phase 24):
+ * English words, the region's ways - `en-IN` groups 1,85,000, `en-US` puts
+ * the month first, `en-DE` keeps a 24-hour clock. Undefined, which is this
+ * computer's own setting, when no country is known.
+ */
+export function localeFor(country: string | null | undefined): string | undefined {
+  const known = countryOf(country);
+  return known ? `en-${known.code}` : undefined;
+}
+
 /** The currency a company in this country starts on; its own choice wins afterwards. */
 export function currencyFor(country: string | null): string | null {
   return countryOf(country)?.currency ?? null;
