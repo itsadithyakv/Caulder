@@ -42,6 +42,7 @@ import type { AnswerInput, SeenInput, TuneState } from "./tune";
 import type { Lesson, LessonInput } from "./lessons";
 import type { NudgeSettings } from "./nudges";
 import type { UnderstandState } from "./understand";
+import type { Example } from "./opinion";
 import type { Answer, LineContext, MoveInput, Question, TaskSnapshot } from "./lines";
 import type { MailAccount, MailAccountInput } from "./mailaccounts";
 import type { PageTasks } from "./steps";
@@ -485,6 +486,7 @@ export const CHANNELS = {
   understandState: "understand:state",
   understandSet: "understand:set",
   understandAgain: "understand:again",
+  understandRead: "understand:read",
   linesContext: "lines:context",
   linesMove: "lines:move",
   linesCancel: "lines:cancel",
@@ -1422,6 +1424,12 @@ export type UnderstandApi = {
   set: (on: boolean) => Promise<UnderstandState>;
   /** Read everything again, from the start. */
   again: () => Promise<UnderstandState>;
+  /**
+   * What a line's neighbours in meaning were filed as, for the line's second
+   * opinion (shared/opinion.ts). None when understanding is off or the model
+   * is not here, and the line reads by its rules alone.
+   */
+  read: (companyId: string, text: string) => Promise<Example[]>;
 };
 
 export type LessonsApi = {

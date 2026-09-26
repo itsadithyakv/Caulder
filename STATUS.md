@@ -63,8 +63,16 @@ tests in 144 files, with the journal work above in the same tree.
     `smoke:packaged` passes all 11 checks, "reads for meaning" among them.
     The first start of a new build was once slower than 60 seconds while
     Windows looked the runtime over, so the check waits 90.
-  - **Not done:** nothing uses the vectors yet. The measuring stick moved to
-    the start of phase 20, which gives the quick line its second opinion.
+  - **Phase 20 was done on 26 September 2026.** The quick line takes a
+    second opinion on the readings it only guessed at: the kind, where a
+    memory goes, and a task's area.
+    - On 89 labelled lines it gets 73 right against 63 by the rules alone,
+      and 75 against 62 with your own things filed; 6 of 9 memories go on
+      the right page. Nothing the rules had right is made wrong.
+    - The thresholds were tuned on those same lines, so the gain on new
+      lines will be smaller. Measure again on new lines before moving them.
+  - **Not done:** `recall` does not use meaning yet. That is phase 21, with
+    arranging memories.
   - **Get the model with `npm run fetch-model`.** It is pinned and checked,
     and kept out of git. Without it everything else works and its tests are
     skipped.
@@ -184,8 +192,10 @@ the code, and 85 realistic lines put through the quick line. Items marked
 
 ## Next
 
-1. Phase 20:
-   - first the measuring stick;
-   - then the line's second opinion.
+1. Phase 21, memories arranged:
+   - repeats marked on their own;
+   - loose lines gathered into pages, asked;
+   - related things shown;
+   - recall by meaning.
 2. Decide on campaigns (item 10). Ctrl+K for products and deals (item 12)
    needs a migration.

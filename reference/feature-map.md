@@ -45,7 +45,7 @@ The systems everything else plugs into.
 | --- | --- | --- |
 | Take a line of text from the person | The quick line: `readCapture` (`shared/capture.ts`) and `parseQuick` (`shared/quickadd.ts`). A new kind follows the recipe under "Adding a kind to the line". | A second parser, a second input box, a reader called from `QuickAdd.tsx` beside `readCapture`. |
 | Find things by their words | The FTS5 index `brain_search` + `search_map`, queried by `searchEverything` (`repositories/search.ts`). Kept by triggers, so writers never touch it. | `LIKE` scans in a service. Editing migration 20's trigger SQL (frozen) - a new source is a new migration that drops and recreates the triggers. |
-| Find things by what they mean | `nearestTo` (`services/understand.ts`) over the vectors the queue keeps (`repositories/vectors.ts`, migration 46). Arithmetic is `shared/understand.ts`; the model is asked only through `understand/host.ts`. | A second model, a second vector store, or calling onnxruntime anywhere but `understand/embed.ts`. Reading the journal or private lines. |
+| Find things by what they mean | `nearestTo` or, for the line, `examplesFor` + `shared/opinion.ts` (`services/understand.ts`) over the vectors the queue keeps (`repositories/vectors.ts`, migration 46). Arithmetic is `shared/understand.ts`; the model is asked only through `understand/host.ts`. | A second model, a second vector store, or calling onnxruntime anywhere but `understand/embed.ts`. Reading the journal or private lines. |
 | Record that something happened with a contact | `writeActivity` (`repositories/leads.ts`) - the append-only history. | A new log table. Editing a history entry (a correction is a new entry). |
 | Link two things | A `[[Label|kind:id]]` token in page text (`shared/links.ts`). `brain_links` is rebuilt from the text on every save. Kinds: `page`, `contact`, `product`, `person`, `document`. | Writing `brain_links` directly. |
 | Put a page under another | A first line `Part of [[Parent|page:id]]` (`services/remember.ts`), walked by `underOf` / `trailsOf` (`shared/memories.ts`). | A parent column. |
@@ -250,7 +250,8 @@ A small model (all-MiniLM-L6-v2, int8, 23 MB) that reads pages, memories, contac
 - UI: `src/features/settings/UnderstandCard.tsx` (This computer) · Tables: `vectors`, `embed_queue` (migration 46) · IPC: `understand:` (state, set, again) · Setting: `understandOff`
 - The model is fetched, not committed: `npm run fetch-model` into `resources/model`; the installer carries it beside the executable. Without it everything else works and its tests are skipped.
 - Tests: `shared/understand.test.ts`, `repositories/vectors.test.ts`, `services/understand.test.ts`, `understand/embed.test.ts` (the real model); packaged: `smoke:packaged`
-- Touches: nothing yet - phase 20 gives the quick line a second opinion from it, phase 21 arranges memories, phase 22 chooses what goes to an AI.
+- Second opinion (phase 20): `examplesFor` in `services/understand.ts` turns the nearest vectors into votes - seeds (`shared/understand-seeds.ts`), your tasks with their areas, memories, notes, idea pages, and your own pages as homes for a memory; never contacts or a company's pages. The decision is `shared/opinion.ts`. The measuring stick is `understand/eval.test.ts` over `understand/lines.eval.ts` (`MEASURE=all` prints every line).
+- Touches: the quick line (kind, where a memory goes, a task's area). Phase 21 arranges memories, phase 22 chooses what goes to an AI.
 
 ### Search everything (Ctrl+K)
 One FTS5 index over pages, contacts, notes, history, invoices and people; words quoted and made prefixes; bm25 with the title weighted 8 and notes and history pushed down.
@@ -320,6 +321,7 @@ plus a `because` sentence, and chips let the person change it.
 ### The smart line on Today
 Reads any line, shows what it will do and where it goes, and on Enter writes it. The same card has two other modes: Ask (your AI) and Copy context (the topic brief).
 - Asking your AI is only the Ask switch in `LineModes.tsx` ("Ask the AI"), drawn when an AI is connected; `QuickAdd` has no switch of its own.
+- A second opinion from the model on this machine (phase 20): a reading marked `soft` (the fallbacks at the end of `readCapture`), or a task with no area, is sent through `understand:read` after a 250 ms pause; `shared/opinion.ts` (`secondOpinion`, `areaOpinion`) decides. Order: the chip pressed, a lesson, the model, the rules. Says why in `[data-opinion]`. e2e `quickadd.spec.ts` (skipped without the model).
 - UI: `src/features/today/QuickAdd.tsx` (`keep()` switches on the kind), `LineModes.tsx`, `LinePanels.tsx`, `AskLine.tsx`, `ContextLine.tsx`, `Remember.tsx`
 - Order inside `QuickAdd.tsx`: context loaded on focus, `cleanPaste`, `followOn`, `parseQuick`, `readCapture`, then `readQuestion` and `readEdit` (which win), then `voteKind` from lessons, then the chip the person pressed.
 - Writes: tasks, blocks, reminders, contact history, new contacts, brain pages (memories, ideas, costs), journal, private lines, habit ticks, hobby time, measures, the shelf, spend, navigation.

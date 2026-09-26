@@ -1,5 +1,5 @@
 import { test, expect, _electron as electron, type ElectronApplication, type Page } from "@playwright/test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { passSetup } from "./nav";
@@ -963,4 +963,28 @@ test("A from another screen lands in the line", async () => {
   await expect(page.getByLabel("Anything, in one line")).toBeFocused();
   // And the A itself did not land in the line.
   await expect(page.getByLabel("Anything, in one line")).toHaveValue("");
+});
+
+// The model on this machine (PLAN.md, part five, phase 20). Not in git: npm run
+// fetch-model puts it in resources/model, and this is skipped without it.
+const MODEL_HERE = existsSync(join(process.cwd(), "resources", "model", "model.onnx"));
+
+test("a line the rules only guessed at is given a second opinion, and kept where it says", async () => {
+  test.skip(!MODEL_HERE, "The model is not on this machine: npm run fetch-model.");
+  const page = await openApp();
+  const line = page.getByLabel("Anything, in one line");
+
+  // No marker word, so the rules fall to a note; what it sounds like is an idea.
+  await line.fill("a plugin that summarises lectures");
+  const reading = page.locator(".quickadd__reading");
+  // The model starts in its own process the first time it is asked.
+  await expect(reading.locator("[data-opinion]")).toHaveText(/it sounds like an idea/, { timeout: 20_000 });
+
+  await line.press("Enter");
+  await expect(page.locator(".quickadd__added")).toBeVisible();
+  const ideas = await page.evaluate(async () => {
+    const { activeCompanyId } = await window.caulder.companies.list();
+    return (await window.caulder.brain.section(activeCompanyId ?? "", "ideas", false)).map((one) => one.title);
+  });
+  expect(ideas.some((title) => /plugin that summarises lectures/i.test(title))).toBe(true);
 });

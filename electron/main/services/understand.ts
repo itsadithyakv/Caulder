@@ -1,5 +1,8 @@
 import type { Db } from "../db/connection";
-import { MODEL, fromBytes, nearest, type UnderstandState } from "@shared/understand";
+import { MODEL, fromBytes, nearest, similarity, type UnderstandState } from "@shared/understand";
+import { SEEDS } from "@shared/understand-seeds";
+import { OPINION, type Example } from "@shared/opinion";
+import type { LessonKind } from "@shared/lessons";
 import { getSetting, setSetting } from "../repositories/settings";
 import {
   dequeue,
@@ -99,6 +102,74 @@ export async function nearestTo(
     sourceId,
     score,
   }));
+}
+
+/* ---- The line's second opinion (phase 20) ---------------------------------- */
+
+/** The seeds, read once a run: they never change while Caulder is open. */
+let seedVectors: Promise<{ kind: LessonKind; vector: Float32Array }[]> | null = null;
+
+function seedsRead(read: Read): Promise<{ kind: LessonKind; vector: Float32Array }[]> {
+  seedVectors ??= (async () => {
+    const lines = (Object.entries(SEEDS) as [LessonKind, readonly string[]][]).flatMap(([kind, said]) => said.map((line) => ({ kind, line })));
+    const vectors = await read(lines.map((each) => each.line));
+    return lines.map((each, at) => ({ kind: each.kind, vector: fromBytes(vectors[at] ?? new Int8Array()) }));
+  })().catch((error: unknown) => {
+    seedVectors = null;
+    throw error;
+  });
+  return seedVectors;
+}
+
+/** Only for the tests, which read with a stand-in. */
+export function forgetSeeds(): void {
+  seedVectors = null;
+}
+
+/** Pages a memory can be kept on: yours, not the company's. */
+const MEMORY_HOMES = new Set(["hobbies", "studies", "ideas", "goals", "remembered"]);
+
+/**
+ * What the line's neighbours in meaning were filed as, for shared/opinion.ts
+ * to weigh: the seeds, and the person's own tasks, memories, notes, ideas and
+ * pages in these workspaces. A contact votes for nothing - who a line is
+ * about is found by name - and neither does a company's page, which is never
+ * where a memory goes.
+ */
+export async function examplesFor(db: Db, read: Read, companyIds: readonly string[], text: string): Promise<Example[]> {
+  const [query] = await read([text]);
+  if (!query) return [];
+  const line = fromBytes(query);
+  const seeds = (await seedsRead(read)).map((seed): Example => ({ kind: seed.kind, score: similarity(line, seed.vector), own: false }));
+
+  const own = vectorsIn(db, companyIds, MODEL)
+    .filter((row) => row.kind !== "contact")
+    .map((row) => ({ row, score: similarity(line, fromBytes(row.vector)) }))
+    .filter((each) => each.score >= OPINION.floor)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, OPINION.most * 2);
+
+  const pageOf = db.prepare(`SELECT id, title, section, template FROM brain_pages WHERE id = ?`);
+  const areaOf = db.prepare(`SELECT area FROM tasks WHERE id = ?`);
+  const examples: Example[] = [];
+  for (const { row, score } of own) {
+    if (row.kind === "task") {
+      const task = areaOf.get(row.sourceId) as { area: string | null } | undefined;
+      examples.push({ kind: "task", score, own: true, area: task?.area ?? null });
+      continue;
+    }
+    if (row.kind === "note") {
+      examples.push({ kind: "note", score, own: true });
+      continue;
+    }
+    const page = pageOf.get(row.sourceId) as { id: string; title: string; section: string; template: string } | undefined;
+    if (!page) continue;
+    if (row.kind === "page" && page.template === "idea") examples.push({ kind: "idea", score, own: true });
+    else if (MEMORY_HOMES.has(page.section)) {
+      examples.push({ kind: row.kind === "memory" ? "memory" : null, score, own: true, page: { id: page.id, title: page.title } });
+    }
+  }
+  return [...examples, ...seeds];
 }
 
 /* ---- In the background ----------------------------------------------------- */

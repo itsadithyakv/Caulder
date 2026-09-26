@@ -26,6 +26,7 @@ import { measuresOf } from "@shared/subjects";
 import type { BrainSectionId } from "@shared/brain";
 import { sayShortcut } from "@shared/domain";
 import { LESSON_KINDS, learntFrom, voteKind, type Lesson, type LessonKind } from "@shared/lessons";
+import { areaOpinion, secondOpinion, type Example } from "@shared/opinion";
 import { REMIND_ME } from "@shared/nudges";
 import { occurrencesOf } from "@shared/repeat";
 import { daysBetween, minutesOf, timeNow, today as todayIn } from "@shared/dates";
@@ -359,6 +360,33 @@ export function QuickAdd({
     [smart, line, known, today, now],
   );
 
+  // A second opinion (PLAN.md, part five, phase 20): only on a reading the
+  // rules were guessing at, asked once the typing pauses, and nothing waits
+  // for it - without understanding, or before it answers, the rules stand.
+  const [heard, setHeard] = useState<{ key: string; examples: Example[] } | null>(null);
+  // Asked too for a task nothing gave an area to: the areas of the person's nearest tasks may.
+  const softKey = smart && line.trim() && (reading?.soft || task.area === null) ? `${companyId}|${line.trim()}` : null;
+  useEffect(() => {
+    if (!softKey) return;
+    const said = line.trim();
+    const timer = setTimeout(() => {
+      window.caulder.understand.read(companyId, said).then(
+        (examples) => setHeard({ key: softKey, examples }),
+        () => undefined,
+      );
+    }, 250);
+    return () => clearTimeout(timer);
+    // The key stands for the line and the workspace.
+  }, [softKey]);
+  const opinion = useMemo(
+    () => (reading && heard && heard.key === softKey ? secondOpinion(reading, heard.examples) : null),
+    [reading, heard, softKey],
+  );
+  /** Where a memory goes: the page the rules found, or the one the model says it belongs with. */
+  const placed = reading?.page ?? opinion?.page ?? null;
+  /** The area the person's nearest tasks agree on, for a task nothing else gave one. */
+  const modelArea = heard && heard.key === softKey && task.area === null ? areaOpinion(heard.examples) : null;
+
   // Not something new: a question to answer, or a change to what is there.
   const asked = useMemo(() => (smart && !plainly && line.trim() ? readQuestion(line, { today, now }) : null), [smart, plainly, line, today, now]);
   const edit = useMemo<Edit | null>(
@@ -396,7 +424,8 @@ export function QuickAdd({
     const kind = voteKind(text, lessons);
     return kind && kind !== reading.kind && reading.options.includes(kind) ? kind : null;
   }, [reading, text, lessons]);
-  const guessedKind: CaptureKind = learntKind ?? reading?.kind ?? "task";
+  // What the person taught it comes first, then the model's opinion, then the rules.
+  const guessedKind: CaptureKind = learntKind ?? opinion?.kind ?? reading?.kind ?? "task";
   const goesTo: CaptureKind = chosen ?? guessedKind;
   const asTask = goesTo === "task";
   const minutes = reading?.minutes ?? length;
@@ -406,7 +435,12 @@ export function QuickAdd({
 
   const question = text.trim().length > 0 && asTask && !edit && !asked ? questions[0] : undefined;
   const fallback = personal ? "personal" : "company";
-  const area = (task.area ?? fallback) as string;
+  const area = (task.area ?? modelArea ?? fallback) as string;
+  /** Said when the area came from the model, so it is never a mystery either. */
+  const modelAreaNote =
+    modelArea && answers.area === undefined
+      ? `${modelArea in TASK_AREA_LABEL ? TASK_AREA_LABEL[modelArea as TaskArea] : modelArea}, like your tasks that sound like it.`
+      : null;
   /** Said under the line when a lesson is why it went where it did, so a lesson is never a mystery. */
   const learntNote = (() => {
     if (answers.area !== undefined || task.area === null || task.area === guessed.unlearnt) return null;
@@ -452,6 +486,7 @@ export function QuickAdd({
     ...(followed.note ? [followed.note] : []),
     ...notes,
     ...(learntNote ? [learntNote] : []),
+    ...(modelAreaNote ? [modelAreaNote] : []),
     ...(remindNote ? [remindNote] : []),
     ...(usualNote ? [usualNote] : []),
     ...(clash ? [`${clash.title} is at ${formatTime(clash.startsAt)} then.`] : []),
@@ -679,7 +714,17 @@ export function QuickAdd({
         }
         summary ||= sayAsk(ask);
       } else if (goesTo === "memory") {
-        const title = await remember(reading.page, reading.topic, reading.branch?.section ?? "ideas", reading.trail, said, reading.fact, reading.about ?? null);
+        // A page the model found is where it goes as it is: its place in the brain is its owner's.
+        const found = !reading.page && placed !== null;
+        const title = await remember(
+          placed,
+          found ? null : reading.topic,
+          reading.branch?.section ?? "ideas",
+          found ? [] : reading.trail,
+          said,
+          reading.fact,
+          reading.about ?? null,
+        );
         summary = `Remembered, under ${title} in the brain`;
       } else if (goesTo === "idea") {
         const page = await window.caulder.brain.create(companyId, "ideas", "idea");
@@ -1028,6 +1073,12 @@ export function QuickAdd({
             <strong className="quickadd__title">
               {goesTo === "command" && reading.ask ? sayAsk(reading.ask) : reading.text || "…"}
             </strong>
+            {/* Said only when the model changed something, and nobody has chosen since. */}
+            {opinion?.because && !chosen && !learntKind && (
+              <span className="quickadd__note" data-opinion>
+                {opinion.because} ·
+              </span>
+            )}
             <span className="quickadd__note">
               {goesTo === "private"
                 ? passcode
@@ -1070,8 +1121,8 @@ export function QuickAdd({
                         ? "what you did, put where it belongs"
                         : "nothing of yours matches this yet"
                     : goesTo === "memory"
-                      ? reading.page
-                        ? `remembered under ${reading.page.title}, in the brain`
+                      ? placed
+                        ? `remembered under ${placed.title}, in the brain`
                         : `a new page in the brain's ${reading.branch?.section ?? "ideas"}: ${reading.topic ?? ""}${
                             sayTrail(reading.trail) ? `, under ${sayTrail(reading.trail)}` : ""
                           }`
@@ -1211,8 +1262,8 @@ export function QuickAdd({
                   ? reading.contact.name
                   : option === "hobby" && reading.hobby
                     ? reading.hobby.title
-                    : option === "memory" && reading.page
-                      ? reading.page.title
+                    : option === "memory" && placed
+                      ? placed.title
                       : option === "command" && reading.ask
                         ? sayAsk(reading.ask)
                         : GOES_TO[option]}

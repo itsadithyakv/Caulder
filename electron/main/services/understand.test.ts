@@ -7,7 +7,7 @@ import { createPage } from "../repositories/brain";
 import { leadInput } from "@shared/domain";
 import { normalise, toBytes } from "@shared/understand";
 import { queueSize, vectorCount } from "../repositories/vectors";
-import { nearestTo, readQueued, setUnderstanding, understandState, understandingOn, type Read } from "./understand";
+import { examplesFor, forgetSeeds, nearestTo, readQueued, setUnderstanding, understandState, understandingOn, type Read } from "./understand";
 import { MODEL } from "@shared/understand";
 
 /**
@@ -30,6 +30,7 @@ const NOW = "2026-09-26T10:00:00.000Z";
 
 beforeEach(() => {
   asked.length = 0;
+  forgetSeeds();
   db = new Database(":memory:");
   db.pragma("foreign_keys = ON");
   migrate(db);
@@ -70,5 +71,23 @@ describe("the switch", () => {
     expect(understandState(db, true)).toEqual({ on: false, here: true, read: 0, waiting: 0 });
     setUnderstanding(db, true);
     expect(understandingOn(db)).toBe(true);
+  });
+});
+
+describe("the line's neighbours", () => {
+  it("are what the person filed, with their pages - never a contact, never a company's page", async () => {
+    const work = createCompany(db, { name: "Unifloe", accent: "blue", timezone: "Asia/Kolkata" }).id;
+    createPage(db, home, { section: "hobbies", template: "page", title: "Coffee", body: "- **Beans** · ethiopian coffee _(2026-09-20)_" }, NOW);
+    createPage(db, work, { section: "plan", template: "page", title: "Coffee plan", body: "Coffee for the office." }, NOW);
+    createLead(db, work, leadInput.parse({ name: "Coffee Roasters" }));
+    while ((await readQueued(db, read)) > 0);
+
+    const examples = await examplesFor(db, read, [home, work], "a new coffee grinder");
+    const own = examples.filter((each) => each.own);
+    expect(own.map((each) => [each.kind, each.page?.title])).toEqual(expect.arrayContaining([[null, "Coffee"], ["memory", "Coffee"]]));
+    expect(own.some((each) => each.page?.title === "Coffee plan")).toBe(false);
+    expect(own).toHaveLength(2);
+    // And the seeds, every one, for a machine with little of its own.
+    expect(examples.filter((each) => !each.own).length).toBeGreaterThan(50);
   });
 });

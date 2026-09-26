@@ -81,8 +81,8 @@ import { quickAdd } from "../services/quickadd";
 import { addAreaWord, listAreaWords, removeAreaWord } from "../repositories/words";
 import { addLesson, listLessons, removeLesson } from "../repositories/lessons";
 import { nudgeSettings, setNudgeSettings, testNotification } from "../services/nudges";
-import { readEverythingAgain, setUnderstanding, understandState } from "../services/understand";
-import { modelHere, stopModel } from "../understand/host";
+import { examplesFor, readEverythingAgain, setUnderstanding, understandState, understandingOn } from "../services/understand";
+import { modelHere, readLines, stopModel } from "../understand/host";
 import { answerQuestion, cancelTask, lineContext, moveTask, renameTask, restoreTask } from "../services/lines";
 import { ensureHome } from "../services/yourhome";
 import { addMailAccount, listMailAccounts, removeMailAccount, setDefaultMailAccount } from "../services/mailaccounts";
@@ -1387,6 +1387,12 @@ function registerTaskHandlers() {
     setUnderstanding(db, on);
     if (!on) stopModel();
     return understandState(db, modelHere());
+  });
+  handle(CHANNELS.understandRead, async (_event, companyId: unknown, text: unknown) => {
+    const db = getDatabase();
+    if (!understandingOn(db) || !modelHere()) return [];
+    if (typeof text !== "string" || text.trim().length === 0 || text.length > 500) return [];
+    return examplesFor(db, readLines, withHome(db, assertId(companyId, "company id")), text.trim());
   });
   handle(CHANNELS.understandAgain, () => {
     const db = getDatabase();

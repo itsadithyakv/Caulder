@@ -136,6 +136,12 @@ type CaptureReading = {
   because: string;
   /** Every kind the line could sensibly go to, for the chips. */
   options: CaptureKind[];
+  /**
+   * The rules were guessing: the reading came from the fallbacks at the end
+   * of readCapture. Only a soft reading is ever given a second opinion by the
+   * model on this machine (shared/opinion.ts).
+   */
+  soft?: boolean;
 };
 
 const PREFIX = /^\s*(journal|jrnl|diary|j|idea|note|task|todo|remember|memory|mem|urgent|important|imp|asap|priority)\s*[:\-–!]\s*/i;
@@ -935,7 +941,12 @@ export function readCapture(
   // - before "read" gets to make a to-do of "read red rising, loved chapter 25".
   if (reports && (LOOKED_BACK.test(said) || FELT.test(said))) return reading("journal", "it is about your day");
   if (instruction) return reading("task", "it is something to do");
-  if (ahead) return reading("task", "it says when");
+  // From here down the rules are guessing: a when with nothing else to say
+  // what the line is, a fact only shaped like one, a feeling said in passing,
+  // and the note nothing else claimed. These are the only readings the model
+  // on this machine is asked about (phase 20; shared/opinion.ts).
+  const guess = (kind: CaptureKind, because: string): CaptureReading => ({ ...reading(kind, because), soft: true });
+  if (ahead) return guess("task", "it says when");
   // Something said about a page the brain has, or a thing said what it is.
   if (page) return reading("memory", `it is about ${page.title}`);
   // Only shaped like one, so after everything that is surer of itself - and
@@ -943,13 +954,13 @@ export function readCapture(
   // book of the series" is a book, which has a page of its own to start and
   // somewhere to hang it, not one more line on the pile.
   const hasAHome = topic !== null && branch.section !== "ideas";
-  if (trivia && !hasAHome) return learnt();
-  if (topic) return reading("memory", `it says what ${topic} is`);
+  if (trivia && !hasAHome) return { ...learnt(), soft: true };
+  if (topic) return guess("memory", `it says what ${topic} is`);
   // Before "today" gets a say: "felt great today" is about today, not due today.
-  if (FELT.test(said) || doneWord(first)) return reading("journal", "it is about your day");
-  if (reports) return reading("journal", "it is about your day");
-  if (timed) return reading("task", "it says when");
-  return reading("note", "kept to file later");
+  if (FELT.test(said) || doneWord(first)) return guess("journal", "it is about your day");
+  if (reports) return guess("journal", "it is about your day");
+  if (timed) return guess("task", "it says when");
+  return guess("note", "kept to file later");
 }
 
 /**

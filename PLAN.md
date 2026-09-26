@@ -1329,7 +1329,49 @@ The plan as written:
   - 5,000 things are read in under a minute in the background;
   - memory grows by under 60 MB.
 
-### Phase 20 - The line gets a second opinion
+### Phase 20 - The line gets a second opinion - *done 26 September 2026, but for recall*
+
+What was built:
+- **Which readings count as guesses.** `readCapture` marks the fallbacks at
+  its end `soft`: a when with nothing else, an unmarked fact, a new topic, a
+  feeling in passing, and the note nothing else claimed. Only these are ever
+  doubted.
+- **The decision is `shared/opinion.ts`.** It is pure, and every threshold
+  lives there.
+  - `secondOpinion` decides the kind and where a memory goes. Nearest
+    examples vote by closeness cubed, and your own lines count 1.5 times a
+    seed.
+  - Changing the rules' answer needs a clear share of the vote and one close
+    example. The bar is lower over "note" and much higher over a task that
+    has a when.
+  - A memory goes only onto one of your own pages.
+  - `areaOpinion` gives a task an area from your nearest tasks, when nothing
+    else placed it.
+- **The votes** come from `services/understand.ts` `examplesFor`:
+  - about 75 seed lines (`shared/understand-seeds.ts`);
+  - your own tasks (with their areas), memories, notes and idea pages;
+  - your own pages, as places a memory can go;
+  - never a contact or a company's page.
+- **On the quick line.** It asks through `understand:read` after a 250 ms
+  pause, only for a guess or a task with no area.
+  - What you pressed and what you taught come first, then the model, then
+    the rules.
+  - It says why ("it sounds like an idea", "it belongs with Coffee", "College,
+    like your tasks that sound like it").
+- **Measured on 89 labelled lines** (`understand/lines.eval.ts`, run by
+  `eval.test.ts`):
+  - with nothing of your own filed, 63 right by the rules alone and 73 with
+    the model;
+  - with a lived-in machine, 62 and 75, and 6 of 9 memories put on the right
+    page;
+  - **none that the rules had right made wrong**, in either.
+  - The thresholds were set on these same lines, so a fresh set will show a
+    smaller gain. Measure again on new lines before tightening or loosening
+    them.
+- **Not done: merging `recall` with meaning.** The plan lists it among phase
+  21's, and it goes there.
+
+The plan as written:
 
 - **First, the measuring stick** (moved here from phase 19). It uses the
   labelled lines from the tests and the 85 from the second pass on 25
