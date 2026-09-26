@@ -81,6 +81,8 @@ import { quickAdd } from "../services/quickadd";
 import { addAreaWord, listAreaWords, removeAreaWord } from "../repositories/words";
 import { addLesson, listLessons, removeLesson } from "../repositories/lessons";
 import { nudgeSettings, setNudgeSettings, testNotification } from "../services/nudges";
+import { readEverythingAgain, setUnderstanding, understandState } from "../services/understand";
+import { modelHere, stopModel } from "../understand/host";
 import { answerQuestion, cancelTask, lineContext, moveTask, renameTask, restoreTask } from "../services/lines";
 import { ensureHome } from "../services/yourhome";
 import { addMailAccount, listMailAccounts, removeMailAccount, setDefaultMailAccount } from "../services/mailaccounts";
@@ -1376,6 +1378,21 @@ function registerTaskHandlers() {
   handle(CHANNELS.nudgesGet, () => nudgeSettings(getDatabase()));
   handle(CHANNELS.nudgesSet, (_event, raw: unknown) => setNudgeSettings(getDatabase(), raw));
   handle(CHANNELS.nudgesTest, () => testNotification(() => BrowserWindow.getAllWindows().find((w) => !w.isDestroyed() && w.webContents.getURL().indexOf("#") === -1) ?? null));
+
+  // Understanding, on this machine: the switch, and how far it has read.
+  handle(CHANNELS.understandState, () => understandState(getDatabase(), modelHere()));
+  handle(CHANNELS.understandSet, (_event, on: unknown) => {
+    if (typeof on !== "boolean") throw new Error("Say on or off.");
+    const db = getDatabase();
+    setUnderstanding(db, on);
+    if (!on) stopModel();
+    return understandState(db, modelHere());
+  });
+  handle(CHANNELS.understandAgain, () => {
+    const db = getDatabase();
+    readEverythingAgain(db);
+    return understandState(db, modelHere());
+  });
 
   handle(CHANNELS.lessonsList, () => listLessons(getDatabase()));
   // Learning must never be why keeping a line fails, so a lesson that does not parse is simply not learnt.

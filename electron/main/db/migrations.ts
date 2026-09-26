@@ -2615,6 +2615,85 @@ const M045_SEARCH_FORGETS = `
   INSERT INTO brain_search (brain_search) VALUES ('optimize');
 `;
 
+/**
+ * Understanding, on this machine (PLAN.md, part five, phase 19). A small
+ * model reads pages, memories, contacts, tasks and notes for what they mean,
+ * and what it makes of each is kept here: 384 bytes a line.
+ *
+ * - `vectors` holds one per thing read. `model` is kept with each, so a new
+ *   model reads everything again rather than comparing two kinds of vector.
+ *   `text_hash` is what the vector was made from, so text that has not
+ *   changed is never read twice. `source_id` is the row the text came from -
+ *   a memory's page - so deleting the row deletes what was made of it at once,
+ *   rather than whenever the queue gets round to it.
+ * - `embed_queue` is what is waiting to be read. Triggers put a row there
+ *   whenever one is written, the way the search index is kept, because a
+ *   trigger cannot run a model; the queue is worked through in the
+ *   background, and a row changed twice is waiting once.
+ *
+ * The journal is never read: a day sealed empties its page, and a vector made
+ * before would outlast the words it came from. Private lines are another
+ * table, and never read either.
+ */
+const M046_UNDERSTANDING = `
+  CREATE TABLE vectors (
+    kind       TEXT NOT NULL,
+    ref        TEXT NOT NULL,
+    source_id  TEXT NOT NULL,
+    company_id TEXT NOT NULL REFERENCES companies (id) ON DELETE CASCADE,
+    model      TEXT NOT NULL,
+    text_hash  TEXT NOT NULL,
+    vec        BLOB NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (kind, ref, model)
+  );
+  CREATE INDEX vectors_by_company ON vectors (company_id, model);
+  CREATE INDEX vectors_by_source ON vectors (source_id);
+
+  CREATE TABLE embed_queue (
+    kind      TEXT NOT NULL,
+    ref_id    TEXT NOT NULL,
+    queued_at TEXT NOT NULL,
+    PRIMARY KEY (kind, ref_id)
+  );
+
+  CREATE TRIGGER understand_page_written AFTER INSERT ON brain_pages
+    WHEN NEW.section <> 'journal'
+    BEGIN INSERT OR REPLACE INTO embed_queue (kind, ref_id, queued_at) VALUES ('page', NEW.id, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')); END;
+  CREATE TRIGGER understand_page_changed AFTER UPDATE OF title, body, section, is_archived ON brain_pages
+    BEGIN INSERT OR REPLACE INTO embed_queue (kind, ref_id, queued_at) VALUES ('page', NEW.id, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')); END;
+  CREATE TRIGGER understand_page_gone AFTER DELETE ON brain_pages
+    BEGIN DELETE FROM vectors WHERE source_id = OLD.id; DELETE FROM embed_queue WHERE kind = 'page' AND ref_id = OLD.id; END;
+
+  CREATE TRIGGER understand_contact_written AFTER INSERT ON leads
+    BEGIN INSERT OR REPLACE INTO embed_queue (kind, ref_id, queued_at) VALUES ('contact', NEW.id, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')); END;
+  CREATE TRIGGER understand_contact_changed AFTER UPDATE OF name, contact_person, city, notes ON leads
+    BEGIN INSERT OR REPLACE INTO embed_queue (kind, ref_id, queued_at) VALUES ('contact', NEW.id, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')); END;
+  CREATE TRIGGER understand_contact_gone AFTER DELETE ON leads
+    BEGIN DELETE FROM vectors WHERE source_id = OLD.id; DELETE FROM embed_queue WHERE kind = 'contact' AND ref_id = OLD.id; END;
+
+  CREATE TRIGGER understand_task_written AFTER INSERT ON tasks
+    BEGIN INSERT OR REPLACE INTO embed_queue (kind, ref_id, queued_at) VALUES ('task', NEW.id, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')); END;
+  CREATE TRIGGER understand_task_changed AFTER UPDATE OF title, notes, area ON tasks
+    BEGIN INSERT OR REPLACE INTO embed_queue (kind, ref_id, queued_at) VALUES ('task', NEW.id, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')); END;
+  CREATE TRIGGER understand_task_gone AFTER DELETE ON tasks
+    BEGIN DELETE FROM vectors WHERE source_id = OLD.id; DELETE FROM embed_queue WHERE kind = 'task' AND ref_id = OLD.id; END;
+
+  CREATE TRIGGER understand_note_written AFTER INSERT ON notes
+    BEGIN INSERT OR REPLACE INTO embed_queue (kind, ref_id, queued_at) VALUES ('note', NEW.id, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')); END;
+  CREATE TRIGGER understand_note_changed AFTER UPDATE OF body ON notes
+    BEGIN INSERT OR REPLACE INTO embed_queue (kind, ref_id, queued_at) VALUES ('note', NEW.id, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')); END;
+  CREATE TRIGGER understand_note_gone AFTER DELETE ON notes
+    BEGIN DELETE FROM vectors WHERE source_id = OLD.id; DELETE FROM embed_queue WHERE kind = 'note' AND ref_id = OLD.id; END;
+
+  -- Everything already written waits to be read once.
+  INSERT INTO embed_queue (kind, ref_id, queued_at)
+    SELECT 'page', id, strftime('%Y-%m-%dT%H:%M:%fZ', 'now') FROM brain_pages WHERE section <> 'journal' AND is_archived = 0;
+  INSERT INTO embed_queue (kind, ref_id, queued_at) SELECT 'contact', id, strftime('%Y-%m-%dT%H:%M:%fZ', 'now') FROM leads;
+  INSERT INTO embed_queue (kind, ref_id, queued_at) SELECT 'task', id, strftime('%Y-%m-%dT%H:%M:%fZ', 'now') FROM tasks;
+  INSERT INTO embed_queue (kind, ref_id, queued_at) SELECT 'note', id, strftime('%Y-%m-%dT%H:%M:%fZ', 'now') FROM notes;
+`;
+
 export const MIGRATIONS: readonly Migration[] = [
   { version: 1, name: "companies, stages, settings", sql: M001_COMPANIES },
   { version: 2, name: "leads, activities", sql: M002_LEADS },
@@ -2661,6 +2740,7 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 43, name: "lessons, and other mail accounts", sql: M043_LESSONS_AND_MAIL },
   { version: 44, name: "reminders", sql: M044_REMINDERS },
   { version: 45, name: "search forgets what it is told to", sql: M045_SEARCH_FORGETS },
+  { version: 46, name: "understanding, on this machine", sql: M046_UNDERSTANDING },
 ];
 
 export function currentVersion(db: Db): number {

@@ -45,6 +45,7 @@ The systems everything else plugs into.
 | --- | --- | --- |
 | Take a line of text from the person | The quick line: `readCapture` (`shared/capture.ts`) and `parseQuick` (`shared/quickadd.ts`). A new kind follows the recipe under "Adding a kind to the line". | A second parser, a second input box, a reader called from `QuickAdd.tsx` beside `readCapture`. |
 | Find things by their words | The FTS5 index `brain_search` + `search_map`, queried by `searchEverything` (`repositories/search.ts`). Kept by triggers, so writers never touch it. | `LIKE` scans in a service. Editing migration 20's trigger SQL (frozen) - a new source is a new migration that drops and recreates the triggers. |
+| Find things by what they mean | `nearestTo` (`services/understand.ts`) over the vectors the queue keeps (`repositories/vectors.ts`, migration 46). Arithmetic is `shared/understand.ts`; the model is asked only through `understand/host.ts`. | A second model, a second vector store, or calling onnxruntime anywhere but `understand/embed.ts`. Reading the journal or private lines. |
 | Record that something happened with a contact | `writeActivity` (`repositories/leads.ts`) - the append-only history. | A new log table. Editing a history entry (a correction is a new entry). |
 | Link two things | A `[[Label|kind:id]]` token in page text (`shared/links.ts`). `brain_links` is rebuilt from the text on every save. Kinds: `page`, `contact`, `product`, `person`, `document`. | Writing `brain_links` directly. |
 | Put a page under another | A first line `Part of [[Parent|page:id]]` (`services/remember.ts`), walked by `underOf` / `trailsOf` (`shared/memories.ts`). | A parent column. |
@@ -61,7 +62,7 @@ The systems everything else plugs into.
 | Handle a date | `shared/dates.ts`. A due date is a `YYYY-MM-DD` day in the company's timezone; a time is `HH:MM`. | `Date` arithmetic in local time; a date library. |
 | Fail | Throw an `Error` whose message is the sentence the person reads; Zod schemas state their own sentences. `handle()` (`ipc/handle.ts`) cleans it on the way out. | `ipcMain.handle` directly. |
 | Add an IPC call | Constant and type in `shared/ipc.ts`, handler through `handle()` with Zod validation, method in `electron/preload/index.ts`. | Node in the window. |
-| Change the schema | Append a step to `electron/main/db/migrations.ts` (latest: 45). Never edit or renumber one. Enums are checked in TypeScript, not SQL `CHECK`s. | A down-migration. |
+| Change the schema | Append a step to `electron/main/db/migrations.ts` (latest: 46). Never edit or renumber one. Enums are checked in TypeScript, not SQL `CHECK`s. | A down-migration. |
 | Draw a colour | A token in `src/styles/tokens.css` (a test enforces it). | A literal colour in a component. |
 
 ---
@@ -242,6 +243,14 @@ Every save is a revision; History shows a line diff and restores. Saves within f
 A force-directed canvas of pages, contacts, products, people and documents; positions kept; drag a dot onto another to write a link.
 - UI: `MapView.tsx`, `MapCanvas.tsx` (canvas, frame outside React), `MapOf.tsx` · Logic: `shared/map.ts` · Main: `services/map.ts`, `repositories/links.ts`
 - Tables: `brain_links`, `map_positions` · IPC: `brain:map`, `brain:local-map`, `brain:connect`, `brain:disconnect`, `brain:keep-positions`, `brain:let-go` · Tests: `shared/map.test.ts`, `services/map.test.ts`
+
+### Understanding, on this machine
+A small model (all-MiniLM-L6-v2, int8, 23 MB) that reads pages, memories, contacts, tasks and notes for what they mean, so later phases can find the nearest in meaning (PLAN.md, part five). On by default; it reads, never sends, and only offers.
+- Logic: `shared/understand.ts` (WordPiece tokens, pooling, int8, nearness) · Main: `electron/main/understand/embed.ts` (the model, plain Node), `worker.ts` (its utility process, built to `out/main/understand.js`), `host.ts` (starts, restarts, times out), `services/understand.ts` (the queue job, `nearestTo`), `repositories/vectors.ts`
+- UI: `src/features/settings/UnderstandCard.tsx` (This computer) · Tables: `vectors`, `embed_queue` (migration 46) · IPC: `understand:` (state, set, again) · Setting: `understandOff`
+- The model is fetched, not committed: `npm run fetch-model` into `resources/model`; the installer carries it beside the executable. Without it everything else works and its tests are skipped.
+- Tests: `shared/understand.test.ts`, `repositories/vectors.test.ts`, `services/understand.test.ts`, `understand/embed.test.ts` (the real model); packaged: `smoke:packaged`
+- Touches: nothing yet - phase 20 gives the quick line a second opinion from it, phase 21 arranges memories, phase 22 chooses what goes to an AI.
 
 ### Search everything (Ctrl+K)
 One FTS5 index over pages, contacts, notes, history, invoices and people; words quoted and made prefixes; bm25 with the title weighted 8 and notes and history pushed down.
@@ -486,6 +495,7 @@ Light, dark or system before first paint; an accent per company; colour only in 
 | Backup | `electron/main/db/backup.ts` | Once at launch |
 | Widget hover | `electron/main/widget.ts` | 180 ms |
 | Ember's walk | `electron/main/pet.ts` | 250 ms |
+| Understanding | `services/understand.ts` | 20 s after start; then every 1.5 s while the queue has rows, every 30 s when it has none; only when on and the model is here |
 
 ---
 

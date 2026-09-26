@@ -487,6 +487,11 @@ const api: CaulderApi = {
       return () => ipcRenderer.removeListener("nav:go", handler);
     },
   },
+  understand: {
+    state: () => invoke(CHANNELS.understandState),
+    set: (on) => invoke(CHANNELS.understandSet, on),
+    again: () => invoke(CHANNELS.understandAgain),
+  },
   lessons: {
     list: () => invoke(CHANNELS.lessonsList),
     add: (input) => invoke(CHANNELS.lessonsAdd, input),

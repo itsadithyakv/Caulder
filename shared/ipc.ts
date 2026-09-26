@@ -41,6 +41,7 @@ import type { Checkin, Pulse } from "./pulse";
 import type { AnswerInput, SeenInput, TuneState } from "./tune";
 import type { Lesson, LessonInput } from "./lessons";
 import type { NudgeSettings } from "./nudges";
+import type { UnderstandState } from "./understand";
 import type { Answer, LineContext, MoveInput, Question, TaskSnapshot } from "./lines";
 import type { MailAccount, MailAccountInput } from "./mailaccounts";
 import type { PageTasks } from "./steps";
@@ -481,6 +482,9 @@ export const CHANNELS = {
   nudgesGet: "nudges:get",
   nudgesSet: "nudges:set",
   nudgesTest: "nudges:test",
+  understandState: "understand:state",
+  understandSet: "understand:set",
+  understandAgain: "understand:again",
   linesContext: "lines:context",
   linesMove: "lines:move",
   linesCancel: "lines:cancel",
@@ -1412,6 +1416,14 @@ export type NudgesApi = {
   onGo: (fn: (place: "today" | "journal") => void) => () => void;
 };
 
+/** Understanding, on this machine (PLAN.md, part five): the switch, and how far reading has got. */
+export type UnderstandApi = {
+  state: () => Promise<UnderstandState>;
+  set: (on: boolean) => Promise<UnderstandState>;
+  /** Read everything again, from the start. */
+  again: () => Promise<UnderstandState>;
+};
+
 export type LessonsApi = {
   list: () => Promise<Lesson[]>;
   /** A line moved to another part of life, or another kind, before it was kept. */
@@ -1546,6 +1558,7 @@ export type CaulderApi = {
   tune: TuneApi;
   lessons: LessonsApi;
   nudges: NudgesApi;
+  understand: UnderstandApi;
   lines: LinesApi;
   mailAccounts: MailAccountsApi;
   board: BoardApi;

@@ -20,6 +20,7 @@ import { TemplatesCard } from "./TemplatesCard";
 import { ConnectionsCard } from "./Connected";
 import { DeskCard } from "./DeskCard";
 import { PetCard } from "./PetCard";
+import { UnderstandCard } from "./UnderstandCard";
 import { ThisIsMeCard } from "@/features/sharing/ThisIsMeCard";
 import { getTheme, setTheme, type ThemeChoice } from "@/lib/theme";
 import { DEFAULT_CAPTURE_SHORTCUT, sayShortcut, type AccentId, type Company } from "@shared/domain";
@@ -166,6 +167,7 @@ export function SettingsScreen({
             <CaptureCard />
             <DeskCard />
             <PetCard />
+            <UnderstandCard />
           </Column>
           {activeCompany && (
             <Band>

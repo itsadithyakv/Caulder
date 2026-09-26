@@ -135,6 +135,25 @@ try {
   if (refused) console.log("      " + (await card.getByText("Windows would not").innerText()));
   check("pins it to the wallpaper through koffi", refused === 0);
 
+  // onnxruntime-node is the third native dependency, and it runs in a process
+  // of its own, loads onnxruntime.dll from outside the asar and opens the
+  // model beside the executable - three things only a package can get wrong.
+  // The contact made above is waiting to be read; once the card says anything
+  // has been, all three worked. The first pass waits twenty seconds, and the
+  // first start of a new build can take a minute more while Windows looks the
+  // new runtime over.
+  const understanding = page.locator(".card", { hasText: "Understanding" });
+  const readSome = await understanding
+    .getByText(/^Read [1-9][\d,]* /)
+    .waitFor({ timeout: 90_000 })
+    .then(() => true, () => false);
+  if (!readSome) {
+    const titles = await page.locator(".card__title").allInnerTexts();
+    console.log(`      at ${page.url().split("/").pop()}; cards: ${titles.join(" | ").slice(0, 400)}`);
+    if ((await understanding.count()) > 0) console.log("      " + (await understanding.innerText()).replace(/\s+/g, " ").slice(0, 200));
+  }
+  check("reads for meaning, with the model in its own process", readSome);
+
   const errors = [];
   page.on("pageerror", (error) => errors.push(String(error)));
   await page.waitForTimeout(500);

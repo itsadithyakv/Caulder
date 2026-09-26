@@ -8,7 +8,15 @@ export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
     resolve: { alias: { '@shared': shared } },
-    build: { rollupOptions: { input: { index: resolve('electron/main/index.ts') } } }
+    build: {
+      rollupOptions: {
+        input: {
+          index: resolve('electron/main/index.ts'),
+          // The model's own process (PLAN.md, part five): out/main/understand.js.
+          understand: resolve('electron/main/understand/worker.ts')
+        }
+      }
+    }
   },
   preload: {
     plugins: [externalizeDepsPlugin()],

@@ -17,6 +17,8 @@ import { hideWidget, onWidgetMove, showWidget } from "./widget";
 import { hidePet, onPetOpen, setCaulderInFront, showPet } from "./pet";
 import { setSetting } from "./repositories/settings";
 import { getDatabase } from "./db/connection";
+import { startUnderstanding, stopUnderstanding } from "./services/understand";
+import { modelHere, readLines, stopModel } from "./understand/host";
 import { heldShortcut, setCaptureShortcut } from "./capture";
 import { shortcutToClaim } from "./popup";
 import { createTray, destroyTray, hasTray, trayNotice } from "./tray";
@@ -337,6 +339,10 @@ void app.whenReady().then(() => {
   startMailWatch();
   startBrainSync();
 
+  // Reading for meaning, on this machine (PLAN.md, part five): on unless
+  // switched off, quiet for the first seconds, and nothing waits on it.
+  startUnderstanding(getDatabase, readLines, modelHere);
+
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
@@ -355,6 +361,8 @@ app.on("before-quit", () => {
   stopSyncing();
   stopMailWatch();
   stopBrainSync();
+  stopUnderstanding();
+  stopModel();
 });
 
 // WAL leaves a sidecar file; closing cleanly checkpoints it back into the

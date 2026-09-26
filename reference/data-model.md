@@ -62,6 +62,7 @@ is nine o'clock, and an instant would move when the machine's timezone did.
 | 43 | lessons, and other mail accounts | `line_lessons`, `mail_accounts`, `emails.account_id` |
 | 44 | reminders | `reminders` |
 | 45 | search forgets what it is told to | `brain_search` set to `secure-delete`, and optimised |
+| 46 | understanding, on this machine | `vectors`, `embed_queue`, and the triggers that fill the queue |
 
 Each migration is one transaction, gated on `PRAGMA user_version`, with a
 backup taken before any of them runs. Additions use `ALTER TABLE ADD COLUMN`;
@@ -1101,6 +1102,28 @@ FTS5 keys on one - and says what it is (`kind`, `ref_id`) and whose
   `companies`, so the cascade that follows finds nothing left to clean.
 - `search_map` is not keyed to `companies` with a foreign key on purpose: the
   cascade would remove the map rows before the index rows they point at.
+
+## vectors, embed_queue
+
+What the model on this machine made of each thing it read (PLAN.md, part
+five): one vector a page, a memory, a contact, a task or a note, 384 bytes
+each (`shared/understand.ts` says how).
+
+- `vectors` is keyed on `(kind, ref, model)`. `ref` is the row's id, and for
+  a memory its page's id with the hash of its line after `#`, since memories
+  are lines, not rows. `model` is kept with each, so a new model reads
+  everything again rather than comparing two kinds of vector. `text_hash` is
+  what it was made from, so unchanged text is never read twice. `source_id`
+  is the row the text came from, and `company_id` cascades.
+- `embed_queue` is what is waiting to be read, `(kind, ref_id)` once however
+  often the row changed. **Triggers fill it**, on insert and on the columns
+  that are read, for `brain_pages`, `leads`, `tasks` and `notes` - a trigger
+  cannot run a model, so it queues. Deleting a row deletes its vectors at
+  once, by `source_id`.
+- **The journal is never read**: its pages are not queued, and a queued page
+  that has become a journal page, or is archived, has its vectors removed
+  when it comes round. A sealed day empties its page, and a vector made
+  before would outlast the words. `journal_private` is not read at all.
 
 ## google_tombstones, google_sync
 

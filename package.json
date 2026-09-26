@@ -8,6 +8,7 @@
   "type": "module",
   "scripts": {
     "dev": "electron-vite dev",
+    "fetch-model": "node scripts/fetch-model.mjs",
     "start": "electron-vite preview",
     "build": "electron-vite build",
     "package": "npm run build && electron-builder --win --publish never",
@@ -38,6 +39,7 @@
     "exceljs": "^4.4.0",
     "koffi": "^3.3.1",
     "nodemailer": "^10.0.10",
+    "onnxruntime-node": "^1.30.0",
     "zod": "^4.5.4"
   },
   "devDependencies": {

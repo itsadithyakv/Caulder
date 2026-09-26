@@ -44,13 +44,28 @@ tests in 144 files, with the journal work above in the same tree.
 
 ## In progress
 
-- **Understanding, on this machine** (PLAN.md, part five): a small local model
-  that helps the quick line put things where they belong, arranges memories,
-  and chooses what goes to an AI. **Planned, not started; decided 25
-  September 2026:** all-MiniLM-L6-v2 (int8, 23 MB) through `onnxruntime-node`
-  in a utility process, on by default, repeats marked on their own, every
-  other arrangement asked. Phase 18 is done; phase 19, the model itself, is
-  next.
+- **Understanding, on this machine** (PLAN.md, part five). **Phase 19 was
+  done on 26 September 2026.**
+  - all-MiniLM-L6-v2 (int8, 23 MB) runs through `onnxruntime-node` in a
+    utility process.
+  - It reads pages, memories, contacts, tasks and notes into migration 46's
+    vectors, working through a queue that triggers fill. It never reads the
+    journal or private lines.
+  - It is on by default, switched in Settings > This computer >
+    Understanding.
+  - **Measured:**
+    - the model loads in 112 ms;
+    - a line is read in 1.5 ms;
+    - a batch of 32 is read in 29 ms.
+  - **Packaged:** the 0.4.5 installer is 132.7 MB; 0.4.4 was 109.3 MB.
+    `smoke:packaged` passes all 11 checks, "reads for meaning" among them.
+    The first start of a new build was once slower than 60 seconds while
+    Windows looked the runtime over, so the check waits 90.
+  - **Not done:** nothing uses the vectors yet. The measuring stick moved to
+    the start of phase 20, which gives the quick line its second opinion.
+  - **Get the model with `npm run fetch-model`.** It is pinned and checked,
+    and kept out of git. Without it everything else works and its tests are
+    skipped.
 
 ## Known problems
 
@@ -108,6 +123,14 @@ the code, and 85 realistic lines put through the quick line. Items marked
   because the passcode's key is slow to make on purpose (scrypt 2^17). It
   passes alone. It wants a longer timeout.
 
+### Dependencies
+
+- `npm audit` reports four, none from `onnxruntime-node`:
+  - Electron (high: use-after-free fixes in newer releases);
+  - `extract-zip` (high, through Electron's packaging);
+  - `exceljs` via `uuid` (moderate).
+- Updating Electron is the one that matters, and is a change of its own.
+
 ### Built underneath, now on a screen (26 September 2026)
 
 - **Payments:** Record a payment (part payments too) and take one back, from
@@ -159,7 +182,10 @@ the code, and 85 realistic lines put through the quick line. Items marked
 
 ## Next
 
-1. Package and smoke-test 0.4.5, then commit the version.
-2. Items 5 to 13: things built underneath that no screen offers.
-3. Phase 19: the model, its index and the measuring stick. The 85 lines from
-   the second pass are the start of the measuring stick.
+1. Commit the 0.4.5 version. The package is built and passes
+   `smoke:packaged`.
+2. Phase 20:
+   - first the measuring stick;
+   - then the line's second opinion.
+3. Decide on campaigns (item 10). Ctrl+K for products and deals (item 12)
+   needs a migration.

@@ -956,6 +956,8 @@ export const SETTING_KEYS = [
   "briefed",
   /** The day a birthday or an anniversary coming round was last said. */
   "datesTold",
+  /** "on" when understanding on this machine is switched off; on by default (PLAN.md, part five). */
+  "understandOff",
 ] as const;
 export type SettingKey = (typeof SETTING_KEYS)[number];
 

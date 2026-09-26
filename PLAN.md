@@ -1273,7 +1273,37 @@ Before anything reads more, stop sending what it should not.
   are go with a question when "your own pages" is on. They still never go
   when it is off. This was decided below.
 
-### Phase 19 - The model and its index
+### Phase 19 - The model and its index - *done 26 September 2026, but for the measuring stick*
+
+What was built, against what follows:
+- The tokenizer, pooling, int8 packing and nearness are in `shared/understand.ts`.
+  The tokenizer gives BERT's own ids for the real vocabulary.
+- The model runs in `electron/main/understand/`:
+  - `embed.ts` is plain Node, so it is tested against the real model;
+  - `worker.ts` is the utility process;
+  - `host.ts` starts it, restarts it and times it out.
+- The vectors table and queue are migration 46 and
+  `repositories/vectors.ts`. The journal is never read.
+- The queue job is `services/understand.ts`, which reads only text that has
+  changed.
+- The `understand:` channels are state, set and again. "Read" and "similar"
+  wait for phase 20, which is the first to call them.
+- The Settings card is under This computer.
+- Packaging keeps Windows x64 on the CPU only, which leaves out the other
+  platforms and the GPU libraries. `smoke:packaged` waits for the card to say
+  something was read.
+- **Budgets, measured on this machine:**
+  - the model loads in 112 ms;
+  - a line is read in 1.5 ms (the budget was 30);
+  - a batch of 32 is read in 29 ms.
+- **The measuring stick moves to the start of phase 20.** It compares rules
+  alone with rules and the model, and there is no vote to compare until
+  then. What phase 19 proves is that the vectors mean something: "my blood
+  type is O positive" is nearer "Blood group: O+" than "buy groceries".
+- The download to fetch it is `npm run fetch-model`. It fetches from a
+  pinned revision and checks each file's SHA-256.
+
+The plan as written:
 
 - `shared/understand.ts` holds the WordPiece tokenizer, pooling, cosine,
   int8 packing and the vote.
@@ -1300,6 +1330,11 @@ Before anything reads more, stop sending what it should not.
   - memory grows by under 60 MB.
 
 ### Phase 20 - The line gets a second opinion
+
+- **First, the measuring stick** (moved here from phase 19). It uses the
+  labelled lines from the tests and the 85 from the second pass on 25
+  September 2026, and makes two runs over them: rules alone, and rules with
+  the model. This is how the vote below earns its thresholds.
 
 - **Kind, placement and area** at the four points in the table above. The
   votes come from:

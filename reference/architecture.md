@@ -17,9 +17,10 @@
 | Win32 calls | koffi, loaded only when the desk widget is sent to the wallpaper | 3 |
 | Packaging | electron-builder, NSIS | 26 |
 
-Runtime dependencies are twelve: `better-sqlite3`, `electron-updater`,
+Runtime dependencies are thirteen: `better-sqlite3`, `electron-updater`,
 `exceljs`, `koffi`, `nodemailer` (sending through another mail account),
-`zod`, and six `@codemirror/*` packages for the page editor.
+`onnxruntime-node` (understanding, on this machine), `zod`, and six
+`@codemirror/*` packages for the page editor.
 Everything else is a build or test tool, or - like React, lucide and
 `d3-force` - bundled into the window at build time, which is why they are
 dev dependencies.

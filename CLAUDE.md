@@ -30,10 +30,10 @@ feature and say so; do not build a parallel one.
   or renumbered. Migration 20's trigger SQL is frozen.
 - The quick line has one parser: `readCapture` and `parseQuick`. To add a
   kind, follow "Adding a kind to the line" in the feature map.
-- Runtime dependencies are twelve: six CodeMirror packages for the page
+- Runtime dependencies are thirteen: six CodeMirror packages for the page
   editor, and `better-sqlite3`, `electron-updater`, `exceljs`, `koffi`,
-  `nodemailer`, `zod`. Adding one is a decision for PLAN.md, not a
-  convenience.
+  `nodemailer`, `onnxruntime-node` (the model on this machine), `zod`.
+  Adding one is a decision for PLAN.md, not a convenience.
 - Nothing leaves the machine unless the person set it up; anything that acts
   on its own is off until switched on.
 - Colour lives only in `src/styles/tokens.css`.
@@ -48,6 +48,10 @@ feature and say so; do not build a parallel one.
   run the whole suite in the background and say so.
 - `npm run smoke:packaged` is the only check that catches a missing native
   module or resource in the packaged build.
+- The model understanding reads with is not in git: `npm run fetch-model`
+  puts it in `resources/model` (pinned, checked by SHA-256). Without it the
+  tests that need it are skipped, the app runs without understanding, and a
+  package ships without it - so fetch it before `npm run package`.
 
 ## Keep the documents true
 

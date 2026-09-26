@@ -7,3 +7,5 @@ release/
 Thumbs.db
 test-results/
 playwright-report/
+# The model is fetched, never committed: npm run fetch-model
+resources/model/

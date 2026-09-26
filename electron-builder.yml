@@ -14,18 +14,32 @@ directories:
 files:
   - out/**
   - package.json
+  # onnxruntime-node carries every platform's runtime (about 290 MB). Only
+  # Windows x64 ships, and on the CPU: DirectML and the shader compiler are
+  # for a GPU, never asked for, and loaded only when one is (checked by
+  # running the model without them).
+  - "!**/node_modules/onnxruntime-node/bin/napi-v*/darwin/**"
+  - "!**/node_modules/onnxruntime-node/bin/napi-v*/linux/**"
+  - "!**/node_modules/onnxruntime-node/bin/napi-v*/win32/arm64/**"
+  - "!**/node_modules/onnxruntime-node/bin/napi-v*/win32/x64/{DirectML.dll,dxcompiler.dll,dxil.dll}"
 # A .node binary cannot be loaded from inside an asar. better-sqlite3 is
 # detected and unpacked automatically; koffi resolves its own binary by path
 # relative to itself, so the whole package has to come out rather than only
-# the .node inside it.
+# the .node inside it. onnxruntime-node the same, for its onnxruntime.dll.
 asarUnpack:
   - "**/*.node"
   - "**/node_modules/koffi/**"
   - "**/node_modules/@koromix/**"
+  - "**/node_modules/onnxruntime-node/**"
+  - "**/node_modules/onnxruntime-common/**"
 
 extraResources:
   - from: resources/appsscript
     to: appsscript
+  # The model understanding reads with (npm run fetch-model), beside the
+  # executable: the runtime opens it by path, and 23 MB compresses to nothing.
+  - from: resources/model
+    to: model
   # Outside the asar, beside the executable: the tray loads tray.png and its
   # @Nx siblings by path, and a path inside the archive does not load.
   - from: resources/tray
