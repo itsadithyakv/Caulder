@@ -228,6 +228,8 @@ export const CHANNELS = {
   importGoogle: "import:google",
 
   todayGet: "today:get",
+  todayColdAfterDays: "today:cold-after-days",
+  todaySetColdAfterDays: "today:set-cold-after-days",
 
   companiesSetCurrency: "companies:set-currency",
   companiesSetCountry: "companies:set-country",
@@ -864,6 +866,10 @@ export type MoneyApi = {
 
 export type TodayApi = {
   get: (companyId: string) => Promise<Today>;
+  /** Days without contact before an open deal is listed under Going quiet. Never set means 14. */
+  coldAfterDays: () => Promise<number>;
+  /** A whole number from 3 to 90; anything else is refused with the sentence to show. */
+  setColdAfterDays: (days: number) => Promise<number>;
 };
 
 /**

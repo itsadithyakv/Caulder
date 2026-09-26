@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
-import type { DayPlan, LaidOutBlock, Task, WeekPlan } from "@shared/domain";
+import type { DayPlan, LaidOutBlock, Task, Term, WeekPlan } from "@shared/domain";
 import { BLOCK_KINDS, BLOCK_KIND_LABEL, type BlockKind } from "@shared/domain";
 import { clashesIn } from "@shared/priority";
 import { minutesOf, shiftDay, startOfWeek, timeOf, today as todayIn } from "@shared/dates";
@@ -64,6 +64,8 @@ export function DayScreen({
   const [forTask, setForTask] = useState<Task | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [timetable, setTimetable] = useState(false);
+  /** Your terms, read when the timetable opens: it is the one place they are made and removed. */
+  const [terms, setTerms] = useState<Term[]>([]);
   // The day is the default because it is the one you work in. The week is
   // what you open to find room in, which is a thing you do once a week.
   const [view, setView] = useState<"day" | "week">("day");
@@ -86,6 +88,23 @@ export function DayScreen({
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Terms are yours, kept in your home whichever company is chosen - the
+  // quick line reads the term's last day from there - so they are made,
+  // listed and removed there too.
+  const termsIn = home?.id ?? companyId;
+
+  useEffect(() => {
+    if (!timetable || !termsIn) return;
+    let live = true;
+    window.caulder.terms.list(termsIn).then(
+      (all) => live && setTerms(all),
+      (cause: unknown) => live && setError(messageOf(cause)),
+    );
+    return () => {
+      live = false;
+    };
+  }, [timetable, termsIn]);
 
   /** Every mutation goes through here, so the day is never patched by hand. */
   const act = useCallback(
@@ -486,11 +505,13 @@ export function DayScreen({
       {timetable && (
         <Timetable
           day={day}
+          terms={terms}
+          onRemoveTerm={async (id) => setTerms(await window.caulder.terms.remove(id, termsIn ?? companyId))}
           onClose={() => setTimetable(false)}
           onApply={async (rows, term) => {
             // The term first, so the timetable it names exists before the
             // blocks that belong to it.
-            await window.caulder.terms.create(companyId, term);
+            await window.caulder.terms.create(termsIn ?? companyId, term);
             for (const row of rows) {
               await window.caulder.day.createBlock(companyId, row.input);
             }
@@ -553,6 +574,23 @@ export function DayScreen({
                   await act(() =>
                     window.caulder.day.endSeries(editing.seriesId!, companyId, day),
                   );
+                  setEditing(null);
+                },
+                onSaveSeries: async (input) => {
+                  const seriesId = editing.seriesId!;
+                  await act(async () => {
+                    // This one takes the whole form - how much it matters, the
+                    // reminder, the note - and then it and every later one
+                    // take what a repeat holds. Asked from the block's own
+                    // day, which is where "from here" starts.
+                    await window.caulder.day.updateBlock(editing.id, input);
+                    return window.caulder.day.updateSeries(seriesId, companyId, editing.day, {
+                      title: input.title,
+                      startsAt: input.startsAt,
+                      minutes: input.minutes,
+                      kind: input.kind,
+                    });
+                  });
                   setEditing(null);
                 },
               }

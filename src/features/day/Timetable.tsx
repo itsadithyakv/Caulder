@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
-import { BLOCK_KINDS, BLOCK_KIND_LABEL, blockInput } from "@shared/domain";
+import { BLOCK_KINDS, BLOCK_KIND_LABEL, blockInput, type Term } from "@shared/domain";
 import { WEEKDAYS, WEEKDAY_LABEL } from "@shared/repeat";
 import { shiftDay, weekdayOf } from "@shared/dates";
 import { Select } from "@/components/Select";
 import { Portal } from "@/components/Portal";
 import { messageOf } from "@/lib/errors";
+import { formatDay } from "@/lib/format";
 
 /**
  * A whole timetable, entered once.
@@ -18,6 +19,9 @@ import { messageOf } from "@/lib/errors";
  * Each row becomes its own repeat rather than one big one, so afterwards a
  * single lecture can move without disturbing anything else — and "the Tuesday
  * lecture is at ten now" edits that run alone.
+ *
+ * The terms already made are listed above it, because this is where they are
+ * made and so where somebody looks to take one away.
  */
 
 type Row = {
@@ -44,10 +48,16 @@ function blankRow(day: string): Row {
 
 export function Timetable({
   day,
+  terms,
+  onRemoveTerm,
   onClose,
   onApply,
 }: {
   day: string;
+  /** The terms there are, newest first. */
+  terms: readonly Term[];
+  /** Removes the term's name and dates. Its classes stay: those weeks happened. */
+  onRemoveTerm: (id: string) => Promise<void>;
   onClose: () => void;
   /** Called once per row. The caller writes them and reloads the day. */
   onApply: (
@@ -60,6 +70,21 @@ export function Timetable({
   const [rows, setRows] = useState<Row[]>(() => [blankRow(day)]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** The term being asked about before it goes. */
+  const [confirming, setConfirming] = useState<string | null>(null);
+
+  async function removeTerm(id: string) {
+    setError(null);
+    setBusy(true);
+    try {
+      await onRemoveTerm(id);
+      setConfirming(null);
+    } catch (cause) {
+      setError(messageOf(cause));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   function edit(key: string, change: Partial<Row>) {
     setRows((current) =>
@@ -130,6 +155,51 @@ export function Timetable({
             <p className="field__error" role="alert">
               {error}
             </p>
+          )}
+
+          {terms.length > 0 && (
+            <ul className="terms" aria-label="Your terms">
+              {terms.map((term) => (
+                <li key={term.id} className="terms__row">
+                  <span className="terms__name">{term.name}</span>
+                  <span className="terms__span">
+                    {formatDay(term.fromDay)} to {formatDay(term.untilDay)}
+                  </span>
+                  {confirming === term.id ? (
+                    <span className="detail__confirm">
+                      {/* Said plainly because it is the question anybody has:
+                          the term is a name over a span, and removing it does
+                          not touch a single class. */}
+                      <span className="card__hint">
+                        Only the name and its dates go. Its classes stay on the calendar.
+                      </span>
+                      <button
+                        type="button"
+                        className="btn btn--sm btn--danger"
+                        disabled={busy}
+                        onClick={() => void removeTerm(term.id)}
+                      >
+                        Remove
+                      </button>
+                      <button type="button" className="btn btn--sm" onClick={() => setConfirming(null)}>
+                        Keep
+                      </button>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn btn--sm btn--ghost btn--danger btn--icon"
+                      aria-label={`Remove the term ${term.name}`}
+                      title="Remove the term"
+                      disabled={busy}
+                      onClick={() => setConfirming(term.id)}
+                    >
+                      <Trash2 size={14} aria-hidden />
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
           )}
 
           <div className="blockform__row">

@@ -267,6 +267,8 @@ const api: CaulderApi = {
   },
   today: {
     get: (companyId) => invoke(CHANNELS.todayGet, companyId),
+    coldAfterDays: () => invoke(CHANNELS.todayColdAfterDays),
+    setColdAfterDays: (days) => invoke(CHANNELS.todaySetColdAfterDays, days),
   },
   day: {
     get: (companyId, day) => invoke(CHANNELS.dayGet, companyId, day),

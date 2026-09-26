@@ -186,7 +186,9 @@ test("a column totals the value of the leads in it", async () => {
 
   await page.getByRole("button", { name: "Deals" }).click();
   const first = page.locator(".column").first();
-  await expect(first.locator(".column__value")).toHaveText("45,000");
+  // In the company's currency, the way Money writes it; which symbol depends
+  // on the machine's locale, so only the figure is held to.
+  await expect(first.locator(".column__value")).toContainText("45,000");
 });
 
 test("a contact with two deals has a card for each, and they move apart", async () => {
@@ -233,6 +235,22 @@ test("a contact with two deals has a card for each, and they move apart", async 
   await expect(deals.getByRole("listitem").filter({ hasText: "Lost because: Went quiet" })).toHaveCount(1);
   // Nothing open now, so the contact is summed up by the deal touched last.
   await expect(page.locator(".detail__head")).toContainText("Lost");
+});
+
+test("one line above the board totals the open deals, weighted by stage", async () => {
+  app = await launch();
+  const page = await app.firstWindow();
+  await ensureCompany(page);
+  await page.getByRole("button", { name: "Deals" }).click();
+
+  // Open: Oakridge in New at 45,000 and Bengaluru in Proposal sent with no
+  // value. Beacon Academy's two deals are won and lost, so out of it, and the
+  // 90,000 won does not count. New is the first of five open stages, a sixth.
+  const totals = page.getByRole("status", { name: "Open deals" });
+  await expect(totals).toContainText("2 open deals");
+  await expect(totals).toContainText("45,000");
+  await expect(totals).not.toContainText("90,000");
+  await expect(totals).toContainText(/7,500\s*weighted by stage/);
 });
 
 test("stages can be renamed, reordered and added", async () => {

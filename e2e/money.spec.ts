@@ -242,3 +242,46 @@ test("a product is priced, picked onto an invoice, and shows what it brought in"
   await expect(page.getByRole("list", { name: "Who bought it" })).toContainText("1 sold");
   await expect(page.locator(".money__figure", { hasText: "Margin" })).toContainText("8,000");
 });
+
+test("an invoice paid in two parts says what is still owed, and a payment can be taken back", async () => {
+  const page = await openApp();
+  await goTo(page, "Money");
+  await page.getByRole("button", { name: "New invoice" }).click();
+  await choose(page, "Contact", "Oakridge International School");
+  await page.getByLabel("Line 1 description").fill("Training day");
+  await page.getByLabel("Line 1 unit price").fill("30000");
+  await page.getByRole("button", { name: "Save invoice" }).click();
+  const row = page.locator(".money__row", { hasText: "INV-0004" });
+  await row.getByRole("button", { name: "Mark sent" }).click();
+  await expect(row).toContainText("Sent");
+
+  // A deposit. The amount starts at everything owed, and is changed.
+  await row.getByRole("button", { name: "Record a payment" }).click();
+  const dialog = page.getByRole("dialog", { name: "Payments on INV-0004" });
+  await expect(dialog.getByLabel("Amount")).toHaveValue("30000");
+  await dialog.getByLabel("Amount").fill("10000");
+  await dialog.getByLabel("Note").fill("Deposit");
+  await dialog.getByRole("button", { name: "Record the payment" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(row).toContainText("Sent");
+  await expect(row).toContainText(/10,000 in, .*20,000 owed/);
+
+  // The rest, offered as what is left.
+  await row.getByRole("button", { name: "Record a payment" }).click();
+  await expect(dialog.getByRole("list", { name: "Payments" })).toContainText("Deposit");
+  await expect(dialog.getByLabel("Amount")).toHaveValue("20000");
+  await dialog.getByRole("button", { name: "Record the payment" }).click();
+  await expect(row).toContainText("Paid");
+
+  // Recorded by mistake: removed after being asked, and the invoice reopens.
+  await row.getByRole("button", { name: "Payments", exact: true }).click();
+  const payments = dialog.getByRole("list", { name: "Payments" });
+  await expect(payments.getByRole("listitem")).toHaveCount(2);
+  await payments.getByRole("button", { name: /^Remove the payment of .*20,000/ }).click();
+  await payments.getByRole("button", { name: "Remove", exact: true }).click();
+  await expect(payments.getByRole("listitem")).toHaveCount(1);
+  await expect(dialog).toContainText("20,000 still owed");
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(row).toContainText("Sent");
+  await expect(row).toContainText(/20,000 owed/);
+});

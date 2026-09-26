@@ -55,6 +55,12 @@ type Props = {
   onSkip?: () => Promise<void>;
   /** Offered instead when the block is one of a repeat. */
   onEndSeries?: () => Promise<void>;
+  /**
+   * Saves the change to this one and every later one of its repeat. Only
+   * the name, the time, the length and the kind carry to the rest - they are
+   * what a repeat is - and the ones already past are left as they were.
+   */
+  onSaveSeries?: (input: BlockInput) => Promise<void>;
   /** A block set aside for a brain page - a course, a hobby - opens it. */
   onOpenPage?: (pageId: string) => void;
 };
@@ -71,6 +77,7 @@ export function BlockForm({
   onDelete,
   onSkip,
   onEndSeries,
+  onSaveSeries,
   onOpenPage,
 }: Props) {
   const [title, setTitle] = useState(block?.title ?? forTask?.title ?? "");
@@ -114,7 +121,8 @@ export function BlockForm({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  async function submit(event: React.FormEvent) {
+  /** Saves this one, or with `series` this one and the rest of its repeat. */
+  async function submit(event: React.FormEvent, series = false) {
     event.preventDefault();
     setError(null);
 
@@ -138,7 +146,7 @@ export function BlockForm({
 
     setBusy(true);
     try {
-      await onSave(parsed.data);
+      await (series && onSaveSeries ? onSaveSeries(parsed.data) : onSave(parsed.data));
     } finally {
       setBusy(false);
     }
@@ -374,6 +382,19 @@ export function BlockForm({
             <button type="button" className="btn btn--sm" onClick={onClose}>
               Cancel
             </button>
+            {onSaveSeries && (
+              // Beside Save rather than in place of it: one lecture moved for
+              // one week is as ordinary as the whole run moving to ten.
+              <button
+                type="button"
+                className="btn btn--sm"
+                onClick={(event) => void submit(event, true)}
+                disabled={busy}
+                title="The name, time, length and kind, for this one and every one after it. The ones already past stay as they were."
+              >
+                Save every one from here
+              </button>
+            )}
             <button type="submit" className="btn btn--sm btn--primary" disabled={busy}>
               {block ? "Save" : "Add it"}
             </button>

@@ -99,6 +99,8 @@ export function TodayScreen({
     companyId ? fetchToday : null,
   );
   const [adding, setAdding] = useState(false);
+  /** The task whose row is open as a form, to change what the quick line cannot. */
+  const [editing, setEditing] = useState<string | null>(null);
   /**
    * Which line is on the screen, of the three: the one Caulder reads itself,
    * the same line asked of your AI, or a topic whose context goes on the
@@ -135,6 +137,12 @@ export function TodayScreen({
     reload();
   }
 
+  async function saveTask(id: string, input: TaskInput) {
+    await window.caulder.tasks.update(id, input);
+    setEditing(null);
+    reload();
+  }
+
   if (!companyId) return null;
   if (!today) return <ErrorLine>{error}</ErrorLine>;
 
@@ -150,33 +158,47 @@ export function TodayScreen({
       ? onOpenPage(deadline.id)
       : onOpenSection(sectionForDeadline(deadline.source), deadline.source === "person" ? deadline.id : undefined);
 
-  const rowFor = (task: Today["overdue"][number], overdue = false, hide?: { area?: boolean; kind?: boolean; due?: boolean }) => (
-    <TaskRow
-      key={task.id}
-      task={task}
-      day={today.day}
-      busy={busy}
-      overdue={overdue}
-      {...(hide ? { hide } : {})}
-      onOpenLead={onOpenLead}
-      onComplete={() =>
-        void act(async () => {
-          await window.caulder.tasks.complete(task.id);
-          // Ember was watching. The last overdue thing gone gets the whole
-          // routine; anything else, a cheer.
-          cueEmber(overdue && today.overdue.length === 1 ? "cleared" : "done");
-        })
-      }
-      onReschedule={(dueOn) => void act(() => window.caulder.tasks.reschedule(task.id, dueOn))}
-      onDelete={() => void act(() => window.caulder.tasks.remove(task.id))}
-      onCall={
-        // Not for a contact marked do not contact, as on the contact's own page.
-        startCall && task.kind === "call" && task.leadId && !task.leadDoNotContact
-          ? () => startCall(task.leadId as string, { taskId: task.id, onLogged: reload })
-          : undefined
-      }
-    />
-  );
+  const rowFor = (task: Today["overdue"][number], overdue = false, hide?: { area?: boolean; kind?: boolean; due?: boolean }) =>
+    // The form opens where the row was, so the eye does not have to go
+    // looking for it at the top of the screen.
+    editing === task.id ? (
+      <li key={task.id} className="taskedit">
+        <TaskForm
+          day={today.day}
+          task={task}
+          busy={busy}
+          onSubmit={(input) => saveTask(task.id, input)}
+          onCancel={() => setEditing(null)}
+        />
+      </li>
+    ) : (
+      <TaskRow
+        key={task.id}
+        task={task}
+        day={today.day}
+        busy={busy}
+        overdue={overdue}
+        {...(hide ? { hide } : {})}
+        onOpenLead={onOpenLead}
+        onComplete={() =>
+          void act(async () => {
+            await window.caulder.tasks.complete(task.id);
+            // Ember was watching. The last overdue thing gone gets the whole
+            // routine; anything else, a cheer.
+            cueEmber(overdue && today.overdue.length === 1 ? "cleared" : "done");
+          })
+        }
+        onReschedule={(dueOn) => void act(() => window.caulder.tasks.reschedule(task.id, dueOn))}
+        onDelete={() => void act(() => window.caulder.tasks.remove(task.id))}
+        onEdit={() => setEditing(task.id)}
+        onCall={
+          // Not for a contact marked do not contact, as on the contact's own page.
+          startCall && task.kind === "call" && task.leadId && !task.leadDoNotContact
+            ? () => startCall(task.leadId as string, { taskId: task.id, onLogged: reload })
+            : undefined
+        }
+      />
+    );
 
   // Deadlines are urgent when one is late or three days off: then they sit
   // with the late things. Otherwise they wait below the day's work - a filing

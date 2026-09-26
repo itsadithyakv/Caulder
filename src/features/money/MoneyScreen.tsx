@@ -20,7 +20,7 @@ import { messageOf } from "@/lib/errors";
 import { Card } from "@/components/Card";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorLine } from "@/components/ErrorLine";
-import { DocumentForm, SpendForm, TargetForm } from "./MoneyForms";
+import { DocumentForm, PaymentsForm, SpendForm, TargetForm } from "./MoneyForms";
 import { CostsTab } from "./CostsTab";
 import { ProductsTab } from "./ProductsTab";
 
@@ -95,6 +95,8 @@ export function MoneyScreen({
     { kind: "invoice"; invoice: Invoice | null } | { kind: "quote"; quote: Quote | null } | null
   >(null);
   const [addingSpend, setAddingSpend] = useState(false);
+  /** The invoice whose payments are open. Its id, so the dialog reads the fresh copy after a change. */
+  const [paying, setPaying] = useState<string | null>(null);
   const [settingTarget, setSettingTarget] = useState(false);
 
   if (!companyId) return null;
@@ -103,6 +105,7 @@ export function MoneyScreen({
   const money = (value: number) => formatValue(value, data.currency);
   const day = todayIn(timezone);
   const runway = costs.data?.runway ?? null;
+  const payingInvoice = paying === null ? null : (data.invoices.find((invoice) => invoice.id === paying) ?? null);
 
   /** A cost change moves the spend list too, so both halves are read again. */
   async function changeCosts(run: () => Promise<unknown>): Promise<boolean> {
@@ -179,6 +182,7 @@ export function MoneyScreen({
                 day={day}
                 busy={busy}
                 onEdit={() => setEditing({ kind: "invoice", invoice })}
+                onPayments={() => setPaying(invoice.id)}
                 onAct={act}
                 companyId={companyId}
               />
@@ -231,6 +235,7 @@ export function MoneyScreen({
                   day={day}
                   busy={busy}
                   onEdit={() => setEditing({ kind: "invoice", invoice })}
+                  onPayments={() => setPaying(invoice.id)}
                   onAct={act}
                   companyId={companyId}
                 />
@@ -367,6 +372,21 @@ export function MoneyScreen({
         />
       )}
 
+      {payingInvoice && (
+        <PaymentsForm
+          companyId={companyId}
+          invoice={payingInvoice}
+          day={day}
+          currency={data.currency}
+          onClose={() => setPaying(null)}
+          onSaved={() => {
+            setPaying(null);
+            reload();
+          }}
+          onChanged={reload}
+        />
+      )}
+
       {settingTarget && (
         <TargetForm
           companyId={companyId}
@@ -405,6 +425,7 @@ function InvoiceRow({
   busy,
   companyId,
   onEdit,
+  onPayments,
   onAct,
 }: {
   invoice: Invoice;
@@ -413,6 +434,7 @@ function InvoiceRow({
   busy: boolean;
   companyId: string;
   onEdit: () => void;
+  onPayments: () => void;
   onAct: (run: () => Promise<unknown>) => Promise<void>;
 }) {
   const overdue = isOverdueInvoice(invoice, day);
@@ -432,7 +454,9 @@ function InvoiceRow({
       <span className="money__amount">
         {money(invoice.total)}
         {invoice.paid > 0 && invoice.status !== "paid" && (
-          <span className="money__paid">{money(invoice.paid)} in</span>
+          <span className="money__paid">
+            {money(invoice.paid)} in, {money(invoice.total - invoice.paid)} owed
+          </span>
         )}
       </span>
       <span className={`badge badge--${tone}`}>
@@ -448,6 +472,17 @@ function InvoiceRow({
           >
             Mark sent
           </button>
+        )}
+        {invoice.status === "sent" ? (
+          <button type="button" className="btn btn--sm" disabled={busy} onClick={onPayments}>
+            Record a payment
+          </button>
+        ) : (
+          invoice.payments.length > 0 && (
+            <button type="button" className="btn btn--sm btn--ghost" disabled={busy} onClick={onPayments}>
+              Payments
+            </button>
+          )
         )}
         {invoice.status === "sent" && (
           <button

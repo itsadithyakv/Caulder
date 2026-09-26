@@ -154,3 +154,103 @@ test("the day it landed on is the one that opens", async () => {
   }, wednesday);
   expect(shown).toEqual([wednesday]);
 });
+
+/** A day some whole days from another, by the calendar rather than the clock. */
+function plusDays(day: string, days: number): string {
+  const [year, month, date] = day.split("-").map(Number);
+  const moved = new Date(year ?? 1970, (month ?? 1) - 1, (date ?? 1) + days);
+  return `${moved.getFullYear()}-${String(moved.getMonth() + 1).padStart(2, "0")}-${String(
+    moved.getDate(),
+  ).padStart(2, "0")}`;
+}
+
+test("a repeat changed from one day on leaves the ones already past alone", async () => {
+  const { monday } = thisWeek();
+  const lastMonday = plusDays(monday, -7);
+  const nextMonday = plusDays(monday, 7);
+  const page = await openApp();
+
+  // Mondays from last week to next, so there is one before the change, the
+  // one changed, and one after it.
+  const companyId = await page.evaluate(
+    async (where) => {
+      const { activeCompanyId } = await window.caulder.companies.list();
+      if (!activeCompanyId) throw new Error("No active workspace.");
+      await window.caulder.day.createBlock(activeCompanyId, {
+        day: where.from,
+        startsAt: "09:00",
+        minutes: 60,
+        title: "Databases lecture",
+        kind: "class",
+        notes: null,
+        taskId: null,
+        priority: null,
+        remindMinutes: null,
+        repeat: { weekdays: [1], until: where.until },
+      });
+      return activeCompanyId;
+    },
+    { from: lastMonday, until: nextMonday },
+  );
+
+  // This week's Monday, opened from the week, then the lecture on it.
+  await showWeek(page);
+  await page.locator(".week__day").nth(0).click();
+  await page.locator(".block", { hasText: "Databases lecture" }).dblclick();
+
+  const form = page.getByRole("dialog", { name: "A block of time" });
+  await form.getByLabel("What", { exact: true }).fill("Databases, room 4");
+  await form.getByLabel("Starts", { exact: true }).fill("10:00");
+  await form.getByRole("button", { name: "Save every one from here" }).click();
+  await expect(form).toHaveCount(0);
+
+  const mondayOf = (day: string) =>
+    page.evaluate(
+      async (where) => {
+        const week = await window.caulder.day.week(where.id, where.day);
+        const block = week.days.find((entry) => entry.day === where.day)?.blocks[0];
+        return block ? { title: block.title, at: block.startsAt } : null;
+      },
+      { id: companyId, day },
+    );
+
+  // Last week's happened at nine and still says so; this one and the next moved.
+  expect(await mondayOf(lastMonday)).toEqual({ title: "Databases lecture", at: "09:00" });
+  expect(await mondayOf(monday)).toEqual({ title: "Databases, room 4", at: "10:00" });
+  expect(await mondayOf(nextMonday)).toEqual({ title: "Databases, room 4", at: "10:00" });
+});
+
+test("a term is removed with its classes left on the calendar", async () => {
+  const page = await openApp();
+
+  await page.getByRole("button", { name: "Timetable", exact: true }).click();
+  const sheet = page.getByRole("dialog", { name: "A timetable" });
+  await sheet.getByLabel("Which term").fill("Autumn");
+  await sheet.getByLabel("What it is").fill("Algorithms");
+  await sheet.getByRole("button", { name: "Build the term" }).click();
+  await expect(sheet).toHaveCount(0);
+
+  // Made here, so listed here, and taken away here.
+  await page.getByRole("button", { name: "Timetable", exact: true }).click();
+  const terms = sheet.getByRole("list", { name: "Your terms" });
+  await expect(terms).toContainText("Autumn");
+  await terms.getByRole("button", { name: "Remove the term Autumn" }).click();
+  // The confirmation says what goes and what does not.
+  await expect(sheet.getByText("Only the name and its dates go. Its classes stay on the calendar.")).toBeVisible();
+  await terms.getByRole("button", { name: "Remove", exact: true }).click();
+  await expect(terms).toHaveCount(0);
+
+  // Next week rather than this one, so a class set for today's weekday is in
+  // it whichever side of midnight the machine's clock and the workspace's are.
+  const left = await page.evaluate(async (day) => {
+    const { activeCompanyId, homeCompanyId } = await window.caulder.companies.list();
+    const terms = await window.caulder.terms.list(homeCompanyId ?? activeCompanyId ?? "");
+    const week = await window.caulder.day.week(activeCompanyId ?? "", day);
+    return {
+      terms: terms.length,
+      classes: week.days.flatMap((entry) => entry.blocks.map((block) => block.title)),
+    };
+  }, plusDays(thisWeek().monday, 7));
+  expect(left.terms).toBe(0);
+  expect(left.classes).toContain("Algorithms");
+});

@@ -244,3 +244,53 @@ test("everything survives a restart", async () => {
   await page.locator(".leadrow__name", { hasText: /Bengaluru Public School/ }).click();
   await expect(page.getByText("Send the proposal")).toBeVisible();
 });
+
+test("a task is changed from its own row, and Escape puts the row back", async () => {
+  app = await launch();
+  const page = await app.firstWindow();
+  await ensureCompany(page);
+
+  await page.getByRole("button", { name: "Full form" }).click();
+  await page.getByLabel("What needs doing").fill("Draft the pitch");
+  await page.getByRole("button", { name: "Add task" }).click();
+  await expect(page.getByText("Draft the pitch", { exact: true })).toBeVisible();
+
+  // The form opens in the row's place, filled with the task as it stands.
+  await page.getByRole("button", { name: 'Edit "Draft the pitch"' }).click();
+  const form = page.locator(".taskedit");
+  await expect(form.getByLabel("What needs doing")).toHaveValue("Draft the pitch");
+  await form.getByLabel("What needs doing").fill("Draft the pitch deck");
+  await form.getByLabel("Notes").fill("Ten slides at most");
+  await form
+    .getByRole("radiogroup", { name: "How much it matters", exact: true })
+    .getByRole("radio", { name: "Has to happen", exact: true })
+    .click();
+  await form.getByRole("button", { name: "Save", exact: true }).click();
+
+  await expect(page.locator(".taskedit")).toHaveCount(0);
+  await expect(page.getByText("Draft the pitch deck", { exact: true })).toBeVisible();
+  await expect(page.getByText("Ten slides at most")).toBeVisible();
+  await expect(page.getByText("Has to happen", { exact: true })).toBeVisible();
+
+  // Escape leaves without saving, and only the form goes - not the screen behind it.
+  await page.getByRole("button", { name: 'Edit "Draft the pitch deck"' }).click();
+  await page.locator(".taskedit").getByLabel("What needs doing").fill("Something else");
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".taskedit")).toHaveCount(0);
+  await expect(page.getByText("Draft the pitch deck", { exact: true })).toBeVisible();
+  // Saving sends the whole task, so the note it already had is still there.
+  await expect(page.getByText("Ten slides at most")).toBeVisible();
+});
+
+test("with no AI connected, the line offers no way to ask one", async () => {
+  app = await launch();
+  const page = await app.firstWindow();
+  await ensureCompany(page);
+
+  // Asking is one of the line's modes, drawn only when there is an AI to ask;
+  // the other mode, copying context for an AI elsewhere, is always there.
+  const quick = page.locator(".today__quick");
+  await expect(quick.getByLabel("Anything, in one line")).toBeVisible();
+  await expect(quick.getByRole("button", { name: "Copy context for another AI" })).toBeVisible();
+  await expect(quick.getByRole("button", { name: /Ask the AI/ })).toHaveCount(0);
+});

@@ -48,7 +48,7 @@ import { existsSync, mkdirSync } from "node:fs";
 import { dialog } from "electron";
 import { MAX_BYTES, type ColumnMapping, type Resolution } from "@shared/import";
 import { isDay, isTime } from "@shared/dates";
-import { buildToday } from "../services/today";
+import { buildToday, coldAfterDaysInput, readColdAfterDays, setColdAfterDays } from "../services/today";
 import { buildDay, buildWeek } from "../services/day";
 import {
   createBlock,
@@ -1278,6 +1278,14 @@ function registerTaskHandlers() {
 
   handle(CHANNELS.todayGet, (_event, companyId: unknown) =>
     buildToday(getDatabase(), withHome(getDatabase(), assertId(companyId, "company id"))),
+  );
+
+  handle(CHANNELS.todayColdAfterDays, () => readColdAfterDays(getDatabase()));
+
+  // Parsed as it arrives rather than coerced with Number(), so a string or a
+  // blank is refused with the schema's sentence instead of becoming zero days.
+  handle(CHANNELS.todaySetColdAfterDays, (_event, days: unknown) =>
+    setColdAfterDays(getDatabase(), coldAfterDaysInput.parse(days)),
   );
 
   handle(CHANNELS.companiesSetCurrency, (_event, companyId: unknown, raw: unknown) => {

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { Bug, CloudUpload, Download, FolderOpen, RotateCcw, Save } from "lucide-react";
-import type { BackupFile } from "@shared/data";
+import { Bug, Cloud, CloudUpload, Download, FolderOpen, RotateCcw, Save } from "lucide-react";
+import type { BackupFile, DriveBackups } from "@shared/data";
 import { formatDateTime } from "@/lib/format";
 import { messageOf } from "@/lib/errors";
+import { ErrorLine } from "@/components/ErrorLine";
 
 /**
  * Backup, restore and getting everything out.
@@ -31,6 +32,8 @@ export function DataSafety({
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** Bumped by each upload to Drive, so a list of what is there can be asked again. */
+  const [sentToDrive, setSentToDrive] = useState(0);
 
   const load = useCallback(() => {
     Promise.all([window.caulder.data.backups(), window.caulder.data.paths(), window.caulder.data.mirror()])
@@ -131,6 +134,7 @@ export function DataSafety({
                   setMessage(
                     `Backed up here and to "Caulder backups" in your Google Drive, as ${sent.name}. The newest ${sent.kept} are kept there.`,
                   );
+                  setSentToDrive((count) => count + 1);
                   load();
                 })
               }
@@ -263,6 +267,8 @@ export function DataSafety({
             </ul>
           )}
 
+          <DriveCopies companyId={companyId} sent={sentToDrive} />
+
           {paths && (
             <p className="card__hint datasafety__where">
               The database is at <code>{paths.database}</code>. Copy that file
@@ -327,6 +333,102 @@ export function DataSafety({
 
       <p className="card__hint">Exports are per company. This one is {companyName}.</p>
     </section>
+  );
+}
+
+/**
+ * What is in the "Caulder backups" folder in Drive, when Google is connected.
+ *
+ * Asked for with a button rather than on opening Settings: it is a request to
+ * the person's own script over the network, and Settings should open the same
+ * offline as on. Listing only - bringing one back is a download from Drive
+ * into the backups folder, where it is restored like any other copy, so there
+ * is one way to restore rather than two.
+ */
+function DriveCopies({ companyId, sent }: { companyId: string; sent: number }) {
+  const [connected, setConnected] = useState(false);
+  const [drive, setDrive] = useState<DriveBackups | null>(null);
+  const [asking, setAsking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    // Offline: only whether a script is stored. Failing to read it just
+    // leaves the section away, as it would be without Google.
+    window.caulder.google.state(companyId).then(
+      (state) => live && setConnected(state.connected),
+      () => live && setConnected(false),
+    );
+    return () => {
+      live = false;
+    };
+  }, [companyId]);
+
+  const ask = useCallback(async () => {
+    setAsking(true);
+    setError(null);
+    try {
+      setDrive(await window.caulder.google.driveBackups());
+    } catch (cause) {
+      setError(messageOf(cause));
+    } finally {
+      setAsking(false);
+    }
+  }, []);
+
+  // A list already on screen is asked again after an upload, so it does not
+  // sit there missing the copy just sent. One that was never asked for stays
+  // unasked.
+  const shown = drive !== null;
+  // Keyed on the upload count alone: the list arriving must not ask again.
+  useEffect(() => {
+    if (sent > 0 && shown) void ask();
+  }, [sent]);
+
+  if (!connected) return null;
+
+  return (
+    <>
+      <h3 className="today__groupTitle datasafety__heading">
+        On Google Drive
+        {drive && <span className="today__count">{drive.backups.length}</span>}
+      </h3>
+      <p className="card__hint">
+        The copies sent with Back up to Google Drive, in the folder
+        &ldquo;{drive?.folder ?? "Caulder backups"}&rdquo;. To restore one,
+        download it from Drive into the backups folder; it then shows under
+        Backups above and restores like any other.
+      </p>
+
+      <ErrorLine>{error}</ErrorLine>
+
+      <div className="actions">
+        <button type="button" className="btn btn--sm" disabled={asking} onClick={() => void ask()}>
+          <Cloud size={13} aria-hidden />
+          {asking ? "Asking Drive" : drive ? "Look again" : "Show backups on Drive"}
+        </button>
+      </div>
+
+      {drive &&
+        (drive.backups.length === 0 ? (
+          <p className="card__hint">
+            Nothing in &ldquo;{drive.folder}&rdquo; yet. Back up to Google Drive to put the first copy there.
+          </p>
+        ) : (
+          <ul className="batches" aria-label="Backups on Google Drive">
+            {drive.backups.map((backup) => (
+              <li key={`${backup.name}-${backup.at}`} className="batch">
+                <div className="batch__what">
+                  <span className="batch__name">{formatDateTime(backup.at)}</span>
+                  <span className="batch__meta">
+                    {backup.name} &middot; {formatSize(backup.size)}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ))}
+    </>
   );
 }
 

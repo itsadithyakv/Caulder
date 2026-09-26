@@ -129,6 +129,7 @@ A contact has deals; the main deal (open and touched last) sums it up in lists.
 
 ### Deals board (pipeline)
 One card per deal by stage, drag or Move menu; the funnel is edited in Settings.
+- A line above the board: open deals, their value, and the value weighted by stage (the k-th of n open stages counts k/(n+1); won and lost left out), in the company's currency. Logic `src/features/pipeline/totals.ts` + `totals.test.ts`; e2e `pipeline.spec.ts`.
 - UI: `src/features/pipeline/`, `src/features/leads/StageBadge.tsx`, `src/features/settings/StageEditor.tsx`
 - Main: `services/pipeline.ts` (`buildBoard`), `repositories/stages.ts` · Tables: `pipeline_stages`, `deals`
 - IPC: `board:get`, `stages:`, `deals:set-stage`, `leads:set-stage-many` · Tests: `services/pipeline.test.ts`; e2e `pipeline.spec.ts`
@@ -152,6 +153,7 @@ A prompter reading a script (a Playbooks page) with the contact's context, a dia
 
 ### Money: quotes, invoices, payments, spend
 Four numbers a month and three lists. Paid comes from payments; overdue is worked out when read.
+- Payments on an invoice: *Record a payment* (part payments; amount defaults to what is owed) and *Payments* to take one back after a confirm; *Mark paid* stays the one click. `PaymentsForm` in `MoneyForms.tsx`, through `money.addPayment` / `money.deletePayment`; e2e `money.spec.ts`.
 - UI: `src/features/money/` (`MoneyScreen`, `MoneyForms`), `src/features/leads/LeadMoney.tsx`
 - Main: `repositories/money.ts`, `services/invoice.ts`, `invoice-html.ts`, `print.ts`
 - Tables: `quotes`, `quote_lines`, `invoices`, `invoice_lines`, `payments`, `spend` · IPC: `money:`, `quotes:`, `invoices:`, `payments:`, `spend:`
@@ -308,6 +310,7 @@ plus a `because` sentence, and chips let the person change it.
 
 ### The smart line on Today
 Reads any line, shows what it will do and where it goes, and on Enter writes it. The same card has two other modes: Ask (your AI) and Copy context (the topic brief).
+- Asking your AI is only the Ask switch in `LineModes.tsx` ("Ask the AI"), drawn when an AI is connected; `QuickAdd` has no switch of its own.
 - UI: `src/features/today/QuickAdd.tsx` (`keep()` switches on the kind), `LineModes.tsx`, `LinePanels.tsx`, `AskLine.tsx`, `ContextLine.tsx`, `Remember.tsx`
 - Order inside `QuickAdd.tsx`: context loaded on focus, `cleanPaste`, `followOn`, `parseQuick`, `readCapture`, then `readQuestion` and `readEdit` (which win), then `voteKind` from lessons, then the chip the person pressed.
 - Writes: tasks, blocks, reminders, contact history, new contacts, brain pages (memories, ideas, costs), journal, private lines, habit ticks, hobby time, measures, the shelf, spend, navigation.
@@ -365,16 +368,20 @@ A new *task* kind (call, email, meeting) is not a new capture kind: it belongs i
 
 ### Today
 The home screen: the line, then what is late and due, unpaid money, renewals, deadlines, going quiet, replies; habits, journal, pulse, theme, your week, level, notes at the foot, the setup nudge. Rebuilt on every change, never patched.
+- Going quiet after N days (3-90, default 14), set in Settings > Reminders: `coldAfterDaysInput`, `readColdAfterDays`, `setColdAfterDays` in `services/today.ts`; IPC `today:cold-after-days`, `today:set-cold-after-days`; e2e `workbench.spec.ts`.
 - UI: `src/features/today/` (`TodayScreen`, `NowLine`, `TaskRow`, `TaskForm`, `grouping.ts`, `Hello`, `said.ts`) plus cards from `src/features/life/` · Main: `services/today.ts`
 - IPC: `today:` · Tests: `services/today.test.ts`, `src/features/today/grouping.test.ts`; e2e `today.spec.ts`, `hub.spec.ts`
 
 ### Calendar (the day)
 A day timetable and a week grid of blocks: repeating series, outcomes, a block tied to a habit, reminders before a block, semesters, moods.
+- A repeating block's form offers *Save every one from here* (`blocks:updateSeries`): name, time, length and kind from that day on; past ones untouched, other fields only for the one opened.
+- Terms are listed and removed in the Timetable dialog (`terms:delete`), in your home workspace; removing one takes its name and dates, never its classes.
 - UI: `src/features/day/` · Logic: `shared/day.ts`, `repeat.ts`, `priority.ts`, `remind.ts` · Main: `services/day.ts`, `repositories/blocks.ts`, `repositories/terms.ts`
 - Tables: `blocks`, `block_series`, `terms` · IPC: `day:`, `week:`, `blocks:`, `terms:` · Tests: `services/day.test.ts`, `shared/day.test.ts`, `repeat.test.ts`, `priority.test.ts`; e2e `week.spec.ts`
 
 ### Tasks
 One list per workspace: day, time, priority, contact, area; completed, snoozed, reopened.
+- Edited from the pencil on a row, on Today and on a contact's next steps: `TaskForm` given a `task` opens in the row's place and saves the whole task through `tasks:update`.
 - Main: `repositories/tasks.ts` · Tables: `tasks` · IPC: `tasks:` · Touches: Today, contacts, pages (steps), progress, Google Tasks.
 
 ### Notes
@@ -450,6 +457,7 @@ A pill on the desktop: now, next, late. Three levels, one pinned behind the wall
 
 ### Backups, restore and export
 A backup on every launch (ten kept), on demand, a mirror folder, a Drive copy; restore checks the file and can be undone; export everything.
+- The copies on Drive are listed on the Data card when asked (`google.driveBackups`), never on draw. No link to open one (the script sends none); restoring one means downloading it into the backups folder, where Restore lists it.
 - UI: `src/features/settings/DataSafety.tsx` · Main: `electron/main/db/backup.ts`, `services/export.ts`, `services/gmore.ts` · IPC: `data:` · Tests: `db/backup.test.ts`, `services/export.test.ts`
 
 ### Updates and the Microsoft Store

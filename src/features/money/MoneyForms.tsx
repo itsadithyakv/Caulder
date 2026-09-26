@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
 import { Package, Plus, Trash2, X } from "lucide-react";
 import {
+  documentNumber,
   invoiceInput,
+  paymentInput,
   quoteInput,
   spendEntryInput,
   type Deal,
   type Invoice,
   type LeadListRow,
+  type Payment,
   type Quote,
 } from "@shared/domain";
 import { shiftDay } from "@shared/dates";
@@ -14,7 +17,7 @@ import { describeRecurrence, type PickableProduct } from "@shared/products";
 import { Portal } from "@/components/Portal";
 import { Select } from "@/components/Select";
 import { ErrorLine } from "@/components/ErrorLine";
-import { formatValue } from "@/lib/format";
+import { formatDay, formatValue } from "@/lib/format";
 import { messageOf } from "@/lib/errors";
 
 /**
@@ -469,6 +472,213 @@ export function SpendForm({
         </button>
       </div>
     </form>
+  );
+}
+
+/**
+ * What has come in against one invoice, and a way to record more.
+ *
+ * Mark paid stays the one click for the usual case, a single payment of
+ * everything owed. This is for the rest: a deposit now and the balance later,
+ * and taking back a payment recorded by mistake. Removing one asks first,
+ * because it changes what Paid says on the invoice and on the month, and can
+ * reopen an invoice that was settled.
+ */
+export function PaymentsForm({
+  companyId,
+  invoice,
+  day,
+  currency,
+  onClose,
+  onSaved,
+  onChanged,
+}: {
+  companyId: string;
+  invoice: Invoice;
+  day: string;
+  currency: string;
+  onClose: () => void;
+  /** A payment recorded: the dialog has done its job. */
+  onSaved: () => void;
+  /** A payment removed: the figures move, and the dialog stays open on them. */
+  onChanged: () => void;
+}) {
+  useEscape(onClose);
+  const money = (value: number) => formatValue(value, currency);
+  const owed = Math.max(invoice.total - invoice.paid, 0);
+  // Only a sent invoice takes money: a draft has not been asked for yet, and
+  // main refuses a void one.
+  const canRecord = invoice.status === "sent" && owed > 0;
+
+  const [amount, setAmount] = useState(String(owed));
+  const [paidOn, setPaidOn] = useState(day);
+  const [note, setNote] = useState("");
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  // Removing a payment changes what is owed, and the amount offered follows,
+  // so taking one back and recording the right one is not a sum to redo.
+  const [offeredFor, setOfferedFor] = useState(owed);
+  if (offeredFor !== owed) {
+    setOfferedFor(owed);
+    setAmount(String(owed));
+  }
+
+  async function record() {
+    setError(null);
+    const parsed = paymentInput.safeParse({ amount: Number(amount), paidOn, note });
+    if (!parsed.success) {
+      setError(parsed.error.issues[0]?.message ?? "Check the details.");
+      return;
+    }
+    if (parsed.data.amount > owed) {
+      setError(`That is more than the ${money(owed)} still owed.`);
+      return;
+    }
+    setBusy(true);
+    try {
+      await window.caulder.money.addPayment(companyId, invoice.id, parsed.data);
+      onSaved();
+    } catch (cause) {
+      setError(messageOf(cause));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(payment: Payment) {
+    setError(null);
+    setBusy(true);
+    try {
+      await window.caulder.money.deletePayment(companyId, payment.id);
+      setConfirming(null);
+      onChanged();
+    } catch (cause) {
+      setError(messageOf(cause));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const title = `Payments on ${documentNumber("invoice", invoice.number)}`;
+
+  return (
+    <Portal>
+      <div className="modal" role="dialog" aria-modal="true" aria-label={title}>
+        <form
+          className="modal__panel anim-modal money__form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (canRecord) void record();
+          }}
+        >
+          <h2 className="card__title">{title}</h2>
+          <p className="card__hint">
+            {invoice.status === "paid"
+              ? `Paid in full: ${money(invoice.paid)} of ${money(invoice.total)}.`
+              : `${money(invoice.paid)} paid of ${money(invoice.total)}, ${money(owed)} still owed.`}
+          </p>
+          <ErrorLine>{error}</ErrorLine>
+
+          {invoice.payments.length === 0 ? (
+            <p className="card__hint">Nothing has come in against it yet.</p>
+          ) : (
+            <ul className="money__list money__list--compact" aria-label="Payments">
+              {invoice.payments.map((payment) => (
+                <li key={payment.id} className="money__row">
+                  <span className="money__main money__main--flat">
+                    <span className="money__number">{formatDay(payment.paidOn)}</span>
+                    {payment.note && <span className="money__who">{payment.note}</span>}
+                  </span>
+                  <span className="money__amount">{money(payment.amount)}</span>
+                  {confirming === payment.id ? (
+                    <span className="detail__confirm">
+                      <span className="card__hint">Paid goes down by this much.</span>
+                      <button
+                        type="button"
+                        className="btn btn--sm btn--danger"
+                        disabled={busy}
+                        onClick={() => void remove(payment)}
+                      >
+                        Remove
+                      </button>
+                      <button type="button" className="btn btn--sm" disabled={busy} onClick={() => setConfirming(null)}>
+                        Keep
+                      </button>
+                    </span>
+                  ) : (
+                    <span className="money__actions">
+                      <button
+                        type="button"
+                        className="btn btn--sm btn--ghost btn--danger"
+                        disabled={busy}
+                        aria-label={`Remove the payment of ${money(payment.amount)} on ${formatDay(payment.paidOn)}`}
+                        onClick={() => setConfirming(payment.id)}
+                      >
+                        <Trash2 size={14} aria-hidden />
+                      </button>
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {canRecord && (
+            <>
+              <h3 className="field__label">Record a payment</h3>
+              <div className="blockform__row">
+                <label className="field">
+                  <span className="field__label">Amount</span>
+                  <input
+                    className="input"
+                    value={amount}
+                    onChange={(event) => setAmount(event.target.value)}
+                    inputMode="numeric"
+                    autoFocus
+                    disabled={busy}
+                  />
+                </label>
+                <label className="field">
+                  <span className="field__label">Paid on</span>
+                  <input
+                    className="input"
+                    type="date"
+                    value={paidOn}
+                    onChange={(event) => setPaidOn(event.target.value)}
+                    disabled={busy}
+                  />
+                </label>
+              </div>
+              <label className="field">
+                <span className="field__label">Note</span>
+                <input
+                  className="input"
+                  value={note}
+                  onChange={(event) => setNote(event.target.value)}
+                  placeholder="Deposit, bank transfer, cheque 104"
+                  maxLength={500}
+                  disabled={busy}
+                />
+              </label>
+            </>
+          )}
+
+          <div className="modal__actions">
+            <span className="modal__spacer" />
+            <button type="button" className="btn" onClick={onClose} disabled={busy}>
+              {canRecord ? "Cancel" : "Done"}
+            </button>
+            {canRecord && (
+              <button type="submit" className="btn btn--primary" disabled={busy}>
+                Record the payment
+              </button>
+            )}
+          </div>
+        </form>
+      </div>
+    </Portal>
   );
 }
 

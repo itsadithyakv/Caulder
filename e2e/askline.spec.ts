@@ -112,7 +112,7 @@ test("the star turns the line into a question, and the answer lands under it", a
   await page.reload();
   await page.waitForSelector(".quickadd");
 
-  await page.getByRole("button", { name: "Ask the AI instead" }).click();
+  await page.getByRole("button", { name: "Ask the AI", exact: true }).click();
   const line = page.getByLabel("Ask the AI");
   await expect(line).toBeVisible();
   await shot("asking");
@@ -150,11 +150,11 @@ test("allowed, they go - and the answer says they did", async () => {
 });
 
 test("the star goes back to the line Caulder reads itself, and stays where it was put", async () => {
-  await page.getByRole("button", { name: "Back to the line Caulder reads itself" }).click();
+  await page.getByRole("button", { name: /^Into (?:the company|your own day)$/ }).click();
   await expect(page.getByLabel("Anything, in one line")).toBeVisible();
   await shot("local");
 
-  await page.getByRole("button", { name: "Ask the AI instead" }).click();
+  await page.getByRole("button", { name: "Ask the AI", exact: true }).click();
   await page.reload();
   await page.waitForSelector(".quickadd");
   // Which line was last on the screen is remembered, so the choice is not

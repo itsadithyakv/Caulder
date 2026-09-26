@@ -154,7 +154,6 @@ export function QuickAdd({
   smart = false,
   onGo,
   onOpenContact,
-  onAi,
   modes,
 }: {
   companyId: string;
@@ -176,15 +175,12 @@ export function QuickAdd({
   /** "Email rahul": opens the contact, which is where writing and calling are. */
   onOpenContact?: (leadId: string, how: "email" | "call" | "message" | null) => void;
   /**
-   * Hands the same line to your AI instead (features/today/AskLine.tsx).
-   * Given only where there is one to hand it to, which makes the star a
-   * switch rather than an ornament: grey, Caulder reads the line itself.
-   */
-  onAi?: () => void;
-  /**
    * The mode control at the head of the line, when the screen has one to
    * give. Passed in rather than built here: this component is also the
    * capture window, which has one mode and no business drawing three.
+   *
+   * Asking your AI is one of those modes (LineModes.tsx), so it is offered
+   * there - only when an AI is connected - and not by a star of the line's own.
    */
   modes?: ReactNode;
 }) {
@@ -922,20 +918,7 @@ export function QuickAdd({
   return (
     <div className="quickadd">
       <div className="quickadd__row">
-        {modes ?? (onAi ? (
-          <button
-            type="button"
-            className="quickadd__star"
-            aria-pressed={false}
-            title="Ask the AI instead"
-            onClick={onAi}
-          >
-            <Sparkles size={17} aria-hidden />
-            <span className="visually-hidden">Ask the AI instead</span>
-          </button>
-        ) : (
-          <Sparkles size={17} className="quickadd__icon" aria-hidden />
-        ))}
+        {modes ?? <Sparkles size={17} className="quickadd__icon" aria-hidden />}
         <span className="quickadd__field">
         <input
           ref={input}

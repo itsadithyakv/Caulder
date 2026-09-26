@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Check, Plus, Undo2 } from "lucide-react";
+import { Check, Pencil, Plus, Undo2 } from "lucide-react";
 import { TASK_KIND_LABEL, type Task, type TaskInput } from "@shared/domain";
 import { describeDue, shiftDay, today as todayIn } from "@shared/dates";
 import { useWorkspace } from "@/lib/workspace";
@@ -28,6 +28,8 @@ export function LeadTasks({
   const { activeCompany } = useWorkspace();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [adding, setAdding] = useState(false);
+  /** The task open as a form, in its row's place. */
+  const [editing, setEditing] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,6 +66,12 @@ export function LeadTasks({
     if (!activeCompany) return;
     await window.caulder.tasks.create(activeCompany.id, { ...input, leadId });
     setAdding(false);
+    load();
+  }
+
+  async function save(id: string, input: TaskInput) {
+    await window.caulder.tasks.update(id, { ...input, leadId });
+    setEditing(null);
     load();
   }
 
@@ -111,56 +119,79 @@ export function LeadTasks({
 
       {open.length > 0 && (
         <ul className="tasks">
-          {open.map((task) => (
-            <li
-              key={task.id}
-              className={`taskrow${task.dueOn < day ? " taskrow--overdue" : ""}`}
-            >
-              <button
-                type="button"
-                className="taskrow__tick"
-                onClick={() => void act(() => window.caulder.tasks.complete(task.id))}
-                disabled={busy}
-                aria-label={`Mark "${task.title}" done`}
+          {open.map((task) =>
+            editing === task.id ? (
+              <li key={task.id} className="taskedit">
+                <TaskForm
+                  day={day}
+                  leadId={leadId}
+                  task={task}
+                  busy={busy}
+                  onSubmit={(input) => save(task.id, input)}
+                  onCancel={() => setEditing(null)}
+                />
+              </li>
+            ) : (
+              <li
+                key={task.id}
+                className={`taskrow${task.dueOn < day ? " taskrow--overdue" : ""}`}
               >
-                <Check size={14} aria-hidden />
-              </button>
+                <button
+                  type="button"
+                  className="taskrow__tick"
+                  onClick={() => void act(() => window.caulder.tasks.complete(task.id))}
+                  disabled={busy}
+                  aria-label={`Mark "${task.title}" done`}
+                >
+                  <Check size={14} aria-hidden />
+                </button>
 
-              {/* The same line as Today's: the title, then the kind unless it is a plain to-do, then the day. */}
-              <div className="taskrow__body">
-                <p className="taskrow__line">
-                  <span className="taskrow__title">{task.title}</span>
-                  <span className="taskrow__meta">
-                    {task.kind !== "todo" && <span>{TASK_KIND_LABEL[task.kind]}</span>}
-                    <span
-                      className={
-                        task.dueOn < day ? "taskrow__due taskrow__due--late" : "taskrow__due"
-                      }
-                    >
-                      {describeDue(task.dueOn, day)}
+                {/* The same line as Today's: the title, then the kind unless it is a plain to-do, then the day. */}
+                <div className="taskrow__body">
+                  <p className="taskrow__line">
+                    <span className="taskrow__title">{task.title}</span>
+                    <span className="taskrow__meta">
+                      {task.kind !== "todo" && <span>{TASK_KIND_LABEL[task.kind]}</span>}
+                      <span
+                        className={
+                          task.dueOn < day ? "taskrow__due taskrow__due--late" : "taskrow__due"
+                        }
+                      >
+                        {describeDue(task.dueOn, day)}
+                      </span>
                     </span>
-                  </span>
-                </p>
-              </div>
-
-              <div className="taskrow__actions">
-                <div className="taskrow__more">
-                  <button
-                    type="button"
-                    className="btn btn--sm btn--ghost"
-                    onClick={() =>
-                      void act(() =>
-                        window.caulder.tasks.reschedule(task.id, shiftDay(day, 7)),
-                      )
-                    }
-                    disabled={busy}
-                  >
-                    Next week
-                  </button>
+                  </p>
                 </div>
-              </div>
-            </li>
-          ))}
+
+                <div className="taskrow__actions">
+                  <div className="taskrow__more">
+                    <button
+                      type="button"
+                      className="btn btn--sm btn--ghost"
+                      onClick={() =>
+                        void act(() =>
+                          window.caulder.tasks.reschedule(task.id, shiftDay(day, 7)),
+                        )
+                      }
+                      disabled={busy}
+                    >
+                      Next week
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn--sm btn--ghost"
+                      onClick={() => setEditing(task.id)}
+                      disabled={busy}
+                      aria-label={`Edit "${task.title}"`}
+                      title="Edit"
+                    >
+                      <Pencil size={13} aria-hidden />
+                    </button>
+                  </div>
+                </div>
+              </li>
+            ),
+          )}
         </ul>
       )}
 

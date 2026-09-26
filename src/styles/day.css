@@ -559,6 +559,38 @@
   flex-wrap: wrap;
 }
 
+/* The terms already made, above the week being entered: a name, its span,
+ * and the way to take it away. */
+.terms {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--soft-line);
+}
+
+.terms__row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  min-height: 40px;
+  padding: var(--space-1) 0;
+  border-bottom: 1px solid var(--soft-line);
+}
+
+.terms__name {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.terms__span {
+  flex: 1;
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
 .timetable__title { flex: 1; min-width: 180px; }
 .timetable__time  { width: 120px; }
 .timetable__len   { width: 90px; }

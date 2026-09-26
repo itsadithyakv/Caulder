@@ -629,6 +629,16 @@
   align-items: start;
 }
 
+/* A row being changed: the form in the row's own place in the list, so the
+ * eye stays where it was rather than going back up to the top of the screen. */
+.taskedit {
+  padding: var(--space-2) 0 var(--space-4);
+}
+
+.taskedit > .leadform {
+  margin-top: 0;
+}
+
 /* ---- Tasks on a lead --------------------------------------------------- */
 
 .leadtasks {

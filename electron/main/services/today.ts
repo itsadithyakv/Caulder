@@ -2,7 +2,8 @@ import { MAIN_DEAL } from "../repositories/main-deal";
 import type { Db } from "../db/connection";
 import type { ColdLead, Today } from "@shared/domain";
 import { daysBetween, dayOf, today as todayIn } from "@shared/dates";
-import { getSetting } from "../repositories/settings";
+import { z } from "zod";
+import { getSetting, setSetting } from "../repositories/settings";
 import { listDueOn, listOverdue, listUpcoming } from "../repositories/tasks";
 import { listBlocks } from "../repositories/blocks";
 import { layOut } from "@shared/day";
@@ -85,13 +86,36 @@ function companyTimezone(db: Db, companyId: string): string {
   return row?.timezone ?? "UTC";
 }
 
-function readColdAfterDays(db: Db): number {
+/**
+ * How many days without contact makes an open deal "going quiet".
+ *
+ * Bounded both ways on purpose. Under three days, a contact you spoke to on
+ * Monday would be nagging by Thursday and the list would be everyone; past
+ * ninety, the list is of people who have already gone, which is a different
+ * question and too late to be useful.
+ */
+export const coldAfterDaysInput = z
+  .number({ message: "Give the number of days as a number." })
+  .int("Give a whole number of days.")
+  .min(3, "Three days is the shortest; any less and everyone is going quiet.")
+  .max(90, "Ninety days is the longest; after that they have gone quiet already.");
+
+/**
+ * The threshold as it is stored. A value that would not be accepted now -
+ * written by hand, or by an older build - reads as the default rather than
+ * emptying or flooding the list.
+ */
+export function readColdAfterDays(db: Db): number {
   const raw = getSetting(db, "coldAfterDays");
-  const parsed = raw === null ? Number.NaN : Number(raw);
-  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 365) {
-    return DEFAULT_COLD_AFTER_DAYS;
-  }
-  return parsed;
+  const parsed = coldAfterDaysInput.safeParse(raw === null ? Number.NaN : Number(raw));
+  return parsed.success ? parsed.data : DEFAULT_COLD_AFTER_DAYS;
+}
+
+/** Checked here as well as at the bridge, so no caller can store what Today would ignore. */
+export function setColdAfterDays(db: Db, days: number): number {
+  const valid = coldAfterDaysInput.parse(days);
+  setSetting(db, "coldAfterDays", String(valid));
+  return valid;
 }
 
 type ColdRow = {

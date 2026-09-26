@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { Check, Phone, Trash2 } from "lucide-react";
+import { Check, Pencil, Phone, Trash2 } from "lucide-react";
 import { TASK_AREA_LABEL, TASK_KIND_LABEL, type Task, type TaskArea } from "@shared/domain";
 import { describeDue, shiftDay } from "@shared/dates";
 import { useOpenRef } from "@/lib/navigate";
@@ -35,6 +35,7 @@ export function TaskRow({
   onComplete,
   onReschedule,
   onDelete,
+  onEdit,
   onCall,
   hide = {},
 }: {
@@ -48,6 +49,8 @@ export function TaskRow({
   onComplete: () => void;
   onReschedule: (dueOn: string) => void;
   onDelete: () => void;
+  /** Opens the form on this task, to change anything the quick line cannot. */
+  onEdit?: () => void;
   /** Given for a call with a contact: opens the prompter, which ticks the task off. */
   onCall?: () => void;
 }) {
@@ -167,6 +170,18 @@ export function TaskRow({
           >
             Next week
           </button>
+          {onEdit && (
+            <button
+              type="button"
+              className="btn btn--sm btn--ghost"
+              onClick={onEdit}
+              disabled={busy || leaving}
+              aria-label={`Edit "${task.title}"`}
+              title="Edit"
+            >
+              <Pencil size={13} aria-hidden />
+            </button>
+          )}
           <button
             type="button"
             className="btn btn--sm btn--ghost btn--danger"

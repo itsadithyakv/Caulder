@@ -108,25 +108,32 @@ the code, and 85 realistic lines put through the quick line. Items marked
   because the passcode's key is slow to make on purpose (scrypt 2^17). It
   passes alone. It wants a longer timeout.
 
-### Built underneath, but no screen offers it
+### Built underneath, now on a screen (26 September 2026)
 
-5. A payment cannot be recorded in part, or taken back: `money.addPayment` and
-   `money.deletePayment` are never called, and only *Mark paid* exists.
-6. A task has no edit form: `tasks.update` is never called, and only the line
-   can rename or move a task.
-7. A repeating block's whole series cannot be edited (`day.updateSeries`), and
-   a term cannot be deleted (`terms.remove`).
-8. Drive backups can be made but not listed or restored
-   (`google.driveBackups`).
-9. The going-quiet threshold (`coldAfterDays`) is read but nothing sets it,
-   though features.md calls it settable.
+- **Payments:** Record a payment (part payments too) and take one back, from
+  an invoice's row; *Mark paid* stays the one click.
+- **Tasks:** edited from a pencil on the row, on Today and on a contact.
+- **Repeats:** "Save every one from here" changes the name, time, length and
+  kind from that day on; past ones are left alone.
+- **Terms:** removed from the Timetable dialog. They are kept in your home
+  now, where the line reads them.
+- **Drive backups:** listed on the Data card when asked. They cannot be
+  opened from there (the script sends no link), and restoring means
+  downloading one into the backups folder first.
+- **Going quiet:** set in Settings > Reminders, 3 to 90 days.
+- **Deals:** a line of totals (open, value, weighted by stage) in the
+  company's currency.
+- **"Ask the AI instead"** was removed: the Ask switch replaced it.
+- `e2e/askline.spec.ts` was broken since 0.4.5 by the same switch, and is
+  mended.
+
+### Still missing underneath
+
 10. The `campaigns` table cannot be filled from anywhere; leads, import and
-    spend still carry the plumbing.
-11. Deals has no totals line (open, weighted, count), which part one promised,
-    and its column values print without a currency.
-12. Ctrl+K cannot find products or deals, which part two promised.
-13. The "Ask the AI instead" button in `QuickAdd.tsx` can never show: nothing
-    passes `onAi`.
+    spend still carry the plumbing. Keep it, or take it out? Needs a
+    decision.
+12. Ctrl+K cannot find products or deals, which part two promised. That
+    needs a migration that recreates the search triggers.
 
 ### Smaller
 

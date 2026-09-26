@@ -171,17 +171,29 @@ export function FieldsCard() {
   );
 }
 
-/** Two reminders, both off until asked for, and the one built-in follow-up. */
+/**
+ * Two reminders, both off until asked for, the one built-in follow-up, and
+ * how long a contact may be quiet before Today says so.
+ */
 export function RemindersCard() {
   const { activeCompany, refresh } = useWorkspace();
   const [notify, setNotify] = useState(false);
   const [busy, setBusy] = useState(false);
   const [followUp, setFollowUp] = useState("");
   const [followUpError, setFollowUpError] = useState<string | null>(null);
+  // What is in the box, and what is stored: the label says the stored one, so
+  // it reads as settled while the box is being typed in.
+  const [quiet, setQuiet] = useState("");
+  const [quietSaved, setQuietSaved] = useState<number | null>(null);
+  const [quietError, setQuietError] = useState<string | null>(null);
 
   useEffect(() => {
     void window.caulder.window.notifications().then(setNotify);
     void window.caulder.outreach.followUpDays().then((days) => setFollowUp(String(days)));
+    void window.caulder.today.coldAfterDays().then((days) => {
+      setQuiet(String(days));
+      setQuietSaved(days);
+    });
   }, []);
 
   async function saveFollowUp() {
@@ -191,6 +203,20 @@ export function RemindersCard() {
       setFollowUp(String(saved));
     } catch (cause) {
       setFollowUpError(messageOf(cause));
+    }
+  }
+
+  async function saveQuiet() {
+    setQuietError(null);
+    try {
+      // A blank box goes over as "not a number", so main refuses it with its
+      // own sentence rather than Number("") quietly making it zero.
+      const days = quiet.trim() === "" ? Number.NaN : Number(quiet);
+      const saved = await window.caulder.today.setColdAfterDays(days);
+      setQuiet(String(saved));
+      setQuietSaved(saved);
+    } catch (cause) {
+      setQuietError(messageOf(cause));
     }
   }
 
@@ -289,6 +315,27 @@ export function RemindersCard() {
           aria-label="Days until the follow-up is due"
         />
         <ErrorLine>{followUpError}</ErrorLine>
+      </label>
+
+      <label className="field remindlead">
+        <span className="field__label">
+          {quietSaved === null
+            ? "Going quiet"
+            : `Going quiet after ${quietSaved} days without contact`}
+        </span>
+        <span className="card__hint">
+          An open deal with nothing planned and no contact for this many days is
+          listed under Going quiet on Today. From 3 to 90.
+        </span>
+        <input
+          className="input"
+          inputMode="numeric"
+          value={quiet}
+          onChange={(event) => setQuiet(event.target.value)}
+          onBlur={() => void saveQuiet()}
+          aria-label="Days without contact before going quiet"
+        />
+        <ErrorLine>{quietError}</ErrorLine>
       </label>
 
       <NudgeRows />

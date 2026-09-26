@@ -108,3 +108,30 @@ test("the setting survives a restart", async () => {
     page.getByRole("switch", { name: "Tell me when something is overdue" }),
   ).toHaveAttribute("aria-checked", "true");
 });
+
+test("how long before a contact is going quiet is set in Settings, and Today uses it", async () => {
+  const page = await openApp();
+  await page.getByRole("button", { name: /^Settings/ }).click();
+
+  const days = page.getByLabel("Days without contact before going quiet");
+  await expect(days).toHaveValue("14");
+
+  // Refused with the sentence, not a number quietly clamped: a threshold of
+  // two days would list almost everyone.
+  await days.fill("2");
+  await days.blur();
+  await expect(page.getByText("Three days is the shortest")).toBeVisible();
+  await expect(page.getByText("Going quiet after 14 days without contact")).toBeVisible();
+
+  await days.fill("7");
+  await days.blur();
+  await expect(page.getByText("Going quiet after 7 days without contact")).toBeVisible();
+  await expect(page.getByText("Three days is the shortest")).toHaveCount(0);
+
+  // What Today is built from, not only what the box shows.
+  const threshold = await page.evaluate(async () => {
+    const id = (await window.caulder.companies.list()).activeCompanyId;
+    return (await window.caulder.today.get(id!)).coldAfterDays;
+  });
+  expect(threshold).toBe(7);
+});

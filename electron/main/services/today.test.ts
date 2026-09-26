@@ -20,7 +20,7 @@ import {
   rescheduleTask,
   updateTask,
 } from "../repositories/tasks";
-import { buildToday } from "./today";
+import { buildToday, readColdAfterDays, setColdAfterDays } from "./today";
 import {
   leadInput,
   taskInput,
@@ -350,6 +350,36 @@ describe("the going-cold list", () => {
 
   it("ignores a nonsense threshold rather than showing nothing", () => {
     setSetting(db, "coldAfterDays", "not a number");
+    expect(buildToday(db, company.id, NOW).coldAfterDays).toBe(14);
+  });
+
+  it("takes a threshold set through Settings, and Today uses it", () => {
+    ageLead(lead.id, 10);
+    expect(readColdAfterDays(db)).toBe(14);
+    expect(buildToday(db, company.id, NOW).cold).toHaveLength(0);
+
+    expect(setColdAfterDays(db, 7)).toBe(7);
+    expect(readColdAfterDays(db)).toBe(7);
+    const day = buildToday(db, company.id, NOW);
+    expect(day.coldAfterDays).toBe(7);
+    expect(day.cold.map((row) => row.id)).toEqual([lead.id]);
+  });
+
+  it("refuses a threshold outside three to ninety days, with the sentence to show", () => {
+    expect(() => setColdAfterDays(db, 2)).toThrow(/Three days is the shortest/);
+    expect(() => setColdAfterDays(db, 91)).toThrow(/Ninety days is the longest/);
+    expect(() => setColdAfterDays(db, 7.5)).toThrow(/whole number of days/);
+    expect(() => setColdAfterDays(db, Number.NaN)).toThrow(/as a number/);
+    // The edges are allowed, and nothing refused was stored.
+    expect(readColdAfterDays(db)).toBe(14);
+    expect(setColdAfterDays(db, 3)).toBe(3);
+    expect(setColdAfterDays(db, 90)).toBe(90);
+  });
+
+  it("reads a stored threshold the setter would refuse as the default", () => {
+    setSetting(db, "coldAfterDays", "1");
+    expect(readColdAfterDays(db)).toBe(14);
+    setSetting(db, "coldAfterDays", "365");
     expect(buildToday(db, company.id, NOW).coldAfterDays).toBe(14);
   });
 
