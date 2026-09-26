@@ -29,6 +29,8 @@ import { buildToday } from "./today";
 import { pagesOf } from "../repositories/brain";
 import { linkLabelsOnly } from "@shared/links";
 import { mayGoToAi } from "@shared/brain";
+import { nearestTo, type Read } from "./understand";
+import type { VectorKind } from "../repositories/vectors";
 import { MARK_CLOSE, MARK_OPEN } from "@shared/search";
 import { describeDue, today as todayIn } from "@shared/dates";
 
@@ -386,13 +388,26 @@ function size(documents: readonly DossierDocument[]): number {
  * those named in it, those the search index finds for it, and then the ones
  * with the most recent activity, up to a limit.
  */
-function contactsFor(db: Db, companyId: string, question: string, most: number): Set<string> {
+function contactsFor(
+  db: Db,
+  companyId: string,
+  question: string,
+  most: number,
+  /** The contacts nearest the question in meaning, when the model on this machine found any (phase 22). */
+  meant: readonly string[] = [],
+): Set<string> {
   const leads = listLeads(db, { companyId, sort: "recent", direction: "desc" });
   const wanted = new Set<string>();
   const words = question.toLowerCase();
   for (const lead of leads) {
     if (wanted.size >= most) break;
     if (lead.name.length >= 3 && words.includes(lead.name.toLowerCase())) wanted.add(lead.id);
+  }
+  // Named first; then what the question means - "the school that wanted a pilot" names nobody.
+  const here = new Set(leads.map((lead) => lead.id));
+  for (const id of meant) {
+    if (wanted.size >= most) break;
+    if (here.has(id)) wanted.add(id);
   }
   for (const hit of searchEverything(db, companyId, question, 60)) {
     if (wanted.size >= most) break;
@@ -427,9 +442,18 @@ function fit(documents: DossierDocument[], budget: number): DossierDocument[] {
  * The search index holds every page, yours included, so a page it finds goes
  * only if `mayGoToAi` says so - the same rule the dossier keeps.
  */
-function about(db: Db, companyId: string, question: string, personalAllowed: boolean): DossierDocument | null {
+function about(
+  db: Db,
+  companyId: string,
+  question: string,
+  personalAllowed: boolean,
+  /** Pages nearest the question in meaning (phase 22), after what the words found, under the same rule. */
+  meant: readonly string[] = [],
+): DossierDocument | null {
   const hits = searchEverything(db, companyId, question, 10);
-  if (hits.length === 0) return null;
+  const found = new Set(hits.filter((hit) => hit.kind === "page").map((hit) => hit.id));
+  const more = meant.filter((id) => !found.has(id)).slice(0, Math.max(0, 10 - hits.length));
+  if (hits.length === 0 && more.length === 0) return null;
   const pages = new Map(pagesOf(db, companyId).map((page) => [page.id, page]));
   const inHome = isHomeWorkspace(db, companyId);
   const lines: string[] = [];
@@ -448,6 +472,12 @@ function about(db: Db, companyId: string, question: string, personalAllowed: boo
       const said = hit.detail.split(MARK_OPEN).join("").split(MARK_CLOSE).join("");
       lines.push(`## ${hit.title}`, "", said, "");
     }
+  }
+  for (const id of more) {
+    const page = pages.get(id);
+    if (!page || page.is_archived === 1 || !mayGoToAi(page.section, { inHome, personalAllowed })) continue;
+    const body = linkLabelsOnly(page.body).trim().slice(0, 2500);
+    lines.push(`## ${page.title}`, "", body.length > 0 ? body : "*(Nothing written on it yet.)*", "");
   }
   if (lines.length === 0) return null;
   return {
@@ -512,7 +542,14 @@ function lineInstructions(company: { name: string; currency: string }, day: stri
   ].join("\n\n");
 }
 
-export async function askBrain(db: Db, companyId: string, raw: unknown, now: Date = new Date()): Promise<AskAnswer> {
+export async function askBrain(
+  db: Db,
+  companyId: string,
+  raw: unknown,
+  now: Date = new Date(),
+  /** The model on this machine, when understanding is on: what goes is chosen by meaning as well as words (phase 22). */
+  read: Read | null = null,
+): Promise<AskAnswer> {
   const input = askInput.parse(raw);
   const connection = readConnection(db);
   if (!connection) throw new Error("Connect an AI in Settings to ask the brain.");
@@ -535,7 +572,15 @@ export async function askBrain(db: Db, companyId: string, raw: unknown, now: Dat
   // locked or private journal day. See services/yours.ts.
   // Read from your home, whichever company the question was asked in: that is where your own things are kept.
   const personal = getSetting(db, "aiPersonal") === "on";
-  const yours = personal ? buildYours(db, homeCompanyId(db) ?? companyId, now) : null;
+  // What the question means, found once: contacts and pages in this company,
+  // and your memories when they may go. Never needed; a failure costs nothing.
+  const home = homeCompanyId(db) ?? companyId;
+  const near = async (ids: string[], kinds: VectorKind[]) =>
+    read ? (await nearestTo(db, read, ids, input.question, { kinds, most: 20, floor: 0.3 }).catch(() => [])) : [];
+  const meantContacts = (await near([companyId], ["contact"])).map((hit) => hit.sourceId);
+  const meantPages = [...new Set((await near([companyId], ["page", "memory"])).map((hit) => hit.sourceId))];
+  const meantMemories = personal ? (await near([home], ["memory"])).map((hit) => hit.ref) : [];
+  const yours = personal ? buildYours(db, home, now, meantMemories) : null;
 
   const allContacts = (db.prepare(`SELECT COUNT(*) AS n FROM leads WHERE company_id = ?`).get(companyId) as { n: number }).n;
   let documents: DossierDocument[];
@@ -543,14 +588,14 @@ export async function askBrain(db: Db, companyId: string, raw: unknown, now: Dat
 
   if (scope === "line") {
     // Today, and whatever the words point at - rather than the company.
-    const found = about(db, companyId, input.question, personal);
+    const found = about(db, companyId, input.question, personal, meantPages);
     documents = [todayDocument(db, companyId, now), ...(found ? [found] : []), ...(yours ? [yours] : [])];
     contacts = 0;
   } else {
     documents = buildDossier(db, companyId, { secrets: false }, now);
     contacts = allContacts;
     if (size(documents) > room) {
-      const chosen = contactsFor(db, companyId, input.question, budget.contacts);
+      const chosen = contactsFor(db, companyId, input.question, budget.contacts, meantContacts);
       documents = buildDossier(db, companyId, { secrets: false, contacts: chosen }, now);
       contacts = chosen.size;
     }

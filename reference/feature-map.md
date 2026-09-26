@@ -280,19 +280,22 @@ Rules in the quick line decide the section and the chain of pages above a memory
 Search hits for a topic, every page under them, and the matching hours, logged numbers, tasks and contacts, as one Markdown block on the clipboard.
 - UI: `src/features/brain/ContextCard.tsx`, `src/features/today/ContextLine.tsx` · Logic: `shared/topic.ts` · Main: `services/topic.ts`
 - IPC: `brain:topic` · Tests: `shared/topic.test.ts`, `services/topic.test.ts`; e2e `context.spec.ts`
+- By meaning too (phase 22): with understanding on, the handler adds the pages nearest the topic (`nearestTo`) to what its words found, before the pages under them are gathered; never a journal day.
 
 ### Ask the brain
 Your own AI (Gemini, Anthropic, OpenAI, OpenRouter, Groq, Ollama, any OpenAI-style address) answers from the dossier (Brain home) or from today plus search hits (Today's Ask line), within a chosen size. Three request shapes; model names are read from the service, never hard-coded. No tools: it cannot change anything.
 - UI: `src/features/brain/AskBox.tsx`, `src/features/today/AskLine.tsx`, `src/features/settings/AiCard.tsx` · Logic: `shared/ask.ts` (services, budgets, `linkAnswer`)
 - Main: `services/ask.ts` (`contactsFor`, `about`, `fit`), `services/yours.ts`, `services/credentials.ts`; handlers in `ipc/costs.ts`
 - Tables: `settings` (`aiConnection` sealed, `aiModel`, `aiPersonal`, size) · IPC: `ask:` · Tests: `shared/ask.test.ts`, `services/ask.test.ts`; e2e `ask.spec.ts`, `askline.spec.ts`
+- By meaning too (phase 22): `askBrain` takes the model when understanding is on (`ipc/costs.ts`) and adds the contacts (`contactsFor`), pages (`about`, still through `mayGoToAi`) and memories (`buildYours`) nearest the question to what its words found.
 
 ### The dossier and Export for an AI
 The company as four Markdown documents (read me, the company, customers and sales, people and running), numbers masked. Written to a folder, sent to Ask, or included in Export everything.
 - UI: `src/features/brain/BrainShare.tsx` · Main: `services/dossier.ts`, `services/names.ts` · IPC: `brain:dossier`, `data:export-all` · Tests: `services/dossier.test.ts`
+- Phase 22: *Add yourself* writes `04 you.md` beside it (`buildYouExport` in `services/yours.ts`: by topic, each fact once and current, dated, an index first, never the journal or private lines); *What is it for?* leads the read-me and, with understanding on, lists what to read first (`readFirstFor`) and puts the nearest facts first in *04 you*.
 
 ### The "You" document
-The personal half sent to Ask only with `aiPersonal` on: goals, habits, hobbies, studies, pages in hobbies, studies, goals and ideas with up to 60 memories, 90 days of unsealed journal. Never private lines or sealed days.
+The personal half sent to Ask only with `aiPersonal` on: goals, habits, hobbies, studies, pages in hobbies, studies, goals, ideas and remembered with up to 60 memories (the nearest the question first, when understanding is on), 90 days of unsealed journal. Never private lines or sealed days.
 - Main: `services/yours.ts` · Tests: `services/yours.test.ts`
 
 ### Brain export, brain file and sharing between two founders

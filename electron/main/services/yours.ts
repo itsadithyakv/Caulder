@@ -1,9 +1,11 @@
 import type { Db } from "../db/connection";
 import { ENTRY_TEMPLATE, type BrainSectionId } from "@shared/brain";
-import { memoriesOf } from "@shared/memories";
+import { memoriesOf, type Memory } from "@shared/memories";
+import { textHash } from "@shared/understand";
 import { shiftDay, today as todayIn } from "@shared/dates";
 import { linkLabelsOnly } from "@shared/links";
 import { isSealed } from "./journal-lock";
+import { allMemories } from "./memories";
 import { goalsOverview, hobbiesOverview, studiesOverview } from "./life";
 import { listHabits } from "./habits";
 import type { DossierDocument } from "./dossier";
@@ -163,7 +165,7 @@ function habits(db: Db, companyId: string, now: Date): string[] {
 }
 
 /** Your own pages, and the dated lines on them you asked to be remembered. */
-function pages(db: Db, companyId: string): string[] {
+function pages(db: Db, companyId: string, first: readonly string[]): string[] {
   const rows = db
     .prepare(
       `SELECT id, title, section, body, fields FROM brain_pages
@@ -172,9 +174,13 @@ function pages(db: Db, companyId: string): string[] {
     )
     .all(companyId, ...SENT_SECTIONS) as PageRow[];
 
+  // The memories nearest the question first, when the model on this machine
+  // found any (phase 22), then the newest: sixty of them either way.
+  const rank = new Map(first.map((ref, at) => [ref, at]));
+  const place = (memory: Memory) => rank.get(`${memory.pageId}#${textHash(memory.raw)}`) ?? Number.POSITIVE_INFINITY;
   const remembered = rows
     .flatMap((row) => memoriesOf({ id: row.id, title: row.title, section: row.section, body: row.body }))
-    .sort((a, b) => b.day.localeCompare(a.day))
+    .sort((a, b) => place(a) - place(b) || b.day.localeCompare(a.day))
     .slice(0, 60);
 
   const written = rows
@@ -201,7 +207,13 @@ function pages(db: Db, companyId: string): string[] {
  * Everything of yours that may go with a question, as one document - or null
  * when there is nothing of yours written down yet.
  */
-export function buildYours(db: Db, companyId: string, now: Date = new Date()): DossierDocument | null {
+export function buildYours(
+  db: Db,
+  companyId: string,
+  now: Date = new Date(),
+  /** Memories to put first, as "pageId#hash": the ones nearest the question (phase 22). */
+  first: readonly string[] = [],
+): DossierDocument | null {
   const row = db.prepare(`SELECT timezone FROM companies WHERE id = ?`).get(companyId) as { timezone: string } | undefined;
   if (!row) return null;
   const today = todayIn(row.timezone, now);
@@ -211,7 +223,7 @@ export function buildYours(db: Db, companyId: string, now: Date = new Date()): D
     ...habits(db, companyId, now),
     ...hobbies(db, companyId, now),
     ...studies(db, companyId, now),
-    ...pages(db, companyId),
+    ...pages(db, companyId, first),
     ...journal(db, companyId, shiftDay(today, -JOURNAL_DAYS)),
   ];
   if (parts.length === 0) return null;
@@ -225,6 +237,80 @@ export function buildYours(db: Db, companyId: string, now: Date = new Date()): D
       "The founder's own side of Caulder, sent because they allowed it in Settings. Journal days that are locked, and anything they marked private, are not here and never are.",
       "",
       ...parts,
+    ].join("\n"),
+  };
+}
+
+/* ---- 04 you: an export of you, arranged (phase 22) -------------------------- */
+
+/** A line of the export: what it is, what it says, when it was said. */
+const factLine = (memory: Memory) => `- ${memory.fact ? `**${memory.fact}** - ` : ""}${memory.says} _(${memory.day})_`;
+
+/**
+ * *04 you*: what you told Caulder about yourself, written for an AI to read -
+ * chosen, never sent (PLAN.md, part five, phase 22). Each fact once, the
+ * current answer only, dated; laid out by what it is about - you, the people
+ * you know, where things are, what you study, what you are working towards,
+ * what you do for the love of it - with an index first, so a reader can find
+ * its way. Journal days and private lines are never in it.
+ *
+ * `first`, as "pageId#hash", are the facts nearest what the export is for, when
+ * it was said what it is for and the model could say which: they lead it.
+ */
+export function buildYouExport(db: Db, now: Date = new Date(), options: { purpose?: string; first?: readonly string[] } = {}): DossierDocument | null {
+  const { companyId, memories, trails } = allMemories(db);
+  if (!companyId) return null;
+  const current = memories.filter((memory) => memory.current);
+  const trailOf = (memory: Memory) => [...(trails[memory.pageId] ?? []), memory.pageTitle];
+  const on = (title: string) => current.filter((memory) => memory.pageTitle === title);
+  const people = current.filter((memory) => memory.section === "remembered" && trailOf(memory).includes("People"));
+  const placed = new Set<Memory>();
+  const take = (list: Memory[]) => {
+    list.forEach((memory) => placed.add(memory));
+    return list;
+  };
+
+  const sections: { title: string; lines: string[] }[] = [];
+  const add = (title: string, lines: string[]) => {
+    if (lines.length > 0) sections.push({ title, lines });
+  };
+  const byPage = (list: Memory[], heading: (memory: Memory) => string) => {
+    const groups = new Map<string, Memory[]>();
+    for (const memory of take(list)) groups.set(heading(memory), [...(groups.get(heading(memory)) ?? []), memory]);
+    return [...groups.entries()].flatMap(([title, group]) => [`### ${title}`, "", ...group.map(factLine), ""]);
+  };
+
+  if (options.purpose && options.first && options.first.length > 0) {
+    const rank = new Map(options.first.map((ref, at) => [ref, at]));
+    const nearest = current
+      .filter((memory) => rank.has(`${memory.pageId}#${textHash(memory.raw)}`))
+      .sort((a, b) => (rank.get(`${a.pageId}#${textHash(a.raw)}`) ?? 0) - (rank.get(`${b.pageId}#${textHash(b.raw)}`) ?? 0))
+      .slice(0, 15);
+    add(`What matters most for: ${options.purpose}`, [...nearest.map((memory) => `${factLine(memory)} - ${memory.pageTitle}`), ""]);
+  }
+  add("About me", [...take(on("About me")).map(factLine), ""]);
+  add("People", byPage(people, (memory) => memory.pageTitle));
+  add("Where things are, and what was lent", [...take([...on("Where things are"), ...on("Lent and borrowed")]).map(factLine), ""]);
+  add("Studies", [...studies(db, companyId, now), ...byPage(current.filter((memory) => memory.section === "studies"), (memory) => trailOf(memory).join(" › "))]);
+  add("Goals and habits", [...goals(db, companyId, now), ...habits(db, companyId, now), ...byPage(current.filter((memory) => memory.section === "goals" && !placed.has(memory)), (memory) => memory.pageTitle)]);
+  add("Interests", byPage(current.filter((memory) => memory.section === "hobbies"), (memory) => trailOf(memory).join(" › ")));
+  add("Ideas and things learnt", byPage(current.filter((memory) => !placed.has(memory) && memory.section === "ideas"), (memory) => memory.pageTitle));
+  add("Everything else remembered", byPage(current.filter((memory) => !placed.has(memory)), (memory) => memory.pageTitle));
+  if (sections.length === 0) return null;
+
+  return {
+    file: "04 you.md",
+    title: "You",
+    text: [
+      "# You",
+      "",
+      "What I have told my app about myself, each thing once and as it is now, with the day I said it. Written for an assistant to read; nothing from my journal or anything I marked private is in it.",
+      "",
+      "## In here",
+      "",
+      ...sections.map((section) => `- ${section.title}`),
+      "",
+      ...sections.flatMap((section) => [`## ${section.title}`, "", ...section.lines]),
     ].join("\n"),
   };
 }

@@ -37,6 +37,8 @@ const { createCompany } = await import("../repositories/companies");
 const { createLead } = await import("../repositories/leads");
 const { createPage } = await import("../repositories/brain");
 const { buildDossier } = await import("./dossier");
+const { readQueued } = await import("./understand");
+const { normalise, toBytes } = await import("@shared/understand");
 const { getSetting } = await import("../repositories/settings");
 const ask = await import("./ask");
 const { leadInput } = await import("@shared/domain");
@@ -310,5 +312,32 @@ describe("asking", () => {
     handler = () => ({ body: { candidates: [{ content: { parts: [] } }] } });
     await expect(ask.askBrain(db, companyId, { question: "Anything?" })).rejects.toThrow("empty answer");
     await expect(ask.askBrain(db, companyId, { question: "  " })).rejects.toThrow("Ask something");
+  });
+});
+
+describe("chosen by meaning as well as words (phase 22)", () => {
+  // A stand-in for the model: lines are near when they share one of a few words.
+  const WORDS = ["coffee", "gym", "school", "guitar"];
+  const read = async (lines: readonly string[]) =>
+    lines.map((line) => toBytes(normalise(Float32Array.from(WORDS, (word) => (line.toLowerCase().includes(word) ? 1 : 0.01)))));
+
+  it("sends a page no word of the question finds, and never one of yours without the switch", async () => {
+    const at = new Date().toISOString();
+    createPage(db, companyId, { section: "plan", template: "page", title: "Brewing", body: "Pour over coffee for the office, twice a day." }, at);
+    const home = createCompany(db, { name: "Me", accent: "coffee", timezone: "Asia/Kolkata", kind: "personal" }).id;
+    createPage(db, home, { section: "hobbies", template: "page", title: "Beans", body: "Ethiopian coffee is fruity." }, at);
+    while ((await readQueued(db, read)) > 0);
+    await ask.connect(db, { service: "gemini", key: GEMINI_KEY });
+
+    // "Grinder" and "buy" are on no page, so the words alone find nothing.
+    const reply = await ask.askBrain(db, companyId, { question: "which coffee grinder should we buy", scope: "line" }, new Date(), read);
+    expect(reply.sent.documents).toContain("What you asked about");
+    const context = (sent.at(-1)?.body as { systemInstruction: { parts: { text: string }[] } }).systemInstruction.parts[0]?.text ?? "";
+    expect(context).toContain("Pour over coffee for the office");
+
+    sent.length = 0;
+    await ask.askBrain(db, home, { question: "which coffee grinder should we buy", scope: "line" }, new Date(), read);
+    const mine = (sent.at(-1)?.body as { systemInstruction: { parts: { text: string }[] } }).systemInstruction.parts[0]?.text ?? "";
+    expect(mine).not.toContain("Ethiopian coffee is fruity");
   });
 });

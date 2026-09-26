@@ -173,3 +173,13 @@ describe("when there is nothing", () => {
     expect(() => buildTopicBrief(db, work, "!!!", NOW)).toThrow(/word or two/i);
   });
 });
+
+describe("by meaning as well as words (phase 22)", () => {
+  it("brings a page the model found near the topic, never a journal day", () => {
+    const beans = page(work, "plan", "Beans", "Ethiopian, washed, a light roast.");
+    const day = page(work, "journal", "Thursday", "Worried about the launch.", "entry");
+    const brief = buildTopicBrief(db, work, "coffee grinder", NOW, [beans, day]);
+    expect(brief.markdown).toContain("Ethiopian, washed, a light roast.");
+    expect(brief.markdown).not.toContain("Worried about the launch");
+  });
+});

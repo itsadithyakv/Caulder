@@ -327,6 +327,28 @@ export function leaveLoose(db: Db, raw: unknown): void {
   setSetting(db, "looseLeft", JSON.stringify([...left]));
 }
 
+/**
+ * What an export is for, and what of the company to read first for it (phase
+ * 22): the pages and contacts nearest the purpose, by name, a memory counting
+ * for its page.
+ */
+export async function readFirstFor(db: Db, read: Read, companyId: string, purpose: string, most = 10): Promise<string[]> {
+  const near = await nearestTo(db, read, [companyId], purpose, { kinds: ["page", "memory", "contact"], most: most * 3, floor: 0.3 });
+  const titleOf = db.prepare(`SELECT title FROM brain_pages WHERE id = ? AND is_archived = 0`);
+  const nameOf = db.prepare(`SELECT name FROM leads WHERE id = ?`);
+  const names: string[] = [];
+  const seen = new Set<string>();
+  for (const hit of near) {
+    if (seen.has(hit.sourceId)) continue;
+    seen.add(hit.sourceId);
+    const row = (hit.kind === "contact" ? nameOf.get(hit.sourceId) : titleOf.get(hit.sourceId)) as { title?: string; name?: string } | undefined;
+    const name = row?.title ?? row?.name;
+    if (name) names.push(name);
+    if (names.length >= most) break;
+  }
+  return names;
+}
+
 /* ---- In the background ----------------------------------------------------- */
 
 /** Quickly while there is a queue; slowly once there is not. */

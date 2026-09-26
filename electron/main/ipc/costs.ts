@@ -3,6 +3,8 @@ import { getDatabase } from "../db/connection";
 import { assertId, handle } from "./handle";
 import { buildCosts, forgetBalance, recordBalance, renewCost } from "../services/costs";
 import { askBrain, askState, connect, disconnect, refreshModels, setContext, setModel, setPersonal } from "../services/ask";
+import { understandingOn } from "../services/understand";
+import { modelHere, readLines } from "../understand/host";
 
 /**
  * Running costs and runway from the window. Every change hands back the whole
@@ -35,7 +37,9 @@ export function registerAskHandlers(): void {
   handle(CHANNELS.askSetContext, (_event, size: unknown) => setContext(getDatabase(), size));
   handle(CHANNELS.askSetPersonal, (_event, on: unknown) => setPersonal(getDatabase(), on));
   handle(CHANNELS.askRefreshModels, () => refreshModels(getDatabase()));
-  handle(CHANNELS.askQuestion, (_event, companyId: unknown, raw: unknown) =>
-    askBrain(getDatabase(), assertId(companyId, "company id"), raw),
-  );
+  handle(CHANNELS.askQuestion, (_event, companyId: unknown, raw: unknown) => {
+    const db = getDatabase();
+    // Chosen by meaning as well as words when understanding is on (phase 22).
+    return askBrain(db, assertId(companyId, "company id"), raw, new Date(), understandingOn(db) && modelHere() ? readLines : null);
+  });
 }

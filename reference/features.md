@@ -2421,6 +2421,16 @@ to what it drew on, and says what went. The switch stays where it was put.
 
 ## Context for another AI
 
+*With Understanding on* (Settings > This computer), the model on this machine
+has a say in what goes, as well as the words typed - and never past the rules
+above. Ask sends the contacts and pages nearest the question in meaning
+beside those it names, and your memories nearest it first when your own pages
+may go; the brief below brings pages near the topic that never use its word;
+and **Export for an AI** can add **04 you** - what you told Caulder about
+yourself, by topic, each thing once as it is now, with an index, never the
+journal or anything private - and take a line saying **what it is for**, which
+leads the read-me with what to read first.
+
 The quick line has three modes, and the flame at its head says which. Type a
 topic in the violet one and **everything Caulder holds about it goes on the
 clipboard**, written out in full, to paste into any chat. The same thing sits

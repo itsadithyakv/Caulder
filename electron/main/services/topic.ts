@@ -227,7 +227,14 @@ function contact(db: Db, companyId: string, leadId: string): TopicPiece | null {
   return { kind: "contact", title: lead.name, note: "A contact in the pipeline", lines };
 }
 
-export function buildTopicBrief(db: Db, companyId: string, raw: unknown, now: Date = new Date()): TopicBrief {
+export function buildTopicBrief(
+  db: Db,
+  companyId: string,
+  raw: unknown,
+  now: Date = new Date(),
+  /** Pages nearest the topic in meaning, when the model on this machine found any (phase 22). */
+  meant: readonly string[] = [],
+): TopicBrief {
   const topic = typeof raw === "string" ? raw.trim() : "";
   if (topic.length === 0) throw new Error("Type what the brief should be about.");
   const words = topicWords(topic);
@@ -277,6 +284,16 @@ export function buildTopicBrief(db: Db, companyId: string, raw: unknown, now: Da
       // matched, which is more than leaving it out.
       pieces.push({ kind: "note", title: hit.title, note: null, lines: [plain(hit.detail)] });
     }
+  }
+
+  // What the topic means, after what its words found: "coffee" brings the page
+  // about beans that never says the word. Never a journal page - they are never
+  // read for meaning - and before the pages under them are gathered.
+  for (const id of meant) {
+    const page = byId.get(id);
+    if (!page || taken.has(page.id) || page.template === ENTRY_TEMPLATE) continue;
+    taken.add(page.id);
+    pieces.push(pagePiece(page, trails[page.id] ?? [], "page"));
   }
 
   // A page the search could not return, because what makes it about the topic

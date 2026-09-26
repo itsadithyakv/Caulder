@@ -7,7 +7,8 @@ import { newPage, savePage } from "./brain";
 import { journalEntry } from "./life";
 import { resetForTests, setPasscode } from "./journal-lock";
 import { addHabit, tickHabit } from "./habits";
-import { buildYours } from "./yours";
+import { buildYouExport, buildYours } from "./yours";
+import { textHash } from "@shared/understand";
 
 /**
  * Your own side, as it goes to an AI you have allowed to read it.
@@ -126,5 +127,29 @@ describe("what never goes", () => {
   it("leaves out the company's own pages: that is the dossier's job", () => {
     page("customers", "persona", "Schools in Mysuru", "They buy in April.", {});
     expect(text()).not.toContain("Schools in Mysuru");
+  });
+});
+
+describe("04 you, the export (phase 22)", () => {
+  it("lays you out by what things are about, each fact once and as it is now, with an index and never the journal", () => {
+    page("remembered", "page", "About me", "- **Blood group: A+** · first said _(2026-09-01)_\n- **Blood group: O+** · checked again _(2026-09-18)_\n", {});
+    page("hobbies", "hobby", "Gym", "- **PR: 60 kg** · bench _(2026-09-18)_\n", {});
+    wrote("2026-09-19", "The thing I would not want read.");
+
+    const text = buildYouExport(db, now)?.text ?? "";
+    expect(text).toContain("## In here");
+    expect(text.indexOf("## About me")).toBeLessThan(text.indexOf("## Interests"));
+    expect(text).toContain("**Blood group: O+**");
+    expect(text).not.toContain("Blood group: A+");
+    expect(text).toContain("### Gym");
+    expect(text).not.toContain("would not want read");
+  });
+
+  it("leads with what matters most for what it is for, when that was said", () => {
+    const gym = page("hobbies", "hobby", "Gym", "- **PR: 60 kg** · bench _(2026-09-18)_\n", {});
+    const raw = "- **PR: 60 kg** · bench _(2026-09-18)_";
+    const text = buildYouExport(db, now, { purpose: "a training plan", first: [`${gym.id}#${textHash(raw)}`] })?.text ?? "";
+    expect(text).toContain("## What matters most for: a training plan");
+    expect(text.indexOf("What matters most")).toBeLessThan(text.indexOf("## Interests"));
   });
 });

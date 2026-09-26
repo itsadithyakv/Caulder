@@ -1442,7 +1442,31 @@ The plan as written:
   - `brain_links` stays explicit: only what the person accepts is a link.
 - **`recall()` merges** word overlap with meaning, by reciprocal rank.
 
-### Phase 22 - Ready for an AI
+### Phase 22 - Ready for an AI - *done 26 September 2026*
+
+What was built:
+- **Ask chooses by meaning as well as words.** `askBrain` takes the model
+  when understanding is on, and adds what is nearest the question: contacts
+  when the company is too big to send whole, pages for the Today line (still
+  through `mayGoToAi`), and memories in the You document, nearest first.
+- **04 you.** *Add yourself* on Export for an AI writes it beside the four
+  company documents:
+  - an index first;
+  - then About me, People, Where things are and what was lent, Studies,
+    Goals and habits, Interests (by their chain of pages), and Ideas and
+    things learnt;
+  - each fact once, as it is now, and dated;
+  - never the journal or a private line.
+- **"What is it for?"** leads the read-me and lists what to read first
+  (`readFirstFor`). *04 you* opens with the facts nearest it. With
+  understanding off, it is only said.
+- **The topic brief** takes the pages nearest the topic as well as those its
+  words found, before gathering what hangs under them.
+- **Checked:** unit tests for each part, including privacy - a personal page
+  near in meaning still does not go with the switch off. The e2e specs ask,
+  askline, context and brain pass unchanged.
+
+The plan as written:
 
 - **Ask chooses by meaning as well as words.** `contactsFor` and `about()` add
   the nearest contacts and pages to the search hits. The "You" document sends

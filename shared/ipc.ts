@@ -982,7 +982,12 @@ export type BrainApi = {
   /** Asks for a folder; null when the person cancelled. */
   exportAll: (companyId: string, secrets: boolean) => Promise<BrainExport | null>;
   /** The few long documents written for an assistant. Asks for a folder; null when cancelled. */
-  dossier: (companyId: string, secrets: boolean) => Promise<BrainExport | null>;
+  /**
+   * Export for an AI. With `you`, *04 you* is written beside the company
+   * (phase 22); with `purpose`, what it is for leads the read-me, and the
+   * model on this machine says what to read first for it.
+   */
+  dossier: (companyId: string, secrets: boolean, options?: { you?: boolean; purpose?: string }) => Promise<BrainExport | null>;
   search: (companyId: string, text: string) => Promise<SearchHit[]>;
   /** Everything about one topic, onto the clipboard for another AI. The words stay in main. */
   topic: (companyId: string, text: string) => Promise<TopicCopied>;

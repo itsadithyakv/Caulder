@@ -79,8 +79,13 @@ tests in 144 files, with the journal work above in the same tree.
     - A brain page shows what is near it in meaning.
     - **Loose lines are not gathered into new pages:** measured, and this
       model cannot tell topics apart that way.
-  - **Not done:** suggested links drawn faint on the Map (phase 21), and
-    phase 22: Ask choosing what to send by meaning, and the "04 you" export.
+  - **Phase 22 was done on 26 September 2026.**
+    - Ask chooses by meaning as well as words.
+    - Export for an AI can add *04 you* and say what it is for.
+    - The topic brief takes meaning into account.
+    - Part five is done, but for suggested links drawn faint on the Map, and
+      the two "later, not planned" ideas: contacts like this one, and
+      duplicate contacts.
   - **Get the model with `npm run fetch-model`.** It is pinned and checked,
     and kept out of git. Without it everything else works and its tests are
     skipped.
@@ -200,9 +205,8 @@ the code, and 85 realistic lines put through the quick line. Items marked
 
 ## Next
 
-1. Phase 22, ready for an AI:
-   - Ask chooses contacts and pages by meaning as well as words;
-   - the "04 you" export, laid out by topic;
-   - "Export for" a purpose.
-2. Decide on campaigns (item 10). Ctrl+K for products and deals (item 12)
+1. Measure the line's second opinion again on new lines, not the 89 its
+   thresholds were tuned on, before moving them.
+2. Package and smoke-test again: phases 20 to 22 are not in an installer yet.
+3. Decide on campaigns (item 10). Ctrl+K for products and deals (item 12)
    needs a migration.

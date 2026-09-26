@@ -297,7 +297,7 @@ const api: CaulderApi = {
     home: (companyId) => invoke(CHANNELS.brainHome, companyId),
     section: (companyId, section, archived) => invoke(CHANNELS.brainSection, companyId, section, archived),
     page: (id) => invoke(CHANNELS.brainPage, id),
-    dossier: (companyId, secrets) => invoke(CHANNELS.brainDossier, companyId, secrets),
+    dossier: (companyId, secrets, options) => invoke(CHANNELS.brainDossier, companyId, secrets, options),
     create: (companyId, section, template, preset) =>
       invoke(CHANNELS.brainCreate, companyId, section, template, preset ?? null),
     save: (id, input) => invoke(CHANNELS.brainSave, id, input),

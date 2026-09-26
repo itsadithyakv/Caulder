@@ -822,14 +822,29 @@ export function buildDossier(
 }
 
 /** Writes the dossier into a folder, and says how many files. */
+/** What goes with the dossier besides the company (phase 22): *04 you*, and what it is for. */
+type DossierExtras = {
+  /** The export of you, when it was chosen. */
+  you?: DossierDocument | null;
+  /** What it is for, and the pages and contacts nearest that: read first. */
+  purpose?: { said: string; first: readonly string[] } | null;
+};
+
 export function writeDossier(
   db: Db,
   companyId: string,
   folder: string,
   options: { secrets: boolean },
   now: Date = new Date(),
+  extras: DossierExtras = {},
 ): number {
   const documents = buildDossier(db, companyId, options, now);
+  const readMe = documents[0];
+  if (readMe && extras.purpose) {
+    const first = extras.purpose.first.length > 0 ? ["", "Read these first:", "", ...extras.purpose.first.map((title) => `- ${title}`)] : [];
+    readMe.text = [readMe.text, "", "## What this is for", "", extras.purpose.said, ...first, ""].join("\n");
+  }
+  if (extras.you) documents.push(extras.you);
   mkdirSync(folder, { recursive: true });
   for (const document of documents) writeFileSync(join(folder, document.file), document.text, "utf8");
   return documents.length;
@@ -842,7 +857,8 @@ export function exportDossier(
   parent: string,
   options: { secrets: boolean },
   now: Date = new Date(),
+  extras: DossierExtras = {},
 ): BrainExport {
   const folder = join(parent, `${safeName(companyName)} dossier ${stamp(now)}`);
-  return { folder, files: writeDossier(db, companyId, folder, options, now) };
+  return { folder, files: writeDossier(db, companyId, folder, options, now, extras) };
 }

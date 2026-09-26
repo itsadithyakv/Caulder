@@ -19,7 +19,18 @@ import {
   sectionPages,
 } from "../services/brain";
 import { exportBrain } from "../services/brain-export";
+import { homeCompanyId } from "../repositories/companies";
 import { exportDossier } from "../services/dossier";
+import { nearestTo, readFirstFor, understandingOn } from "../services/understand";
+import { modelHere, readLines } from "../understand/host";
+import { buildYouExport } from "../services/yours";
+import { z } from "zod";
+
+/** What goes with Export for an AI besides the company (phase 22). */
+const dossierOptions = z.object({
+  you: z.boolean().optional(),
+  purpose: z.string().max(200, "Say what it is for in under 200 characters.").optional(),
+});
 import { buildTopicBrief } from "../services/topic";
 import { backlinks, connect, disconnect, keepPositions, letGo, linkTargetsFor, localMap, wholeMap } from "../services/map";
 import { makeTasks, pageTasks } from "../services/steps";
@@ -108,8 +119,9 @@ export function registerBrainHandlers(): void {
     return exportBrain(getDatabase(), id, company.name, picked.filePaths[0], { secrets: secrets === true });
   });
 
-  handle(CHANNELS.brainDossier, async (_event, companyId: unknown, secrets: unknown) => {
+  handle(CHANNELS.brainDossier, async (_event, companyId: unknown, secrets: unknown, raw: unknown) => {
     const id = companyOf(companyId);
+    const options = dossierOptions.parse(raw ?? {});
     const company = getDatabase().prepare(`SELECT name FROM companies WHERE id = ?`).get(id) as
       | { name: string }
       | undefined;
@@ -121,7 +133,21 @@ export function registerBrainHandlers(): void {
     });
     if (picked.canceled || !picked.filePaths[0]) return null;
 
-    return exportDossier(getDatabase(), id, company.name, picked.filePaths[0], { secrets: secrets === true });
+    // What it is for, and what to read first for it - by meaning, when understanding is on (phase 22).
+    const db = getDatabase();
+    const purpose = options.purpose?.trim() || null;
+    const reading = understandingOn(db) && modelHere() ? readLines : null;
+    const home = homeCompanyId(db);
+    const first = purpose && reading ? await readFirstFor(db, reading, id, purpose).catch(() => []) : [];
+    const facts =
+      purpose && reading && options.you && home
+        ? (await nearestTo(db, reading, [home], purpose, { kinds: ["memory"], most: 30, floor: 0.3 }).catch(() => [])).map((hit) => hit.ref)
+        : [];
+    const you = options.you ? buildYouExport(db, new Date(), { purpose: purpose ?? undefined, first: facts }) : null;
+    return exportDossier(db, id, company.name, picked.filePaths[0], { secrets: secrets === true }, new Date(), {
+      you,
+      purpose: purpose ? { said: purpose, first } : null,
+    });
   });
 
   handle(CHANNELS.brainSearch, (_event, companyId: unknown, text: unknown) =>
@@ -133,8 +159,15 @@ export function registerBrainHandlers(): void {
   // full, and the screen has no use for the words. It is also not wiped
   // after thirty seconds the way a revealed number is - the whole point is
   // to paste it into something else, which may be minutes away.
-  handle(CHANNELS.brainTopic, (_event, companyId: unknown, text: unknown) => {
-    const brief = buildTopicBrief(getDatabase(), companyOf(companyId), text);
+  handle(CHANNELS.brainTopic, async (_event, companyId: unknown, text: unknown) => {
+    const db = getDatabase();
+    const id = companyOf(companyId);
+    // Pages near the topic in meaning join what its words found (phase 22).
+    const meant =
+      typeof text === "string" && text.trim() && understandingOn(db) && modelHere()
+        ? [...new Set((await nearestTo(db, readLines, [id], text.trim(), { kinds: ["page", "memory"], most: 8, floor: 0.35 }).catch(() => [])).map((hit) => hit.sourceId))]
+        : [];
+    const brief = buildTopicBrief(db, id, text, new Date(), meant);
     clipboard.writeText(brief.markdown);
     return { topic: brief.topic, chars: brief.chars, went: brief.went, cut: brief.cut };
   });
