@@ -5,23 +5,25 @@ same commit as the work, not afterwards. What is planned is in
 [PLAN.md](PLAN.md); where everything lives is in
 [reference/feature-map.md](reference/feature-map.md).*
 
-**As of 25 September 2026.**
+**As of 26 September 2026.**
 
 ## Version
 
-- The 0.4.5 work is committed as `3d41682` on the `general` branch (25
-  September 2026): Ember and her walk, the desk widget back, your home
-  workspace, Memories under You, Hinglish and rephrasing, Copy context,
-  line answers and edits, lessons, other mail accounts, Google Contacts,
-  nudges. `main` is the base for pull requests.
-- **The release commit is still to come.** Committed, the version is 0.4.4;
-  the working tree holds the bump to **0.4.5** in `package.json` and
-  `package-lock.json`. Commit it as *Caulder 0.4.5: ...* once `npm run
-  package` has built the installer and `smoke:packaged` passes against it.
-- Checked against that commit: typecheck, lint, **2,260 unit tests in 142
-  files** and knip all pass. The e2e suite was not run. It launches Electron
-  about 40 times, so run one spec at a time, or run it in the background and
-  say so.
+- **0.4.5** is committed on the `general` branch as `31f29d9`. `main` is
+  the base for pull requests.
+  - It covers the work from `3d41682` to `ecd3775`: your home workspace,
+    Ember, the desk widget, the locked journal and Looking back, the line's
+    fixes, the new screens, and understanding on this machine.
+  - `npm run package` built `Caulder Setup 0.4.5.exe` (132.7 MB).
+  - `smoke:packaged` passes all 11 of its checks.
+- Checked at that commit:
+  - `npm run verify`: 2,331 unit tests in 149 files, typecheck, lint and
+    knip all pass.
+  - Only these e2e specs were run, not the whole suite: writing, money,
+    pipeline, today, week, workbench and askline, all passing. The suite
+    launches Electron about 40 times, so run one spec at a time, or run it
+    in the background and say so.
+- Not released: nothing is published to GitHub Releases or the Store.
 - `shots/` (9 MB of screenshots) is untracked and deliberately left out.
 
 ## Done lately
@@ -182,10 +184,8 @@ the code, and 85 realistic lines put through the quick line. Items marked
 
 ## Next
 
-1. Commit the 0.4.5 version. The package is built and passes
-   `smoke:packaged`.
-2. Phase 20:
+1. Phase 20:
    - first the measuring stick;
    - then the line's second opinion.
-3. Decide on campaigns (item 10). Ctrl+K for products and deals (item 12)
+2. Decide on campaigns (item 10). Ctrl+K for products and deals (item 12)
    needs a migration.
