@@ -41,7 +41,7 @@ import type { Checkin, Pulse } from "./pulse";
 import type { AnswerInput, SeenInput, TuneState } from "./tune";
 import type { Lesson, LessonInput } from "./lessons";
 import type { NudgeSettings } from "./nudges";
-import type { UnderstandState } from "./understand";
+import type { LooseEnds, Related, UnderstandState } from "./understand";
 import type { Example } from "./opinion";
 import type { Answer, LineContext, MoveInput, Question, TaskSnapshot } from "./lines";
 import type { MailAccount, MailAccountInput } from "./mailaccounts";
@@ -487,6 +487,11 @@ export const CHANNELS = {
   understandSet: "understand:set",
   understandAgain: "understand:again",
   understandRead: "understand:read",
+  understandNotTheSame: "understand:not-the-same",
+  understandRelated: "understand:related",
+  understandLoose: "understand:loose",
+  understandGather: "understand:gather",
+  understandLeave: "understand:leave",
   linesContext: "lines:context",
   linesMove: "lines:move",
   linesCancel: "lines:cancel",
@@ -1430,6 +1435,16 @@ export type UnderstandApi = {
    * is not here, and the line reads by its rules alone.
    */
   read: (companyId: string, text: string) => Promise<Example[]>;
+  /** *Not the same*: a memory the model marked said again is current again. */
+  notTheSame: (memory: { pageId: string; raw: string }) => Promise<void>;
+  /** What is near a page in meaning and not linked to it yet (phase 21). */
+  related: (pageId: string) => Promise<Related[]>;
+  /** Loose memories that sound like one of your pages, offered as a move (phase 21). */
+  loose: () => Promise<LooseEnds>;
+  /** The move, said yes to. */
+  gather: (move: { to: string; lines: { pageId: string; raw: string }[] }) => Promise<void>;
+  /** *Not these*: never offered again. */
+  leave: (lines: { pageId: string; raw: string }[]) => Promise<void>;
 };
 
 export type LessonsApi = {

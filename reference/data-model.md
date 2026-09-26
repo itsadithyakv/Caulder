@@ -63,6 +63,7 @@ is nine o'clock, and an instant would move when the machine's timezone did.
 | 44 | reminders | `reminders` |
 | 45 | search forgets what it is told to | `brain_search` set to `secure-delete`, and optimised |
 | 46 | understanding, on this machine | `vectors`, `embed_queue`, and the triggers that fill the queue |
+| 47 | said again | `said_again` |
 
 Each migration is one transaction, gated on `PRAGMA user_version`, with a
 backup taken before any of them runs. Additions use `ALTER TABLE ADD COLUMN`;
@@ -1124,6 +1125,20 @@ each (`shared/understand.ts` says how).
   that has become a journal page, or is archived, has its vectors removed
   when it comes round. A sealed day empties its page, and a vector made
   before would outlast the words. `journal_private` is not read at all.
+
+## said_again
+
+A memory the model found said again, in other words, by a newer one on the
+same page (PLAN.md, part five, phase 21). The line is known by `page_id` and
+the hash of its text (`line_hash`, as in `vectors.ref`); `newer_hash` is the
+line that said it again, and `score` how alike they were.
+
+- **The page is never written to.** The mark is read in beside it
+  (`services/memories.ts`), and the line shows as *earlier*.
+- **`undone`** is *Not the same*: the mark stays, so the same pair is not
+  marked again, but it no longer counts.
+- Deleting the page deletes its marks; a line edited has a new hash, and its
+  old mark no longer finds it.
 
 ## google_tombstones, google_sync
 

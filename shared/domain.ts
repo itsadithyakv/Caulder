@@ -958,6 +958,8 @@ export const SETTING_KEYS = [
   "datesTold",
   /** "on" when understanding on this machine is switched off; on by default (PLAN.md, part five). */
   "understandOff",
+  /** Loose memories not to offer moving again, as "pageId#hash" (JSON): *Not these*, phase 21. */
+  "looseLeft",
 ] as const;
 export type SettingKey = (typeof SETTING_KEYS)[number];
 

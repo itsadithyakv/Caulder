@@ -2034,6 +2034,21 @@
   margin-top: var(--space-3);
 }
 
+/* Near in meaning (phase 21): what to open, and the line that made it near,
+ * quieter than the links above it - these are offered, not made. */
+.brainlinks__near {
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.brainlinks__why {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
 /* ---- Context for another AI --------------------------------------------- */
 
 /* The flame, the topic and the button on one line, the way the quick line
@@ -2059,4 +2074,30 @@
 .context__input {
   flex: 1 1 18rem;
   min-width: 0;
+}
+
+/* ---- Loose ends (phase 21) ------------------------------------------------ */
+
+/* Offered moves on the Memories screen: what they are, the lines, the two answers. */
+.looseends__group + .looseends__group {
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+.looseends__say {
+  margin: 0 0 var(--space-2);
+}
+
+.looseends__lines {
+  margin: 0 0 var(--space-3);
+  padding-left: var(--space-4);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.looseends__actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
 }

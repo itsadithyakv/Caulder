@@ -212,3 +212,57 @@ export type UnderstandState = {
   read: number;
   waiting: number;
 };
+
+/* ---- Said again (phase 21) ----------------------------------------------------- */
+
+/** How alike two memories on one page must be to be the same thing said twice. Measured: true repeats 0.60 to 0.90, near misses up to 0.83. */
+const SAID_AGAIN = 0.84;
+
+/**
+ * The numbers a line says, each once and in no order: "PR: 60 kg x 5" says 5
+ * and 60, and "Shoe size: 9. my shoe size is 9" says 9 - the same as "i wear
+ * size 9 shoes", which says it only once.
+ */
+function numbersIn(text: string): string {
+  const found = (text.match(/\d+(?:[.,]\d+)?/g) ?? []).map((each) => Number(each.replace(",", ".")));
+  return [...new Set(found)].sort((a, b) => a - b).join(" ");
+}
+
+/**
+ * Whether a newer memory says again what an older one on the same page said,
+ * in other words, so the older can be marked earlier without being asked.
+ * Kept strict because it acts on its own: very alike, and the same numbers -
+ * the model finds "bench PR 60 kg" and "deadlift PR 100 kg" nearly the same
+ * thing (0.83), and they are not.
+ */
+export function saidAgain(older: string, newer: string, score: number): boolean {
+  return score >= SAID_AGAIN && numbersIn(older) === numbersIn(newer);
+}
+
+/** Something near a page in meaning, not linked to it yet (phase 21): what to open, and the line that made it near. */
+export type Related = { kind: "page" | "contact"; id: string; title: string; why: string | null };
+
+/* ---- Loose ends (phase 21) ------------------------------------------------------ */
+
+/**
+ * How near a memory on a catch-all page (Random knowledge, Me) must be to one
+ * of the person's own pages, and how far ahead of the next page, to be offered
+ * a move there. Measured: lines that belong 0.39 to 0.45 alike and 0.27 ahead;
+ * trivia that belongs nowhere never above 0.24. Lines are only ever moved to a
+ * page that is there: this model cannot tell which loose lines make a topic of
+ * their own (same topic 0.18 alike on average, different 0.07, overlapping).
+ */
+export const BELONGS = { best: 0.35, ahead: 0.2 } as const;
+
+/** The page a loose memory belongs on, from how alike it is to each: only a clear first. */
+export function belongsOn<T extends { score: number }>(pages: readonly T[], numbers: typeof BELONGS = BELONGS): T | null {
+  const [first, second] = [...pages].sort((a, b) => b.score - a.score);
+  if (!first || first.score < numbers.best) return null;
+  return first.score - (second?.score ?? 0) >= numbers.ahead ? first : null;
+}
+
+/** Loose memories that sound like one of the person's pages: offered as a move, never made. */
+export type LooseEnds = {
+  to: { pageId: string; title: string };
+  lines: { pageId: string; pageTitle: string; raw: string; says: string }[];
+}[];

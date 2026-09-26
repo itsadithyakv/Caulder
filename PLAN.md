@@ -1389,7 +1389,36 @@ The plan as written:
 - **Every existing test still passes.** Unit tests run the rules only, and the
   eval runs both.
 
-### Phase 21 - Memories arranged
+### Phase 21 - Memories arranged - *done 26 September 2026, but the map's faint lines*
+
+What was built, measured before each part that acts:
+
+- **Said again**, marked without asking:
+  - It is migration 47 `said_again`, applied as *said again since*, and
+    **Not the same** takes it back.
+  - It needs a similarity of 0.84 or more, the same page, and the same
+    numbers.
+  - The numbers rule is there because true repeats measured 0.60 to 0.90,
+    and "bench PR 60 kg" against "deadlift PR 100 kg" measured 0.83. This
+    catches about half the true repeats and none of the near misses, which
+    is right for something that acts by itself. Exact keys were already
+    caught by the key rule.
+- **Loose ends**, always asked:
+  - Lines on Random knowledge or Me are offered only to one of your
+    **existing** pages. The line must be at least 0.35 alike to the page's
+    title and 0.2 ahead of the next page.
+  - **Loose lines are not gathered into new pages.** It was measured: lines
+    on the same topic are 0.18 alike on average and lines on different
+    topics 0.07, and the two overlap (at most 0.34 against 0.32). This
+    model cannot find topics by clustering, and a made-up page would be
+    confident nonsense.
+- **Recall by meaning.** Word matches and meaning matches are fused by
+  reciprocal rank (`fuseRecall`), and what is current still comes first.
+- **Near in meaning** on a brain page (`relatedTo`): up to five, each with
+  the line that made it near, and never what is already linked.
+- **Not done:** suggested links drawn faint on the Map.
+
+The plan as written:
 
 - **Said again, without asking:**
   - A new line close enough to an older one is marked as the newer answer,

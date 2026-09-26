@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   basicTokens,
+  belongsOn,
   batch,
   encode,
   fromBytes,
@@ -10,6 +11,7 @@ import {
   nearest,
   normalise,
   readVocab,
+  saidAgain,
   similarity,
   textHash,
   toBytes,
@@ -93,5 +95,31 @@ describe.skipIf(!existsSync(VOCAB))("the real vocabulary", () => {
     expect(encode("Hello world", vocab).ids).toEqual([101, 7592, 2088, 102]);
     // A word it does not have whole is pieces of words it does.
     expect(encode("unaffable", vocab).ids.length).toBeGreaterThan(3);
+  });
+});
+
+describe("said again", () => {
+  it("takes a very alike line with the same numbers as the same thing said twice", () => {
+    expect(saidAgain("Shoe size: 9. my shoe size is 9", "i wear size 9 shoes", 0.875)).toBe(true);
+    expect(saidAgain("Passport: in the blue folder", "my passport is kept in the blue file", 0.848)).toBe(true);
+  });
+
+  it("never when the numbers differ, however alike, nor when only fairly alike", () => {
+    expect(saidAgain("PR: 60 kg. bench pr 60kg", "PR: 100 kg. deadlift pr 100kg", 0.9)).toBe(false);
+    expect(saidAgain("Blood group: O+", "my blood type is O positive", 0.6)).toBe(false);
+  });
+});
+
+describe("where a loose memory belongs", () => {
+  const page = (title: string, score: number) => ({ title, score });
+
+  it("on a page clearly nearest, and far enough ahead of the next", () => {
+    expect(belongsOn([page("Coffee", 0.4), page("Gym", 0.13)])?.title).toBe("Coffee");
+  });
+
+  it("nowhere when nothing is near, or two pages are near alike", () => {
+    expect(belongsOn([page("Coffee", 0.24), page("Space", 0.22)])).toBeNull();
+    expect(belongsOn([page("Coffee", 0.45), page("Space", 0.39)])).toBeNull();
+    expect(belongsOn([])).toBeNull();
   });
 });

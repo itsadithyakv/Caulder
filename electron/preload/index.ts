@@ -492,6 +492,11 @@ const api: CaulderApi = {
     set: (on) => invoke(CHANNELS.understandSet, on),
     again: () => invoke(CHANNELS.understandAgain),
     read: (companyId, text) => invoke(CHANNELS.understandRead, companyId, text),
+    notTheSame: (memory) => invoke(CHANNELS.understandNotTheSame, memory),
+    related: (pageId) => invoke(CHANNELS.understandRelated, pageId),
+    loose: () => invoke(CHANNELS.understandLoose),
+    gather: (move) => invoke(CHANNELS.understandGather, move),
+    leave: (lines) => invoke(CHANNELS.understandLeave, lines),
   },
   lessons: {
     list: () => invoke(CHANNELS.lessonsList),

@@ -251,7 +251,8 @@ A small model (all-MiniLM-L6-v2, int8, 23 MB) that reads pages, memories, contac
 - The model is fetched, not committed: `npm run fetch-model` into `resources/model`; the installer carries it beside the executable. Without it everything else works and its tests are skipped.
 - Tests: `shared/understand.test.ts`, `repositories/vectors.test.ts`, `services/understand.test.ts`, `understand/embed.test.ts` (the real model); packaged: `smoke:packaged`
 - Second opinion (phase 20): `examplesFor` in `services/understand.ts` turns the nearest vectors into votes - seeds (`shared/understand-seeds.ts`), your tasks with their areas, memories, notes, idea pages, and your own pages as homes for a memory; never contacts or a company's pages. The decision is `shared/opinion.ts`. The measuring stick is `understand/eval.test.ts` over `understand/lines.eval.ts` (`MEASURE=all` prints every line).
-- Touches: the quick line (kind, where a memory goes, a task's area). Phase 21 arranges memories, phase 22 chooses what goes to an AI.
+- Memories (phase 21): `saidAgain` and `belongsOn` in `shared/understand.ts` hold the measured bars; `markRepeats` runs as the queue reads a page; `relatedTo` feeds *Near in meaning* in `BrainLinks.tsx` (`understand:related`).
+- Touches: the quick line (kind, where a memory goes, a task's area), Memories (said again, loose ends, recall), brain pages (near in meaning). Phase 22 chooses what goes to an AI.
 
 ### Search everything (Ctrl+K)
 One FTS5 index over pages, contacts, notes, history, invoices and people; words quoted and made prefixes; bm25 with the title weighted 8 and notes and history pushed down.
@@ -261,6 +262,7 @@ One FTS5 index over pages, contacts, notes, history, invoices and people; words 
 
 ### Memories
 Dated lines on pages, written by the quick line, listed by topic or by time on their own screen, one brought back on Today. The newest line with the same key (text before the colon) is the current answer.
+- Arranged by the model (phase 21): *said again* marks in `said_again` (migration 47), applied in `allMemories` as `earlierBy: "model"`, taken back by `understand:not-the-same`; loose ends offered on the screen (`LooseEnds.tsx`, `looseEnds` / `moveMemories` / `leaveLoose`, setting `looseLeft`); recall fused with meaning (`fuseRecall`, `memoriesByMeaning`). Never a new page from a cluster - measured, and this model cannot tell topics apart that way.
 - UI: `src/features/brain/Memories.tsx` (route `memories`), `src/features/today/Remember.tsx`
 - Logic: `shared/memories.ts` (`memoriesOf`, `recall`, `underOf`, `trailsOf`, `groupMemories`), `shared/branches.ts`
 - Main: `services/remember.ts` (writes), `services/memories.ts` (reads, edits, forgets through `savePage`), `services/nudges.ts` (birthdays)

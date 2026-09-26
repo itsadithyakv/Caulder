@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { formatDay, formatMonth } from "@/lib/format";
 import { messageOf } from "@/lib/errors";
 import { PageView } from "./PageView";
+import { LooseEnds } from "./LooseEnds";
 
 /**
  * Everything the line was told to remember, in one place: a screen of its own
@@ -165,8 +166,8 @@ function Memories({
         <p className="card__hint">
           {current === 1 ? "One thing" : `${current} things`} you have told the line on Today to remember, each on a page for what it is
           about - about you, the people you know, where things are, what you read and lift and learn. A later memory about the same thing
-          is the newer answer; the one before stays, marked earlier. They are yours, the same whichever company is open, and never leave
-          this machine.{" "}
+          is the newer answer; the one before stays, marked earlier. They are yours, the same whichever company is open, and leave this
+          machine only if you let your AI read your own pages.{" "}
           <button type="button" className="linkbtn" onClick={onOpenMap}>
             <Waypoints size={13} aria-hidden /> See them on your map
           </button>
@@ -198,6 +199,8 @@ function Memories({
           </p>
         )}
       </header>
+
+      <LooseEnds version={version + changed} onMoved={() => setChanged((n) => n + 1)} />
 
       {!search.trim() && (coming.length > 0 || again.length > 0) && (
         <div className="memories__soon">
@@ -308,6 +311,18 @@ function MemoryItem({
     }
   }
 
+  async function takeBack() {
+    setBusy(true);
+    try {
+      await window.caulder.understand.notTheSame({ pageId: memory.pageId, raw: memory.raw });
+      onChanged();
+    } catch (cause) {
+      onFailed(cause);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function forget() {
     setBusy(true);
     try {
@@ -354,8 +369,17 @@ function MemoryItem({
         {memory.says}
         {!memory.current && (
           <span className="memories__earlier">
-            <History size={12} aria-hidden /> earlier
+            <History size={12} aria-hidden /> {memory.earlierBy === "model" ? "said again since" : "earlier"}
           </span>
+        )}
+        {/* Found by the model, so it can be wrong: one click takes it back. */}
+        {memory.earlierBy === "model" && (
+          <>
+            {" "}
+            <button type="button" className="linkbtn" disabled={busy} onClick={() => void takeBack()}>
+              Not the same
+            </button>
+          </>
         )}
         {page && onOpenPage && (
           <>

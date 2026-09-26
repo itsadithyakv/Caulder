@@ -81,7 +81,8 @@ import { quickAdd } from "../services/quickadd";
 import { addAreaWord, listAreaWords, removeAreaWord } from "../repositories/words";
 import { addLesson, listLessons, removeLesson } from "../repositories/lessons";
 import { nudgeSettings, setNudgeSettings, testNotification } from "../services/nudges";
-import { examplesFor, readEverythingAgain, setUnderstanding, understandState, understandingOn } from "../services/understand";
+import { examplesFor, leaveLoose, looseEnds, memoriesByMeaning, readEverythingAgain, relatedTo, setUnderstanding, understandState, understandingOn } from "../services/understand";
+import { moveMemories, takeBackSaidAgain } from "../services/memories";
 import { modelHere, readLines, stopModel } from "../understand/host";
 import { answerQuestion, cancelTask, lineContext, moveTask, renameTask, restoreTask } from "../services/lines";
 import { ensureHome } from "../services/yourhome";
@@ -1372,9 +1373,17 @@ function registerTaskHandlers() {
     alsoNudge((_event, companyId: unknown, snapshot: unknown) => restoreTask(getDatabase(), assertId(companyId, "company id"), snapshot)),
   );
   handle(CHANNELS.linesRename, alsoNudge((_event, id: unknown, title: unknown) => renameTask(getDatabase(), assertId(id, "task id"), title)));
-  handle(CHANNELS.linesAnswer, (_event, companyId: unknown, asked: unknown) =>
-    answerQuestion(getDatabase(), assertId(companyId, "company id"), asked),
-  );
+  handle(CHANNELS.linesAnswer, async (_event, companyId: unknown, asked: unknown) => {
+    const db = getDatabase();
+    const id = assertId(companyId, "company id");
+    // Recall is answered by meaning as well as words, when understanding is on (phase 21).
+    const about = typeof asked === "object" && asked !== null && (asked as { ask?: unknown }).ask === "recall" ? (asked as { about?: unknown }).about : null;
+    const meant =
+      typeof about === "string" && understandingOn(db) && modelHere()
+        ? await memoriesByMeaning(db, readLines, about).catch(() => [])
+        : [];
+    return answerQuestion(db, id, asked, meant);
+  });
   handle(CHANNELS.nudgesGet, () => nudgeSettings(getDatabase()));
   handle(CHANNELS.nudgesSet, (_event, raw: unknown) => setNudgeSettings(getDatabase(), raw));
   handle(CHANNELS.nudgesTest, () => testNotification(() => BrowserWindow.getAllWindows().find((w) => !w.isDestroyed() && w.webContents.getURL().indexOf("#") === -1) ?? null));
@@ -1394,6 +1403,17 @@ function registerTaskHandlers() {
     if (typeof text !== "string" || text.trim().length === 0 || text.length > 500) return [];
     return examplesFor(db, readLines, withHome(db, assertId(companyId, "company id")), text.trim());
   });
+  handle(CHANNELS.understandRelated, (_event, pageId: unknown) => {
+    const db = getDatabase();
+    return understandingOn(db) ? relatedTo(db, assertId(pageId, "page id")) : [];
+  });
+  handle(CHANNELS.understandLoose, async () => {
+    const db = getDatabase();
+    return understandingOn(db) && modelHere() ? looseEnds(db, readLines) : [];
+  });
+  handle(CHANNELS.understandGather, (_event, move: unknown) => moveMemories(getDatabase(), move, new Date()));
+  handle(CHANNELS.understandLeave, (_event, lines: unknown) => leaveLoose(getDatabase(), lines));
+  handle(CHANNELS.understandNotTheSame, (_event, memory: unknown) => takeBackSaidAgain(getDatabase(), memory));
   handle(CHANNELS.understandAgain, () => {
     const db = getDatabase();
     readEverythingAgain(db);

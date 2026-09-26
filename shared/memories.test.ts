@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { comingUp, groupMemories, matches, memoriesOf, onThisDay, recall, resurface, sayComing, type Memory } from "./memories";
+import { comingUp, groupMemories, matches, memoriesOf, onThisDay, recall, resurface, sayComing, type Memory, fuseRecall } from "./memories";
 
 /**
  * Memories read back: the newer answer to the same thing, what comes round,
@@ -69,5 +69,23 @@ describe("found again", () => {
     expect(matches(where[2]!, "b12 level")).toBe(true);
     expect(matches(where[2]!, "level 7")).toBe(false);
     expect(groupMemories(all, "birthday").map((group) => group.pageTitle).sort()).toEqual(["Mummy", "Priya"]);
+  });
+});
+
+describe("recall by words and by meaning, as one", () => {
+  const memory = (says: string, current = true) =>
+    ({ pageId: "p", pageTitle: "P", section: "ideas", day: "2026-09-20", fact: null, says, raw: `- ${says}`, key: null, current }) as const;
+
+  it("puts first what both found, keeps what either found, and what is true now before what was", () => {
+    const a = memory("parked on level 3");
+    const b = memory("parked near gate 2");
+    const c = memory("the car is in bay 14");
+    const old = memory("parked at the mall", false);
+    expect(fuseRecall([a, b, old], [c, b]).map((each) => each.says)).toEqual([
+      "parked near gate 2",
+      "parked on level 3",
+      "the car is in bay 14",
+      "parked at the mall",
+    ]);
   });
 });

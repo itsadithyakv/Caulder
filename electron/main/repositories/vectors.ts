@@ -173,3 +173,37 @@ export function queueEverything(db: Db, now: string): void {
     db.prepare(`INSERT OR REPLACE INTO embed_queue (kind, ref_id, queued_at) SELECT 'note', id, ? FROM notes`).run(at);
   })();
 }
+
+/* ---- Said again (phase 21) ----------------------------------------------------- */
+
+/** The vectors of the memories on one page, by ref. */
+export function memoryVectorsOn(db: Db, pageId: string, model: string): Map<string, Int8Array> {
+  const rows = db.prepare(`SELECT ref, vec FROM vectors WHERE source_id = ? AND kind = 'memory' AND model = ?`).all(pageId, model) as {
+    ref: string;
+    vec: Buffer;
+  }[];
+  return new Map(rows.map((row) => [row.ref, new Int8Array(row.vec.buffer, row.vec.byteOffset, row.vec.byteLength)]));
+}
+
+/** An older line marked said again. Once marked - even if the mark is later taken back - the same line is not marked again. */
+export function markSaidAgain(db: Db, pageId: string, lineHash: string, newerHash: string, score: number, now: string): void {
+  db.prepare(
+    `INSERT OR IGNORE INTO said_again (page_id, line_hash, newer_hash, score, marked_at) VALUES (?, ?, ?, ?, ?)`,
+  ).run(pageId, lineHash, newerHash, score, now);
+}
+
+/** The lines marked said again and not taken back, in a workspace, as "pageId#hash". */
+export function saidAgainIn(db: Db, companyId: string): Set<string> {
+  const rows = db
+    .prepare(
+      `SELECT s.page_id, s.line_hash FROM said_again s JOIN brain_pages p ON p.id = s.page_id
+        WHERE p.company_id = ? AND s.undone = 0`,
+    )
+    .all(companyId) as { page_id: string; line_hash: string }[];
+  return new Set(rows.map((row) => `${row.page_id}#${row.line_hash}`));
+}
+
+/** *Not the same*: the mark taken back. */
+export function notTheSame(db: Db, pageId: string, lineHash: string): void {
+  db.prepare(`UPDATE said_again SET undone = 1 WHERE page_id = ? AND line_hash = ?`).run(pageId, lineHash);
+}

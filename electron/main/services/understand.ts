@@ -1,5 +1,12 @@
 import type { Db } from "../db/connection";
-import { MODEL, fromBytes, nearest, similarity, type UnderstandState } from "@shared/understand";
+import { z } from "zod";
+import { MODEL, belongsOn, fromBytes, nearest, saidAgain, similarity, textHash, type LooseEnds, type Related, type UnderstandState } from "@shared/understand";
+import { TRIVIA_PAGE } from "@shared/facts";
+import { ROOT } from "@shared/branches";
+import { homeCompanyId, isHomeWorkspace } from "../repositories/companies";
+import { memoriesOf, type Memory } from "@shared/memories";
+import { allMemories } from "./memories";
+import type { BrainSectionId } from "@shared/brain";
 import { SEEDS } from "@shared/understand-seeds";
 import { OPINION, type Example } from "@shared/opinion";
 import type { LessonKind } from "@shared/lessons";
@@ -8,6 +15,8 @@ import {
   dequeue,
   hashesOf,
   keepVectors,
+  markSaidAgain,
+  memoryVectorsOn,
   queueEverything,
   queueSize,
   queued,
@@ -75,9 +84,39 @@ export async function readQueued(db: Db, read: Read, now: Date = new Date()): Pr
     const done = each.changed.map((item) => ({ ...item, vector: vectors[at++] ?? new Int8Array() }));
     // Only what changed is written; what is unchanged is still said, so it stays.
     keepVectors(db, each.row.refId, each.source, MODEL, done, stamp);
+    const newMemories = new Set(done.filter((item) => item.kind === "memory").map((item) => item.ref));
+    if (each.row.kind === "page" && newMemories.size > 0) markRepeats(db, each.row.refId, newMemories, stamp);
     dequeue(db, each.row.kind, each.row.refId);
   }
   return rows.length;
+}
+
+/**
+ * Phase 21: a memory just read that says again, in other words, what an older
+ * one on the same page said marks the older one earlier. Only very alike, with
+ * the same numbers (saidAgain, shared/understand.ts): it acts without asking.
+ */
+function markRepeats(db: Db, pageId: string, newer: ReadonlySet<string>, now: string): void {
+  const page = db.prepare(`SELECT title, section, body FROM brain_pages WHERE id = ?`).get(pageId) as
+    | { title: string; section: BrainSectionId; body: string }
+    | undefined;
+  if (!page) return;
+  const memories = memoriesOf({ id: pageId, ...page });
+  const vectors = memoryVectorsOn(db, pageId, MODEL);
+  const refOf = (memory: Memory) => `${pageId}#${textHash(memory.raw)}`;
+  const words = (memory: Memory) => `${memory.fact ?? ""} ${memory.says}`;
+  memories.forEach((late, at) => {
+    const lateVector = vectors.get(refOf(late));
+    if (!newer.has(refOf(late)) || !lateVector) return;
+    memories.forEach((early, before) => {
+      // Older: an earlier day, or the same day and higher up the page.
+      if (before === at || !(early.day < late.day || (early.day === late.day && before < at))) return;
+      const earlyVector = vectors.get(refOf(early));
+      if (!earlyVector) return;
+      const score = similarity(fromBytes(earlyVector), fromBytes(lateVector));
+      if (saidAgain(words(early), words(late), score)) markSaidAgain(db, pageId, textHash(early.raw), textHash(late.raw), score, now);
+    });
+  });
 }
 
 /**
@@ -170,6 +209,122 @@ export async function examplesFor(db: Db, read: Read, companyIds: readonly strin
     }
   }
   return [...examples, ...seeds];
+}
+
+/**
+ * The memories nearest in meaning to what was asked (phase 21), for recall on
+ * the line to fuse with what the words found: "which beans do i like" finds
+ * "ethiopian coffee is fruity", which shares no word with it.
+ */
+export async function memoriesByMeaning(db: Db, read: Read, about: string): Promise<Memory[]> {
+  const { companyId, memories } = allMemories(db);
+  if (!companyId) return [];
+  const byRef = new Map(memories.map((memory) => [`${memory.pageId}#${textHash(memory.raw)}`, memory]));
+  const near = await nearestTo(db, read, [companyId], about, { kinds: ["memory"], most: 8, floor: 0.35 });
+  return near.map((hit) => byRef.get(hit.ref)).filter((memory): memory is Memory => memory !== undefined);
+}
+
+/**
+ * What is near a page in meaning and not linked to it (phase 21): pages -
+ * a memory counting for the page it is on - and contacts, most alike first.
+ * Read from what is already kept; nothing is asked of the model. A company's
+ * page looks only in its company, the way it links (repositories/links.ts);
+ * a page of yours looks everywhere.
+ */
+export function relatedTo(db: Db, pageId: string, most = 5, floor = 0.4): Related[] {
+  const page = db.prepare(`SELECT company_id FROM brain_pages WHERE id = ?`).get(pageId) as { company_id: string } | undefined;
+  if (!page) return [];
+  const reach = isHomeWorkspace(db, page.company_id)
+    ? (db.prepare(`SELECT id FROM companies WHERE is_archived = 0`).all() as { id: string }[]).map((row) => row.id)
+    : [page.company_id];
+  const all = vectorsIn(db, reach, MODEL);
+  const own = all.find((row) => row.kind === "page" && row.ref === pageId);
+  if (!own) return [];
+  const mine = fromBytes(own.vector);
+  const linked = new Set(
+    (db.prepare(`SELECT to_id AS id FROM brain_links WHERE from_page = ? UNION SELECT from_page AS id FROM brain_links WHERE to_id = ?`).all(pageId, pageId) as { id: string }[]).map((row) => row.id),
+  );
+  const best = new Map<string, { kind: "page" | "contact"; score: number; ref: string; rowKind: VectorKind }>();
+  for (const row of all) {
+    if (row.sourceId === pageId || linked.has(row.sourceId)) continue;
+    if (row.kind !== "page" && row.kind !== "memory" && row.kind !== "contact") continue;
+    const score = similarity(mine, fromBytes(row.vector));
+    if (score < floor) continue;
+    const had = best.get(row.sourceId);
+    if (!had || had.score < score) best.set(row.sourceId, { kind: row.kind === "contact" ? "contact" : "page", score, ref: row.ref, rowKind: row.kind });
+  }
+  const titleOf = db.prepare(`SELECT title, body FROM brain_pages WHERE id = ? AND is_archived = 0 AND section <> 'journal'`);
+  const nameOf = db.prepare(`SELECT name FROM leads WHERE id = ?`);
+  return [...best.entries()]
+    .sort((a, b) => b[1].score - a[1].score)
+    .flatMap(([id, hit]): Related[] => {
+      if (hit.kind === "contact") {
+        const lead = nameOf.get(id) as { name: string } | undefined;
+        return lead ? [{ kind: "contact", id, title: lead.name, why: null }] : [];
+      }
+      const found = titleOf.get(id) as { title: string; body: string } | undefined;
+      if (!found) return [];
+      const memory = hit.rowKind === "memory" ? memoriesOf({ id, title: found.title, section: "ideas", body: found.body }).find((each) => `${id}#${textHash(each.raw)}` === hit.ref) : undefined;
+      return [{ kind: "page", id, title: found.title, why: memory ? (memory.fact ?? memory.says) : null }];
+    })
+    .slice(0, most);
+}
+
+/** The pages loose memories pile up on when the line knows nowhere better. */
+const CATCH_ALL = [TRIVIA_PAGE, ROOT.title];
+
+function leftAlone(db: Db): Set<string> {
+  try {
+    const parsed: unknown = JSON.parse(getSetting(db, "looseLeft") ?? "[]");
+    return new Set(Array.isArray(parsed) ? parsed.filter((each): each is string => typeof each === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
+
+/**
+ * Loose ends (phase 21): memories on the catch-all pages that sound like one
+ * of the person's own pages, grouped by it, to be offered as a move. Each line
+ * is read without the page it is on, against the titles of the pages it could
+ * go to, and goes only where belongsOn (shared/understand.ts) is sure.
+ */
+export async function looseEnds(db: Db, read: Read): Promise<LooseEnds> {
+  const companyId = homeCompanyId(db);
+  if (!companyId) return [];
+  const pages = db
+    .prepare(`SELECT id, title, section, body FROM brain_pages WHERE company_id = ? AND is_archived = 0 AND section <> 'journal'`)
+    .all(companyId) as { id: string; title: string; section: BrainSectionId; body: string }[];
+  const catchAll = pages.filter((page) => CATCH_ALL.includes(page.title));
+  const homes = pages.filter((page) => !CATCH_ALL.includes(page.title) && MEMORY_HOMES.has(page.section));
+  const left = leftAlone(db);
+  const loose = catchAll.flatMap((page) =>
+    memoriesOf(page)
+      .filter((memory) => !left.has(`${page.id}#${textHash(memory.raw)}`))
+      .map((memory) => ({ page, memory })),
+  );
+  if (loose.length === 0 || homes.length === 0) return [];
+
+  const vectors = (await read([...loose.map(({ memory }) => `${memory.fact ? `${memory.fact}. ` : ""}${memory.says}`), ...homes.map((page) => page.title)])).map(fromBytes);
+  const titles = vectors.slice(loose.length);
+  const found = new Map<string, LooseEnds[number]>();
+  loose.forEach(({ page, memory }, at) => {
+    const line = vectors[at];
+    if (!line) return;
+    const home = belongsOn(homes.map((each, k) => ({ page: each, score: similarity(line, titles[k] ?? new Float32Array()) })));
+    if (!home) return;
+    const group = found.get(home.page.id) ?? { to: { pageId: home.page.id, title: home.page.title }, lines: [] };
+    group.lines.push({ pageId: page.id, pageTitle: page.title, raw: memory.raw, says: memory.fact ? `${memory.fact} · ${memory.says}` : memory.says });
+    found.set(home.page.id, group);
+  });
+  return [...found.values()].sort((a, b) => b.lines.length - a.lines.length);
+}
+
+/** *Not these*: loose memories never offered again. */
+export function leaveLoose(db: Db, raw: unknown): void {
+  const lines = z.array(z.object({ pageId: z.string().min(1), raw: z.string().min(1).max(4000) })).max(200).parse(raw);
+  const left = leftAlone(db);
+  for (const line of lines) left.add(`${line.pageId}#${textHash(line.raw)}`);
+  setSetting(db, "looseLeft", JSON.stringify([...left]));
 }
 
 /* ---- In the background ----------------------------------------------------- */

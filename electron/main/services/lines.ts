@@ -3,7 +3,7 @@ import { createTask, deleteTask, findTask, rescheduleTask, updateTask } from "..
 import { createBlock, deleteBlock, moveBlock } from "../repositories/blocks";
 import { search } from "./brain";
 import { allMemories } from "./memories";
-import { askedStems, recall, type Memory } from "@shared/memories";
+import { askedStems, fuseRecall, recall, type Memory } from "@shared/memories";
 import { addReminder } from "./nudges";
 import { blockKindFor } from "@shared/quickadd";
 import { blockInput, taskInput, type Task, type TaskKind } from "@shared/domain";
@@ -299,7 +299,13 @@ function memoryItem(memory: Memory): { label: string; detail: string | null } {
 }
 
 /** A question, answered from what is kept. Nothing leaves the machine and nothing is guessed. */
-export function answerQuestion(db: Db, companyId: string, raw: unknown): Answer {
+export function answerQuestion(
+  db: Db,
+  companyId: string,
+  raw: unknown,
+  /** For recall: the memories nearest in meaning, when the model on this machine found any (phase 21). */
+  meant: readonly Memory[] = [],
+): Answer {
   const asked = question.parse(raw);
   switch (asked.ask) {
     case "day": {
@@ -363,7 +369,7 @@ export function answerQuestion(db: Db, companyId: string, raw: unknown): Answer 
       };
     }
     case "recall": {
-      const found = recall(allMemories(db).memories, asked.about).slice(0, 5);
+      const found = fuseRecall(recall(allMemories(db).memories, asked.about), meant).slice(0, 5);
       if (found.length === 0) return { say: `Nothing remembered about ${asked.label} yet.`, items: [] };
       return { say: sayMemory(found[0]!), items: found.map(memoryItem) };
     }

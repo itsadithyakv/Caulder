@@ -3,6 +3,8 @@ import type { Db } from "../db/connection";
 import type { BrainPage, BrainSectionId } from "@shared/brain";
 import { memoriesOf, trailsOf, type Memory } from "@shared/memories";
 import { homeCompanyId } from "../repositories/companies";
+import { notTheSame, saidAgainIn } from "../repositories/vectors";
+import { textHash } from "@shared/understand";
 import { getPage, savePage } from "./brain";
 
 /**
@@ -30,7 +32,12 @@ export function allMemories(db: Db): { companyId: string | null; memories: Memor
     .prepare(`SELECT id, title, body FROM brain_pages WHERE company_id = ? AND is_archived = 0 AND section <> 'journal'`)
     .all(companyId) as { id: string; title: string; body: string }[];
   const trails = trailsOf(every);
-  return { companyId, memories: pages.flatMap(memoriesOf), trails: Object.fromEntries(pages.map((page) => [page.id, trails[page.id] ?? []])) };
+  // A line the model found said again is earlier too (phase 21), unless taken back.
+  const said = saidAgainIn(db, companyId);
+  const memories = pages.flatMap(memoriesOf).map((memory) =>
+    memory.current && said.has(`${memory.pageId}#${textHash(memory.raw)}`) ? { ...memory, current: false, earlierBy: "model" as const } : memory,
+  );
+  return { companyId, memories, trails: Object.fromEntries(pages.map((page) => [page.id, trails[page.id] ?? []])) };
 }
 
 /** One memory's line, found on its page exactly as it was read, or refused: a page edited since is read again. */
@@ -79,4 +86,52 @@ export function forgetMemory(db: Db, raw: unknown, now: Date): Memory[] {
     now,
   );
   return memoriesOf(saved);
+}
+
+/** *Not the same*: a memory the model marked said again is current again, and is not marked again. */
+export function takeBackSaidAgain(db: Db, raw: unknown): void {
+  const input = z.object({ pageId: z.string().min(1), raw: z.string().min(1).max(4000) }).parse(raw);
+  notTheSame(db, input.pageId, textHash(input.raw));
+}
+
+const moveInput = z.object({
+  to: z.string().min(1),
+  lines: z.array(z.object({ pageId: z.string().min(1), raw: z.string().min(1).max(4000) })).min(1).max(200),
+});
+
+/**
+ * Loose memories moved to the page they belong on (phase 21), asked for on the
+ * Memories screen: each line exactly as it was - its lead, its words, its day -
+ * taken off its page and put at the foot of the other, in one go. Each page is
+ * saved once, so its history keeps what it was.
+ */
+export function moveMemories(db: Db, raw: unknown, now: Date): void {
+  const input = moveInput.parse(raw);
+  const companyId = homeCompanyId(db);
+  db.transaction(() => {
+    const target = getPage(db, input.to);
+    if (target.companyId !== companyId || target.section === "journal") throw new Error("That page is not one of yours.");
+    const moving: string[] = [];
+    const bySource = new Map<string, string[]>();
+    for (const line of input.lines) {
+      if (line.pageId === target.id) continue;
+      lineOn(db, line.pageId, line.raw);
+      bySource.set(line.pageId, [...(bySource.get(line.pageId) ?? []), line.raw]);
+      moving.push(line.raw.trim());
+    }
+    for (const [pageId, raws] of bySource) {
+      const page = getPage(db, pageId);
+      const left = page.body.split(/\r?\n/).filter((line) => !raws.includes(line)).join("\n").replace(/\n{3,}/g, "\n\n");
+      savePage(db, page.id, { title: page.title, body: left, fields: page.fields, secrets: {}, baseRevision: page.revision }, now);
+    }
+    if (moving.length === 0) return;
+    const written = target.body.trimEnd();
+    const gap = written === "" ? "" : /(^|\n)\s*- [^\n]*$/.test(written) ? "\n" : "\n\n";
+    savePage(
+      db,
+      target.id,
+      { title: target.title, body: `${written}${gap}${moving.join("\n")}\n`, fields: target.fields, secrets: {}, baseRevision: target.revision },
+      now,
+    );
+  })();
 }

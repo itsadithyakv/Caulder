@@ -31,6 +31,12 @@ export type Memory = {
   key: string | null;
   /** False when a later memory on the same page answers the same thing. */
   current: boolean;
+  /**
+   * "model" when it was the model on this machine that found a later line
+   * saying it again in other words (phase 21), which *Not the same* can take
+   * back. Absent when it is earlier by its key, or current.
+   */
+  earlierBy?: "model";
 };
 
 const LINE = /^\s*-\s+(?:\*\*(.+?)\*\*\s+·\s+)?(.+?)\s+_\((\d{4}-\d{2}-\d{2})\)_\s*$/;
@@ -256,4 +262,25 @@ export function groupMemories(memories: readonly Memory[], search = ""): MemoryG
   return [...groups.values()]
     .map((group) => ({ ...group, memories: [...group.memories].reverse().sort((a, b) => b.day.localeCompare(a.day)) }))
     .sort((a, b) => b.latest.localeCompare(a.latest) || a.pageTitle.localeCompare(b.pageTitle));
+}
+
+/**
+ * What words found and what meaning found, as one answer (PLAN.md, part five,
+ * phase 21): each list gives a memory 1/(60 + its place), so one high on
+ * either rises and one on both rises most - with no weighing of a word count
+ * against a closeness, which cannot be compared. What is true now still comes
+ * before what was true once.
+ */
+export function fuseRecall(byWords: readonly Memory[], byMeaning: readonly Memory[]): Memory[] {
+  const keyOf = (memory: Memory) => `${memory.pageId}\n${memory.raw}`;
+  const scored = new Map<string, { memory: Memory; score: number }>();
+  for (const list of [byWords, byMeaning]) {
+    list.forEach((memory, at) => {
+      const had = scored.get(keyOf(memory));
+      scored.set(keyOf(memory), { memory, score: (had?.score ?? 0) + 1 / (60 + at) });
+    });
+  }
+  return [...scored.values()]
+    .sort((a, b) => Number(b.memory.current) - Number(a.memory.current) || b.score - a.score)
+    .map(({ memory }) => memory);
 }

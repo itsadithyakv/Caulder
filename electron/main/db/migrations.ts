@@ -2635,6 +2635,27 @@ const M045_SEARCH_FORGETS = `
  * before would outlast the words it came from. Private lines are another
  * table, and never read either.
  */
+/**
+ * Said again (PLAN.md, part five, phase 21). When a newer memory says what an
+ * older one on the same page said, in other words, the older is marked earlier
+ * - by the model, without asking, because it moves and deletes nothing. The
+ * mark is kept here rather than written into the page, so the page stays as
+ * its owner wrote it and *Not the same* can take the mark away again
+ * (`undone`). A line is known by its page and the hash of its text, the way
+ * its vector is.
+ */
+const M047_SAID_AGAIN = `
+  CREATE TABLE said_again (
+    page_id    TEXT NOT NULL REFERENCES brain_pages (id) ON DELETE CASCADE,
+    line_hash  TEXT NOT NULL,
+    newer_hash TEXT NOT NULL,
+    score      REAL NOT NULL,
+    marked_at  TEXT NOT NULL,
+    undone     INTEGER NOT NULL DEFAULT 0 CHECK (undone IN (0, 1)),
+    PRIMARY KEY (page_id, line_hash)
+  );
+`;
+
 const M046_UNDERSTANDING = `
   CREATE TABLE vectors (
     kind       TEXT NOT NULL,
@@ -2741,6 +2762,7 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 44, name: "reminders", sql: M044_REMINDERS },
   { version: 45, name: "search forgets what it is told to", sql: M045_SEARCH_FORGETS },
   { version: 46, name: "understanding, on this machine", sql: M046_UNDERSTANDING },
+  { version: 47, name: "said again", sql: M047_SAID_AGAIN },
 ];
 
 export function currentVersion(db: Db): number {

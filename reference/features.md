@@ -2068,6 +2068,25 @@ map** goes straight to your side of the map. Memories are kept in your own
 workspace whichever company is open, so this shows the same thing in every
 company, and says so. The journal is never read for it.
 
+With understanding on (Settings > This computer), the model on this machine
+tidies what is there, and asks before it moves anything:
+
+- **Said again.** A new memory that says what an older one on the same page
+  said, in other words, marks the older one *said again since*. It does this
+  without asking, because nothing is moved or deleted. It only does it when
+  the two are very alike and say the same numbers: the model finds "bench PR
+  60 kg" and "deadlift PR 100 kg" nearly the same, and they are not. **Not
+  the same** takes the mark back for good.
+- **Loose ends.** Lines on Random knowledge or Me that sound like one of your
+  own pages are offered there: *2 lines on Random knowledge sound like
+  Coffee*, with **Move them to Coffee** and **Not these**. Lines are only
+  ever offered to a page you have. The model cannot tell which loose lines
+  make a new topic of their own, so it never makes one up.
+- **Asked on the line**, *what did i say about...* finds by meaning as well as
+  words: "which beans do i like" finds "ethiopian beans taste fruity".
+- **On a brain page**, beside Linked here: **Near in meaning, not linked yet**
+  - up to five pages and contacts, each with the line that made it near.
+
 - **What a life is made of** (`shared/lifefacts.ts`) goes on its own page in
   **Remembered**, a personal section that goes to your AI only when *your own
   pages* is on in Settings: *my blood

@@ -71,8 +71,16 @@ tests in 144 files, with the journal work above in the same tree.
       the right page. Nothing the rules had right is made wrong.
     - The thresholds were tuned on those same lines, so the gain on new
       lines will be smaller. Measure again on new lines before moving them.
-  - **Not done:** `recall` does not use meaning yet. That is phase 21, with
-    arranging memories.
+  - **Phase 21 was done on 26 September 2026.**
+    - A memory said again is marked on its own (migration 47).
+    - Loose lines on Random knowledge or Me are offered to your existing
+      pages.
+    - Recall works by meaning too.
+    - A brain page shows what is near it in meaning.
+    - **Loose lines are not gathered into new pages:** measured, and this
+      model cannot tell topics apart that way.
+  - **Not done:** suggested links drawn faint on the Map (phase 21), and
+    phase 22: Ask choosing what to send by meaning, and the "04 you" export.
   - **Get the model with `npm run fetch-model`.** It is pinned and checked,
     and kept out of git. Without it everything else works and its tests are
     skipped.
@@ -192,10 +200,9 @@ the code, and 85 realistic lines put through the quick line. Items marked
 
 ## Next
 
-1. Phase 21, memories arranged:
-   - repeats marked on their own;
-   - loose lines gathered into pages, asked;
-   - related things shown;
-   - recall by meaning.
+1. Phase 22, ready for an AI:
+   - Ask chooses contacts and pages by meaning as well as words;
+   - the "04 you" export, laid out by topic;
+   - "Export for" a purpose.
 2. Decide on campaigns (item 10). Ctrl+K for products and deals (item 12)
    needs a migration.

@@ -7,7 +7,8 @@ import { createPage } from "../repositories/brain";
 import { leadInput } from "@shared/domain";
 import { normalise, toBytes } from "@shared/understand";
 import { queueSize, vectorCount } from "../repositories/vectors";
-import { examplesFor, forgetSeeds, nearestTo, readQueued, setUnderstanding, understandState, understandingOn, type Read } from "./understand";
+import { examplesFor, forgetSeeds, leaveLoose, looseEnds, memoriesByMeaning, nearestTo, readEverythingAgain, readQueued, relatedTo, setUnderstanding, understandState, understandingOn, type Read } from "./understand";
+import { allMemories, moveMemories, takeBackSaidAgain } from "./memories";
 import { MODEL } from "@shared/understand";
 
 /**
@@ -89,5 +90,101 @@ describe("the line's neighbours", () => {
     expect(own).toHaveLength(2);
     // And the seeds, every one, for a machine with little of its own.
     expect(examples.filter((each) => !each.own).length).toBeGreaterThan(50);
+  });
+});
+
+describe("said again (phase 21)", () => {
+  it("marks an older memory said again in other words, never one with other numbers, and takes the mark back", async () => {
+    // The stand-in reads by keyword, so each pair below is as alike as it gets (1.0): what decides is the rule.
+    createPage(db, home, {
+      section: "hobbies",
+      template: "page",
+      title: "Gym",
+      // No shared lead: "PR:" on both would make the older earlier by its key, the rule that was there first.
+      body: "- bench 60 kg at the gym _(2026-09-20)_\n- deadlift 100 kg at the gym _(2026-09-21)_",
+    }, NOW);
+    const coffee = createPage(db, home, {
+      section: "hobbies",
+      template: "page",
+      title: "Beans",
+      body: "- ethiopian coffee is fruity _(2026-09-20)_\n- coffee from ethiopia tastes of fruit _(2026-09-22)_",
+    }, NOW);
+    while ((await readQueued(db, read)) > 0);
+
+    const { memories } = allMemories(db);
+    const said = (words: string) => memories.find((memory) => memory.says.includes(words));
+    expect(said("bench")?.current).toBe(true);
+    expect(said("deadlift")?.current).toBe(true);
+    expect(said("ethiopian coffee")).toMatchObject({ current: false, earlierBy: "model" });
+    expect(said("coffee from ethiopia")?.current).toBe(true);
+
+    // Not the same: current again, and not marked again when the page is read again.
+    takeBackSaidAgain(db, { pageId: coffee, raw: said("ethiopian coffee")!.raw });
+    readEverythingAgain(db);
+    while ((await readQueued(db, read)) > 0);
+    expect(allMemories(db).memories.find((memory) => memory.says.includes("ethiopian coffee"))?.current).toBe(true);
+  });
+});
+
+describe("recall by meaning (phase 21)", () => {
+  it("finds a memory that shares no word with the question", async () => {
+    createPage(db, home, { section: "hobbies", template: "page", title: "Beans", body: "- ethiopian coffee is fruity _(2026-09-20)_" }, NOW);
+    while ((await readQueued(db, read)) > 0);
+    // "Brew" is not in the memory; the stand-in reads the question's "coffee" as the memory's.
+    const found = await memoriesByMeaning(db, read, "what coffee do i brew");
+    expect(found.map((memory) => memory.says)).toEqual(["ethiopian coffee is fruity"]);
+  });
+});
+
+describe("near in meaning (phase 21)", () => {
+  it("offers pages near a page by what is on them, and leaves out what is already linked", async () => {
+    const coffee = createPage(db, home, { section: "hobbies", template: "page", title: "Coffee", body: "Pour over, most mornings." }, NOW);
+    createPage(db, home, { section: "ideas", template: "page", title: "Beans", body: "- ethiopian coffee is fruity _(2026-09-20)_" }, NOW);
+    createPage(db, home, { section: "hobbies", template: "page", title: "Gym", body: "Push pull legs at the gym." }, NOW);
+    createPage(db, home, { section: "ideas", template: "page", title: "Coffee shop", body: `Like [[Coffee|page:${coffee}]], but a shop.` }, NOW);
+    while ((await readQueued(db, read)) > 0);
+
+    const near = relatedTo(db, coffee);
+    expect(near.map((each) => each.title)).toContain("Beans");
+    expect(near.find((each) => each.title === "Beans")?.why).toBe("ethiopian coffee is fruity");
+    // Linked already: not offered again.
+    expect(near.map((each) => each.title)).not.toContain("Coffee shop");
+    expect(near.map((each) => each.title)).not.toContain("Gym");
+  });
+});
+
+describe("loose ends (phase 21)", () => {
+  it("offers a loose memory to the page it clearly belongs on, moves it on a yes, and leaves alone what was left", async () => {
+    const pile = createPage(db, home, {
+      section: "ideas",
+      template: "page",
+      title: "Random knowledge",
+      body: "- ethiopian coffee is fruity _(2026-09-20)_\n- honey never spoils _(2026-09-21)_",
+    }, NOW);
+    const coffee = createPage(db, home, { section: "hobbies", template: "page", title: "Coffee", body: "Pour over." }, NOW);
+    createPage(db, home, { section: "hobbies", template: "page", title: "Gym", body: "Push pull legs." }, NOW);
+
+    const offered = await looseEnds(db, read);
+    // Honey is as near to one page as to the other: not offered anywhere.
+    expect(offered).toEqual([
+      {
+        to: { pageId: coffee, title: "Coffee" },
+        lines: [{ pageId: pile, pageTitle: "Random knowledge", raw: "- ethiopian coffee is fruity _(2026-09-20)_", says: "ethiopian coffee is fruity" }],
+      },
+    ]);
+
+    moveMemories(db, { to: coffee, lines: offered[0]!.lines.map(({ pageId, raw }) => ({ pageId, raw })) }, new Date(NOW));
+    const pages = db.prepare(`SELECT title, body FROM brain_pages WHERE id IN (?, ?)`).all(pile, coffee) as { title: string; body: string }[];
+    const bodyOf = (title: string) => pages.find((page) => page.title === title)?.body ?? "";
+    expect(bodyOf("Coffee")).toContain("- ethiopian coffee is fruity _(2026-09-20)_");
+    expect(bodyOf("Random knowledge")).not.toContain("ethiopian");
+    expect(await looseEnds(db, read)).toEqual([]);
+
+    // Not these: a line left is never offered again.
+    createPage(db, home, { section: "ideas", template: "page", title: "Me", body: "- more coffee thoughts _(2026-09-22)_" }, NOW);
+    const next = await looseEnds(db, read);
+    expect(next[0]?.lines).toHaveLength(1);
+    leaveLoose(db, next[0]!.lines);
+    expect(await looseEnds(db, read)).toEqual([]);
   });
 });

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { BrainPageSummary } from "@shared/brain";
 import type { LinkKind } from "@shared/links";
+import type { Related } from "@shared/understand";
 import { MAP_LOOK, type MapGraph, type MapLook, type MapNode } from "@shared/map";
 import { Card } from "@/components/Card";
 import { ErrorLine } from "@/components/ErrorLine";
@@ -38,6 +39,20 @@ export function BrainLinks({
   /** How far out the local map reaches: one to three links. */
   const [depth, setDepth] = useState(2);
   const [error, setError] = useState<string | null>(null);
+  /** What the model on this machine finds near a page (phase 21): offered, never linked by itself. */
+  const [related, setRelated] = useState<Related[]>([]);
+
+  useEffect(() => {
+    if (kind !== "page") return;
+    let live = true;
+    window.caulder.understand.related(id).then(
+      (near) => live && setRelated(near),
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [kind, id, version]);
 
   useEffect(() => {
     let live = true;
@@ -72,6 +87,25 @@ export function BrainLinks({
           {kind === "page" ? "page's title" : `${kind}'s name`}.
           {local && local.nodes.length > 1 ? ` The map shows what this ${kind} links to.` : ""}
         </p>
+      )}
+      {related.length > 0 && (
+        <>
+          <p className="card__hint">Near in meaning, not linked yet</p>
+          <ul className="brainlinks__near" aria-label="Near in meaning">
+            {related.map((near) => (
+              <li key={`${near.kind}:${near.id}`}>
+                <button
+                  type="button"
+                  className="linkbtn"
+                  onClick={() => (near.kind === "page" ? onOpenPage(near.id) : onOpenContact(near.id))}
+                >
+                  {near.title}
+                </button>
+                {near.why && <span className="brainlinks__why"> · {near.why}</span>}
+              </li>
+            ))}
+          </ul>
+        </>
       )}
       {local && (local.nodes.length > 1 || depth > 1) && (
         <div className="brainlinks__depth" role="group" aria-label="How far out">
