@@ -1,4 +1,5 @@
 import { UpdatesCard } from "./UpdatesCard";
+import { AboutCard } from "./AboutCard";
 import { useEffect, useState, type ReactNode } from "react";
 import { Archive, Check, Pencil, Trash2, X } from "lucide-react";
 import { AccentPicker } from "@/components/AccentPicker";
@@ -174,6 +175,10 @@ export function SettingsScreen({
               <DataSafety key={activeCompany.id} companyId={activeCompany.id} companyName={activeCompany.name} />
             </Band>
           )}
+          {/* Last in Settings, as an About is: free, who made it, and how to help (part six). */}
+          <Band>
+            <AboutCard />
+          </Band>
         </Group>
       </div>
     </div>

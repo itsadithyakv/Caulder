@@ -16,6 +16,7 @@ import { NotesScreen } from "@/features/notes/NotesScreen";
 import { groupDue } from "./grouping";
 import type { RouteId } from "@/app/routes";
 import { SetupNudge } from "@/features/onboarding/SetupNudge";
+import { SupportAsk } from "./SupportAsk";
 import { PulseCard } from "@/features/life/PulseCard";
 import { QuickAdd } from "./QuickAdd";
 import { AskLine } from "./AskLine";
@@ -575,6 +576,10 @@ export function TodayScreen({
           <LevelStrip companyId={homeId ?? companyId} version={kept + ticked} watch={today} onOpen={() => onOpenLife()} />
         </div>
       </div>
+
+      {/* Caulder is free: now and then, one line at the foot of the day says
+          who made it and how to help (part six). Quiet while money is late. */}
+      <SupportAsk quiet={today.unpaid.length > 0} />
     </div>
   );
 }

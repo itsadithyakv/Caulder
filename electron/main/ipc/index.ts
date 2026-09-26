@@ -1,6 +1,8 @@
 import { checkForUpdates, installUpdate, updateState } from "../updates";
 import { isStoreCopy } from "../store-home";
 import { openIssue, problemReport } from "../problem";
+import { openLicences } from "../licences";
+import { answerSupportAsk, supportState } from "../services/support";
 import { app, BrowserWindow, clipboard, ipcMain } from "electron";
 import type { IpcMainEvent, IpcMainInvokeEvent } from "electron";
 import { isCurrency } from "@shared/countries";
@@ -359,6 +361,9 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
   });
   handle(CHANNELS.appProblemReport, () => problemReport());
   handle(CHANNELS.appOpenIssue, (_event, text: unknown) => openIssue(text));
+  handle(CHANNELS.appSupport, () => supportState(getDatabase(), new Date()));
+  handle(CHANNELS.appSupportAnswer, (_event, answer: unknown) => answerSupportAsk(getDatabase(), answer, new Date()));
+  handle(CHANNELS.appLicences, () => openLicences());
   handle(CHANNELS.updatesState, () => updateState());
   handle(CHANNELS.updatesCheck, () => checkForUpdates());
   handle(CHANNELS.updatesInstall, () => installUpdate());

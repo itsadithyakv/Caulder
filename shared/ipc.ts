@@ -1,3 +1,4 @@
+import type { SupportAnswer } from "./support";
 import type { EmberStats } from "./growth";
 import type { EmailRecord, MailState, SendEmailInput } from "./mail";
 import type {
@@ -158,6 +159,9 @@ export const CHANNELS = {
   appTourDone: "app:tour-done",
   appProblemReport: "app:problem-report",
   appOpenIssue: "app:open-issue",
+  appSupport: "app:support",
+  appSupportAnswer: "app:support-answer",
+  appLicences: "app:licences",
   updatesState: "updates:state",
   updatesCheck: "updates:check",
   updatesInstall: "updates:install",
@@ -561,6 +565,12 @@ export type AppApi = {
   problemReport: () => Promise<string>;
   /** Opens a GitHub issue with the report filled in, for the person to send. */
   openIssue: (text: string) => Promise<void>;
+  /** Whether Today asks for support now (part six). The first read only sets the day. */
+  support: () => Promise<{ ask: boolean }>;
+  /** *Not now* asks again in three months; *never* ends it. */
+  answerSupport: (answer: SupportAnswer) => Promise<void>;
+  /** Opens the licences of everything Caulder ships, written when it was built. */
+  licences: () => Promise<void>;
   updates: () => Promise<UpdateState>;
   checkForUpdates: () => Promise<UpdateState>;
   /** Quits and puts the downloaded update in. */

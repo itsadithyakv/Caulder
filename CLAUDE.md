@@ -59,7 +59,9 @@ In the same change as the code:
 - a feature added, moved or removed updates `reference/feature-map.md`;
 - a table changed updates `reference/data-model.md`;
 - a phase finished or a problem found or fixed updates `STATUS.md` and, when
-  planned, PLAN.md.
+  planned, PLAN.md;
+- anything that sends something new off the computer updates
+  `docs/privacy.md`, which is the published privacy page.
 
 Documents are written in plain, calm British English, in the voice of the
 existing ones.

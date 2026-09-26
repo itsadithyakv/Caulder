@@ -5,7 +5,7 @@ same commit as the work, not afterwards. What is planned is in
 [PLAN.md](PLAN.md); where everything lives is in
 [reference/feature-map.md](reference/feature-map.md).*
 
-**As of 26 September 2026.**
+**As of 26 September 2026, evening.**
 
 ## Version
 
@@ -90,7 +90,28 @@ tests in 144 files, with the journal work above in the same tree.
     and kept out of git. Without it everything else works and its tests are
     skipped.
 
+- **Part six: one founder, one app, ready for other people** (PLAN.md,
+  written 26 September 2026). Caulder is **free**, supported WinRAR's way,
+  through GitHub Sponsors and UPI.
+  - **Phase 23 was done on 26 September 2026.**
+    - About Caulder is the last card in Settings.
+    - The ask for support sits at the foot of Today (setting `supportAsk`).
+    - The licences are written by every build and ship with the package.
+    - The privacy page is `docs/privacy.md`.
+  - **Three things only you can do before handing it out:** enrol in GitHub
+    Sponsors, choose a UPI ID (`SUPPORT` in `shared/support.ts`), and switch
+    on GitHub Pages for `/docs`.
+  - Phases 24 to 30 are planned: a first run for any founder, 0.5.0, Market,
+    Make, money from shops online, the weekly plan, and Google with a guide.
+
 ## Known problems
+
+### Before Caulder is handed out (26 September 2026)
+
+- **The typeface is not ours to give away.** Gilroy (`resources/fonts`,
+  bundled into every build) is a commercial face; only Light and ExtraBold
+  are free, and for personal use. Either a licence that covers an app, or a
+  free face (SIL Open Font License) in its place. Needs a decision.
 
 Most important first. Each names the place to fix. From a second pass on 25
 September 2026: code swept for unwired calls, the documents checked against
@@ -205,8 +226,14 @@ the code, and 85 realistic lines put through the quick line. Items marked
 
 ## Next
 
-1. Measure the line's second opinion again on new lines, not the 89 its
+1. Decide the typeface (above), and do the three things for phase 23.
+2. Phase 24: a first run for any founder - formats by the company's region
+   (item 16), a sample that is not Indian schools, and a backup folder asked
+   for on the first run.
+3. Phase 25: 0.5.0 - Electron updated, the invoice rule (item 14), the whole
+   e2e suite, packaged, smoke-tested (phases 20 to 23 are in no installer
+   yet), and the Store package tried by hand.
+4. Measure the line's second opinion again on new lines, not the 89 its
    thresholds were tuned on, before moving them.
-2. Package and smoke-test again: phases 20 to 22 are not in an installer yet.
-3. Decide on campaigns (item 10). Ctrl+K for products and deals (item 12)
-   needs a migration.
+5. Campaigns (item 10) are settled by phase 26, Market. Ctrl+K for products
+   and deals (item 12) needs a migration.

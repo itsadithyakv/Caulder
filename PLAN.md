@@ -1505,3 +1505,208 @@ The plan as written:
    - Moving lines, making a page and writing a link always ask.
 4. **Life facts go to Ask when "your own pages" is on**: `remembered` joins
    `yours.ts` in phase 18. When the setting is off, they never go.
+
+---
+
+# Part six: one founder, one app, ready for other people
+
+*Written 26 September 2026, after a product pass read Caulder as somebody
+who has never met its author would. Planned; phase 23 started the same day.*
+
+## One sentence
+
+Caulder is the one app a founder of a one-person company runs their life
+and their company from - to market, make, sell and manage their time - and
+it all stays on their computer, free, with a way to support the student who
+built it.
+
+## Who it is for
+
+Founders of one-person companies, and ambitious people who want one app for
+their life. Niche on purpose: it is not trying to be a general planner or a
+general CRM. It no longer needs to be tailored to its author; it needs to
+make sense to a founder in Berlin or Ohio as much as one in Bengaluru.
+
+## What it promises, and how it keeps the promise
+
+- **Local, loudly.** No account, no cloud, no ads, no tracking. Everything is
+  one file on your computer. This is the first line of the Store listing and
+  the reason to choose it.
+- **Free, wherever there is a free way.** Every connection uses the route
+  that costs nothing and keeps the data with the person:
+  - Gmail and Google Calendar through the person's own Apps Script, not a
+    Google sign-in (for which Google charges an app a yearly security
+    review);
+  - other mail through the account's own app password;
+  - AI through Ollama on the same computer, or the person's own key;
+  - backups to a folder that OneDrive, Google Drive or Dropbox already keeps
+    in step, rather than through an API;
+  - sales from other shops read from the CSV they export, not their API;
+  - the Store for signing and updates, which a signing certificate would
+    otherwise charge for every year.
+- **Free to use, kept going by those who want to.** Like WinRAR: everything
+  works, always, and Caulder says now and then that one college student in
+  India made it, and how to help. See the decisions at the end.
+
+## Where it stands against the four things
+
+A product pass on 26 September 2026 read the app against the promise:
+
+| | Now | Missing |
+| --- | --- | --- |
+| **Manage time** | Strong: Today, the Calendar, the quick line, habits, Google sync. | A weekly plan: what happened this week, and the three things that matter next. |
+| **Sell** | Strong: contacts, deals, calls, mail, WhatsApp, quotes, invoices, payments, products. | Money from shops online (Razorpay, Instamojo, Gumroad, Lemon Squeezy, Stripe, PayPal) never arrives. It was shaped around calling schools. |
+| **Market** | Almost nothing. `campaigns` cannot be filled (STATUS item 10); Marketing was removed. | A content calendar, launches, and the audience. |
+| **Make** | Nothing as a place, though the parts exist: pages, `makeTasks`, memories, links. | A roadmap, what customers asked for (linked to them), and a changelog. |
+| **You** | Strong: journal, memories, goals, habits. | Nothing to add. Levels, the vision board and Ember are found, not met on day one. |
+| **Run the company** | Deadlines, documents, costs and runway, metrics. | People and hiring (with founder vesting) is for a company that hires; for one person it is collaborators. |
+
+And against strangers using it:
+- It speaks to its author: the sample company is schools in Bengaluru, and
+  money and dates follow the computer's locale, not the company's (item 16).
+- A Store copy loses everything when it is uninstalled, as every Store app
+  does, and a backup folder is a setting, not a first question.
+- No licences are shipped, although the model's Apache-2.0 licence asks for
+  them, and there is no privacy page, which the Store requires.
+- Setting up Google is ten steps in somebody else's editor.
+- There is no phone. The answer that needs no server comes later.
+
+## Phases, continued
+
+### Phase 23 - Free, and who made it - *done 26 September 2026, but for three things only you can do*
+
+What was built:
+- **About Caulder**, last in Settings as a band of its own: free, no account,
+  no ads, made by one college student in India; *Sponsor on GitHub*, *UPI*
+  (hidden until there is an ID), *Star it on GitHub*; then *Privacy* and
+  *Licences*.
+- **The ask** at the foot of Today (`SupportAsk.tsx`): the setting
+  `supportAsk` holds the day to ask on, or `never`. The first read sets it a
+  month out by your own workspace's clock. *Not now* moves it three months;
+  *Support it on GitHub* thanks and stops, trusted rather than checked; the
+  cross is *Don't ask again*. Quiet while an invoice is overdue.
+- **Licences.** Each build lists what it bundled (`bundledPackages` in
+  `electron.vite.config.ts`). `scripts/notices.mjs`, run by `npm run build`,
+  adds the runtime dependencies and theirs, and the model's notice with the
+  Apache-2.0 terms (`resources/licences/`). It writes
+  `out/notices/third-party-notices.txt`: 149 packages today, about 260 KB.
+  The package carries it as `notices`, and `smoke:packaged` checks it.
+- **Privacy.** `docs/privacy.md`, checked against every call that leaves the
+  machine: the update check (installer copy only), Google through the
+  person's script, mail accounts, an AI when asked, book covers when switched
+  on, and a problem report sent by hand.
+- **Checked:** unit tests for the ask's days and the service; e2e
+  `support.spec.ts` (3 tests: nothing on the first day, Not now, Don't ask
+  again).
+
+Left open, for you:
+- **Enrol in GitHub Sponsors**, and choose a UPI ID for `SUPPORT.upi`
+  (`shared/support.ts`). Until then the Sponsors button opens a page that is
+  not there yet.
+- **Switch on GitHub Pages** for `/docs`, so the privacy URL answers. The
+  repository has to be public for Pages on a free account.
+- **The typeface.** Caulder ships Gilroy (`resources/fonts`), a commercial
+  face: only its Light and ExtraBold are free, and for personal use. Handing
+  Caulder out needs a licence that covers putting it inside an app, or a free
+  face (SIL Open Font License) in its place.
+
+The plan as written:
+
+- **About Caulder**, a card in Settings > This computer: the version, that it
+  is free with no account and no ads, that one college student in India made
+  it, and the ways to help:
+  - **GitHub Sponsors**, which takes no cut, pays out in India, and takes
+    cards from anywhere;
+  - **UPI**, for anybody in India: the ID, copied with one press;
+  - a star on GitHub, or telling a friend.
+- **The ask, WinRAR's way.** One line at the foot of Today, never a window
+  and never in the way:
+  - first a month after Caulder is first opened;
+  - *Not now* asks again in three months;
+  - *I have* or *Don't ask again* stops it for good;
+  - not shown while an invoice is overdue: that is not the moment.
+- **Licences.** The build writes the licences of everything Caulder ships -
+  the runtime dependencies and what is bundled into the window - with the
+  model's Apache-2.0 notice, into the package. *Licences* on About Caulder
+  opens it.
+- **Privacy.** `docs/privacy.md` says exactly what leaves the computer and
+  when: nothing until a connection is made, but for the update check in the
+  installed copy. It is published through GitHub Pages as the Store's privacy
+  URL, and About Caulder links to it.
+
+### Phase 24 - A first run for any founder
+
+- Money and dates in the company's own format, set beside its currency
+  (item 16).
+- A sample company that is not Indian schools: a one-person studio or a small
+  software product.
+- A first run that names the four things - your time, what you make, what you
+  sell, and you - one screen each, every one skippable.
+- **A backup folder is asked for on the first run**, suggesting a folder
+  OneDrive or Google Drive keeps in step. On a Store copy it says why:
+  uninstalling removes the app's own folder.
+
+### Phase 25 - Ready to hand out: 0.5.0
+
+- Electron updated (the high advisories in STATUS).
+- An invoice is deleted only as a draft, enforced in `repositories/money.ts`
+  (item 14).
+- The whole e2e suite run; `package`, `smoke:packaged`, `package:store`.
+- The Store package installed and tried by hand (the model, the key, the
+  tray, the desk widget, the journal lock, backups), then the Windows App
+  Certification Kit.
+- The Store listing, free: its first line is the local promise; screenshots
+  of Today, the quick line, a contact and Ask.
+
+### Phase 26 - Market
+
+- **Content**: a post or a newsletter goes from idea to draft to scheduled to
+  published, on a channel, and sits on its day in the Calendar. The quick
+  line reads "post on linkedin about the launch friday". Caulder keeps the
+  draft and opens the site to post it, as it does WhatsApp.
+- **Launches**: a date and its checklist, as steps that become tasks.
+- **Audience**: who signed up and where from, as contacts with a source.
+- This settles item 10: a campaign becomes a launch or a channel, or goes.
+
+### Phase 27 - Make
+
+- **The roadmap**: what is being built, now, next and later, each a page
+  with its steps.
+- **What customers asked for**, linked to the contact and the product; the
+  quick line reads "feedback from Priya: wants dark mode".
+- **The changelog**: what shipped, when, and who asked for it, so they can be
+  told.
+
+### Phase 28 - Money from shops online
+
+- Read the CSV that Razorpay, Instamojo, Gumroad, Lemon Squeezy, Stripe or
+  PayPal exports, through the import that exists: each sale a payment, each
+  buyer a contact, with the product matched. No API and no account.
+
+### Phase 29 - The weekly plan
+
+- A short page once a week: what was done and what slipped, read from what
+  happened rather than assumed, and the three things that matter next week.
+  Review went because it assumed every block was kept; this one only reads.
+
+### Phase 30 - Google, with a guide
+
+- Setting up the script as a walkthrough with a picture for each step, and
+  every part of Caulder saying plainly what it does without Google.
+
+### Later, not planned
+
+- **The quick line on a phone**, served by Caulder to a phone on the same
+  Wi-Fi: no server, no account.
+- People and hiring as collaborators.
+- A QR code for UPI on About Caulder.
+
+## Decisions, part six - *decided 26 September 2026*
+
+1. **Caulder is free.** No price, no trial, no locked features, no ads.
+2. **It is supported, WinRAR's way**: a line on Today now and then, and a card
+   in Settings. Never a window that blocks, and never a feature held back.
+3. **The ways to support work from India**: GitHub Sponsors (no cut, cards
+   from anywhere) and UPI. Stripe and Buy Me a Coffee do not pay out there.
+4. **Local and free come first** when choosing how anything connects, as
+   listed under the promise above.

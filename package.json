@@ -10,7 +10,7 @@
     "dev": "electron-vite dev",
     "fetch-model": "node scripts/fetch-model.mjs",
     "start": "electron-vite preview",
-    "build": "electron-vite build",
+    "build": "electron-vite build && node scripts/notices.mjs",
     "package": "npm run build && electron-builder --win --publish never",
     "release": "npm run build && electron-builder --win --publish always",
     "package:store": "node scripts/package-store.mjs",

@@ -84,6 +84,12 @@ try {
     await app.evaluate(({ clipboard }, text) => clipboard.writeText(text), before);
   }
 
+  // The licences are written after the build and carried beside the
+  // executable; About Caulder opens them. A package without them is not one
+  // that may be handed out (part six).
+  const notices = join(root, "release/win-unpacked/resources/notices/third-party-notices.txt");
+  check("ships the licences of what it carries", existsSync(notices) && readFileSync(notices, "utf8").includes("onnxruntime-node"));
+
   // Contacts exercise better-sqlite3's native binding under the packager's
   // rebuild, which is the thing most likely to break in a package.
   await nav.getByRole("button", { name: "Contacts" }).click();

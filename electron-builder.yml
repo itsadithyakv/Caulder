@@ -44,6 +44,12 @@ extraResources:
   # @Nx siblings by path, and a path inside the archive does not load.
   - from: resources/tray
     to: tray
+  # The licences of everything shipped, written by scripts/notices.mjs after
+  # each build (part six); About Caulder opens it.
+  - from: out/notices
+    to: notices
+    filter:
+      - third-party-notices.txt
 win:
   # 1024x1024, the mark on transparency as drawn - no tile. scripts/logo.py
   # makes it from assets/caulderLogo.png; electron-builder derives the .ico.

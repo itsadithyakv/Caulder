@@ -20,7 +20,7 @@ process restarts on its own changes.
 | | |
 | --- | --- |
 | `npm run dev` | Development, with hot reload |
-| `npm run build` | Compile main, preload and renderer into `out/` |
+| `npm run build` | Compile main, preload and renderer into `out/`, then write the licences of what they ship (`out/notices/`) |
 | `npm start` | Run the built output without packaging |
 | `npm run verify` | **The gate.** Typecheck, lint, test, dead-code — in that order |
 | `npm test` | Unit tests once |
@@ -54,6 +54,24 @@ every copy, so releases belong in a public one.
 protected your PC* until it is, and updates still work unsigned. Signing
 needs a certificate or Microsoft's Trusted Signing, set up in
 `electron-builder.yml` under `win`.
+
+## Free, and the privacy page
+
+Caulder is free (PLAN.md, part six). Three things have to be true before a
+copy is handed to anybody:
+
+- **The ways to help are live.** `SUPPORT` in `shared/support.ts` holds the
+  GitHub Sponsors link, the UPI ID and the privacy URL. Sponsors works only
+  once the GitHub profile is enrolled; the UPI ID is empty until one is
+  chosen, and hidden while it is (better a `name@bank` ID than a phone
+  number, since everybody sees it).
+- **The privacy page is published.** `docs/privacy.md` goes out through
+  GitHub Pages (Settings → Pages → the `main` branch, `/docs`), at
+  `https://itsadithyakv.github.io/Caulder/privacy.html`. The Store asks for
+  that URL. It must say the same as the code: anything that sends something
+  new changes it in the same commit.
+- **The licences ship.** `npm run build` writes them; `smoke:packaged`
+  fails a package without them.
 
 ## The Microsoft Store
 

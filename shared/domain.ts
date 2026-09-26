@@ -960,6 +960,12 @@ export const SETTING_KEYS = [
   "understandOff",
   /** Loose memories not to offer moving again, as "pageId#hash" (JSON): *Not these*, phase 21. */
   "looseLeft",
+  /**
+   * When to ask, on Today, for support: a day, or "never" once answered for
+   * good. Never set means Caulder was just opened for the first time; see
+   * shared/support.ts (part six).
+   */
+  "supportAsk",
 ] as const;
 export type SettingKey = (typeof SETTING_KEYS)[number];
 

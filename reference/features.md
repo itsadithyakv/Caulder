@@ -1287,7 +1287,7 @@ read:
 | **Workspace** | This is me, Companies, your own fields | Pipeline stages, email templates | |
 | **Planning** | Your words | Reminders | |
 | **Connections** | Two connections, at a glance | Google | Ask the brain: connect an AI, and whether it may read your own pages |
-| **This computer** | Appearance, updates | Quick add from anywhere | Your data |
+| **This computer** | Appearance, updates | Quick add from anywhere | Your data, then About Caulder |
 
 Each group is laid out, not poured: a narrow column and a wide one, the cards
 shared between them so the two end on the same line, and the last card in
@@ -1360,6 +1360,34 @@ computer is worth having.
 ### Appearance
 
 Match system, Light or Dark. See [design-language.md](design-language.md).
+
+### About Caulder
+
+Last in Settings. Caulder is free - no account, no ads, nothing about you
+leaves the computer unless you connect something - and one college student
+in India makes it. The ways to help are there always:
+
+- **Sponsor on GitHub**, which takes no cut and takes cards from anywhere;
+- **UPI**, the ID copied with one press, once there is one;
+- **Star it on GitHub**, or tell one other founder.
+
+Under them, **Privacy** opens the privacy page (`docs/privacy.md`, published
+through GitHub Pages) and **Licences** opens the licences of everything
+Caulder ships, written when it was built.
+
+### The ask for support
+
+WinRAR's way: everything works, always, and now and then one line at the foot
+of Today says who made Caulder and how to help. Never a window, and never
+between the quick line and the work.
+
+- First a month after Caulder is first opened, by your own workspace's clock.
+- **Not now** asks again in three months.
+- **Support it on GitHub** opens GitHub Sponsors and says thank you; it is
+  not asked again, and nobody checks.
+- The cross is *Don't ask again*, for good. About Caulder still has the ways
+  to help.
+- It keeps quiet while an invoice is overdue.
 
 ---
 

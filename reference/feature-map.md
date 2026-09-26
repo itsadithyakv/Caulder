@@ -480,6 +480,13 @@ A backup on every launch (ten kept), on demand, a mirror folder, a Drive copy; r
 electron-updater from GitHub Releases; a Store copy never looks.
 - UI: `UpdatesCard.tsx` · Main: `electron/main/updates.ts`, `store-home.ts` · Packaging: `electron-builder.yml` (NSIS and appx), `scripts/package-store.mjs`, `scripts/smoke-packaged.mjs`
 
+### Free, and who made it (part six)
+About Caulder in Settings (the ways to help, Privacy, Licences), and the ask for support at the foot of Today: a month after first open, again three months after *Not now*, never after supporting or *Don't ask again*, and not while an invoice is overdue.
+- UI: `src/features/settings/AboutCard.tsx`, `src/features/today/SupportAsk.tsx` · Logic: `shared/support.ts` (the ways to help in `SUPPORT`; one left empty is not shown) · Main: `services/support.ts`, `electron/main/licences.ts`
+- Setting: `supportAsk` (a day, or `never`) · IPC: `app:support`, `app:support-answer`, `app:licences` · Tests: `shared/support.test.ts`, `services/support.test.ts`; e2e `support.spec.ts`
+- Licences: `bundledPackages` in `electron.vite.config.ts` lists what each build bundles; `scripts/notices.mjs` (run by `npm run build`) adds the runtime dependencies and the model (`resources/licences/`) and writes `out/notices/third-party-notices.txt`, carried as `notices` beside the executable; `smoke:packaged` checks it ships.
+- Privacy: `docs/privacy.md`, for GitHub Pages and the Store's privacy URL. Change it in the same commit as anything that sends something new.
+
 ### Logs and problem reports
 - Main: `electron/main/log.ts`, `problem.ts` · UI: `ErrorBoundary.tsx`, `DataSafety.tsx` · IPC: `app:`
 
