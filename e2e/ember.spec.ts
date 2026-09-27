@@ -113,7 +113,11 @@ test("picked up and put on a card, she stands on it", async () => {
   await page.mouse.up();
 
   await expect(her()).not.toHaveAttribute("data-feet", "", { timeout: 5_000 });
-  await expect(page.locator(".ember-thump")).toHaveCount(0);
+  // The card gives under her, and stays there: the thump must not start its
+  // entrance again, which made it vanish and fade back in.
+  await page.waitForTimeout(450);
+  expect(await card.evaluate((element) => getComputedStyle(element).opacity)).toBe("1");
+  expect(await card.evaluate((element) => element.getAnimations().filter((one) => one.playState === "running").length)).toBe(0);
   // Feet on the card's top edge. Polled: she re-reads where the cards are
   // five times a second, so a card that has just moved is a moment ahead of her.
   await expect

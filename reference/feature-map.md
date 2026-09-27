@@ -446,6 +446,8 @@ A flame on the quick line with physics, a wardrobe, a book of what she knows, gr
 - UI: `src/components/Ember.tsx`, `src/features/ember/`, `src/features/pet/Pet.tsx`, `PetCard.tsx`, `src/lib/chirp.ts`, `src/lib/emberPrefs.ts`
 - Logic: `shared/ember.ts`, `growth.ts`, `ascent.ts`, `body.ts`, `closet.ts`, `wardrobe.ts`, `pet.ts` · Main: `services/embergrowth.ts`, `electron/main/pet.ts`, `electron/main/foreground.ts` (koffi, full-screen check)
 - IPC: `ember:`, `pet:` · Tests: `shared/ember.test.ts` and siblings; e2e `ember.spec.ts`, `pet.spec.ts`
+- Her closet is 28 pieces (`shared/closet.ts`, sprites in `WEAR` / `WEAR_BACK`, shoes as colours in `ember.css`), unlocked by level in `growth.ts`; her own daily pick varies what is at her neck and on her feet as well as one extra.
+- What she hits reacts through `element.animate()` (`thump`, `quake` in `EmberStage.tsx`), never a class: a class replaced a card's own entrance animation and started it again, so the card vanished and faded back.
 
 ### Hello and the line under the day
 Greeting by the name in "This is me", with a joke, pun or tip under it.

@@ -282,23 +282,54 @@ function followed(world: Survey, id: string): Survey {
   return { ...world, ledges, home };
 }
 
+/**
+ * Played through the Web Animations API rather than a class. A card on Today
+ * is already animated - it rose in with the rest (`.anim-stagger`, fill
+ * `both`) - and swapping its `animation` for a thump, then back, started that
+ * entrance again from nothing: the card vanished and faded back in every time
+ * she landed on it. An `animate()` sits on top of the CSS animation and ends
+ * without touching it.
+ */
+function shake(element: Element, keyframes: Keyframe[], duration: number, easing: string): void {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  element.animate(keyframes, { duration, easing, composite: "add" });
+}
+
 /** The card she landed on gives under her. */
 function thump(element: Element | undefined): void {
   if (!element) return;
-  element.classList.remove("ember-thump");
-  void (element as HTMLElement).offsetWidth;
-  element.classList.add("ember-thump");
-  setTimeout(() => element.classList.remove("ember-thump"), 420);
+  shake(
+    element,
+    [
+      { transform: "translateY(0)" },
+      { transform: "translateY(6px) scaleY(0.985)", offset: 0.25 },
+      { transform: "translateY(-2px)", offset: 0.5 },
+      { transform: "translateY(1px)", offset: 0.75 },
+      { transform: "translateY(0)" },
+    ],
+    360,
+    "ease-in-out",
+  );
 }
 
 /** A hit hard enough to shake the window. */
 function quake(): void {
   const shell = document.querySelector(".shell");
   if (!shell) return;
-  shell.classList.remove("ember-quake");
-  void (shell as HTMLElement).offsetWidth;
-  shell.classList.add("ember-quake");
-  setTimeout(() => shell.classList.remove("ember-quake"), 380);
+  shake(
+    shell,
+    [
+      { transform: "translate(0, 0)" },
+      { transform: "translate(-6px, 3px)", offset: 0.17 },
+      { transform: "translate(5px, -4px)", offset: 0.33 },
+      { transform: "translate(-4px, 2px)", offset: 0.5 },
+      { transform: "translate(3px, -2px)", offset: 0.67 },
+      { transform: "translate(-1px, 1px)", offset: 0.83 },
+      { transform: "translate(0, 0)" },
+    ],
+    320,
+    "cubic-bezier(0.3, 1.4, 0.5, 1)",
+  );
 }
 
 /** Shows or hides one of the drawn extras, touching the page only when it changes. */
@@ -1604,8 +1635,14 @@ export function EmberStage({ personal, home: onHome, companyId }: { personal: bo
             <rect className="ember-fire__a" y="152" width="100%" height="48" fill="url(#ember-fire-a)" />
             <rect className="ember-fire__b" y="152" width="100%" height="48" fill="url(#ember-fire-b)" />
           </svg>
+          {/* Her, furious and large, in the middle of it: the screen is about
+              her, so she is in it, not off in a corner of the page behind. */}
           <div className="ember-fire__plea">
+            <div className="ember-fire__her" aria-hidden>
+              <Ember mode={mode} size={112} fury cross listens={false} outfit={outfit} />
+            </div>
             <p className="ember-fire__title">Ember has had enough.</p>
+            <p className="ember-fire__says">Too many pokes. She will not calm down until she has had a marshmallow.</p>
             <button type="button" className="btn btn--primary ember-fire__mallow" autoFocus onClick={feedEmber}>
               <svg viewBox="0 0 12 12" width="24" height="24" aria-hidden className="ember-fire__stick">
                 <rect x="3" y="1" width="6" height="5" className="px--w" />
@@ -1614,6 +1651,7 @@ export function EmberStage({ personal, home: onHome, companyId }: { personal: bo
               </svg>
               Give her a marshmallow
             </button>
+            <p className="ember-fire__esc">Escape works too.</p>
           </div>
         </div>
       )}

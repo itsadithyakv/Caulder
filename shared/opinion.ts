@@ -64,9 +64,15 @@ export const OPINION = {
   /** The share of the vote a different kind needs, and the closeness of its best example. */
   share: 0.6,
   best: 0.5,
-  /** The same, when the rules had fallen to "note". */
+  /**
+   * The same, when the rules had fallen to "note". 0.36 was tuned on the 89
+   * lines it was scored on; on 89 fresh lines (27 September 2026) it turned
+   * three right notes into tasks - "trial accounts expire after 14 days" -
+   * and its extra wins were only on the tuned lines. At 0.44 the fresh lines
+   * score the same and neither set has anything broken.
+   */
   shareOverNote: 0.55,
-  bestOverNote: 0.36,
+  bestOverNote: 0.44,
   /**
    * The same, over a task the rules read from a when: it has a day or an hour
    * that would be lost, so it takes nearly all the vote and a close example,

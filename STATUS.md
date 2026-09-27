@@ -9,18 +9,20 @@ same commit as the work, not afterwards. What is planned is in
 
 ## Version
 
-- **0.4.5** is committed on the `general` branch as `31f29d9`. `main` is
-  the base for pull requests.
-  - It covers the work from `3d41682` to `ecd3775`: your home workspace,
-    Ember, the desk widget, the locked journal and Looking back, the line's
-    fixes, the new screens, and understanding on this machine.
-  - `npm run package` built `Caulder Setup 0.4.5.exe` (132.7 MB).
-  - `smoke:packaged` passes all 11 of its checks.
-- Checked at that commit:
-  - `npm run verify`: 2,331 unit tests in 149 files, typecheck, lint and
+- **0.4.6** is packaged on the `general` branch (27 September 2026). `main`
+  is the base for pull requests.
+  - It carries phases 20 to 24 and the fixes of 27 September on top of
+    0.4.5 (`31f29d9`): the line's second opinion, memories arranged, Ask and
+    export by meaning, About Caulder and the ask for support, licences,
+    formats by region, the new sample, a copy off this computer, and Ember's
+    fixes and clothes.
+  - `npm run package` builds `Caulder Setup 0.4.6.exe`; `smoke:packaged`
+    checks it (12 checks, licences among them).
+- Checked:
+  - `npm run verify`: 2,383 unit tests in 155 files, typecheck, lint and
     knip all pass.
-  - Only these e2e specs were run, not the whole suite: writing, money,
-    pipeline, today, week, workbench and askline, all passing. The suite
+  - e2e specs run, not the whole suite: support, demo, companies, money,
+    today, week, ember, pet, and the setup line in quickadd. The suite
     launches Electron about 40 times, so run one spec at a time, or run it
     in the background and say so.
 - Not released: nothing is published to GitHub Releases or the Store.
@@ -169,7 +171,37 @@ the code, and 85 realistic lines put through the quick line. Items marked
   - Only those shapes: "the server never responds" is still a note. The
     wider middle is phase 20's.
 
+### Fixed on 27 September 2026
+
+- **Cards vanished when Ember landed on them, or was thrown hard.** The
+  thump replaced the card's own entrance animation (`.anim-stagger`, fill
+  `both`), and taking it off started the entrance again from nothing. The
+  thump and the window's quake are now played with `element.animate()`.
+- **A dark line across her flame** on one frame of her flicker: an empty row
+  in `TORSO[1]`, which her ink outline filled.
+- **The marshmallow screen** was a flat pink wash with a small box over the
+  page. Now the page is smoked, and she is in the middle of it, furious, with
+  what happened and what to do.
+- **Twelve more clothes** (28 in all): a cap, a beret, headphones, a halo,
+  heart shades, a monocle, a tie, a medal, a puffer vest, a cape, blue
+  high-tops and gold trainers, unlocked from level 2 to 20. Her own pick now
+  changes her neck and feet too.
+- **The line's second opinion, measured on 89 fresh lines** (`lines.fresh.eval.ts`):
+  - with 0.36 for overturning a note, rules 43 against the model 48, but two
+    or three right notes made into tasks - over-fitted to the 89 it was
+    tuned on;
+  - `bestOverNote` is now 0.44: the fresh lines score the same (48, and 48
+    lived-in), nothing is broken on either set, and the tuned set drops from
+    73 and 75 to 69, the wins that only existed there;
+  - the fresh set now holds the same bar as the tuned one: nothing broken.
+  - The model helps least where the rules are weakest. The rules get 4 of 24
+    memories and none of 11 ideas on the fresh lines; the gains left are in
+    the rules, not the model's thresholds.
+
 ### Flaky
+
+- `e2e/ember.spec.ts`, "dropped below her line": the grab can land while she
+  is still on her way back, and she is never held. Passes on a second run.
 
 - `services/journal-lock.test.ts` can time out (5 s) in a full parallel run,
   because the passcode's key is slow to make on purpose (scrypt 2^17). It
@@ -239,7 +271,12 @@ the code, and 85 realistic lines put through the quick line. Items marked
 2. Phase 25: 0.5.0 - Electron updated, the invoice rule (item 14), the whole
    e2e suite, packaged, smoke-tested (phases 20 to 23 are in no installer
    yet), and the Store package tried by hand.
-3. Measure the line's second opinion again on new lines, not the 89 its
-   thresholds were tuned on, before moving them.
+3. The line's rules, where the model cannot help (measured 27 September):
+   - "felt like an impostor…" read as a memory about "Felt";
+   - a past day read as a when ("weekend with the cousins was lovely",
+     "aaj ka din accha tha");
+   - "could…", "why not…" and verb-first ideas;
+   - bare errands and spends ("haircut", "chai and samosa 60").
+   Tune on one set and check on the other, or on all 178 lines.
 4. Campaigns (item 10) are settled by phase 26, Market. Ctrl+K for products
    and deals (item 12) needs a migration.

@@ -697,10 +697,12 @@
   z-index: 380;
   display: grid;
   place-items: center;
-  background: color-mix(in srgb, var(--ember-red) 26%, transparent);
+  /* Smoke over the page, so the plea is the only thing to read; a flat pink
+     wash read as the window going wrong rather than a fire. */
+  background: var(--ember-smoke);
   /* The glow at the edges: heat, coming in from all sides. A shadow rather
      than a filter - a filter over the whole window is what crashed capture. */
-  box-shadow: inset 0 0 160px 40px color-mix(in srgb, var(--ember-red) 55%, transparent);
+  box-shadow: inset 0 0 180px 50px color-mix(in srgb, var(--ember-red) 60%, transparent);
   animation: ember-fire-in 0.3s ease-in-out 1;
 }
 
@@ -724,9 +726,11 @@
 .ember-fire__plea {
   position: relative;
   display: grid;
-  gap: var(--space-3);
+  gap: var(--space-2);
   justify-items: center;
-  padding: var(--space-4) var(--space-5);
+  width: min(360px, calc(100vw - 2 * var(--space-5)));
+  padding: var(--space-5);
+  text-align: center;
   border: 2px solid var(--ink);
   background: var(--surface);
   box-shadow: 4px 4px 0 var(--ink);
@@ -737,6 +741,26 @@
   font-size: var(--text-md);
   font-weight: 700;
   color: var(--ink);
+}
+
+/* Room above her for the steam, which rises past her flame. */
+.ember-fire__her {
+  display: grid;
+  place-items: end center;
+  height: 136px;
+  margin-bottom: var(--space-1);
+}
+
+.ember-fire__says {
+  margin: 0 0 var(--space-2);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.ember-fire__esc {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: var(--text-xs);
 }
 
 .ember-fire__mallow { gap: var(--space-2); }
@@ -768,31 +792,8 @@
  * world reacting as much as the character.
  * ------------------------------------------------------------------------ */
 
-.card.ember-thump { animation: ember-thump 0.36s ease-in-out 1; }
-.ember-quake { animation: ember-quake 0.32s cubic-bezier(0.3, 1.4, 0.5, 1) 1; }
-
-@keyframes ember-thump {
-  0% { transform: translateY(0); }
-  25% { transform: translateY(6px) scaleY(0.985); }
-  50% { transform: translateY(-2px); }
-  75% { transform: translateY(1px); }
-  100% { transform: translateY(0); }
-}
-
-@keyframes ember-quake {
-  0% { transform: translate(0, 0); }
-  17% { transform: translate(-6px, 3px); }
-  33% { transform: translate(5px, -4px); }
-  50% { transform: translate(-4px, 2px); }
-  67% { transform: translate(3px, -2px); }
-  83% { transform: translate(-1px, 1px); }
-  100% { transform: translate(0, 0); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ember-thump,
-  .ember-quake { animation: none !important; }
-}
+/* Played from EmberStage.tsx with element.animate(), not a class: a class
+   replaced the card's own entrance animation and started it again. */
 
 @keyframes ember-amble {
   0% { transform: scale(1.1, 0.9); }
@@ -821,6 +822,8 @@
 .ember[data-shoes="sneakers"] { --foot: var(--flame-white); }
 .ember[data-shoes="boots"] { --foot: var(--ember-brown); --shin: var(--ember-brown); }
 .ember[data-shoes="redkicks"] { --foot: var(--ember-red); }
+.ember[data-shoes="hightops"] { --foot: var(--flame-life); --shin: var(--flame-white); }
+.ember[data-shoes="goldkicks"] { --foot: var(--ember-gold); }
 
 /* ---- Keyframes ------------------------------------------------------------
  *

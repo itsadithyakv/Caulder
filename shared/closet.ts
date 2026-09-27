@@ -31,7 +31,19 @@ export type Garment =
   | "shades"
   | "specs"
   | "hoodie"
-  | "backpack";
+  | "backpack"
+  | "ballcap"
+  | "beret"
+  | "headphones"
+  | "halo"
+  | "heartshades"
+  | "monocle"
+  | "tie"
+  | "medal"
+  | "puffer"
+  | "cape"
+  | "hightops"
+  | "goldkicks";
 
 type Piece = { id: Garment; slot: Slot; name: string };
 
@@ -52,6 +64,20 @@ export const GARMENTS: readonly Piece[] = [
   { id: "specs", slot: "face", name: "Round specs" },
   { id: "hoodie", slot: "body", name: "Hoodie" },
   { id: "backpack", slot: "back", name: "Backpack" },
+  // More of them (27 September 2026): a piece or two for every slot, so a
+  // week of her own picks is not the same three things.
+  { id: "ballcap", slot: "head", name: "Baseball cap" },
+  { id: "beret", slot: "head", name: "Beret" },
+  { id: "headphones", slot: "head", name: "Headphones" },
+  { id: "halo", slot: "head", name: "A halo" },
+  { id: "heartshades", slot: "face", name: "Heart shades" },
+  { id: "monocle", slot: "face", name: "Monocle" },
+  { id: "tie", slot: "neck", name: "Necktie" },
+  { id: "medal", slot: "neck", name: "Gold medal" },
+  { id: "puffer", slot: "body", name: "Puffer vest" },
+  { id: "cape", slot: "back", name: "Cape" },
+  { id: "hightops", slot: "feet", name: "Blue high-tops" },
+  { id: "goldkicks", slot: "feet", name: "Gold trainers" },
 ];
 
 export type Outfit = Partial<Record<Slot, Garment>>;
@@ -71,18 +97,30 @@ function dayNumber(day: string): number {
 }
 
 /**
- * Her own pick for a day: the scarf and sneakers, and on most days one more
- * thing from what she has - a hat, or shades. One thing, not a costume
- * change: she has a style, and it is a small one.
+ * Her own pick for a day, from what she has. She is never bare: something at
+ * her neck and on her feet - the scarf and sneakers about half the time,
+ * otherwise another of hers - and on most days one more thing: a hat, a pair
+ * of glasses, or now and then a vest, a bag or a cape. One extra, not a
+ * costume change: she has a style, and it is a small one.
  */
 export function herPick(day: string, has: (garment: Garment) => boolean): Outfit {
   const outfit: Outfit = { ...DEFAULT_OUTFIT };
-  const extras = GARMENTS.filter((piece) => (piece.slot === "head" || piece.slot === "face") && has(piece.id));
-  const roll = dayNumber(day);
-  // Two days in five, just the scarf and sneakers.
-  if (extras.length === 0 || roll % 5 < 2) return outfit;
-  const extra = extras[roll % extras.length] as Piece;
-  outfit[extra.slot] = extra.id;
+  const mine = (slot: Slot) => GARMENTS.filter((piece) => piece.slot === slot && has(piece.id));
+  // Each choice rolls on its own, so the neck and the feet do not change together.
+  const roll = (what: string) => dayNumber(`${day}:${what}`);
+
+  for (const slot of ["neck", "feet"] as const) {
+    const others = mine(slot).filter((piece) => piece.id !== DEFAULT_OUTFIT[slot]);
+    if (others.length > 0 && roll(slot) % 2 === 1) outfit[slot] = (others[roll(`${slot}+`) % others.length] as Piece).id;
+  }
+
+  // Two days in five, nothing more. Otherwise one extra, mostly on her head or face.
+  const extra = roll("extra");
+  if (extra % 5 < 2) return outfit;
+  const pool = extra % 5 === 4 ? [...mine("body"), ...mine("back")] : [...mine("head"), ...mine("face")];
+  if (pool.length === 0) return outfit;
+  const piece = pool[roll("which") % pool.length] as Piece;
+  outfit[piece.slot] = piece.id;
   return outfit;
 }
 

@@ -1331,6 +1331,10 @@ The plan as written:
 
 ### Phase 20 - The line gets a second opinion - *done 26 September 2026, but for recall*
 
+*Measured again on 27 September 2026, on 89 fresh lines: the gain mostly did
+not carry over, and 0.36 for overturning a note broke right readings.
+`bestOverNote` went to 0.44; nothing is broken on either set. See STATUS.*
+
 What was built:
 - **Which readings count as guesses.** `readCapture` marks the fallbacks at
   its end `soft`: a when with nothing else, an unmarked fact, a new topic, a

@@ -146,6 +146,8 @@
    * are the same in both themes and restated for the convention. */
   --ember-red: #d7263d;
   --ember-red-deep: #8f1224;
+  /* The smoke over the window when she is furious: the page dimmed, not tinted pink. */
+  --ember-smoke: rgba(26, 10, 6, 0.62);
   --ember-gold: #f5c518;
   --ember-green: #2f9e44;
   --ember-brown: #7a4a24;
@@ -379,6 +381,8 @@
     --flame-white: #fff4e6;
     --ember-red: #d7263d;
     --ember-red-deep: #8f1224;
+    /* The smoke over the window when she is furious: the page dimmed, not tinted pink. */
+    --ember-smoke: rgba(26, 10, 6, 0.62);
     --ember-gold: #f5c518;
     --ember-green: #2f9e44;
     --ember-brown: #7a4a24;
@@ -494,6 +498,8 @@
   --flame-white: #fff4e6;
   --ember-red: #d7263d;
   --ember-red-deep: #8f1224;
+  /* The smoke over the window when she is furious: the page dimmed, not tinted pink. */
+  --ember-smoke: rgba(26, 10, 6, 0.62);
   --ember-gold: #f5c518;
   --ember-green: #2f9e44;
   --ember-brown: #7a4a24;
