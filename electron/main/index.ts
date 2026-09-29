@@ -319,7 +319,8 @@ void app.whenReady().then(() => {
     showMain();
     mainWindow?.webContents.send("pet:today");
   });
-  if (savedPet() && !background()) showPet();
+  const pet = savedPet();
+  if (pet !== "off" && !background()) showPet(pet);
 
   // Checked on a timer rather than scheduled, because the machine sleeps and
   // a scheduled 9am fires at noon on a laptop that was shut. The check itself

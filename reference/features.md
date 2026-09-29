@@ -2578,6 +2578,18 @@ somersault is one turn. Under reduced motion she stands still beside her door.
 
 ### Out on the taskbar
 
+**Three ways, chosen in Settings → This computer → Ember → On the taskbar:**
+**a small dot** (where everyone starts, since 27 September 2026), **walking**,
+or **hidden**. Walking all day in the corner of the eye was too much to have
+on by default.
+
+- **As a dot** she is a small ember resting on the taskbar's edge by the
+  clock, breathing slowly - brighter, and quicker, when something is waiting.
+  Only the dot can be pointed at; point at it and she comes out, full size,
+  and stays while the pointer is on her. Leave, and a moment later she is a
+  dot again. Click either and Caulder opens on Today.
+- **Walking**, she is as she always was:
+
 When Caulder is not the window in front, Ember walks the **seam between the
 taskbar and everything above it** - the bottom of the work area, which is the
 top edge of a bottom taskbar, and the bottom of the screen when the taskbar is
@@ -2596,8 +2608,8 @@ a row Caulder already has; an empty day, and she just gets on with her life.
   is underneath, except while the pointer is actually on her.
 - **She keeps out of the way** of anything full-screen - a film, a slide deck,
   a game - by asking Windows what is in front.
-- **Settings → This computer → Ember** puts her away. Under reduced motion
-  she stands still and holds on one drawing.
+- **Hidden** puts her away. Under reduced motion she stands still and holds
+  on one drawing, and the dot does not breathe.
 
 ### Click her, poke her, throw her
 

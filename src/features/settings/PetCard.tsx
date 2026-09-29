@@ -4,10 +4,18 @@ import { ErrorLine } from "@/components/ErrorLine";
 import { messageOf } from "@/lib/errors";
 import { setEmberPref, useEmberPref } from "@/lib/emberPrefs";
 import type { PetState } from "@shared/ipc";
+import type { PetForm } from "@shared/pet";
+
+/** On the taskbar: as she is, as a dot, or not at all. */
+const FORMS: { id: PetForm; label: string }[] = [
+  { id: "dot", label: "A small dot" },
+  { id: "walk", label: "Walking" },
+  { id: "off", label: "Hidden" },
+];
 
 /**
- * Ember: out on the taskbar or not, whether she makes a noise, and whether
- * she plays.
+ * Ember: in the app or not, how she is on the taskbar - a dot, walking, or
+ * hidden - whether she makes a noise, and whether she plays.
  *
  * Three switches, each with what it does written under it, because a
  * character that walks the screen, talks and has a temper is either company
@@ -25,11 +33,11 @@ export function PetCard() {
     window.caulder.pet.get().then(setState, () => undefined);
   }, []);
 
-  async function toggle(on: boolean) {
+  async function choose(form: PetForm) {
     setBusy(true);
     setProblem(null);
     try {
-      setState(await window.caulder.pet.show(on));
+      setState(await window.caulder.pet.show(form));
     } catch (error) {
       setProblem(messageOf(error));
     } finally {
@@ -37,7 +45,7 @@ export function PetCard() {
     }
   }
 
-  const on = state?.on ?? false;
+  const form = state?.form ?? null;
 
   return (
     <Card title="Ember" hint="The little flame on the quick line. Click her to ask the AI anything; drag her anywhere.">
@@ -48,12 +56,33 @@ export function PetCard() {
         She lives behind a little door on the quick line: out in the morning, in at night. Knock and she answers.
       </p>
 
-      <Switch label="Let Ember out on the taskbar" on={on} disabled={busy} onChange={(next) => void toggle(next)} />
+      <span className="checkline__title pet__formsTitle" id="pet-taskbar">
+        On the taskbar
+      </span>
+      <div className="tabs pet__forms" role="radiogroup" aria-labelledby="pet-taskbar">
+        {FORMS.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            role="radio"
+            className="tab"
+            aria-checked={form === option.id}
+            disabled={busy || form === null}
+            onClick={() => void choose(option.id)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
       <ul className="card__hint pet__rules">
         <li>
-          She walks the top of the taskbar while Caulder is not the window in front, and holds up what is waiting: a
-          bell when a block starts within ten minutes, a letter when somebody has replied, papers when something is
-          overdue. Click her and Caulder opens on Today.
+          Out there while Caulder is not the window in front. <strong>A small dot</strong> rests by the clock and comes
+          out when you point at it; <strong>walking</strong>, she walks the top of the taskbar.
+        </li>
+        <li>
+          She holds up what is waiting - a bell when a block starts within ten minutes, a letter when somebody has
+          replied, papers when something is overdue - and the dot glows brighter for it. Click her and Caulder opens on
+          Today.
         </li>
         <li>Clicks go straight through her to whatever is underneath, unless you are pointing right at her.</li>
       </ul>

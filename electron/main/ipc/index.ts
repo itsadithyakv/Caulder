@@ -11,7 +11,8 @@ import { assertId, handle } from "./handle";
 import { type WidgetLevel, widgetLevel, widgetSpot, widgetWanted } from "@shared/widget";
 import { fitWidget, hideWidget, setWidgetLevel, showWidget, widgetState } from "../widget";
 import { hidePet, holdPet, hoverPet, openFromPet, petState, showPet } from "../pet";
-import { petWanted } from "@shared/pet";
+import { petForm, type PetForm } from "@shared/pet";
+import { z } from "zod";
 import { registerBrainHandlers } from "./brain";
 import { registerDealHandlers } from "./deals";
 import { registerCallHandlers } from "./calls";
@@ -259,14 +260,17 @@ export function savedCaptureShortcut(): string | null {
   return getSetting(getDatabase(), "captureShortcut");
 }
 
+/** How Ember is out on the taskbar, as the window asks for it. */
+const petFormInput = z.enum(["walk", "dot", "off"], { error: "Ember is out walking, as a dot, or not at all." });
+
 /** Whether closing the main window leaves Caulder in the tray. Yes unless said. */
 export function keepsInTray(): boolean {
   return getSetting(getDatabase(), "keepInTray") !== "0";
 }
 
-/** Whether Ember walks the taskbar. Out unless somebody put her away. */
-export function savedPet(): boolean {
-  return petWanted(getSetting(getDatabase(), "petOpen"));
+/** How Ember is out on the taskbar: walking, a dot by the clock, or not at all. A dot unless said. */
+export function savedPet(): PetForm {
+  return petForm(getSetting(getDatabase(), "petOpen"));
 }
 
 /**
@@ -1062,11 +1066,11 @@ function registerPersonalHandlers() {
 
   handle(CHANNELS.petGet, () => petState());
 
-  handle(CHANNELS.petShow, (_event, on: unknown) => {
-    const wanted = on === true;
-    setSetting(getDatabase(), "petOpen", wanted ? "1" : "0");
-    if (wanted) showPet();
-    else hidePet();
+  handle(CHANNELS.petShow, (_event, raw: unknown) => {
+    const form = petFormInput.parse(raw);
+    setSetting(getDatabase(), "petOpen", form);
+    if (form === "off") hidePet();
+    else showPet(form);
     return petState();
   });
 

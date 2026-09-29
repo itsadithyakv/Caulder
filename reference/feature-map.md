@@ -344,6 +344,10 @@ One line to a task: title, day, time, length, repeat, priority, area, kind (call
 - Contacts are found by `namedContact` (whole words, family aliases like "mom", then one-contact typo match). `shared/people.ts` is **not** involved.
 - Tests: all seven `shared/capture*.test.ts` files, and a test per reader
 
+### The rules' shapes, measured
+`readCapture` reads more shapes since 27 September 2026, each measured on the three sets in `electron/main/understand/` (`lines.eval.ts`, `lines.fresh.eval.ts`, `lines.blind.eval.ts`): ideas asked of yourself, somebody who could, a thing named or pitched (`PITCH`, `COULD`); a day summed up or said to have been (`SUMMED_UP`, `WAS_HOW`, read on the line as typed, since `expand()` rewrites Hinglish); how a thing goes, with its time, as a sure note (`HOW_IT_GOES`); a plain fact as a soft memory (`STATES_A_FACT`, not `A_COMPLAINT`); errands said alone (`CHORE`); spends of two things (`SPENT_ON`, `shared/commands.ts`). Feeling words are never a person (`NOT_A_PERSON`, `shared/lifefacts.ts`).
+- Tests: `shared/capture.everyday.test.ts`, "the rules' gaps"; the measuring stick in `eval.test.ts`.
+
 ### Questions, edits and the rest
 Answer a question from what is stored (the day, free hours, a contact, money, memories, "did I..."); move, cancel or rename a task; carry "him" or "also" over from the last line; split one line into several; suggest the usual hour; tidy a paste.
 - Logic: `shared/questions.ts`, `edits.ts`, `followon.ts`, `together.ts`, `habitual.ts`, `pasteline.ts`, `lines.ts` (there is **no** `shared/smartline.ts`; `smartline.test.ts` tests these)
@@ -446,6 +450,7 @@ A flame on the quick line with physics, a wardrobe, a book of what she knows, gr
 - UI: `src/components/Ember.tsx`, `src/features/ember/`, `src/features/pet/Pet.tsx`, `PetCard.tsx`, `src/lib/chirp.ts`, `src/lib/emberPrefs.ts`
 - Logic: `shared/ember.ts`, `growth.ts`, `ascent.ts`, `body.ts`, `closet.ts`, `wardrobe.ts`, `pet.ts` · Main: `services/embergrowth.ts`, `electron/main/pet.ts`, `electron/main/foreground.ts` (koffi, full-screen check)
 - IPC: `ember:`, `pet:` · Tests: `shared/ember.test.ts` and siblings; e2e `ember.spec.ts`, `pet.spec.ts`
+- On the taskbar she is a dot, walking, or hidden (`petForm` in `shared/pet.ts`, setting `petOpen`; never set is a dot). The dot is `.pet__dot` in `Pet.tsx`: only it takes the pointer, and hovering brings her out for as long as it is on her plus a moment (`LINGER_MS`). Main keeps a dot still at the clock end (`electron/main/pet.ts`) and tells the page its form (`pet:form`).
 - Her closet is 28 pieces (`shared/closet.ts`, sprites in `WEAR` / `WEAR_BACK`, shoes as colours in `ember.css`), unlocked by level in `growth.ts`; her own daily pick varies what is at her neck and on her feet as well as one extra.
 - What she hits reacts through `element.animate()` (`thump`, `quake` in `EmberStage.tsx`), never a class: a class replaced a card's own entrance animation and started it again, so the card vanished and faded back.
 

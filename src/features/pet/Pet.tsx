@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { writingMode } from "@shared/ember";
 import { errandOf, type Errand } from "@shared/pet";
 import { today as todayIn } from "@shared/dates";
@@ -18,7 +18,14 @@ import { Ember, useEmberMood } from "@/components/Ember";
  *    pastime or an errand. She does not play the guitar on the move.
  *  - **Says when the pointer is on her**, so her window stops ignoring the
  *    mouse just long enough to be clicked.
+ *
+ * **As a dot** (the default since 27 September 2026) she is a small ember by
+ * the clock, brighter when something is waiting. Pointed at, she comes out;
+ * left, she goes back after a moment. Clicked either way, Caulder opens.
  */
+
+/** How long she stays out after the pointer leaves her, before she is a dot again. */
+const LINGER_MS = 2500;
 
 /** Often enough that a block ten minutes off is caught in time; rarely enough to cost nothing. */
 const LOOK_MS = 60_000;
@@ -41,6 +48,26 @@ export function Pet() {
   const [errand, setErrand] = useState<Errand | null>(null);
   const [walk, setWalk] = useState<{ moving: boolean; dir: 1 | -1 }>({ moving: false, dir: 1 });
   const mood = useEmberMood({ busy: false, failed: false, done: false });
+  const [form, setForm] = useState<"walk" | "dot">("dot");
+  const [out, setOut] = useState(false);
+  const linger = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => window.caulder.pet.onForm(setForm), []);
+  useEffect(() => () => {
+    if (linger.current) clearTimeout(linger.current);
+  }, []);
+
+  const enter = () => {
+    if (linger.current) clearTimeout(linger.current);
+    setOut(true);
+    void window.caulder.pet.hover(true);
+  };
+  const leave = () => {
+    void window.caulder.pet.hover(false);
+    if (linger.current) clearTimeout(linger.current);
+    linger.current = setTimeout(() => setOut(false), LINGER_MS);
+  };
+  const dot = form === "dot" && !out;
 
   // Which workspace she belongs to, which decides her colour and whose day
   // she carries errands for.
@@ -90,13 +117,20 @@ export function Pet() {
     <button
       type="button"
       className="pet"
+      data-form={dot ? "dot" : "her"}
+      // Her colours, for the dot: the same flame she is, work or life.
+      data-flame={writingMode(where?.personal ?? false)}
       data-walking={walk.moving ? "yes" : "no"}
       data-dir={walk.dir}
+      data-waiting={errand ? "yes" : "no"}
       aria-label={errand ? "Open Caulder: something is waiting on Today" : "Open Caulder"}
-      onMouseEnter={() => void window.caulder.pet.hover(true)}
-      onMouseLeave={() => void window.caulder.pet.hover(false)}
+      onMouseEnter={enter}
+      onMouseLeave={leave}
       onClick={() => void window.caulder.pet.open()}
     >
+      {/* The dot is the only part of her that can be pointed at while she is
+          one: the rest of the window is not there for the mouse. */}
+      <span className="pet__dot" aria-hidden />
       <span className="pet__facing">
         <Ember
           mode={writingMode(where?.personal ?? false)}

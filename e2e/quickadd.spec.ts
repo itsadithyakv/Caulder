@@ -238,7 +238,8 @@ test("a line typed like a text is read, its guess can be kept as typed, and Tune
   await line.fill("meetining tmrw 4 with rahul from ms puc");
   await expect(reading.locator(".quickadd__title")).toHaveText("Meeting with rahul from ms puc");
   await expect(reading).toContainText("Tomorrow");
-  await expect(reading).toContainText("4:00 PM");
+  // "4:00 pm" in India, "4:00 PM" in the US: written the way it is where the company is (phase 24).
+  await expect(reading).toContainText(/4:00\sPM/i);
   await expect(page.locator(".quickadd__aside")).toContainText("Read “meetining” as meeting.");
 
   // One press keeps the word as typed, and the cursor goes back to the line.
@@ -815,7 +816,7 @@ test("a line that says remind me says it will, and Settings has the journal nudg
   const page = await openApp();
   const line = page.getByLabel("Anything, in one line");
   await line.fill("remind me tomorrow at 6pm to call the plumber");
-  await expect(page.locator(".quickadd__aside")).toContainText("A Windows notification at 6:00 PM, tomorrow");
+  await expect(page.locator(".quickadd__aside")).toContainText(/A Windows notification at 6:00\sPM, tomorrow/i);
   await line.press("Enter");
   await expect(page.locator(".quickadd__added")).toContainText("Call the plumber");
   // Kept as a reminder against the task, at its day and time.
@@ -859,11 +860,11 @@ test("the line finishes what you type, answers what you ask, and changes what is
 
   // Moved by any word of it; its day stays when only an hour is said.
   await line.fill("move dentist to 5");
-  await expect(page.locator(".quickadd__read")).toContainText("Move “Dentist appointment” to Tomorrow at 5:00 PM");
+  await expect(page.locator(".quickadd__read")).toContainText(/Move “Dentist appointment” to Tomorrow at 5:00\sPM/i);
   await line.press("Enter");
-  await expect(page.locator(".quickadd__added")).toContainText("Moved “Dentist appointment” to tomorrow at 5:00 PM");
+  await expect(page.locator(".quickadd__added")).toContainText(/Moved “Dentist appointment” to tomorrow at 5:00\sPM/i);
   await line.fill("what's on tomorrow");
-  await expect(page.locator(".quickadd__found li").filter({ hasText: "Dentist appointment" })).toContainText("5 PM");
+  await expect(page.locator(".quickadd__found li").filter({ hasText: "Dentist appointment" })).toContainText(/5\sPM/i);
 
   // Cancelled, and put back.
   await line.fill("cancel the dentist");
@@ -982,17 +983,19 @@ test("a line the rules only guessed at is given a second opinion, and kept where
   const page = await openApp();
   const line = page.getByLabel("Anything, in one line");
 
-  // No marker word, so the rules fall to a note; what it sounds like is an idea.
-  await line.fill("a plugin that summarises lectures");
+  // No shape the rules know, so they fall to a note; what it sounds like is
+  // something to remember. ("A plugin that summarises lectures" was this
+  // test's line until the rules learnt to read an idea named, 27 September.)
+  await line.fill("capo on the second fret for that song");
   const reading = page.locator(".quickadd__reading");
   // The model starts in its own process the first time it is asked.
-  await expect(reading.locator("[data-opinion]")).toHaveText(/it sounds like an idea/, { timeout: 20_000 });
+  await expect(reading.locator("[data-opinion]")).toHaveText(/it sounds like something to remember/, { timeout: 20_000 });
 
   await line.press("Enter");
   await expect(page.locator(".quickadd__added")).toBeVisible();
-  const ideas = await page.evaluate(async () => {
+  const found = await page.evaluate(async () => {
     const { activeCompanyId } = await window.caulder.companies.list();
-    return (await window.caulder.brain.section(activeCompanyId ?? "", "ideas", false)).map((one) => one.title);
+    return window.caulder.brain.search(activeCompanyId ?? "", "capo second fret");
   });
-  expect(ideas.some((title) => /plugin that summarises lectures/i.test(title))).toBe(true);
+  expect(JSON.stringify(found)).toMatch(/capo/i);
 });

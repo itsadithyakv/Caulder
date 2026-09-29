@@ -1,3 +1,4 @@
+import type { PetForm } from "./pet";
 import type { SupportAnswer } from "./support";
 import type { EmberStats } from "./growth";
 import type { EmailRecord, MailState, SendEmailInput } from "./mail";
@@ -1345,19 +1346,21 @@ export type WidgetState = { on: boolean; level: WidgetLevel; reason: string | nu
  */
 export type PetApi = {
   get: () => Promise<PetState>;
-  /** Lets her out or puts her away, and remembers which. */
-  show: (on: boolean) => Promise<PetState>;
+  /** Walking, a dot by the clock, or put away - and remembers which. */
+  show: (form: PetForm) => Promise<PetState>;
   hover: (over: boolean) => Promise<void>;
   hold: (still: boolean) => Promise<void>;
   /** She was clicked: bring Caulder forward, on Today. */
   open: () => Promise<void>;
+  /** Her window: whether she is walking or a dot, now and whenever it changes. */
+  onForm: (fn: (form: Exclude<PetForm, "off">) => void) => () => void;
   /** Her window: which way she is walking, and whether she is. */
   onWalk: (fn: (walk: { moving: boolean; dir: 1 | -1 }) => void) => () => void;
   /** The main window: somebody clicked her, so go to Today. */
   onToday: (fn: () => void) => () => void;
 };
 
-export type PetState = { on: boolean };
+export type PetState = { form: PetForm };
 
 /** How Ember is doing - your level, your runs, how warm your habits keep her. See shared/growth.ts. */
 export type EmberApi = {

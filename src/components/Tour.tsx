@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { sayShortcut } from "@shared/domain";
 import { Portal } from "./Portal";
 
 /**
@@ -79,7 +80,8 @@ export function Tour({ onDone }: { onDone: () => void }) {
 
   useEffect(() => {
     window.caulder.capture.get().then(
-      (key) => setAnywhere(key.held ? key.accelerator.replace(/\+/g, " ") : null),
+      // Said the way the keyboard says it: Win, not Electron's "Super".
+      (key) => setAnywhere(key.held ? sayShortcut(key.accelerator).replace(/\+/g, " ") : null),
       () => undefined,
     );
   }, []);

@@ -944,7 +944,11 @@ export const SETTING_KEYS = [
   "widgetLevel",
   /** Where the resting pill was left, as {"x":n,"y":n}. Clamped onto a real screen on every launch. */
   "widgetSpot",
-  /** Whether Ember walks the taskbar when Caulder is not in front. "0" is put away; anything else is out. */
+  /**
+   * How Ember is on the taskbar when Caulder is not in front: "walk", "dot"
+   * or "off" (shared/pet.ts, petForm). Never set is a dot; the old "1" and
+   * "0" still mean walking and off.
+   */
   "petOpen",
   /** The hour of the journal nudge, "HH:MM"; empty or never set is off. */
   "journalNudgeAt",

@@ -211,7 +211,7 @@ const FEEL_START = new RegExp(
  * thing to do, not a note to file.
  */
 const CHORE =
-  /^\s*(?:do\s+(?:the\s+)?)?(?:laundry|groceries|grocery\s+(?:shopping|run)|(?:the\s+)?dishes|ironing|vacuum(?:ing)?|dusting|mopping|trash|garbage|recycling|meal\s+prep|bills|clean(?:ing)?(?:\s+(?:the\s+)?[\p{L}]+)?)\s*[.!]*\s*$/iu;
+  /^\s*(?:do\s+(?:the\s+)?)?(?:laundry|groceries|grocery\s+(?:shopping|run)|(?:the\s+)?dishes|ironing|vacuum(?:ing)?|dusting|mopping|trash|garbage|recycling|meal\s+prep|bills|clean(?:ing)?(?:\s+(?:the\s+)?[\p{L}]+)?|hair\s*cut|passport\s+(?:photos?|pics?)|dry\s+cleaning|car\s+wash|oil\s+change|pharmacy(?:\s+run)?|phone\s+recharge)\s*[.!]*\s*$/iu;
 
 /** "rahul's number is 98765 43210", "rajesh email rajesh@mspuc.edu": a contact detail, said. */
 const PHONE = /(\+?\d[\d\s-]{7,}\d)/;
@@ -225,7 +225,7 @@ const MET = /\b(met|meeting|visited)\b/i;
 
 /** Said in the first person, about a day: the journal. */
 const FELT =
-  /\b(i('m| am| was| felt| feel|'ve| have| had| got| did| don't| do not| can't| cannot)|felt|feeling|today was|(?:good|great|bad|long|amazing|awesome|terrible|awful|productive|lazy|busy|chill|nice|decent|weird|hard|tough|slow|fun|shit|crap|meh)\s+day|couldn't\s+(?:sleep|focus|stop)|can't\s+(?:sleep|focus)|slept\s+(?:badly|well|late|in|early)|rough|tough|awful|terrible|lovely|productive|lazy|tired|exhausted|happy|sad|stressed|anxious|grateful|thankful|proud|frustrated|excited|calm|overwhelmed|slept|mood)\b/i;
+  /\b(i('m| am| was| felt| feel|'ve| have| had| got| did| don't| do not| can't| cannot)|felt|feeling|today was|(?:good|great|bad|long|amazing|awesome|terrible|awful|productive|lazy|busy|chill|nice|decent|weird|hard|tough|slow|fun|shit|crap|meh)\s+day|couldn't\s+(?:sleep|focus|stop)|can't\s+(?:sleep|focus)|slept\s+(?:badly|well|late|in|early)|rough|tough|awful|terrible|lovely|productive|lazy|tired|exhausted|happy|sad|stressed|anxious|grateful|thankful|proud|frustrated|excited|calm|overwhelmed|slept|mood|annoyed|upset|irritated|disappointed|gutted|stung|lonely)\b/i;
 
 /** Thanks said first: "grateful for", "so thankful that", "proud of". */
 const THANKS_START = /^\s*(?:(?:i'?m|i\s+am|i\s+feel|feeling|so|really|very|super)\s+)*(?:grateful|thankful|blessed|proud)\s+(?:for|of|to|that)\b/i;
@@ -238,6 +238,57 @@ const THANKS_START = /^\s*(?:(?:i'?m|i\s+am|i\s+feel|feeling|so|really|very|supe
  */
 const IDEA =
   /^\s*(?:what\s+if|maybe\s+(?:we\s+)?(?:could|should)|idea\b|(?:we\s+)?could\s+(?!(?:you|u|i|he|she|they)\b)\w+|(?:we\s+)?should\s+(?:try|build|make|start|launch|offer|add|experiment|pilot)\b|how\s+about\s+(?:a|an|we|making|building|trying|adding|offering)\b|what\s+about\s+(?:a|an|making|building|trying|adding|offering)\b)/i;
+
+/**
+ * An idea put some other way than "what if" (27 September 2026):
+ *  - asked of yourself: "why not let students rate each lecture", "should we
+ *    move to annual billing?", "kya ho agar hum parents se charge karein";
+ *  - somebody who could: "teachers could mark attendance by voice";
+ *  - a thing to make, named: "a chrome extension that blocks youtube", "an
+ *    alumni mentorship marketplace", "offline mode for schools";
+ *  - a thing pitched: "gamify homework with streaks", "white label it".
+ * Never with a when: "should we meet tomorrow" is a meeting.
+ */
+/** Somebody who could: "teachers could mark attendance by voice". An idea even with "weekly" in it. */
+const COULD =
+  /^\s*(?!(?:i|you|u|he|she|it|they|we|this|that|who|what)\b)(?:[\p{L}-]+\s+){1,2}could\s+(?!(?:you|u|i|not|have|be)\b)[\p{L}]+/iu;
+
+/**
+ * Said the way a fact is said: a thing, then what it is or does - "sharks are
+ * older than trees", "koalas sleep around twenty hours a day", "ethiopian
+ * beans taste fruity". Kept as a memory, softly: the model on this machine
+ * and where it belongs decide the rest. Not a complaint about how something
+ * is behaving ("the wifi is down"), which is a note.
+ */
+const STATES_A_FACT =
+  /^\s*(?:the\s+|a\s+|an\s+)?(?!(?:i|we|you|u|he|she|they|it|this|that|there|here|what|who|why|how|when|where|which|my|our|your|me|us|need|want)\b)(?:[\p{L}\p{N}'’-]+\s+){1,5}?(?:is|are|was|were|isn't|aren't|wasn't|has|have|takes?|sleeps?|glows?|tastes?|sounds?|wants?|hits?|gives?|stops?|needs?|lived|lives|grows?|contains?|holds?|belongs?)\s+\S/iu;
+const A_COMPLAINT =
+  /\b(?:down|broken|not\s+working|isn't\s+working|crashed|crashing|failing|failed|offline|pending|overdue|late|stuck|missing|lost|slow|laggy|buggy|wrong|full|empty|out\s+of|almost\s+(?:out|gone|over|finished)|running\s+(?:out|low)|low\s+on)\b|\b(?:takes?|is|are)\s+\d/i;
+/** "My first car was a red alto": about you, so it goes where things about you go. */
+const MY_FACT = /^\s*my\s+(?:[\p{L}'’-]+\s+){0,3}?(?:is|are|was|were)\s+\S/iu;
+
+const PITCH = new RegExp(
+  [
+    String.raw`^\s*(?:why\s+not|should\s+we|kya\s+ho\s+agar)\b`,
+    String.raw`^\s*an?\s+(?:[\p{L}-]+\s+){0,3}?(?:app|apps|extension|plugin|add-?on|bot|channel|platform|marketplace|tool|website|dashboard|leaderboard|newsletter|podcast|community|club|dinner|meetup|workshop|course|subscription|template|game|feature|widget|kit|challenge|contest|hackathon|service)\b(?:\s+(?:that|which|for|where|to|with|so)\b.*)?\s*[?.!]*\s*$`,
+    String.raw`^\s*(?:[\p{L}-]+\s+){1,2}(?:mode|tier|plan|version)\s+for\b`,
+    String.raw`^\s*(?:gamify|gamified|bundle|white[\s-]?label|producti[sz]e|monetis|monetiz|franchise|crowdsource|upsell)[\p{L}]*\b`,
+  ].join("|"),
+  "iu",
+);
+
+/**
+ * How a thing goes, said with the time it goes at: "the xerox shop closes at
+ * 8", "the new intern starts on monday", "courier pickup is usually around
+ * noon". Something to know, not something to do - unless the thing is an
+ * event of yours ("the exam starts at 9 tomorrow") or the day is a one-off.
+ */
+const HOW_IT_GOES =
+  /^\s*(?:the\s+|our\s+|my\s+)?(?!(?:i|we|you|u|he|she|they|it|this|that|there)\b)(?:[\p{L}'’-]+\s+){0,3}?([\p{L}'’-]+)\s+(?:(?:is|are)\s+(?:usually|always|often|normally|only|mostly)|usually|always|often|normally|opens|closes|shuts|crawls|changes|starts|begins|ends|runs|arrives|comes|leaves|gets\s+(?:busy|crowded|slow))\b/iu;
+const AN_EVENT =
+  /^(?:meeting|call|class|lecture|exam|test|interview|demo|session|appointment|flight|train|bus|match|game|party|webinar|workshop|event|deadline|sale|shift|standup|review|wedding|trip|movie|show|concert|practice|training)s?$/i;
+const ONE_OFF =
+  /\b(?:today|tonight|tomorrow|tmrw|tmr|next\s+(?:week|month)|this\s+(?:week|weekend|month|morning|evening)|\d{1,2}(?:st|nd|rd|th)\b|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+\d)/i;
 
 /** A line that starts by saying what was done - "shipped the pricing page" - is the day, looked back on. */
 const NOT_PAST = new Set(["need", "feed", "seed", "speed", "red", "bed", "shed", "embed", "proceed", "exceed", "succeed"]);
@@ -420,10 +471,22 @@ const PAST_START =
  * nothing, ticks nothing and takes no hour on the Calendar.
  */
 const NOT_DONE =
-  /^\s*(?:i\s+)?(?:(?:totally|completely|just)\s+)?(?:didn'?t|did\s+not|couldn'?t|could\s+not|wasn'?t\s+able\s+to|was\s+not\s+able\s+to|never\s+(?:got|went|did|made)|skipped|bunked|ditched|failed\s+to|gave\s+up\s+on)\b/i;
+  /^\s*(?:i\s+)?(?:(?:totally|completely|just)\s+)?(?:didn'?t|did\s+not|couldn'?t|could\s+not|wasn'?t\s+able\s+to|was\s+not\s+able\s+to|never\s+(?:got|went|did|made)|skipped|missed(?!\s+(?:a\s+|the\s+|your\s+|his\s+|her\s+)?calls?\b)|bunked|ditched|failed\s+to|gave\s+up\s+on)\b/i;
 /** A clause that looks back: what makes "read red rising today, loved chapter 25" a report and not a to-do. */
+/**
+ * Said in the past of how it was: "weekend with the cousins was lovely", "aaj
+ * ka din accha tha". It looks back even when it names a day that could be to
+ * come - "weekend" - because the "was" says which (27 September 2026).
+ */
+const WAS_HOW =
+  /\b(?:was|were)\s+(?:so\s+|really\s+|very\s+|pretty\s+|just\s+)?(?:lovely|nice|perfect|peaceful|relaxing|beautiful|wonderful|exhausting|chill|special|memorable|awesome|amazing|great|good|fun|rough|awful|terrible)\b|\b(?:accha|acha|achha|badhiya|mast|bura|bekaar|kharab)\s+(?:tha|thi|the|gaya|gayi|raha|rahi)\b/i;
+
+/** A day summed up, the way nobody writes a task: "what a day", "best chai of my life", "…, perfect". */
+const SUMMED_UP =
+  /^\s*what\s+an?\s+(?:day|week|night|evening|morning|weekend|trip|match|game|ride)\b|^\s*best\s+(?:[\p{L}]+\s+){1,4}of\s+my\s+life\b|,\s*(?:just\s+|so\s+)?(?:perfect|bliss|heaven|lovely|magical|peaceful|so\s+good)\s*[.!]*\s*$|\bthought\s+(?:a\s+lot\s+|hard\s+)?about\s+(?:where|what|how|why|whether)\b|^\s*(?:neend\s+nahi|mood\s+(?:off|kharab)|dil\s+nahi|bahut\s+thak)/iu;
+
 const LOOKED_BACK =
-  /\b(?:loved|liked|enjoyed|hated|felt|feel(?:s|ing)?\s+(?:so\s+|really\s+|pretty\s+)?(?:good|great|bad|tired|sore|amazing|strong|better|awful|fresh|pumped|dead)|(?:it|that|this)\s+was|was\s+(?:so\s+|really\s+)?(?:good|great|fun|tough|hard|boring|amazing|intense|brutal)|went\s+(?:well|badly|great|okay|ok)|crushed|nailed|smashed|killed\s+it|pr|pb|personal\s+(?:best|record)|had\s+(?:so\s+much\s+|a\s+lot\s+of\s+)?fun|had\s+a\s+(?:blast|great\s+time)|(?:is|are|was|were)\s+(?:quite\s+|so\s+|really\s+|very\s+|pretty\s+)?(?:burning|sore|dead|on\s+fire|killing\s+me|difficult|hard|easy|tricky|tough|fun))\b/i;
+  /\b(?:loved|liked|enjoyed|hated|felt|feel(?:s|ing)?\s+(?:so\s+|really\s+|pretty\s+)?(?:good|great|bad|tired|sore|amazing|strong|better|awful|fresh|pumped|dead)|(?:it|that|this)\s+was|was\s+(?:so\s+|really\s+)?(?:good|great|fun|tough|hard|boring|amazing|intense|brutal)|went\s+(?:well|badly|great|okay|ok|better|worse)|crushed|nailed|smashed|killed\s+it|pr|pb|personal\s+(?:best|record)|had\s+(?:so\s+much\s+|a\s+lot\s+of\s+)?fun|had\s+a\s+(?:blast|great\s+time)|(?:is|are|was|were)\s+(?:quite\s+|so\s+|really\s+|very\s+|pretty\s+)?(?:burning|sore|dead|on\s+fire|killing\s+me|difficult|hard|easy|tricky|tough|fun))\b/i;
 /** What a report says before it says what it was: "i went to the". */
 const REPORT_LEAD =
   /^(?:i\s+)?(?:just\s+)?(?:went\s+(?:to|for)|did|finished|completed|attended|visited|had|hit|got\s+(?:to|through))\s+(?:the\s+|my\s+|a\s+|an\s+|some\s+)?/i;
@@ -691,9 +754,12 @@ export function readCapture(
   // not about a day still to come. "Went to the gym at 5" says when it was,
   // not when it is due - so a time does not make a task of it.
   const notDone = NOT_DONE.test(said);
+  // Hinglish is read as it was typed: expanding the short forms rewrites "aaj ka din accha tha".
+  const wasHow = WAS_HOW.test(said) || WAS_HOW.test(text);
   const looksBack =
-    notDone || PAST_START.test(said) || doneWord(first) || LOOKED_BACK.test(said) || DONE.test(said) || habit?.done === true;
-  const toCome = when.repeats || (when.day !== null && when.day > clock.today);
+    notDone || wasHow || PAST_START.test(said) || doneWord(first) || LOOKED_BACK.test(said) || DONE.test(said) || habit?.done === true;
+  // "The weekend was lovely": the was says it has been, whatever the weekend could be.
+  const toCome = !wasHow && (when.repeats || (when.day !== null && when.day > clock.today));
   const reports = looksBack && !toCome && !MEANT.test(said);
   const ahead = when.ahead && !reports;
 
@@ -902,6 +968,8 @@ export function readCapture(
   // Gratitude said first is the journal whoever it names: "grateful for amma's
   // food today" is about Amma, and there is nothing to do for her in it.
   if (THANKS_START.test(said) && !thenDo) return reading("journal", "it is what you are grateful for");
+  // A day summed up - "what a day", "…, perfect", "best chai of my life" - is the journal.
+  if ((SUMMED_UP.test(said) || SUMMED_UP.test(text)) && !thenDo && !contact) return reading("journal", "it is about your day");
 
   if (contact) {
     if (instruction && timed) return reading("task", `something to do for ${contact.name}, with a when`);
@@ -937,15 +1005,21 @@ export function readCapture(
   if (trivia?.marked) return learnt();
   if (thought) return reading("idea", "it is something to make");
   if (IDEA.test(said)) return reading("idea", "it is an idea");
+  if (((PITCH.test(said) || PITCH.test(text)) && !timed) || COULD.test(said)) {
+    if (!MEANT.test(said)) return reading("idea", "it is an idea");
+  }
   // Looked back on, with nothing of Caulder's to update: the day, in the journal
   // - before "read" gets to make a to-do of "read red rising, loved chapter 25".
-  if (reports && (LOOKED_BACK.test(said) || FELT.test(said))) return reading("journal", "it is about your day");
+  if (reports && (LOOKED_BACK.test(said) || FELT.test(said) || wasHow)) return reading("journal", "it is about your day");
   if (instruction) return reading("task", "it is something to do");
   // From here down the rules are guessing: a when with nothing else to say
   // what the line is, a fact only shaped like one, a feeling said in passing,
   // and the note nothing else claimed. These are the only readings the model
   // on this machine is asked about (phase 20; shared/opinion.ts).
   const guess = (kind: CaptureKind, because: string): CaptureReading => ({ ...reading(kind, because), soft: true });
+  // "The xerox shop closes at 8": how a thing goes, with its time - to know, not to do.
+  const goes = HOW_IT_GOES.exec(said);
+  if (ahead && goes && !AN_EVENT.test(goes[1] ?? "") && !ONE_OFF.test(said)) return reading("note", "it says how something goes");
   if (ahead) return guess("task", "it says when");
   // Something said about a page the brain has, or a thing said what it is.
   if (page) return reading("memory", `it is about ${page.title}`);
@@ -956,6 +1030,21 @@ export function readCapture(
   const hasAHome = topic !== null && branch.section !== "ideas";
   if (trivia && !hasAHome) return { ...learnt(), soft: true };
   if (topic) return guess("memory", `it says what ${topic} is`);
+  // A fact said plainly (27 September 2026): about you, or about the world.
+  // Not a day's event either: "the meeting was a disaster" is how it went.
+  const head = /^\s*(?:the\s+|a\s+|an\s+)?([\p{L}'’-]+)/iu.exec(said)?.[1] ?? "";
+  const plainFact = !timed && !reports && !instruction && !MEANT.test(said) && !A_COMPLAINT.test(said) && !AN_EVENT.test(head);
+  if (plainFact && MY_FACT.test(said)) {
+    const kept = pageTitled("About me", pages);
+    return {
+      ...guess("memory", "it is about you"),
+      page: kept,
+      topic: kept ? null : "About me",
+      branch: kept ? null : { section: REMEMBERED_SECTION, parent: null, trail: [] },
+      fact: null,
+    };
+  }
+  if (plainFact && STATES_A_FACT.test(said)) return { ...learnt(), because: "it says what something is", soft: true };
   // Before "today" gets a say: "felt great today" is about today, not due today.
   if (FELT.test(said) || doneWord(first)) return guess("journal", "it is about your day");
   if (reports) return guess("journal", "it is about your day");

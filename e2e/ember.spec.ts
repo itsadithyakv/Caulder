@@ -275,12 +275,15 @@ test("she is never bare: a scarf and sneakers, and you can dress her from her bo
 
   const book = await openBook();
   const beanie = book.getByRole("menuitemcheckbox", { name: /^Beanie/ });
+  // Her own pick may already be the beanie on some days: a click puts on what
+  // is off and takes off what is on, so the test reads which it was first.
+  const had = (await beanie.getAttribute("aria-checked")) === "true";
   await beanie.click();
   await expect(page.locator(".ember-say")).toHaveText("How do I look?");
   await settled();
 
   const again = await openBook();
-  await expect(again.getByRole("menuitemcheckbox", { name: /^Beanie/ })).toHaveAttribute("aria-checked", "true");
+  await expect(again.getByRole("menuitemcheckbox", { name: /^Beanie/ })).toHaveAttribute("aria-checked", had ? "false" : "true");
   await expect(again.getByText(/You dressed her/)).toBeVisible();
   await again.getByRole("button", { name: "Let her choose" }).click();
   await expect(page.locator(".ember-say")).toHaveText("My pick!");

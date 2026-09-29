@@ -431,10 +431,15 @@ const api: CaulderApi = {
   },
   pet: {
     get: () => invoke(CHANNELS.petGet),
-    show: (on: boolean) => invoke(CHANNELS.petShow, on),
+    show: (form) => invoke(CHANNELS.petShow, form),
     hover: (over: boolean) => invoke(CHANNELS.petHover, over),
     hold: (still: boolean) => invoke(CHANNELS.petHold, still),
     open: () => invoke(CHANNELS.petOpen),
+    onForm: (fn) => {
+      const handler = (_event: unknown, form: Parameters<typeof fn>[0]) => fn(form);
+      ipcRenderer.on("pet:form", handler);
+      return () => ipcRenderer.removeListener("pet:form", handler);
+    },
     onWalk: (fn: (walk: { moving: boolean; dir: 1 | -1 }) => void) => {
       const handler = (_event: unknown, walk: { moving: boolean; dir: 1 | -1 }) => fn(walk);
       ipcRenderer.on("pet:walk", handler);

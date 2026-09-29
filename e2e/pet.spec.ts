@@ -65,11 +65,11 @@ test("she is not out for a test run until asked, so the first window is still Ca
   // becomes firstWindow() and every other spec drives the wrong page.
   expect(app.windows()).toHaveLength(1);
   const state = await mainWindow().evaluate(() => window.caulder.pet.get());
-  expect(state.on).toBe(false);
+  expect(state.form).toBe("off");
 });
 
 test("let out, she stays inside while Caulder is in front", async () => {
-  await mainWindow().evaluate(() => window.caulder.pet.show(true));
+  await mainWindow().evaluate(() => window.caulder.pet.show("walk"));
   await caulderInFront(true);
   await expect.poll(async () => (await petState()).visible).toBe(false);
 });
@@ -108,8 +108,31 @@ test("clicking her brings Caulder forward on Today", async () => {
   await expect(main.getByLabel("Anything, in one line")).toBeVisible();
 });
 
+test("as a dot, she rests by the clock, comes out when pointed at, and goes back after", async () => {
+  await mainWindow().evaluate(() => window.caulder.pet.show("dot"));
+  await caulderInFront(false);
+  const area = await app.evaluate(({ screen }) => screen.getPrimaryDisplay().workArea);
+  // At the clock end, and still there a moment later: a dot does not walk.
+  await expect.poll(async () => (await petState()).bounds?.x ?? 0, { timeout: 5_000 }).toBeGreaterThanOrEqual(area.x + area.width - 65);
+  const pet = app.windows().find((one) => one.url().includes("#pet"));
+  if (!pet) throw new Error("Her window is not there.");
+  const her = pet.locator(".pet");
+  await expect(her).toHaveAttribute("data-form", "dot");
+  await pet.waitForTimeout(1200);
+  expect((await petState()).bounds?.x ?? 0).toBeGreaterThanOrEqual(area.x + area.width - 65);
+
+  // Pointed at, she comes out and can be clicked; left, she is a dot again.
+  await pet.locator(".pet__dot").dispatchEvent("mouseover");
+  await expect(her).toHaveAttribute("data-form", "her");
+  await expect.poll(async () => (await petState()).ignoring).toBe(false);
+  await her.dispatchEvent("mouseout");
+  await expect.poll(async () => (await petState()).ignoring).toBe(true);
+  await expect(her).toHaveAttribute("data-form", "dot", { timeout: 5_000 });
+  expect(await mainWindow().evaluate(() => window.caulder.pet.get())).toEqual({ form: "dot" });
+});
+
 test("put away, she is gone even with Caulder behind", async () => {
-  await mainWindow().evaluate(() => window.caulder.pet.show(false));
+  await mainWindow().evaluate(() => window.caulder.pet.show("off"));
   await caulderInFront(false);
   await expect.poll(async () => (await petState()).visible).toBe(false);
 });

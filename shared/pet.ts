@@ -148,7 +148,23 @@ export function onTaskbar(state: { wanted: boolean; caulderInFront: boolean; ful
   return state.wanted && !state.caulderInFront && !state.fullScreenInFront;
 }
 
-/** Whether the setting says she is out. On unless somebody put her away. */
-export function petWanted(saved: unknown): boolean {
-  return saved !== "0";
+/**
+ * How she is out on the taskbar:
+ *  - `walk`: walking the seam, as she always did;
+ *  - `dot`: a small ember resting by the clock, who comes out when you point
+ *    at her and goes back when you leave - company without movement in the
+ *    corner of your eye;
+ *  - `off`: not there at all.
+ */
+export type PetForm = "walk" | "dot" | "off";
+
+/**
+ * The setting, read. Never set is a dot (27 September 2026): walking all day
+ * was too much to have on by default. "1" and "0" are the old switch, on and
+ * off, and keep meaning what they meant.
+ */
+export function petForm(saved: unknown): PetForm {
+  if (saved === "walk" || saved === "1") return "walk";
+  if (saved === "off" || saved === "0") return "off";
+  return "dot";
 }

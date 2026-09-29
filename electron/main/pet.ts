@@ -1,6 +1,6 @@
 import { BrowserWindow, app, screen } from "electron";
 import { join } from "node:path";
-import { onTaskbar, PET_SIZE, stroll, walkway, type Stroll } from "@shared/pet";
+import { onTaskbar, PET_SIZE, stroll, walkway, type PetForm, type Stroll } from "@shared/pet";
 import { fullScreenInFront } from "./foreground";
 
 /**
@@ -33,6 +33,8 @@ const LOOK_EVERY = 4;
 let window: BrowserWindow | null = null;
 let timer: NodeJS.Timeout | null = null;
 let wanted = false;
+/** Walking the seam, or a dot by the clock that comes out when pointed at. */
+let form: Exclude<PetForm, "off"> = "dot";
 let caulderInFront = true;
 let fullScreen = false;
 let held = false;
@@ -75,6 +77,8 @@ function build(): BrowserWindow {
   if (devServer) void created.loadURL(`${devServer}#pet`);
   else void created.loadFile(join(__dirname, "../renderer/index.html"), { hash: "pet" });
 
+  // The page is told which she is once it can hear, and again whenever it changes.
+  created.webContents.on("did-finish-load", () => created.webContents.send("pet:form", form));
   created.setAlwaysOnTop(true, "floating");
   created.setIgnoreMouseEvents(true, { forward: true });
   created.on("closed", () => {
@@ -96,14 +100,16 @@ function tick(): void {
   }
 
   const way = walkway(screen.getPrimaryDisplay().workArea);
-  // Someone pointing at her is holding her still as surely as a pastime is.
-  walk = stroll(walk, way, held || hovering);
+  // A dot does not walk: she rests at the clock end, where the eye already
+  // goes, and comes out there. Walking, someone pointing at her holds her
+  // still as surely as a pastime does.
+  walk = form === "dot" ? { x: way.to, dir: -1, rest: 0, walked: 0 } : stroll(walk, way, held || hovering);
   window.setBounds({ x: Math.round(walk.x), y: way.y, width: PET_SIZE, height: PET_SIZE });
   // Never `show()`: it raises her over whatever you are reading, and she is
   // meant to be found rather than to arrive.
   if (!window.isVisible()) window.showInactive();
 
-  const moving = !held && !hovering && walk.rest === 0;
+  const moving = form === "walk" && !held && !hovering && walk.rest === 0;
   if (!told || told.moving !== moving || told.dir !== walk.dir) {
     told = { moving, dir: walk.dir };
     window.webContents.send("pet:walk", told);
@@ -121,9 +127,13 @@ function stop(): void {
   timer = null;
 }
 
-/** Lets her out. She only appears once Caulder is not the window in front. */
-export function showPet(): void {
+/** Lets her out, walking or as a dot. She only appears once Caulder is not the window in front. */
+export function showPet(as: Exclude<PetForm, "off"> = "dot"): void {
   wanted = true;
+  if (form !== as) {
+    form = as;
+    window?.webContents.send("pet:form", form);
+  }
   if (!window) {
     window = build();
     walk = { ...walk, x: walkway(screen.getPrimaryDisplay().workArea).to };
@@ -142,8 +152,8 @@ export function hidePet(): void {
   going.destroy();
 }
 
-export function petState(): { on: boolean } {
-  return { on: wanted };
+export function petState(): { form: PetForm } {
+  return { form: wanted ? form : "off" };
 }
 
 /** Told by the main window: is Caulder the one in front? */

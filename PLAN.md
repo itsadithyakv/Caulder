@@ -1333,7 +1333,10 @@ The plan as written:
 
 *Measured again on 27 September 2026, on 89 fresh lines: the gain mostly did
 not carry over, and 0.36 for overturning a note broke right readings.
-`bestOverNote` went to 0.44; nothing is broken on either set. See STATUS.*
+`bestOverNote` went to 0.44; nothing is broken on either set. On 29 September
+the rules learnt the shapes they missed, and a blind set of 90 was written
+without reading them: 40 right by the rules before, 48 after, 50 with the
+model. See STATUS.*
 
 What was built:
 - **Which readings count as guesses.** `readCapture` marks the fallbacks at

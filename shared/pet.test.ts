@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { errandOf, onTaskbar, petWanted, stroll, walkway, type Stroll } from "./pet";
+import { errandOf, onTaskbar, petForm, stroll, walkway, type Stroll } from "./pet";
 
 describe("walkway", () => {
   it("is the seam above a bottom taskbar", () => {
@@ -114,10 +114,20 @@ describe("onTaskbar", () => {
   });
 });
 
-describe("petWanted", () => {
-  it("is on unless somebody put her away", () => {
-    expect(petWanted(undefined)).toBe(true);
-    expect(petWanted("1")).toBe(true);
-    expect(petWanted("0")).toBe(false);
+describe("petForm", () => {
+  it("is a dot unless somebody said otherwise", () => {
+    expect(petForm(undefined)).toBe("dot");
+    expect(petForm(null)).toBe("dot");
+    expect(petForm("dot")).toBe("dot");
+  });
+
+  it("keeps what the old switch meant, on walking and off not there", () => {
+    expect(petForm("1")).toBe("walk");
+    expect(petForm("0")).toBe("off");
+  });
+
+  it("reads the three it is set to", () => {
+    expect(petForm("walk")).toBe("walk");
+    expect(petForm("off")).toBe("off");
   });
 });

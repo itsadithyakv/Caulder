@@ -9,22 +9,23 @@ same commit as the work, not afterwards. What is planned is in
 
 ## Version
 
-- **0.4.6** is packaged on the `general` branch (27 September 2026). `main`
-  is the base for pull requests.
+- **0.4.7** is packaged on the `general` branch (29 September 2026): 0.4.6
+  and the taskbar dot, the line's new rules and the e2e fixes. `main` is the
+  base for pull requests.
   - It carries phases 20 to 24 and the fixes of 27 September on top of
     0.4.5 (`31f29d9`): the line's second opinion, memories arranged, Ask and
     export by meaning, About Caulder and the ask for support, licences,
     formats by region, the new sample, a copy off this computer, and Ember's
     fixes and clothes.
-  - `npm run package` builds `Caulder Setup 0.4.6.exe`; `smoke:packaged`
+  - `npm run package` builds `Caulder Setup 0.4.7.exe`; `smoke:packaged`
     checks it (12 checks, licences among them).
 - Checked:
-  - `npm run verify`: 2,383 unit tests in 155 files, typecheck, lint and
+  - `npm run verify`: 2,394 unit tests in 155 files, typecheck, lint and
     knip all pass.
-  - e2e specs run, not the whole suite: support, demo, companies, money,
-    today, week, ember, pet, and the setup line in quickadd. The suite
-    launches Electron about 40 times, so run one spec at a time, or run it
-    in the background and say so.
+  - The whole e2e suite was run on 29 September, and every failure was
+    fixed or passed again (see Known problems). It launches Electron about
+    40 times, so run one spec at a time, or run it in the background and
+    say so.
 - Not released: nothing is published to GitHub Releases or the Store.
 - `shots/` (9 MB of screenshots) is untracked and deliberately left out.
 
@@ -171,6 +172,46 @@ the code, and 85 realistic lines put through the quick line. Items marked
   - Only those shapes: "the server never responds" is still a note. The
     wider middle is phase 20's.
 
+### Fixed on 29 September 2026
+
+- **Ember on the taskbar is a small dot by default.** Walking all day by the
+  clock was distracting. She can be a dot (rests by the clock, comes out when
+  pointed at, back after a moment, brighter when something waits), walking,
+  or hidden: Settings > This computer > Ember > On the taskbar. The old
+  on/off setting keeps its meaning; never set is now a dot.
+- **The line's rules read more shapes**: ideas asked of yourself, somebody
+  who could, a thing named or pitched; a day summed up or said to have been
+  (Hinglish read as typed, since `expand()` rewrote it); how a thing goes,
+  with its time, as a note; plain facts as memories; errands said alone;
+  spends of two things; and "felt like…" is no longer a person called Felt.
+  Measured on three sets:
+
+  | | Rules before | Rules after | With the model after |
+  | --- | --- | --- | --- |
+  | Tuned 89 | 63 | 82 | 83 |
+  | Fresh 89 (the rules were written against its misses) | 43 | 78 | 78 |
+  | **Blind 90** (written without reading the rules) | **40** | **48** | **50** |
+
+  The blind set is the honest one: about half the lines right by the rules
+  alone. Nothing is broken on the tuned and fresh sets; on the blind set,
+  lived in, one note ("the landing page takes 4 seconds on 3g") is moved to a
+  task by a close page of the person's own.
+- **A test that depended on the date**: `services/lines.test.ts` ticked a
+  habit a week back from the real today. It passes its own clock now.
+- **The whole e2e suite was run** (29 September): 228 passed and 6 failed
+  at first. Fixed:
+  - the tour said the quick key as "Ctrl Super A"; it now says "Ctrl Win A"
+    through `sayShortcut`, and its spec expected the key from before 0.4.5;
+  - `quickadd.spec.ts` expected "4:00 PM", where phase 24 writes "4:00 pm"
+    for a company in India; it accepts either;
+  - `context.spec.ts` looked for any button with "Copy" in it, and found
+    "Keep a copy elsewhere" too;
+  - `hub.spec.ts` and `quickadd.spec.ts` used lines the rules now read
+    rightly by themselves, where they needed ones the rules only guess at;
+  - `ember.spec.ts` assumed her own pick never included the beanie.
+  The splat, map-link and money failures passed on a second run: flaky, like
+  "dropped below her line".
+
 ### Fixed on 27 September 2026
 
 - **Cards vanished when Ember landed on them, or was thrown hard.** The
@@ -271,12 +312,12 @@ the code, and 85 realistic lines put through the quick line. Items marked
 2. Phase 25: 0.5.0 - Electron updated, the invoice rule (item 14), the whole
    e2e suite, packaged, smoke-tested (phases 20 to 23 are in no installer
    yet), and the Store package tried by hand.
-3. The line's rules, where the model cannot help (measured 27 September):
-   - "felt like an impostor…" read as a memory about "Felt";
-   - a past day read as a when ("weekend with the cousins was lovely",
-     "aaj ka din accha tha");
-   - "could…", "why not…" and verb-first ideas;
-   - bare errands and spends ("haircut", "chai and samosa 60").
-   Tune on one set and check on the other, or on all 178 lines.
+3. The line's rules, on the blind set's misses (29 September): hobby
+   know-how said as an instruction ("deload every sixth week"), notes with a
+   time ("netbanking is under maintenance till 6pm"), past days named by a
+   weekday ("tuesday was a blur of meetings"), spends with the amount first
+   ("swiggy 320 lunch"), and contact details in a line ("karthik ph …").
+   Write a new blind set before tuning again: the blind set stops being blind
+   once rules are written against it.
 4. Campaigns (item 10) are settled by phase 26, Market. Ctrl+K for products
    and deals (item 12) needs a migration.

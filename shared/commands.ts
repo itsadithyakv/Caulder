@@ -87,8 +87,9 @@ const SPENT_WHEN = String.raw`yesterday|yday|ystd|last\s+night|today|tonight|jus
  * read as spending.
  */
 const SPENT_ON = new RegExp(
-  String.raw`^\s*(uber|ola|rapido|auto|cab|taxi|metro|bus|train\s+ticket|flight|petrol|fuel|diesel|parking|toll|coffee|chai|tea|lunch|dinner|breakfast|snacks?|groceries|grocery|swiggy|zomato|blinkit|zepto|instamart|food|drinks|beer|movie|movies|movie\s+tickets?|netflix|spotify|recharge|haircut|laundry|gym|medicines?|pharmacy|books?|stationery|amazon|flipkart|rent|electricity|wifi|internet)\s+(?:rs\.?|inr|₹)?\s*(\d[\d,]*(?:\.\d+)?)\s*(k)?(?:\s+(${SPENT_WHEN}))?\s*$`,
-  "i",
+  // A known thing first, and what came with it: "chai and samosa 60" (27 September 2026).
+  String.raw`^\s*((?:uber|ola|rapido|auto|cab|taxi|metro|bus|train\s+ticket|flight|petrol|fuel|diesel|parking|toll|coffee|chai|tea|lunch|dinner|breakfast|snacks?|samosas?|maggi|momos|biryani|pizza|burger|juice|dosa|sandwich|groceries|grocery|swiggy|zomato|blinkit|zepto|instamart|food|drinks|beer|movie|movies|movie\s+tickets?|netflix|spotify|recharge|haircut|laundry|gym|medicines?|pharmacy|books?|stationery|amazon|flipkart|rent|electricity|wifi|internet)(?:\s*(?:and|&|\+|,)\s*[\p{L}]+){0,3})\s+(?:rs\.?|inr|₹)?\s*(\d[\d,]*(?:\.\d+)?)\s*(k)?(?:\s+(${SPENT_WHEN}))?\s*$`,
+  "iu",
 );
 
 const REFUND = new RegExp(

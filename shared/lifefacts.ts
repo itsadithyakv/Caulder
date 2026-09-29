@@ -99,6 +99,8 @@ const NOT_A_PERSON = new Set([
   "someone", "somebody", "everyone", "everybody", "nobody", "anyone", "people", "today", "tomorrow", "yesterday",
   "tonight", "everything", "nothing", "something", "life", "work", "college", "school", "office", "home", "there", "here",
   "who", "what", "which", "why", "how", "when", "where", "one", "all", "both", "each", "team", "company", "class",
+  // How something seemed, not somebody: "felt like an impostor", "looks like rain" (27 September 2026).
+  "felt", "feel", "feels", "feeling", "looks", "looked", "sounds", "sounded", "seems", "seemed", "smells", "tastes",
 ]);
 
 const RELATION = String.raw`(daughter|son|wife|husband|partner|girlfriend|boyfriend|fianc[eé]e?|kid|kids|child|children|baby|mom|mum|mother|dad|father|brother|sister|dog|cat|pet|puppy|kitten)`;

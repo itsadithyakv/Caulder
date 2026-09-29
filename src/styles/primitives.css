@@ -596,10 +596,12 @@
 
 .tab:hover { color: var(--ink); }
 
-/* Selected. Three spellings, one rule: tablists say aria-selected, toggle
- * groups say aria-pressed, and the weekday pickers use the modifier. */
+/* Selected. Four spellings, one rule: tablists say aria-selected, toggle
+ * groups say aria-pressed, radio groups aria-checked, and the weekday
+ * pickers use the modifier. */
 .tab[aria-selected="true"],
 .tab[aria-pressed="true"],
+.tab[role="radio"][aria-checked="true"],
 .tab--on {
   background: var(--surface);
   color: var(--ink);

@@ -82,8 +82,9 @@ test("the line says where each thing goes, and puts it there", async () => {
   await line().press("Enter");
   await expect(page.getByText("Added: 40m of Guitar, kept")).toBeVisible();
 
-  // Something unsure is a note - and a chip makes it an idea instead.
-  await line().fill("a parent app for attendance");
+  // Something unsure is a note - and a chip makes it an idea instead. ("A
+  // parent app for attendance" is read as an idea by itself since 29 September.)
+  await line().fill("attendance through the parents' phones");
   await expect(goesTo().getByRole("button", { name: "Note" })).toHaveAttribute("aria-pressed", "true");
   await goesTo().getByRole("button", { name: "Idea" }).click();
   await line().press("Enter");
@@ -100,7 +101,7 @@ test("the line says where each thing goes, and puts it there", async () => {
   await page.locator(".leadrow__name", { hasText: /Oakridge International School/ }).click();
   await expect(page.getByText("Called Oakridge, they want a demo next week")).toBeVisible();
   await goTo(page, "Brain");
-  await expect(page.getByRole("button", { name: /a parent app for attendance/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /attendance through the parents/i })).toBeVisible();
 });
 
 test("habits are ticked on Today, with their run of days", async () => {

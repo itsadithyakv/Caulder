@@ -967,6 +967,7 @@
 }
 
 .pet {
+  position: relative;
   display: block;
   width: 64px;
   height: 64px;
@@ -984,6 +985,65 @@
 /* She faces the way she walks. A whole mirror, which is pixel-exact. */
 .pet[data-dir="-1"] .pet__facing { transform: scaleX(-1); }
 .pet__facing { display: block; }
+
+/* ---- As a dot ---------------------------------------------------------------
+ * A small ember resting on the taskbar's edge by the clock. Only the dot can
+ * be pointed at - the rest of her window lets the pointer through - and she
+ * comes out when it is. Brighter, and breathing faster, when something is
+ * waiting on Today. src/features/pet/Pet.tsx.
+ * ------------------------------------------------------------------------- */
+
+.pet__dot { display: none; }
+
+.pet[data-form="dot"] { pointer-events: none; }
+/* Opacity, not visibility: her flicker frames set their own visibility, which
+   beats one inherited, and she showed through as a faceless flame. */
+.pet[data-form="dot"] .pet__facing { opacity: 0; }
+
+.pet[data-form="dot"] .pet__dot {
+  position: absolute;
+  left: 50%;
+  bottom: 5px;
+  display: block;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 40%, var(--flame-pale), var(--flame) 55%, var(--flame-deep));
+  box-shadow: 0 0 6px 2px color-mix(in srgb, var(--flame) 55%, transparent);
+  pointer-events: auto;
+  animation: pet-breathe 2.8s ease-in-out infinite;
+}
+
+.pet[data-form="dot"][data-waiting="yes"] .pet__dot {
+  background: radial-gradient(circle at 50% 40%, var(--flame-white), var(--ember-gold) 55%, var(--flame));
+  box-shadow: 0 0 8px 3px color-mix(in srgb, var(--ember-gold) 70%, transparent);
+  animation-duration: 1.4s;
+}
+
+/* Out of the dot, from the ground up. */
+.pet[data-form="her"] .pet__facing { transform-origin: 50% 100%; animation: pet-out 0.18s ease-out 1; }
+.pet[data-form="her"][data-dir="-1"] .pet__facing { animation-name: pet-out-left; }
+
+@keyframes pet-breathe {
+  0%, 100% { opacity: 0.8; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+
+@keyframes pet-out {
+  0% { transform: scale(0.2); opacity: 0.4; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes pet-out-left {
+  0% { transform: scaleX(-1) scale(0.2); opacity: 0.4; }
+  100% { transform: scaleX(-1) scale(1); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pet__dot,
+  .pet .pet__facing { animation: none !important; }
+}
 
 /* The walk cycle: one pixel up and down, two frames, only while moving. */
 .pet[data-walking="yes"] .ember { transform-origin: 50% 100%; animation: ember-amble 0.48s ease-in-out infinite; }
@@ -1003,6 +1063,9 @@
 }
 
 /* Settings: what she does out there, as three short lines. */
+.pet__formsTitle { display: block; margin: var(--space-3) 0 0; }
+.pet__forms { width: fit-content; margin: var(--space-2) 0 var(--space-1); }
+
 .pet__rules {
   display: grid;
   gap: var(--space-1);

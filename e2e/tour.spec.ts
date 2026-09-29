@@ -58,7 +58,7 @@ test("a first run gets a short tour, and the line's step says the key for any ap
 
   await page.getByRole("button", { name: "Next" }).click();
   const line = page.getByRole("dialog", { name: "One line for anything" });
-  await expect(line).toContainText("Ctrl Alt A");
+  await expect(line).toContainText("Ctrl Win A");
   await page.waitForTimeout(400);
   await shot("2");
 

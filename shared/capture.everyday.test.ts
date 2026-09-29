@@ -285,3 +285,75 @@ describe("facts and ideas said with no word to mark them (25 September 2026)", (
     expect(read("could you send the deck").kind).not.toBe("idea");
   });
 });
+
+/**
+ * The shapes the rules missed on 89 fresh lines (27 September 2026), each
+ * with the lines next to it that must not be caught.
+ */
+describe("the rules' gaps, measured on fresh lines (27 September 2026)", () => {
+  it("hears an idea asked of yourself, somebody who could, a thing named, and a thing pitched", () => {
+    expect(read("why not let students rate each lecture").kind).toBe("idea");
+    expect(read("should we move to annual billing?").kind).toBe("idea");
+    expect(read("kya ho agar hum parents se directly charge karein").kind).toBe("idea");
+    expect(read("teachers could mark attendance by voice").kind).toBe("idea");
+    expect(read("parents could get a weekly report on whatsapp").kind).toBe("idea");
+    expect(read("a chrome extension that blocks youtube during study hours").kind).toBe("idea");
+    expect(read("an alumni mentorship marketplace").kind).toBe("idea");
+    expect(read("offline mode for schools with bad internet").kind).toBe("idea");
+    expect(read("gamify homework with streaks").kind).toBe("idea");
+    expect(read("white label it for coaching institutes").kind).toBe("idea");
+    // A meeting, a request and a plan of yours are not ideas.
+    expect(read("should we meet tomorrow at 5").kind).toBe("task");
+    expect(read("could you send the deck").kind).not.toBe("idea");
+    expect(read("i could go to the gym later").kind).not.toBe("idea");
+  });
+
+  it("keeps a day summed up, and one said to have been, for the journal", () => {
+    expect(read("what a day, finally shipped it").kind).toBe("journal");
+    expect(read("best chai of my life at the station").kind).toBe("journal");
+    expect(read("rainy evening, chai and a book, perfect").kind).toBe("journal");
+    expect(read("weekend with the cousins was lovely").kind).toBe("journal");
+    expect(read("aaj ka din accha tha").kind).toBe("journal");
+    expect(read("yesterday's demo went better than expected").kind).toBe("journal");
+    expect(read("that rejection email stung").kind).toBe("journal");
+    expect(read("neend nahi aa rahi").kind).toBe("journal");
+    expect(read("missed the gym again, annoyed with myself").kind).toBe("journal");
+    // A weekend still to come is still a plan.
+    expect(read("weekend trip with the cousins").kind).toBe("task");
+  });
+
+  it("does not take a feeling for a person: 'felt like an impostor' is not about Felt", () => {
+    expect(read("felt like an impostor in the mentor meeting").kind).toBe("journal");
+  });
+
+  it("keeps how a thing goes as a note, time and all, but not an event of yours", () => {
+    expect(read("the xerox shop closes at 8").kind).toBe("note");
+    expect(read("the new intern starts on monday").kind).toBe("note");
+    expect(read("courier pickup is usually around noon").kind).toBe("note");
+    expect(read("hostel mess menu changes on monday").kind).toBe("note");
+    expect(read("the gst portal crawls after 6pm").kind).toBe("note");
+    expect(read("the exam starts at 9 tomorrow").kind).toBe("task");
+    expect(read("the shop opens at 10 tomorrow").kind).toBe("task");
+  });
+
+  it("makes a task of an errand said alone", () => {
+    expect(read("haircut").kind).toBe("task");
+    expect(read("passport photos").kind).toBe("task");
+  });
+
+  it("keeps a fact said plainly as a memory, and a complaint or a want as a note", () => {
+    expect(read("sharks are older than trees").kind).toBe("memory");
+    expect(read("koalas sleep around twenty hours a day").kind).toBe("memory");
+    expect(read("ethiopian beans taste fruity").kind).toBe("memory");
+    expect(read("the capital of australia is canberra").kind).toBe("memory");
+    expect(read("my first car was a red alto").kind).toBe("memory");
+    expect(read("laundry detergent is almost out").kind).toBe("note");
+    expect(read("the wifi is down again").kind).toBe("note");
+    expect(read("need a new charger").kind).toBe("note");
+  });
+
+  it("reads a spend of two things", () => {
+    expect(read("chai and samosa 60").kind).toBe("command");
+    expect(read("chai and samosa 60").ask).toMatchObject({ do: "spend", amount: 60 });
+  });
+});

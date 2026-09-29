@@ -69,7 +69,7 @@ test("a topic goes on the clipboard, and says how much of it there is", async ()
   const page = await app.firstWindow();
 
   await page.getByLabel("A topic to copy context for").fill("unifloe");
-  await page.getByRole("button", { name: "Copy" }).click();
+  await page.getByRole("button", { name: "Copy", exact: true }).click();
 
   // The receipt, which is what the window is given instead of the words.
   await expect(page.locator(".quickadd__kept")).toContainText("characters", { timeout: 15_000 });

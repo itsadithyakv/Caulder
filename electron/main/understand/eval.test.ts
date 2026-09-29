@@ -9,6 +9,7 @@ import type { LessonKind } from "@shared/lessons";
 import { loadReader, modelFiles, type Reader } from "./embed";
 import { LINES, LIVED_IN } from "./lines.eval";
 import { FRESH_LINES } from "./lines.fresh.eval";
+import { BLIND_LINES } from "./lines.blind.eval";
 
 /**
  * The measuring stick (PLAN.md, part five, phase 20): every labelled line read
@@ -171,5 +172,29 @@ describe.skipIf(!here)("the measuring stick", () => {
     );
     expect(score.broken).toEqual([]);
     expect(score.right).toBeGreaterThanOrEqual(rulesAlone(LIVED, FRESH_LINES));
+  });
+
+  /*
+   * A blind set (lines.blind.eval.ts): lines written without reading the
+   * rules. Measured the same way, but nothing is asserted: a blind set is
+   * read, not a bar, until it has been looked at.
+   */
+  it("on blind lines, with nothing filed yet, is read", async () => {
+    const score = await measure(FRESH, false, BLIND_LINES);
+    // eslint-disable-next-line no-console -- the measuring stick is read by people, to set the thresholds by
+    console.log(
+      `blind lines, fresh machine: rules ${rulesAlone(FRESH, BLIND_LINES)}/${BLIND_LINES.length}, with the model ${score.right}/${BLIND_LINES.length}; ` +
+        `asked ${score.asked}; fixed ${score.fixed.length}: ${score.fixed.join("; ")}; broken ${score.broken.length}: ${score.broken.join("; ")}`,
+    );
+  });
+
+  it("on blind lines, lived-in, is read", async () => {
+    const score = await measure(LIVED, true, BLIND_LINES);
+    // eslint-disable-next-line no-console -- the measuring stick is read by people, to set the thresholds by
+    console.log(
+      `blind lines, lived-in: rules ${rulesAlone(LIVED, BLIND_LINES)}/${BLIND_LINES.length}, with the model ${score.right}/${BLIND_LINES.length}; ` +
+        `asked ${score.asked}; placed ${score.placed}/${score.placeable}; fixed ${score.fixed.length}: ${score.fixed.join("; ")}; ` +
+        `broken ${score.broken.length}: ${score.broken.join("; ")}`,
+    );
   });
 });

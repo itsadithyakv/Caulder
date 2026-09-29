@@ -106,8 +106,10 @@ describe("a question, answered from what is kept", () => {
   it("says whether something was done, from your habits and the company's tasks alike, and ticks nothing", () => {
     const company = createCompany(db, { name: "Unifloe", accent: "blue", timezone: "Asia/Kolkata" }).id;
     const gym = addHabit(db, home, { name: "Gym", weekdays: [1, 2, 3, 4, 5, 6, 7] }).habits[0]!;
-    tickHabit(db, gym.id, "2026-09-21", true);
-    tickHabit(db, gym.id, "2026-09-22", true);
+    // Ticked as of the week asked about: ticking reaches back only a week from "now".
+    const then = new Date("2026-09-23T06:00:00Z");
+    tickHabit(db, gym.id, "2026-09-21", true, then);
+    tickHabit(db, gym.id, "2026-09-22", true, then);
     const call = quickAdd(db, company, { title: "Call Rahul", day: "2026-09-22", time: null, minutes: null, kind: "call", area: null, priority: null, leadId: null, notes: null, followUp: null, repeat: null, remind: false }).task!;
     // Finished at 11pm in Kolkata on the 22nd, which is still the 22nd there.
     db.prepare(`UPDATE tasks SET status = 'done', completed_at = '2026-09-22T17:30:00.000Z' WHERE id = ?`).run(call.id);
