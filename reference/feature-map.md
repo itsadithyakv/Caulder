@@ -485,7 +485,7 @@ A backup on every launch (ten kept), on demand, a mirror folder, a Drive copy; r
 - UI: `src/features/settings/DataSafety.tsx` · Main: `electron/main/db/backup.ts`, `services/export.ts`, `services/gmore.ts` · IPC: `data:` · Tests: `db/backup.test.ts`, `services/export.test.ts`
 
 ### Updates and the Microsoft Store
-electron-updater from GitHub Releases; a Store copy never looks.
+electron-updater from GitHub Releases; a Store copy never looks. What goes into Partner Center beside the package is `reference/store-listing.md`.
 - UI: `UpdatesCard.tsx` · Main: `electron/main/updates.ts`, `store-home.ts` · Packaging: `electron-builder.yml` (NSIS and appx), `scripts/package-store.mjs`, `scripts/smoke-packaged.mjs`
 
 ### Free, and who made it (part six)

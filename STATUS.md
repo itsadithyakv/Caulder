@@ -9,21 +9,27 @@ same commit as the work, not afterwards. What is planned is in
 
 ## Version
 
-- **0.4.8** is packaged on the `general` branch (5 October 2026): the same
-  as 0.4.7 (the taskbar dot, the line's new rules, the e2e fixes), with the
-  typeface decided. `main` is the base for pull requests.
+- **0.5.0** is packaged on the `general` branch (5 October 2026), as an
+  installer and as the Store package: phase 25, on Electron 43. `main` is the
+  base for pull requests.
   - It carries phases 20 to 24 and the fixes of 27 September on top of
     0.4.5 (`31f29d9`): the line's second opinion, memories arranged, Ask and
     export by meaning, About Caulder and the ask for support, licences,
     formats by region, the new sample, a copy off this computer, and Ember's
     fixes and clothes.
-  - `npm run package` builds `Caulder Setup 0.4.8.exe`; `smoke:packaged`
-    checks it (12 checks, licences among them).
+  - `npm run package` builds `Caulder Setup 0.5.0.exe` (137.3 MB; Electron
+    43 is larger than 38); `smoke:packaged` passes its 12 checks.
+  - `npm run package:store` builds `Caulder-0.5.0-x64.appx` (200.0 MB,
+    unsigned on purpose). Opened and checked: the reserved identity at
+    0.5.0.0, the model, the licences, and one binary each for SQLite, koffi
+    and the ONNX runtime. Not yet installed or put through the Windows App
+    Certification Kit.
+  - Both leave out better-sqlite3's binaries for other platforms (14 MB).
 - Checked:
   - `npm run verify`: 2,394 unit tests in 155 files, typecheck, lint and
     knip all pass.
-  - The whole e2e suite was run on 29 September, and every failure was
-    fixed or passed again (see Known problems). It launches Electron about
+  - The whole e2e suite was run on Electron 43 on 5 October: 238 passed,
+    and Ember's 15 once her clock was set (see Known problems). It launches Electron about
     40 times, so run one spec at a time, or run it in the background and
     say so.
 - Not released: nothing is published to GitHub Releases or the Store.
@@ -174,6 +180,10 @@ the code, and 85 realistic lines put through the quick line. Items marked
 
 ### Fixed on 5 October 2026
 
+- **Ember's tests failed from one to six in the morning**, when she is
+  asleep behind her door: `e2e/ember.spec.ts` and the "Ember comes out"
+  check in `smoke:packaged`. Both set the window's clock to mid-morning now.
+
 - **A test that failed before half past five in the morning**:
   `services/yourhome.test.ts` took today in UTC for a company in Kolkata.
   It asks for the company's own day now.
@@ -256,11 +266,18 @@ the code, and 85 realistic lines put through the quick line. Items marked
 
 ### Dependencies
 
-- `npm audit` reports four, none from `onnxruntime-node`:
-  - Electron (high: use-after-free fixes in newer releases);
-  - `extract-zip` (high, through Electron's packaging);
-  - `exceljs` via `uuid` (moderate).
-- Updating Electron is the one that matters, and is a change of its own.
+- **Electron is 43.7.7** (phase 25, 5 October 2026; it was 38.8.6). That
+  clears its own high advisories and `extract-zip`'s, which 43 no longer
+  uses. 43 rather than 44, the newest: 44 remakes the `clipboard` module to
+  return promises, and main reads and writes the clipboard at once in six
+  places (the copied number that wipes itself, the topic brief). That is the
+  next update's work, on its own.
+- `npm audit fix` took the rest that had a fix. Two are left, neither of
+  which can be reached from Caulder:
+  - `braces` (high), inside knip, which never ships and reads only this
+    repository's own patterns;
+  - `uuid` (moderate), inside `exceljs`: a bounds check in v3, v5 and v6
+    when the caller gives a buffer, which exceljs does not do.
 
 ### Built underneath, now on a screen (26 September 2026)
 
@@ -291,8 +308,8 @@ the code, and 85 realistic lines put through the quick line. Items marked
 
 ### Smaller
 
-14. An invoice can be deleted whatever its status; the draft-only rule lives
-    only on the screen (`repositories/money.ts`).
+14. ~~An invoice can be deleted whatever its status.~~ Fixed in phase 25:
+    `deleteInvoice` refuses anything but a draft.
 15. Class, Study and Admin share one grey on the Calendar (`day.css`).
 16. ~~Money and dates follow the computer's locale, not the company's.~~
     Fixed in phase 24, with days one early west of Greenwich.
@@ -314,10 +331,14 @@ the code, and 85 realistic lines put through the quick line. Items marked
 
 ## Next
 
-1. The three things for phase 23: GitHub Sponsors, a UPI ID, GitHub Pages.
-2. Phase 25: 0.5.0 - Electron updated, the invoice rule (item 14), the whole
-   e2e suite, packaged, smoke-tested (phases 20 to 23 are in no installer
-   yet), and the Store package tried by hand.
+1. **To put 0.5.0 in the Store**, which only the author can do:
+   - GitHub Sponsors, a UPI ID, and GitHub Pages for the privacy URL;
+   - install the Store package and try it, then run the Windows App
+     Certification Kit on it (`reference/operations.md` has both, with
+     Developer Mode on and an administrator's PowerShell);
+   - take the screenshots, and paste `reference/store-listing.md` into
+     Partner Center with the `.appx`.
+2. Phase 26, Market - the first of the pillars still missing.
 3. The line's rules, on the blind set's misses (29 September): hobby
    know-how said as an instruction ("deload every sixth week"), notes with a
    time ("netbanking is under maintenance till 6pm"), past days named by a

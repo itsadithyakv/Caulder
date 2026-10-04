@@ -433,7 +433,19 @@ export function setInvoiceStatus(db: Db, companyId: string, id: string, status: 
   );
 }
 
+/**
+ * Only a draft goes. An invoice that was sent is a record somebody else
+ * holds a copy of, with a number that must never be used again and payments
+ * that may hang off it: it is voided, not deleted. The screen offers Delete
+ * only on a draft; this is the same rule where it cannot be walked round
+ * (phase 25).
+ */
 export function deleteInvoice(db: Db, companyId: string, id: string): void {
+  const invoice = findInvoice(db, id);
+  if (!invoice || invoice.companyId !== companyId) throw new Error("That invoice no longer exists.");
+  if (invoice.status !== "draft") {
+    throw new Error("Only a draft can be deleted. An invoice that was sent is voided instead, so its number is never used twice.");
+  }
   db.prepare(`DELETE FROM invoices WHERE id = ? AND company_id = ?`).run(id, companyId);
 }
 

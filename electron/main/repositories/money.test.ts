@@ -8,7 +8,9 @@ import {
   addPayment,
   addSpend,
   buildMoney,
+  deleteInvoice,
   deletePayment,
+  findInvoice,
   listOverdueInvoices,
   markPaid,
   moneyForLead,
@@ -127,6 +129,38 @@ describe("invoices", () => {
     // Paying it takes it off the list without anything being "un-overdued".
     markPaid(db, company.id, late.id, NOW);
     expect(buildToday(db, company.id, NOW).unpaid).toEqual([]);
+  });
+
+  it("deletes a draft, and refuses one that was sent, paid or voided", () => {
+    const make = () => saveInvoice(db, company.id, null, { leadId, issuedOn: "2026-09-14", dueOn: "2026-09-28", notes: null, lines });
+    const draft = make();
+    deleteInvoice(db, company.id, draft.id);
+    expect(findInvoice(db, draft.id)).toBeNull();
+
+    const refusal = "Only a draft can be deleted. An invoice that was sent is voided instead, so its number is never used twice.";
+    const sent = make();
+    setInvoiceStatus(db, company.id, sent.id, "sent");
+    expect(() => deleteInvoice(db, company.id, sent.id)).toThrow(refusal);
+
+    const paid = make();
+    setInvoiceStatus(db, company.id, paid.id, "sent");
+    markPaid(db, company.id, paid.id, NOW);
+    expect(() => deleteInvoice(db, company.id, paid.id)).toThrow(refusal);
+
+    const voided = make();
+    setInvoiceStatus(db, company.id, voided.id, "sent");
+    setInvoiceStatus(db, company.id, voided.id, "void");
+    expect(() => deleteInvoice(db, company.id, voided.id)).toThrow(refusal);
+    // Still there, payments and all. The three that went out keep 1, 2 and 3 -
+    // the draft that never did gave its number back - so the next is 4.
+    expect(findInvoice(db, paid.id)?.paid).toBe(32500);
+    expect([sent.number, paid.number, voided.number]).toEqual([1, 2, 3]);
+    expect(make().number).toBe(4);
+
+    // Another company's draft is not this company's to delete.
+    const other = createCompany(db, { name: "PaperKite", accent: "teal", timezone: TZ });
+    const theirs = make();
+    expect(() => deleteInvoice(db, other.id, theirs.id)).toThrow("That invoice no longer exists.");
   });
 });
 

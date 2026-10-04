@@ -41,6 +41,12 @@ test.beforeAll(async () => {
     await passSetup(page);
   }
   await page.evaluate(() => localStorage.setItem("caulder.ember.out", "on"));
+  // Mid-morning, whenever this is run: from one to six in the morning she is
+  // asleep behind her door, and every test here failed for it (found at 1am,
+  // 5 October 2026). Today's date, so the page and main agree on the day.
+  const morning = new Date();
+  morning.setHours(10, 0, 0, 0);
+  await page.clock.install({ time: morning });
   await page.reload();
   await page.waitForSelector(".sidebar");
 });

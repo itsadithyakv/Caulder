@@ -1678,7 +1678,33 @@ The plan as written:
   OneDrive or Google Drive keeps in step. On a Store copy it says why:
   uninstalling removes the app's own folder.
 
-### Phase 25 - Ready to hand out: 0.5.0
+### Phase 25 - Ready to hand out: 0.5.0 - *done 5 October 2026, but for what needs the author's hands*
+
+What was built:
+- **Electron 43.7.7**, from 38.8.6: its high advisories and `extract-zip`'s
+  are gone. Not 44, whose `clipboard` returns promises; that is its own
+  change. `npm audit fix` took what else had a fix; two are left that cannot
+  be reached (STATUS, Dependencies).
+- **An invoice is deleted only as a draft**, in `repositories/money.ts`, with
+  a sentence saying a sent one is voided instead. A deleted draft gives its
+  number back; a number that went out is never used twice.
+- **The whole e2e suite on Electron 43**: 238 passed. Ember's spec, and the
+  smoke test's check of her, failed from one to six in the morning, when she
+  is asleep; both set the window's clock now.
+- **Packaged twice**: the installer, checked by `smoke:packaged`, and the
+  Store package, opened and checked for its identity, the model, the
+  licences and the native modules.
+- **The Store listing**, in `reference/store-listing.md`: free, the local
+  promise first, twenty features, the answers Partner Center asks for, and
+  notes for certification. It promises only what is built.
+
+Left for the author, because it needs their hands and their accounts:
+- installing the Store package and trying it, and the Windows App
+  Certification Kit, which wants an administrator and the screen
+  (`reference/operations.md` has the commands);
+- the screenshots, and the submission itself in Partner Center.
+
+The plan as written:
 
 - Electron updated (the high advisories in STATUS).
 - An invoice is deleted only as a draft, enforced in `repositories/money.ts`

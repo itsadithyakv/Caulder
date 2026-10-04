@@ -98,11 +98,31 @@ installed, and Windows installs only a signed package - or, with Developer
 Mode on (Settings → System → For developers), an unpacked one:
 
 ```powershell
-& "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\makeappx.exe" unpack /p release\Caulder-0.4.1-x64.appx /d $env:TEMP\caulder-appx /o
+& "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\makeappx.exe" unpack /p release\Caulder-0.5.0-x64.appx /d $env:TEMP\caulder-appx /o
 Add-AppxPackage -Register $env:TEMP\caulder-appx\AppxManifest.xml
 # and to take it off again:
 Get-AppxPackage AdithyaKV.Caulder | Remove-AppxPackage
 ```
+
+Once it is installed that way, try what only a Store copy can get wrong:
+that it opens, that Settings > Your data shows the LocalState folder, that
+understanding reads (Settings > This computer > Understanding counts up),
+the quick key from another app, the tray icon, the desk widget, the journal
+lock, and a backup to a folder you choose.
+
+Then the **Windows App Certification Kit**, which is what the Store runs
+first. It needs an administrator's PowerShell and takes the screen for a few
+minutes while it starts and stops the app:
+
+```powershell
+$full = (Get-AppxPackage AdithyaKV.Caulder).PackageFullName
+& "C:\Program Files (x86)\Windows Kits\10\App Certification Kit\appcert.exe" reset
+& "C:\Program Files (x86)\Windows Kits\10\App Certification Kit\appcert.exe" test -packagefullname $full -reportoutputpath $env:TEMP\caulder-wack.xml
+```
+
+The report says PASS or names what failed. What goes into Partner Center
+beside the package - the description, the features, the screenshots, the
+answers to its questions - is in [store-listing.md](store-listing.md).
 
 **A Store copy is a little different, on purpose:**
 

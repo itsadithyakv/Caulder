@@ -22,6 +22,11 @@ files:
   - "!**/node_modules/onnxruntime-node/bin/napi-v*/linux/**"
   - "!**/node_modules/onnxruntime-node/bin/napi-v*/win32/arm64/**"
   - "!**/node_modules/onnxruntime-node/bin/napi-v*/win32/x64/{DirectML.dll,dxcompiler.dll,dxil.dll}"
+  # better-sqlite3 carries a prebuilt binary for every platform too (14 MB of
+  # macOS and Linux). Only win32-x64 can load here (phase 25); smoke:packaged
+  # reads and writes through it, so a wrong pattern shows there.
+  - "!**/node_modules/better-sqlite3/prebuilds/{darwin,linux,linuxmusl}-*.node"
+  - "!**/node_modules/better-sqlite3/prebuilds/win32-arm64.node"
 # A .node binary cannot be loaded from inside an asar. better-sqlite3 is
 # detected and unpacked automatically; koffi resolves its own binary by path
 # relative to itself, so the whole package has to come out rather than only

@@ -48,6 +48,13 @@ try {
   }
   await page.waitForSelector(".firstrun, .sidebar", { timeout: 30000 });
 
+  // Mid-morning in the window, whenever this is run: from one to six in the
+  // morning Ember is asleep behind her door, and "Ember comes out" failed for
+  // the hour rather than the package. Today's date, so the day is still today.
+  const morning = new Date();
+  morning.setHours(10, 0, 0, 0);
+  await page.clock.install({ time: morning });
+
   // A clean profile lands on first run rather than a blank window.
   check("opens on the first-run screen", await page.locator(".firstrun").isVisible());
 
