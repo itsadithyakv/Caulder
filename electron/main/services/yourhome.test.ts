@@ -14,6 +14,7 @@ const { seedDemo } = await import("./demo");
 const { dayRecord, jot } = await import("./life");
 const { ensureHome } = await import("./yourhome");
 const { taskInput } = await import("@shared/domain");
+const { today: todayIn } = await import("@shared/dates");
 
 /**
  * Your own things in a home of their own: made once, your pages and habits
@@ -91,7 +92,9 @@ describe("a home of your own", () => {
     const { home } = ensureHome(db);
     const call = createTask(db, unifloe, taskInput.parse({ title: "Call Oakridge", kind: "call", dueOn: "2026-09-25" }));
     completeTask(db, call.id);
-    const day = new Date().toISOString().slice(0, 10);
+    // The day where the company is, not in UTC: between midnight and half past
+    // five in Kolkata the two are different days, and this failed then.
+    const day = todayIn("Asia/Kolkata");
     expect(dayRecord(db, home!, day).tasksDone.map((task) => task.title)).toContain("Call Oakridge");
     // A company's own day is still its own.
     expect(dayRecord(db, unifloe, day).tasksDone.map((task) => task.title)).toEqual(["Call Oakridge"]);

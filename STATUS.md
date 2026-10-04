@@ -5,19 +5,19 @@ same commit as the work, not afterwards. What is planned is in
 [PLAN.md](PLAN.md); where everything lives is in
 [reference/feature-map.md](reference/feature-map.md).*
 
-**As of 26 September 2026, evening.**
+**As of 5 October 2026.**
 
 ## Version
 
-- **0.4.7** is packaged on the `general` branch (29 September 2026): 0.4.6
-  and the taskbar dot, the line's new rules and the e2e fixes. `main` is the
-  base for pull requests.
+- **0.4.8** is packaged on the `general` branch (5 October 2026): the same
+  as 0.4.7 (the taskbar dot, the line's new rules, the e2e fixes), with the
+  typeface decided. `main` is the base for pull requests.
   - It carries phases 20 to 24 and the fixes of 27 September on top of
     0.4.5 (`31f29d9`): the line's second opinion, memories arranged, Ask and
     export by meaning, About Caulder and the ask for support, licences,
     formats by region, the new sample, a copy off this computer, and Ember's
     fixes and clothes.
-  - `npm run package` builds `Caulder Setup 0.4.7.exe`; `smoke:packaged`
+  - `npm run package` builds `Caulder Setup 0.4.8.exe`; `smoke:packaged`
     checks it (12 checks, licences among them).
 - Checked:
   - `npm run verify`: 2,394 unit tests in 155 files, typecheck, lint and
@@ -119,10 +119,10 @@ tests in 144 files, with the journal work above in the same tree.
 
 ### Before Caulder is handed out (26 September 2026)
 
-- **The typeface is not ours to give away.** Gilroy (`resources/fonts`,
-  bundled into every build) is a commercial face; only Light and ExtraBold
-  are free, and for personal use. Either a licence that covers an app, or a
-  free face (SIL Open Font License) in its place. Needs a decision.
+- **The typeface stays Gilroy** - *decided 5 October 2026.* It is a
+  commercial face (`resources/fonts`, bundled into every build), so handing
+  Caulder out needs a licence from its foundry that covers an app. That is
+  the author's to arrange; it is not a thing to swap out again.
 
 Most important first. Each names the place to fix. From a second pass on 25
 September 2026: code swept for unwired calls, the documents checked against
@@ -171,6 +171,12 @@ the code, and 85 realistic lines put through the quick line. Items marked
     that…" are ideas.
   - Only those shapes: "the server never responds" is still a note. The
     wider middle is phase 20's.
+
+### Fixed on 5 October 2026
+
+- **A test that failed before half past five in the morning**:
+  `services/yourhome.test.ts` took today in UTC for a company in Kolkata.
+  It asks for the company's own day now.
 
 ### Fixed on 29 September 2026
 
@@ -308,7 +314,7 @@ the code, and 85 realistic lines put through the quick line. Items marked
 
 ## Next
 
-1. Decide the typeface (above), and do the three things for phase 23.
+1. The three things for phase 23: GitHub Sponsors, a UPI ID, GitHub Pages.
 2. Phase 25: 0.5.0 - Electron updated, the invoice rule (item 14), the whole
    e2e suite, packaged, smoke-tested (phases 20 to 23 are in no installer
    yet), and the Store package tried by hand.

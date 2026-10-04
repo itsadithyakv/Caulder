@@ -1612,10 +1612,9 @@ Left open, for you:
   not there yet.
 - **Switch on GitHub Pages** for `/docs`, so the privacy URL answers. The
   repository has to be public for Pages on a free account.
-- **The typeface.** Caulder ships Gilroy (`resources/fonts`), a commercial
-  face: only its Light and ExtraBold are free, and for personal use. Handing
-  Caulder out needs a licence that covers putting it inside an app, or a free
-  face (SIL Open Font License) in its place.
+- **The typeface** - *decided 5 October 2026: Gilroy stays.* It is a
+  commercial face, so handing Caulder out needs a licence that covers
+  putting it inside an app, arranged by the author.
 
 The plan as written:
 
