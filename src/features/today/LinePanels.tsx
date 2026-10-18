@@ -1,4 +1,4 @@
-import { CalendarClock, MessageCircleQuestion, PenLine, Trash2 } from "lucide-react";
+import { CalendarClock, Check, MessageCircleQuestion, PenLine, Trash2 } from "lucide-react";
 import type { Answer } from "@shared/lines";
 import type { Edit } from "@shared/edits";
 import { formatTime } from "@/lib/format";
@@ -18,11 +18,13 @@ function sayEdit(edit: Edit, when: (day: string) => string): string {
       return `Cancel “${edit.task.title}”${edit.task.time ? `, and its hour at ${formatTime(edit.task.time)}` : ""}`;
     case "rename":
       return `Rename “${edit.task.title}” to “${edit.title}”`;
+    case "done":
+      return `Tick off “${edit.task.title}”`;
   }
 }
 
 export function EditReading({ edit, when }: { edit: Edit; when: (day: string) => string }) {
-  const Icon = edit.do === "cancel" ? Trash2 : edit.do === "rename" ? PenLine : CalendarClock;
+  const Icon = edit.do === "cancel" ? Trash2 : edit.do === "rename" ? PenLine : edit.do === "done" ? Check : CalendarClock;
   return (
     <span className="quickadd__reading">
       <Icon size={14} className="quickadd__lead" aria-hidden />
@@ -30,6 +32,8 @@ export function EditReading({ edit, when }: { edit: Edit; when: (day: string) =>
       <span className="quickadd__note">
         {edit.do === "cancel"
           ? "gone from your day - Undo puts it back"
+          : edit.do === "done"
+            ? "done - Undo puts it back"
           : edit.do === "move"
             ? `from ${when(edit.task.dueOn)}${edit.task.time ? ` at ${formatTime(edit.task.time)}` : ""}${
                 edit.task.time && !edit.time ? ", same hour" : ""

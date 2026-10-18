@@ -87,7 +87,7 @@ describe("the dossier", () => {
       "00 Unifloe - read me first.md",
       "01 Unifloe - the company.md",
       "02 Unifloe - customers and sales.md",
-      "03 Unifloe - people and running the company.md",
+      "03 Unifloe - running the company.md",
     ]);
     const [readme] = docs;
     expect(readme?.text).toContain("# Unifloe: read me first");

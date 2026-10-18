@@ -173,7 +173,7 @@ function describe(value: unknown): string {
 type Row = { left: DiffLine | null; right: DiffLine | null };
 
 /** A unified diff laid out in two columns, removed lines paired with the lines that replaced them. */
-function sideBySide(lines: DiffLine[]): Row[] {
+export function sideBySide(lines: DiffLine[]): Row[] {
   const rows: Row[] = [];
   let removed: DiffLine[] = [];
   let added: DiffLine[] = [];

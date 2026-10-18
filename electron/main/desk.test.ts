@@ -11,7 +11,7 @@ const AREA = { x: 0, y: 0, width: 1920, height: 1040 };
 describe("where the pill rests", () => {
   it("starts in the bottom right, clear of the taskbar", () => {
     // 1920 - 184 - 16 across, and 1040 - 44 - 16 down.
-    expect(deskRest(null, AREA)).toEqual({ x: 1720, y: 980, ...DESK_PILL });
+    expect(deskRest(null, AREA)).toEqual({ x: 1644, y: 980, ...DESK_PILL });
   });
 
   it("goes back where it was left", () => {
@@ -21,7 +21,7 @@ describe("where the pill rests", () => {
   // The case that matters: a widget left on a second monitor, and the monitor
   // is now unplugged. Clamping only on a move would leave it unreachable.
   it("is pulled back onto the screen it was left off", () => {
-    expect(deskRest({ x: 3200, y: 1600 }, AREA)).toEqual({ x: 1720, y: 980, ...DESK_PILL });
+    expect(deskRest({ x: 3200, y: 1600 }, AREA)).toEqual({ x: 1644, y: 980, ...DESK_PILL });
     expect(deskRest({ x: -900, y: -400 }, AREA)).toEqual({ x: 16, y: 16, ...DESK_PILL });
   });
 });

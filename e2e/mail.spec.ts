@@ -45,7 +45,8 @@ async function installScript() {
     };
     const fake = {
       // The script this build ships (shared/script.ts): anything older is asked to update.
-      version: 5,
+      // The script as it is now: an older one is its own test, further down.
+      version: 7,
       calls: [] as unknown[],
       jobs: new Map<string, Job>(),
       replied: new Set<string>(),
@@ -161,7 +162,8 @@ test("without the script, a contact's email opens the mail app and says why", as
   await page.getByRole("button", { name: "Add contact" }).click();
   await expect(page.getByRole("heading", { name: "Oakridge" })).toBeVisible();
 
-  await expect(page.getByText(/Connect Google in Settings.*opens your own mail app/)).toBeVisible();
+  // Not connected is offered once, on Today; here it only says what Write one does.
+  await expect(page.getByText("Write one opens your own mail app.")).toBeVisible();
   await page.getByRole("button", { name: "Write one" }).click();
   await expect(page.getByRole("button", { name: "Open in your mail app" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Send", exact: true })).toHaveCount(0);

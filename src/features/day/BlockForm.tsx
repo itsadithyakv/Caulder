@@ -6,6 +6,8 @@ import { PRIORITIES, PRIORITY_LABEL, priorityOf } from "@shared/priority";
 import { REMIND_CHOICES, leadLabel } from "@shared/remind";
 import { Chips, Select } from "@/components/Select";
 import { shiftDay, weekdayOf } from "@shared/dates";
+import { clashingWith } from "@shared/day";
+import { formatDuration, formatTime } from "@/lib/format";
 import type { Block, BlockInput, Task } from "@shared/domain";
 import { Portal } from "@/components/Portal";
 
@@ -33,6 +35,8 @@ type Props = {
   day: string;
   startsAt: string;
   block: Block | null;
+  /** What else is on that day, so a time that clashes is said before it is kept. */
+  others?: readonly Block[];
   tasks: readonly Task[];
   /**
    * What the workspace does about reminders, so the default option can say
@@ -69,6 +73,7 @@ export function BlockForm({
   day,
   startsAt,
   block,
+  others = [],
   tasks,
   workspaceLead,
   forTask,
@@ -99,7 +104,7 @@ export function BlockForm({
   );
   const [taskId, setTaskId] = useState(block?.taskId ?? forTask?.id ?? "");
   const [notes, setNotes] = useState(block?.notes ?? "");
-  // Most of a student's week is the same week again, so the repeat is on
+  // Most of a week is the same week again, so the repeat is on
   // the form rather than behind a second step. It only appears for a new
   // block: changing the rule of one that already exists means rewriting
   // occurrences somebody may have edited, which is a different feature.
@@ -213,6 +218,21 @@ export function BlockForm({
             />
           </div>
 
+          {(() => {
+            // Said, not refused: two things can be meant to overlap.
+            const clashing = time ? clashingWith({ id: block?.id ?? null, startsAt: time, minutes }, others) : [];
+            if (clashing.length === 0) return null;
+            return (
+              <p className="blockform__clash" role="alert">
+                Overlaps{" "}
+                {clashing
+                  .map((each) => `${each.title} (${formatTime(each.startsAt)} for ${formatDuration(each.minutes)})`)
+                  .join(" and ")}
+                .
+              </p>
+            );
+          })()}
+
           <div className="field">
             <span className="field__label">Kind</span>
             <Chips
@@ -260,8 +280,7 @@ export function BlockForm({
             />
             {workspaceLead === null && (
               <span className="field__hint">
-                Reminders are off for this workspace, so nothing will be said
-                whichever of these is chosen. Settings turns them on.
+                Reminders are off in Settings.
               </span>
             )}
           </div>
@@ -334,8 +353,7 @@ export function BlockForm({
                   </label>
 
                   <p className="card__hint">
-                    Every one is written as its own block, so moving a single week
-                    later is just dragging that one.
+                    Each week can be moved on its own.
                   </p>
                 </>
               )}
@@ -383,7 +401,7 @@ export function BlockForm({
               Cancel
             </button>
             {onSaveSeries && (
-              // Beside Save rather than in place of it: one lecture moved for
+              // Beside Save rather than in place of it: one call moved for
               // one week is as ordinary as the whole run moving to ten.
               <button
                 type="button"

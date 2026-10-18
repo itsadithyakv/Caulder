@@ -4,24 +4,24 @@ import { lessonInput, wordsOf, type Lesson, type LessonKind } from "@shared/less
 
 /**
  * What the line learnt from being corrected (shared/lessons.ts says what a
- * lesson means). Global, like Your words and Tune: which part of life a jacket
- * is does not change with the company that happens to be open.
+ * lesson means). Global, like Tune: what a line is does not change with the
+ * company that happens to be open. `line_lessons.area` is from when a task
+ * had one; a row that only says an area is not read.
  */
 
-type Row = { id: string; words: string; area: string | null; kind: string | null; times: number; sample: string };
+type Row = { id: string; words: string; kind: string; times: number; sample: string };
 
 const toLesson = (row: Row): Lesson => ({
   id: row.id,
   words: row.words.split(" ").filter(Boolean),
-  area: row.area,
-  kind: row.kind as LessonKind | null,
+  kind: row.kind as LessonKind,
   times: row.times,
   sample: row.sample,
 });
 
 /** Most recently taught first, which is the order a list of them is read in. */
 export function listLessons(db: Db): Lesson[] {
-  return (db.prepare(`SELECT id, words, area, kind, times, sample FROM line_lessons ORDER BY last_seen DESC`).all() as Row[]).map(toLesson);
+  return (db.prepare(`SELECT id, words, kind, times, sample FROM line_lessons WHERE kind IS NOT NULL ORDER BY last_seen DESC`).all() as Row[]).map(toLesson);
 }
 
 /**
@@ -35,14 +35,14 @@ export function addLesson(db: Db, raw: unknown, now: Date = new Date()): Lesson[
   if (!words) return listLessons(db);
   const stamp = now.toISOString();
   const same = db
-    .prepare(`SELECT id FROM line_lessons WHERE words = ? AND COALESCE(area, '') = ? AND COALESCE(kind, '') = ?`)
-    .get(words, input.area ?? "", input.kind ?? "") as { id: string } | undefined;
+    .prepare(`SELECT id FROM line_lessons WHERE words = ? AND area IS NULL AND kind = ?`)
+    .get(words, input.kind) as { id: string } | undefined;
   if (same) {
     db.prepare(`UPDATE line_lessons SET times = times + 1, last_seen = ? WHERE id = ?`).run(stamp, same.id);
   } else {
     db.prepare(
-      `INSERT INTO line_lessons (id, words, area, kind, times, sample, created_at, last_seen) VALUES (?, ?, ?, ?, 1, ?, ?, ?)`,
-    ).run(randomUUID(), words, input.area, input.kind, input.text.slice(0, 200), stamp, stamp);
+      `INSERT INTO line_lessons (id, words, kind, times, sample, created_at, last_seen) VALUES (?, ?, ?, 1, ?, ?, ?)`,
+    ).run(randomUUID(), words, input.kind, input.text.slice(0, 200), stamp, stamp);
   }
   return listLessons(db);
 }

@@ -32,11 +32,8 @@ import { SearchPalette } from "@/features/search/SearchPalette";
 import { SetupScreen } from "@/features/onboarding/SetupScreen";
 import { CallProvider } from "@/features/calls/CallProvider";
 import type { SearchHit } from "@shared/search";
-import { ENTRY_TEMPLATE, isPersonalSection, type BrainSectionId } from "@shared/brain";
-import { JournalScreen } from "@/features/life/JournalScreen";
-import { LifeScreen } from "@/features/life/LifeScreen";
+import type { BrainSectionId } from "@shared/brain";
 import { OpenRefProvider } from "@/lib/navigate";
-import { EmberStage } from "@/features/ember/EmberStage";
 import type { LinkRef } from "@shared/links";
 
 export function App() {
@@ -57,10 +54,12 @@ function Shell() {
   const [overdueCount, setOverdueCount] = useState(0);
   // Set by the Leads screen when Today sends the user to a specific lead.
   const [openLeadId, setOpenLeadId] = useState<string | null>(null);
+  /** The name of the contact that is open, which titles the page instead of "Contacts". */
+  const [contactTitle, setContactTitle] = useState<string | null>(null);
   // Set by search when it sends the user to a brain page.
   const [openPageId, setOpenPageId] = useState<string | null>(null);
   /** The brain section Today or search asked for - with a person to open, for People - kept until the brain has opened it. */
-  const [openSectionId, setOpenSectionId] = useState<{ section: BrainSectionId; focus: string | null } | null>(null);
+  const [openSectionId, setOpenSectionId] = useState<{ section: BrainSectionId } | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const updates = useUpdates();
@@ -84,20 +83,10 @@ function Shell() {
   const [listNonce, setListNonce] = useState(0);
   /** Bumped when Brain is chosen while already on it, so Brain home comes back. */
   const [brainHomeNonce, setBrainHomeNonce] = useState(0);
-  /** A day the journal should open on, asked for from the Calendar or search. */
-  const [journalDay, setJournalDay] = useState<string | null>(null);
-  /** One of the founder's own pages, asked for from somewhere else: it opens on Life. */
-  const [lifePageId, setLifePageId] = useState<string | null>(null);
-  /** Bumped when Life is chosen while already on it, so its tab comes back. */
-  const [lifeNonce, setLifeNonce] = useState(0);
-  /** A tab Life should open on, asked for from Today. */
-  const [lifeTab, setLifeTab] = useState<"habits" | null>(null);
   /** A page of what was remembered, asked for from somewhere else: it opens on Memories. */
   const [memoriesPageId, setMemoriesPageId] = useState<string | null>(null);
   /** Bumped when Memories is chosen while already on it, so the list comes back. */
   const [memoriesNonce, setMemoriesNonce] = useState(0);
-  /** Whether the map opens on your side rather than the company's: it does when Memories sent you. */
-  const [mapYours, setMapYours] = useState(false);
   /** A product Money should open, asked for by a link or a dot on the Map. */
   const [moneyProduct, setMoneyProduct] = useState<string | null>(null);
   /** A tab Money should open on, asked for from another screen. */
@@ -120,18 +109,14 @@ function Shell() {
       if (id === route) {
         if (id === "leads") setListNonce((n) => n + 1);
         if (id === "brain") setBrainHomeNonce((n) => n + 1);
-        if (id === "life") setLifeNonce((n) => n + 1);
         if (id === "memories") setMemoriesNonce((n) => n + 1);
       } else {
         setSearchNonce(0);
         setNewLeadNonce(0);
         setListNonce(0);
         setBrainHomeNonce(0);
-        setLifeNonce(0);
         setMemoriesNonce(0);
         setQuickNonce(0);
-        // The map is the company's unless Memories asks for yours, after this.
-        setMapYours(false);
       }
       setRoute(id);
     },
@@ -160,18 +145,15 @@ function Shell() {
   }, [activeCompany]);
 
   // The sidebar badge is the one number visible from every screen, so it is
-  // read whenever the route changes rather than only on Today.
+  // read whenever the route changes rather than only on Today - as a count,
+  // not the whole of Today.
   useEffect(() => {
     if (!activeCompany) return;
     window.caulder.today
-      .get(activeCompany.id)
-      .then((day) => setOverdueCount(day.overdue.length))
+      .overdue(activeCompany.id)
+      .then(setOverdueCount)
       .catch(() => setOverdueCount(0));
   }, [activeCompany, route]);
-
-  // Somebody clicked Ember on the taskbar. Whatever she was holding - the
-  // next block, a reply, overdue work - is on Today.
-  useEffect(() => window.caulder.pet.onToday(() => arrive("today")), [arrive]);
 
   // Only matters while the choice is "system": React needs to re-render so the
   // title bar icon follows the OS. The tokens themselves switch in CSS.
@@ -215,27 +197,17 @@ function Shell() {
   });
 
   /**
-   * A page, from anywhere: where it lives decides where it opens. A journal
-   * entry opens the journal on its day, what the line remembered opens on
-   * Memories, the founder's other pages on Life, and the company's in the
-   * brain. Remembered is a personal section without a tab on Life, so it
-   * must be caught before Life is: there it would open with its way back
-   * pointing at an Overview it has nothing to do with.
+   * A page, from anywhere: where it lives decides where it opens. What the
+   * line was told to remember opens on Memories, among the rest of it;
+   * every other page opens in the brain.
    */
   const openPage = useCallback(
     (pageId: string) => {
       window.caulder.brain.page(pageId).then(
         (page) => {
-          const day = page.fields["day"];
-          if (page.template === ENTRY_TEMPLATE && typeof day === "string") {
-            setJournalDay(day);
-            arrive("journal");
-          } else if (page.section === "remembered") {
+          if (page.section === "remembered") {
             setMemoriesPageId(pageId);
             arrive("memories");
-          } else if (isPersonalSection(page.section)) {
-            setLifePageId(pageId);
-            arrive("life");
           } else {
             setOpenPageId(pageId);
             arrive("brain");
@@ -250,16 +222,8 @@ function Shell() {
     [arrive],
   );
 
-  /** The journal, on a day - today when none is given. */
-  const openJournal = useCallback(
-    (day?: string) => {
-      setJournalDay(day ?? null);
-      arrive("journal");
-    },
-    [arrive],
-  );
-  // A notification clicked: the journal nudge opens today's journal, everything else Today.
-  useEffect(() => window.caulder.nudges.onGo((place) => (place === "journal" ? openJournal() : arrive("today"))), [arrive, openJournal]);
+  // A notification clicked: whatever it was about is on Today.
+  useEffect(() => window.caulder.nudges.onGo(() => arrive("today")), [arrive]);
 
   /** Where a search result lives: a page where its kind of page lives, everything else on a contact or Today. */
   const openHit = useCallback(
@@ -267,9 +231,6 @@ function Shell() {
       setSearchOpen(false);
       if (hit.kind === "page") {
         openPage(hit.id);
-      } else if (hit.kind === "person") {
-        setOpenSectionId({ section: "people", focus: hit.id });
-        arrive("brain");
       } else if (hit.leadId) {
         setOpenLeadId(hit.leadId);
         arrive("leads");
@@ -282,9 +243,6 @@ function Shell() {
   );
 
   const consumeOpenPage = useCallback(() => setOpenPageId(null), []);
-  const consumeJournalDay = useCallback(() => setJournalDay(null), []);
-  const consumeLifePage = useCallback(() => setLifePageId(null), []);
-  const consumeLifeTab = useCallback(() => setLifeTab(null), []);
   const consumeMemoriesPage = useCallback(() => setMemoriesPageId(null), []);
   const consumeOpenSection = useCallback(() => setOpenSectionId(null), []);
   const consumeMoneyTab = useCallback(() => setMoneyTab(null), []);
@@ -292,8 +250,8 @@ function Shell() {
 
   /** A section of the brain, from Today or search: the filing calendar, the documents, or somebody in People. */
   const openSection = useCallback(
-    (section: BrainSectionId, focus?: string) => {
-      setOpenSectionId({ section, focus: focus ?? null });
+    (section: BrainSectionId) => {
+      setOpenSectionId({ section });
       arrive("brain");
     },
     [arrive],
@@ -314,7 +272,7 @@ function Shell() {
         setMoneyTab("products");
         setMoneyProduct(ref.id);
         arrive("money");
-      } else openSection(ref.kind === "person" ? "people" : "documents", ref.kind === "person" ? ref.id : undefined);
+      } else openSection("documents");
     },
     [openPage, openSection, arrive],
   );
@@ -381,8 +339,6 @@ function Shell() {
     <CallProvider onOpenPage={openPage}>
     <div className="shell">
       {titleBar}
-      {/* Ember, when she is off her perch - and the fire, when she has had enough. */}
-      <EmberStage personal={activeCompany?.kind === "personal"} home={route === "today"} companyId={activeCompany?.id ?? null} />
 
       <div className="shell__body">
         <div className="sidebar-wrap">
@@ -435,18 +391,18 @@ function Shell() {
                 and one saying hello, read as a stutter. The heading is still there
                 for a screen reader - it is only not drawn. */}
             <div className={route === "today" ? "visually-hidden" : "page-head"}>
-              <h1 className="page-head__title">{meta.label}</h1>
+              <h1 className="page-head__title">{route === "leads" && contactTitle ? contactTitle : meta.label}</h1>
               {route === "import" && (
                 <button type="button" className="btn btn--sm" onClick={() => go("leads")}>
                   <ArrowLeft size={15} aria-hidden />
                   All contacts
                 </button>
               )}
-              {/* The map has no row, so it keeps the way back to where it was opened from. */}
-              {route === "map" && (
-                <button type="button" className="btn btn--sm" onClick={() => go(mapYours ? "memories" : "brain")}>
+              {/* Neither has a row of its own, so each keeps the way back to the brain it is part of. */}
+              {(route === "map" || route === "memories") && (
+                <button type="button" className="btn btn--sm" onClick={() => go("brain")}>
                   <ArrowLeft size={15} aria-hidden />
-                  {mapYours ? "Memories" : "Brain"}
+                  Brain
                 </button>
               )}
             </div>
@@ -463,11 +419,6 @@ function Shell() {
                 onGoToMoney={() => go("money")}
                 onGoTo={go}
                 onOpenPage={openPage}
-                onOpenJournal={() => openJournal()}
-                onOpenLife={(tab) => {
-                  setLifeTab(tab ?? null);
-                  arrive("life");
-                }}
                 onOpenSection={openSection}
                 quickNonce={quickNonce}
               />
@@ -493,6 +444,7 @@ function Shell() {
                 onGoToImport={() => go("import")}
                 onGoToMoney={() => go("money")}
                 onOpenPage={openPage}
+                onTitle={setContactTitle}
               />
             ) : route === "pipeline" ? (
               <PipelineScreen
@@ -517,41 +469,15 @@ function Shell() {
                 onConsumeProduct={consumeMoneyProduct}
               />
             ) : route === "day" ? (
-              <DayScreen key={activeCompany?.id} onOpenPage={openPage} onOpenJournal={openJournal} />
-            ) : route === "journal" ? (
-              <JournalScreen
-                key={activeCompany?.id}
-                openDay={journalDay}
-                onConsumeOpenDay={consumeJournalDay}
-                onOpenPage={openPage}
-                onOpenContact={(leadId) => {
-                  setOpenLeadId(leadId);
-                  arrive("leads");
-                }}
-              />
-            ) : route === "life" ? (
-              <LifeScreen
-                key={activeCompany?.id}
-                openPageId={lifePageId}
-                onConsumeOpenPage={consumeLifePage}
-                openTab={lifeTab}
-                onConsumeOpenTab={consumeLifeTab}
-                homeNonce={lifeNonce}
-                onOpenPage={openPage}
-                onOpenContact={(leadId) => {
-                  setOpenLeadId(leadId);
-                  arrive("leads");
-                }}
-              />
-            ) : route === "memories" ? (
+              <DayScreen key={activeCompany?.id} onOpenPage={openPage} />
+            ) : route === "memories" && activeCompany ? (
               <MemoriesScreen
+                key={`memories-${activeCompany.id}`}
+                companyId={activeCompany.id}
                 openPageId={memoriesPageId}
                 onConsumeOpenPage={consumeMemoriesPage}
                 homeNonce={memoriesNonce}
-                onOpenMap={() => {
-                  go("map");
-                  setMapYours(true);
-                }}
+                onOpenMap={() => go("map")}
                 onOpenContact={(leadId) => {
                   setOpenLeadId(leadId);
                   arrive("leads");
@@ -561,7 +487,6 @@ function Shell() {
               <MapOf
                 key={`map-${activeCompany.id}`}
                 companyId={activeCompany.id}
-                startYours={mapYours}
                 onOpenPage={openPage}
                 onOpenContact={(leadId) => {
                   setOpenLeadId(leadId);
@@ -575,8 +500,8 @@ function Shell() {
                 onConsumeOpenPage={consumeOpenPage}
                 openSection={openSectionId}
                 onConsumeOpenSection={consumeOpenSection}
-                homeNonce={brainHomeNonce}
-                onGoToSettings={() => go("settings")}
+                homeNonce={brainHomeNonce}
+                onOpenMemories={() => go("memories")}
                 onGoToProducts={() => {
                   setMoneyTab("products");
                   go("money");

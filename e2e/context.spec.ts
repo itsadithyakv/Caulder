@@ -5,13 +5,13 @@ import { join } from "node:path";
 import { passSetup } from "./nav";
 
 /**
- * Context for another AI: the violet flame on the quick line, and the card in
- * the brain that does the same thing sitting still.
+ * Context for another AI: the card on the Brain's first page, which is the one
+ * place it is. (Today's line had a second way in until 11 October 2026.)
  *
  * What is worth a real window here is the half the unit tests cannot reach.
  * The gathering, the trail rule and everything the brief refuses to carry are
  * checked in services/topic.test.ts against a real database. This is about
- * the bridge: that the mode switches, that pressing Copy actually puts text
+ * the bridge: that pressing Copy actually puts text
  * on the system clipboard, and - the one that matters - that the words never
  * arrive in the renderer, which is the whole reason main does the copying.
  */
@@ -51,28 +51,23 @@ test.afterAll(async () => {
   rmSync(userDataDir, { recursive: true, force: true });
 });
 
-test("the quick line has a violet flame that turns it into a topic to copy", async () => {
+test("Today's line has no second way in: it files what is typed, and that is all", async () => {
   const page = await openApp();
-
-  const copyFlame = page.getByRole("button", { name: "Copy context for another AI" });
-  await expect(copyFlame).toBeVisible();
-  await expect(copyFlame).toHaveAttribute("aria-pressed", "false");
-
-  await copyFlame.click();
-
-  // The line is the same line, in another mode: same classes, new job.
-  await expect(page.getByLabel("A topic to copy context for")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Into the company" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByLabel("Anything, in one line")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Copy context for another AI" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Ask the AI" })).toHaveCount(0);
 });
 
-test("a topic goes on the clipboard, and says how much of it there is", async () => {
+test("a topic goes on the clipboard from the Brain, and says how much of it there is", async () => {
   const page = await app.firstWindow();
+  await page.getByRole("button", { name: /^Brain/ }).click();
+  await expect(page.getByRole("heading", { name: "Context for another AI" })).toBeVisible();
 
   await page.getByLabel("A topic to copy context for").fill("unifloe");
-  await page.getByRole("button", { name: "Copy", exact: true }).click();
+  await page.getByRole("button", { name: "Copy it" }).click();
 
   // The receipt, which is what the window is given instead of the words.
-  await expect(page.locator(".quickadd__kept")).toContainText("characters", { timeout: 15_000 });
+  await expect(page.locator(".card__hint[role='status']")).toContainText("clipboard", { timeout: 15_000 });
 
   const copied = await clipboardText();
   expect(copied).toContain("# unifloe");
@@ -80,7 +75,7 @@ test("a topic goes on the clipboard, and says how much of it there is", async ()
   // The load-bearing sentence: an AI told nothing about the gaps answers
   // confidently about them.
   expect(copied).toContain("do not read silence as absence");
-  expect(copied).toContain("journal days that are locked");
+  expect(copied).toContain("**What did not:**");
 });
 
 test("the words never reach the window", async () => {
@@ -110,17 +105,4 @@ test("it refuses a topic that is nothing, rather than copying the whole brain", 
     id as string,
   );
   expect(said).toMatch(/what the brief should be about/i);
-});
-
-test("the brain has the same thing, where somebody would go looking for it", async () => {
-  const page = await app.firstWindow();
-
-  await page.getByRole("button", { name: /^Brain/ }).click();
-  await expect(page.getByRole("heading", { name: "Context for another AI" })).toBeVisible();
-
-  await page.getByLabel("A topic to copy context for").fill("guitar");
-  await page.getByRole("button", { name: "Copy it" }).click();
-  await expect(page.locator(".card__hint[role='status']")).toContainText("clipboard", { timeout: 15_000 });
-
-  expect(await clipboardText()).toContain("# guitar");
 });

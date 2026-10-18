@@ -92,7 +92,7 @@ test("a block dragged into another column lands on that day", async () => {
       startsAt: "10:00",
       minutes: 60,
       title: "Gym",
-      kind: "personal",
+      kind: "away",
       notes: null,
       taskId: null,
       priority: null,
@@ -181,7 +181,7 @@ test("a repeat changed from one day on leaves the ones already past alone", asyn
         startsAt: "09:00",
         minutes: 60,
         title: "Databases lecture",
-        kind: "class",
+        kind: "meeting",
         notes: null,
         taskId: null,
         priority: null,
@@ -220,37 +220,93 @@ test("a repeat changed from one day on leaves the ones already past alone", asyn
   expect(await mondayOf(nextMonday)).toEqual({ title: "Databases, room 4", at: "10:00" });
 });
 
-test("a term is removed with its classes left on the calendar", async () => {
+test("a usual week is put in once, and is on the calendar the week after", async () => {
   const page = await openApp();
 
-  await page.getByRole("button", { name: "Timetable", exact: true }).click();
-  const sheet = page.getByRole("dialog", { name: "A timetable" });
-  await sheet.getByLabel("Which term").fill("Autumn");
-  await sheet.getByLabel("What it is").fill("Algorithms");
-  await sheet.getByRole("button", { name: "Build the term" }).click();
+  await page.getByRole("button", { name: "A usual week", exact: true }).click();
+  const sheet = page.getByRole("dialog", { name: "A usual week" });
+  // Nothing to name: it runs until a day, a quarter off unless told otherwise.
+  await expect(sheet.getByLabel("Runs until")).not.toHaveValue("");
+  await sheet.getByLabel("What it is").fill("Client work");
+  await sheet.getByRole("button", { name: "Put it on the calendar" }).click();
   await expect(sheet).toHaveCount(0);
 
-  // Made here, so listed here, and taken away here.
-  await page.getByRole("button", { name: "Timetable", exact: true }).click();
-  const terms = sheet.getByRole("list", { name: "Your terms" });
-  await expect(terms).toContainText("Autumn");
-  await terms.getByRole("button", { name: "Remove the term Autumn" }).click();
-  // The confirmation says what goes and what does not.
-  await expect(sheet.getByText("Only the name and its dates go. Its classes stay on the calendar.")).toBeVisible();
-  await terms.getByRole("button", { name: "Remove", exact: true }).click();
-  await expect(terms).toHaveCount(0);
-
-  // Next week rather than this one, so a class set for today's weekday is in
+  // Next week rather than this one, so a row set for today's weekday is in
   // it whichever side of midnight the machine's clock and the workspace's are.
-  const left = await page.evaluate(async (day) => {
-    const { activeCompanyId, homeCompanyId } = await window.caulder.companies.list();
-    const terms = await window.caulder.terms.list(homeCompanyId ?? activeCompanyId ?? "");
+  const next = await page.evaluate(async (day) => {
+    const { activeCompanyId } = await window.caulder.companies.list();
     const week = await window.caulder.day.week(activeCompanyId ?? "", day);
-    return {
-      terms: terms.length,
-      classes: week.days.flatMap((entry) => entry.blocks.map((block) => block.title)),
-    };
+    return week.days.flatMap((entry) => entry.blocks.filter((block) => block.title === "Client work").map((block) => block.kind));
   }, plusDays(thisWeek().monday, 7));
-  expect(left.terms).toBe(0);
-  expect(left.classes).toContain("Algorithms");
+  expect(next).toEqual(["focus"]);
+});
+
+test("two things at once are said: on Today, in the calendar, and while a time is chosen", async () => {
+  const page = await openApp();
+  await page.evaluate(async () => {
+    const { activeCompanyId } = await window.caulder.companies.list();
+    if (!activeCompanyId) throw new Error("No active workspace.");
+    // The company was made on this computer, so its day is this computer's.
+    const day = new Date().toLocaleDateString("en-CA");
+    for (const [title, startsAt, minutes] of [
+      ["Call with Kettle & Crumb", "14:00", 30],
+      ["Proposal for Harbour", "14:15", 90],
+    ] as const) {
+      await window.caulder.day.createBlock(activeCompanyId, {
+        day,
+        startsAt,
+        minutes,
+        title,
+        kind: "meeting",
+        notes: null,
+        taskId: null,
+        priority: null,
+        remindMinutes: null,
+        repeat: null,
+      });
+    }
+  });
+
+  await page.getByLabel("Main").getByRole("button", { name: /^Today/ }).click();
+  const today = page.locator(".clashes");
+  await expect(today).toContainText("Two things at once");
+  await expect(today).toContainText("Call with Kettle & Crumb and Proposal for Harbour at 2:15");
+
+  await page.getByLabel("Main").getByRole("button", { name: "Calendar", exact: true }).click();
+  await page.getByLabel("How much to show").getByRole("button", { name: "Day" }).click();
+  await expect(page.locator(".clashes")).toContainText("Call with Kettle & Crumb and Proposal for Harbour");
+
+  // Choosing a time that clashes says so before anything is kept - and keeps it if asked.
+  await page.getByRole("button", { name: "Add a block" }).click();
+  await page.getByLabel("Starts").fill("14:00");
+  await expect(page.locator(".blockform__clash")).toContainText("Overlaps Call with Kettle & Crumb");
+  // An hour nothing else in this week has.
+  await page.getByLabel("Starts").fill("05:00");
+  await expect(page.locator(".blockform__clash")).toHaveCount(0);
+});
+
+test("the week says what happened in it, and three things chosen for next week come to Today", async () => {
+  const page = await openApp();
+  await showWeek(page);
+  const review = page.locator(".weekreview");
+  await expect(review).toContainText("This week so far");
+  await expect(review).toContainText("planned");
+
+  // Chosen for next week from this week's head...
+  await review.getByLabel("Thing 1").fill("Close Harbour Coffee");
+  await review.getByLabel("Thing 1").press("Enter");
+  await page.getByLabel("The week after").click();
+  // ...they are that week's own when it is shown.
+  await expect(page.locator(".weekreview").getByLabel("Thing 1")).toHaveValue("Close Harbour Coffee");
+
+  // This week's three, chosen from the week before, are on Today until ticked.
+  await page.getByLabel("The week before").click();
+  await page.getByLabel("The week before").click();
+  await page.locator(".weekreview").getByLabel("Thing 1").fill("Send the Harbour proposal");
+  await page.locator(".weekreview").getByLabel("Thing 1").press("Enter");
+  await page.getByLabel("Main").getByRole("button", { name: /^Today/ }).click();
+  const three = page.locator(".weekthree");
+  await expect(three).toContainText("Send the Harbour proposal");
+  await three.getByRole("button", { name: "Done: Send the Harbour proposal" }).click();
+  await expect(three).toHaveCount(0);
 });

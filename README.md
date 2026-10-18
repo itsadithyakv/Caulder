@@ -1,29 +1,30 @@
 # Caulder
 
-A planner and a CRM in one desktop app, for somebody running a company while
-doing a degree. It holds the timetable, the gym, the club, the client meetings
-and the studying alongside the leads, the funnel, the outreach and what any of
-it cost — because that is one Tuesday, not two.
+The one app a one-person company is run from, on your own computer: who you
+are selling to and how to reach them, what each deal is worth, your money,
+your time, and what the company knows.
 
-It tells you what to be at right now, what to chase today, what a campaign
-brought back, and how the weeks actually went.
-
-It also keeps the company's brain - what it is, what it sells, what it pays
-for every month and how long the money lasts - with a call prompter that reads
-you the script and asks how the call went, and an export of the whole company
-as four documents for an AI.
-
-And it keeps the rest of you, apart from the company: a journal a key away,
-habits ticked on Today with their run of days, courses and exams, hobbies and
-goals, a vision board, and a level worked out from what you actually did -
-never from opening the app. One line on Today takes any of it, and says where
-it will go.
+- **Contacts and outreach.** A list with import, a page for each contact with
+  its history, and every way of writing to them from one place: email through
+  your own Gmail or another account, WhatsApp, LinkedIn and Instagram. Tick
+  several and write to all of them, each by name. Today says who you reached
+  and who is still waiting to hear from you.
+- **Deals and money.** A board by stage, quotes, invoices, payments, spend,
+  running costs and runway.
+- **Your time.** Today, a calendar with the whole day in it, tasks and notes.
+- **One line for any of it.** "call Priya tomorrow 4pm", "Priya wants the
+  invoice by the 5th", "figma 1,200", "our GST number is …" - it says where
+  each will go before it goes there.
+- **The company's brain.** Pages, memories, a map of how they link, filing
+  deadlines, documents, people, metrics, a data room, and your own AI asked
+  from what is written down.
 
 Local-only by design: a single SQLite file on this machine, no cloud, no
-account, works offline. Google Calendar and Tasks sync through a script that
-runs in your own account, if you want it; Ask the brain uses whichever AI you
-connect - Google's Gemini is free with a Google account - if you connect one.
-A guide after first run walks through both.
+account, works offline. Google - calendar, tasks, Gmail, and your contacts as
+a spreadsheet you can edit on your phone - goes through a script that runs in
+your own account, if you want it. Ask uses whichever AI you connect, if you
+connect one. Nothing personal lives here: Caulder is the company's
+([PLAN.md](PLAN.md), part seven).
 
 ## Running it
 
@@ -66,9 +67,13 @@ e2e/                Playwright suites, one per area
 scripts/            standalone checks run by hand
 ```
 
-`shared/` matters most. The import column contract, the domain schemas and the
-bridge file formats are declared there once and consumed by both processes, so
-the file you download and the file the parser expects can never disagree.
+`shared/` matters most. The import column contract, the domain schemas, the
+line's reader and the sheet's rules are declared there once and consumed by
+both processes, so the two can never disagree.
+
+Where everything lives, feature by feature, is
+[reference/feature-map.md](reference/feature-map.md); where things stand
+today is [STATUS.md](STATUS.md).
 
 ## Documentation
 

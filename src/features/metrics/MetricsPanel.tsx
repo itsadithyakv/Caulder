@@ -81,7 +81,7 @@ export function MetricsPanel({ companyId, onChanged }: { companyId: string; onCh
     <div className="metrics">
       <Card
         title="The numbers"
-        hint="A year of each. The ones Caulder works out are always up to date; the rest are what you write down."
+        hint="The last twelve months."
         actions={
           !none &&
           adding === null && (

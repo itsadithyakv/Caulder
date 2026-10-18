@@ -26,10 +26,8 @@
 export type TopicPieceKind =
   | "page"
   | "under"
-  | "journal"
   | "note"
   | "contact"
-  | "logged"
   | "hours"
   | "task";
 
@@ -159,16 +157,14 @@ export function coveredBy(words: readonly string[], own: ReadonlySet<string>, tr
 const LABEL: Record<TopicPieceKind, [string, string]> = {
   page: ["page", "pages"],
   under: ["page under them", "pages under them"],
-  journal: ["journal day", "journal days"],
   note: ["note", "notes"],
   contact: ["contact", "contacts"],
-  logged: ["thing logged", "things logged"],
   hours: ["run of hours", "runs of hours"],
   task: ["task", "tasks"],
 };
 
 /** The order they are written in, and the order they are counted in. */
-const ORDER: readonly TopicPieceKind[] = ["page", "under", "contact", "logged", "hours", "task", "journal", "note"];
+const ORDER: readonly TopicPieceKind[] = ["page", "under", "contact", "hours", "task", "note"];
 
 /**
  * What went in, counted from the pieces themselves rather than tallied
@@ -229,7 +225,7 @@ function opening(topic: string, workspace: string, day: string): string[] {
     "",
     `Everything Caulder holds about **${topic}**, as of ${day}.`,
     "",
-    "Caulder is a desktop app its owner keeps their work and their life in: contacts and deals, a calendar, a journal, habits and hobbies, and pages they write themselves. " +
+    "Caulder is a desktop app its owner runs a one-person company from: contacts and deals, a calendar, money, and pages they write themselves. " +
       `This is from their workspace **${workspace}**.`,
     "",
     "None of it was written for a reader. It is one person's own notes, so it is uneven, abbreviated, sometimes out of date and sometimes at odds with itself. Dates are the day a thing was written or done.",
@@ -254,8 +250,7 @@ function closing(went: readonly string[], cut: boolean, chars: number): string[]
     "",
     `**What went in:** ${went.length > 0 ? went.join(", ") : "nothing - Caulder holds no record of this"}.`,
     "",
-    "**What did not:** journal days that are locked, anything written to the line as private, and registration and account numbers, which are masked. " +
-      "Readings the app takes of its owner's day never leave their computer at all. So this is not everything about the topic - it is everything Caulder was willing to say about it.",
+    "**What did not:** registration and account numbers, which are masked. So this is not everything about the topic - it is everything Caulder was willing to say about it.",
     "",
   ];
   if (cut) {

@@ -252,8 +252,7 @@ export function RemindersCard() {
         <span className="checkline__text">
           <span className="checkline__title">Tell me when something is overdue</span>
           <span className="card__hint">
-            One desktop notification a day, never before nine in the morning, and
-            only when there is something.
+            One notification a day, after nine.
           </span>
         </span>
       </div>
@@ -291,8 +290,7 @@ export function RemindersCard() {
                   }))}
                 />
                 <span className="field__hint">
-                  For every block in {activeCompany.name}. A single one can ask
-                  for its own notice, or none at all, on the block itself.
+                  For every block in {activeCompany.name}. 
                 </span>
               </label>
             )}
@@ -303,8 +301,7 @@ export function RemindersCard() {
       <label className="field remindlead">
         <span className="field__label">Follow up after a deal moves</span>
         <span className="card__hint">
-          When a deal moves into a stage with nothing planned, add a follow-up due
-          in this many days. Zero means never.
+          Days to a follow-up when a deal moves. 0 is off.
         </span>
         <input
           className="input"
@@ -324,8 +321,7 @@ export function RemindersCard() {
             : `Going quiet after ${quietSaved} days without contact`}
         </span>
         <span className="card__hint">
-          An open deal with nothing planned and no contact for this many days is
-          listed under Going quiet on Today. From 3 to 90.
+          Days without contact before Going quiet, 3 to 90.
         </span>
         <input
           className="input"

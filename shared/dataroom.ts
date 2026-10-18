@@ -26,11 +26,10 @@ export type RoomChoices = {
   extras: Record<RoomExtra, number>;
 };
 
-export const ROOM_EXTRAS = ["people", "products", "metrics", "filings"] as const;
+export const ROOM_EXTRAS = ["products", "metrics", "filings"] as const;
 export type RoomExtra = (typeof ROOM_EXTRAS)[number];
 
 export const ROOM_EXTRA_LABEL: Record<RoomExtra, string> = {
-  people: "People and equity",
   products: "Products and prices",
   metrics: "Metrics, the last six months",
   filings: "The filing calendar",
@@ -40,17 +39,17 @@ export const ROOM_EXTRA_LABEL: Record<RoomExtra, string> = {
 export const ROOM_DEFAULTS: { sections: BrainSectionId[]; categories: DocumentCategory[]; extras: RoomExtra[] } = {
   sections: ["company", "plan", "money", "tax", "legal", "decisions"],
   categories: ["certificate", "contract", "agreement", "pitch-deck", "statement"],
-  extras: ["people", "products", "metrics", "filings"],
+  extras: ["products", "metrics", "filings"],
 };
 
 /** What somebody joining needs in their first week. */
 export const HANDBOOK_DEFAULTS: { sections: BrainSectionId[]; extras: RoomExtra[] } = {
   sections: ["company", "plan", "customers", "playbooks", "tools", "decisions"],
-  extras: ["people", "products"],
+  extras: ["products"],
 };
 
 /** The extras a handbook can carry: the rest are for a data room. */
-export const HANDBOOK_EXTRAS: readonly RoomExtra[] = ["people", "products"];
+export const HANDBOOK_EXTRAS: readonly RoomExtra[] = ["products"];
 
 const extras = z.array(z.enum(ROOM_EXTRAS)).max(ROOM_EXTRAS.length).default([]);
 

@@ -1,17 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { hinglish, isHinglish, pastOf } from "./hinglish";
-import { readCapture } from "./capture";
 import { parseQuick } from "./quickadd";
 
 /** Wednesday 23 September 2026, two in the afternoon. */
 const CLOCK = { today: "2026-09-23", now: 14 * 60 };
-const KNOWN = {
-  contacts: [{ id: "c1", name: "Rahul Verma", person: null }],
-  hobbies: [{ id: "h1", title: "Guitar" }],
-  habits: [{ id: "b1", name: "Drink water" }, { id: "b2", name: "Meditate" }],
-  tasks: [{ id: "t1", title: "Gym" }],
-};
-const read = (line: string) => readCapture(line, KNOWN, CLOCK);
 const task = (line: string) => parseQuick(line, CLOCK).task;
 
 describe("Hinglish, said in English", () => {
@@ -108,19 +100,7 @@ describe("Hinglish, read all the way through", () => {
     expect(task("jaldi uthna hai kal 6 baje")).toMatchObject({ title: "Wake up early", day: "2026-09-24", time: "06:00" });
     expect(task("parso dentist jaana hai")).toMatchObject({ title: "Go to dentist", day: "2026-09-25" });
     expect(task("bijli ka bill bharna hai 5 tarikh tak")).toMatchObject({ title: "Pay electricity bill", day: "2026-10-05" });
-    expect(task("mujhe kal assignment submit karna hai")).toMatchObject({ title: "Submit assignment", area: "college" });
+    expect(task("mujhe kal assignment submit karna hai")).toMatchObject({ title: "Submit assignment" });
   });
 
-  it("ticks a habit and finishes a task when it says it was done", () => {
-    expect(read("paani piya").effects).toContainEqual({ do: "tick", habit: { id: "b1", name: "Drink water" } });
-    expect(read("aaj gym gaya").effects).toContainEqual(expect.objectContaining({ do: "finish", task: { id: "t1", title: "Gym" } }));
-  });
-
-  it("keeps a feeling, and a day of not doing it, in the journal", () => {
-    expect(read("aaj bahut thak gaya hu").kind).toBe("journal");
-    expect(read("mood off hai aaj").kind).toBe("journal");
-    const skipped = read("aaj gym nahi gaya");
-    expect(skipped.kind).toBe("journal");
-    expect(skipped.effects).toEqual([]);
-  });
 });

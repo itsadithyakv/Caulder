@@ -9,8 +9,6 @@ describe("going somewhere", () => {
     ["take me to settings", "settings"],
     ["open pipeline", "pipeline"],
     ["goto brain", "brain"],
-    ["open the journal", "journal"],
-    ["show habits", "life"],
     ["open the money screen", "money"],
     ["Go To Today.", "today"],
   ])("'%s' goes to %s", (line, place) => {
@@ -146,5 +144,77 @@ describe("money in, and money paid again and again", () => {
     expect(readCommand("salary 50000 monthly")).toBeNull();
     // Said once, it is still what was spent.
     expect(readCommand("uber 340")).toMatchObject({ do: "spend", amount: 340 });
+  });
+});
+
+describe("what was spent, with the sum after what it went on", () => {
+  it("reads it when a currency is said", () => {
+    expect(readCommand("bought a standing desk, $240")).toEqual({ do: "spend", amount: 240, what: "A standing desk", daysAgo: 0 });
+    expect(readCommand("paid the illustrator rs 6,500 for the mascot")).toEqual({ do: "spend", amount: 6500, what: "The illustrator, the mascot", daysAgo: 0 });
+    expect(readCommand("we spent on stickers 900 inr")).toMatchObject({ do: "spend", amount: 900 });
+  });
+
+  it("does not take a bare number after a thing for money, or somebody else's paying for ours", () => {
+    expect(readCommand("bought a monitor 27 inch")).toBeNull();
+    expect(readCommand("harbour paid the deposit, $900")).toBeNull();
+  });
+});
+
+describe("what the second blind set taught (11 October 2026)", () => {
+  it("goes to a place said with what it is", () => {
+    expect(readCommand("take me to tasks")).toMatchObject({ do: "go", place: "today" });
+    expect(readCommand("switch to the deals board")).toEqual({ do: "go", place: "pipeline", label: "Deals" });
+    expect(readCommand("open the contacts list")).toMatchObject({ do: "go", place: "leads" });
+    // Not a place.
+    expect(readCommand("open the shopping list")).toBeNull();
+  });
+
+  it("logs a sum said first, and what it went on", () => {
+    expect(readCommand("640 on flights, pune client visit")).toEqual({ do: "spend", amount: 640, what: "Flights, pune client visit", daysAgo: 0 });
+    expect(readCommand("$18 on stamps")).toMatchObject({ do: "spend", amount: 18 });
+    // A count of people, and a small number, are not money.
+    expect(readCommand("120 on the waitlist")).toBeNull();
+    expect(readCommand("3 on the team")).toBeNull();
+  });
+
+  it("logs a thing and a sum the bank charged", () => {
+    expect(readCommand("figma, 1,200, charged this morning")).toEqual({ do: "spend", amount: 1200, what: "Figma", daysAgo: 0 });
+    expect(readCommand("server bill 3,200 debited yesterday")).toMatchObject({ do: "spend", amount: 3200, daysAgo: 1 });
+    // Charged to somebody else is not spent.
+    expect(readCommand("charged harbour 4,500 for the audit")).toBeNull();
+  });
+
+  it("logs what a company buys, with words between the thing and the sum", () => {
+    expect(readCommand("cab to the client office 280")).toMatchObject({ do: "spend", amount: 280 });
+    expect(readCommand("dinner w/ maya €64")).toMatchObject({ do: "spend", amount: 64 });
+    expect(readCommand("hosting 96 usd")).toMatchObject({ do: "spend", amount: 96, what: "Hosting" });
+    expect(readCommand("postage to berlin - 1,150 rupees")).toMatchObject({ do: "spend", amount: 1150 });
+    // A time, and a thing nobody buys this way.
+    expect(readCommand("zoom at 3pm")).toBeNull();
+    expect(readCommand("room 204")).toBeNull();
+  });
+
+  it("does not take a sentence with a price in it for a bill", () => {
+    expect(readCommand("a booking app we own, rented to salons at 20 usd a month")).toBeNull();
+    expect(readCommand("google workspace 1,200 a month")).toMatchObject({ do: "cost", amount: 1200 });
+  });
+
+  it("adds a contact asked for after the telling, or by their address", () => {
+    expect(readCommand("mira sen, lantern press, kolkata - save her as a contact")).toMatchObject({ do: "contact", name: "Lantern Press", person: "Mira Sen" });
+    expect(readCommand("noor haddad runs a florist in amman, met her at the fair, put her in")).toMatchObject({ do: "contact", name: "Noor Haddad", person: null });
+    expect(readCommand("add arjun rao from tidewater, arjun@tidewater.example")).toMatchObject({
+      do: "contact",
+      name: "Tidewater",
+      person: "Arjun Rao",
+      email: "arjun@tidewater.example",
+    });
+    expect(readCommand("Pine & Pearl Ceramics is a new one for the list. Odile Mercer runs it, Lyon.")).toMatchObject({
+      do: "contact",
+      name: "Pine & Pearl Ceramics",
+      person: "Odile Mercer",
+    });
+    // Adding something to something is not adding a contact.
+    expect(readCommand("add arjun@tidewater.example to the newsletter list")).toBeNull();
+    expect(readCommand("put her in touch with the printer")).toBeNull();
   });
 });

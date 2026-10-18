@@ -80,7 +80,7 @@ export function LeadTasks({
   const done = tasks.filter((task) => task.status === "done");
 
   return (
-    <div className="leadtasks">
+    <div className="leadtasks leadtasks--steps">
       <div className="leadtasks__head">
         <h2 className="card__title">Next steps</h2>
         {!adding && (
@@ -114,7 +114,7 @@ export function LeadTasks({
 
       {open.length === 0 && !adding && (
         <p className="card__hint">
-          Nothing planned. A contact with no next step is how one goes quiet.
+          Nothing planned.
         </p>
       )}
 

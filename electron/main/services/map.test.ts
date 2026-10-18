@@ -143,26 +143,6 @@ describe("what [[ offers", () => {
     expect(map.linkTargetsFor(db, companyId, "50%").map((t) => t.name)).toEqual(["50% discount"]);
   });
 
-  it("offers your pages every company's contacts, and a company's pages nothing of yours", () => {
-    const home = createCompany(db, { name: "Me", accent: "coffee", timezone: "Asia/Kolkata", kind: "personal" }).id;
-    const oakridge = createLead(db, companyId, leadInput.parse({ name: "Oakridge School" }));
-    const mine = brain.newPage(db, home, "hobbies", "page", NOW);
-    brain.savePage(db, mine.id, { title: "Oak carving", body: "", fields: {}, baseRevision: mine.revision }, NOW);
-
-    // The journal mentions Oakridge; the link is kept, and named.
-    expect(map.linkTargetsFor(db, home, "oak").map((t) => `${t.kind}:${t.name}`)).toEqual(["page:Oak carving", "contact:Oakridge School"]);
-    const day = brain.newPage(db, home, "journal", "page", NOW);
-    const said = brain.savePage(
-      db,
-      day.id,
-      { title: "Today", body: `Met ${linkToken("Oakridge School", { kind: "contact", id: oakridge.id })}.`, fields: {}, baseRevision: day.revision },
-      NOW,
-    );
-    expect(said.links).toMatchObject({ [`contact:${oakridge.id}`]: { name: "Oakridge School" } });
-
-    // The company's brain can be shared: it is never offered your pages.
-    expect(map.linkTargetsFor(db, companyId, "oak").map((t) => t.name)).toEqual(["Oakridge School"]);
-  });
 });
 
 describe("the map", () => {
@@ -239,28 +219,25 @@ describe("links outside the app", () => {
 });
 
 describe("one connected brain", () => {
-  it("links a page to a product, a person and a document, and each knows it", async () => {
+  it("links a page to a product, a contact and a document, and each knows it", async () => {
     const { newProduct } = await import("./products");
-    const { addPerson } = await import("./people");
     const { recordDocument } = await import("../repositories/documents");
     const workshop = newProduct(db, companyId, { name: "Attendance workshop" }, NOW).product;
-    const asha = addPerson(db, companyId, { name: "Asha Rao", kind: "founder" }, NOW).person;
+    const asha = createLead(db, companyId, leadInput.parse({ name: "Asha Rao" }));
     const deck = recordDocument(db, companyId, { name: "Seed deck", category: "pitch-deck", location: "Drive" }, null, NOW);
 
     const plan = page("Plan");
     const saved = write(
       plan.id,
-      `${linkToken("x", { kind: "product", id: workshop.id })} by ${linkToken("x", { kind: "person", id: asha.id })}, in ${linkToken("x", { kind: "document", id: deck.id })}`,
+      `${linkToken("x", { kind: "product", id: workshop.id })} by ${linkToken("x", { kind: "contact", id: asha.id })}, in ${linkToken("x", { kind: "document", id: deck.id })}`,
     );
     expect(saved.links).toEqual({
       [`product:${workshop.id}`]: { name: "Attendance workshop", kind: "product" },
-      [`person:${asha.id}`]: { name: "Asha Rao", kind: "person" },
+      [`contact:${asha.id}`]: { name: "Asha Rao", kind: "contact" },
       [`document:${deck.id}`]: { name: "Seed deck", kind: "document" },
     });
-    expect(map.backlinks(db, "person", asha.id).map((row) => row.title)).toEqual(["Plan"]);
-    expect(map.linkTargetsFor(db, companyId, "Ash")).toEqual([
-      expect.objectContaining({ kind: "person", name: "Asha Rao", detail: "Founder" }),
-    ]);
+    expect(map.backlinks(db, "contact", asha.id).map((row) => row.title)).toEqual(["Plan"]);
+    expect(map.linkTargetsFor(db, companyId, "Ash")).toEqual([expect.objectContaining({ kind: "contact", name: "Asha Rao" })]);
 
     // Deleting what a link points at leaves the words, and takes the line off the Map.
     db.prepare(`DELETE FROM products WHERE id = ?`).run(workshop.id);
@@ -268,17 +245,27 @@ describe("one connected brain", () => {
     expect(db.prepare(`SELECT COUNT(*) AS n FROM brain_links WHERE to_kind = 'product'`).get()).toEqual({ n: 0 });
   });
 
-  it("draws the links the tables already know: a person who is a contact, a buyer, whose a document is", async () => {
+  it("puts a link to somebody on the team back to their words, once, and touches nothing else", () => {
+    const plan = page("Plan");
+    const other = page("Other");
+    const person = "[[Asha Rao|person:11111111-2222-3333-4444-555555555555]]";
+    // Written as an older version would have left it: saving now would not make such a link.
+    db.prepare(`UPDATE brain_pages SET body = ? WHERE id = ?`).run(`Ask ${person} first.`, plan.id);
+    db.prepare(`UPDATE brain_pages SET body = ? WHERE id = ?`).run("one person: the founder", other.id);
+
+    expect(brain.forgetPeopleLinks(db)).toBe(1);
+    expect(brain.getPage(db, plan.id).body).toBe("Ask Asha Rao first.");
+    expect(brain.getPage(db, other.id).body).toBe("one person: the founder");
+    expect(brain.forgetPeopleLinks(db)).toBe(0);
+  });
+
+  it("draws the links the tables already know: a buyer, and whose a document is", async () => {
     const { newProduct } = await import("./products");
-    const { addPerson } = await import("./people");
     const { recordDocument } = await import("../repositories/documents");
     const { saveInvoice, setInvoiceStatus } = await import("../repositories/money");
     const school = createLead(db, companyId, leadInput.parse({ name: "Oakridge" }));
-    const advisor = createLead(db, companyId, leadInput.parse({ name: "Meera Iyer" }));
     createLead(db, companyId, leadInput.parse({ name: "Loose" }));
     const workshop = newProduct(db, companyId, { name: "Workshop" }, NOW).product;
-    addPerson(db, companyId, { name: "Meera", kind: "advisor", leadId: advisor.id }, NOW);
-    addPerson(db, companyId, { name: "Kiran", kind: "candidate" }, NOW);
     recordDocument(db, companyId, { name: "Oakridge contract", category: "contract", location: "Drive", leadId: school.id }, null, NOW);
     recordDocument(db, companyId, { name: "Invoice 7", category: "invoice-sent", location: "Drive", leadId: school.id }, null, NOW);
     const invoice = saveInvoice(db, companyId, null, {
@@ -294,10 +281,9 @@ describe("one connected brain", () => {
     const edges = graph.links
       .map((link) => [link.source, link.target].map((key) => graph.nodes.find((node) => node.key === key)?.label).sort().join(" - "))
       .sort();
-    expect(edges).toEqual(["Meera - Meera Iyer", "Oakridge - Oakridge contract", "Oakridge - Workshop"]);
-    // A candidate nobody wrote about, a sent invoice and a contact nothing reaches stay off.
+    expect(edges).toEqual(["Oakridge - Oakridge contract", "Oakridge - Workshop"]);
+    // A sent invoice and a contact nothing reaches stay off.
     const labels = graph.nodes.map((node) => node.label);
-    expect(labels).not.toContain("Kiran");
     expect(labels).not.toContain("Invoice 7");
     expect(labels).not.toContain("Loose");
     expect(graph.links.find((link) => link.source.startsWith("product:"))?.createdAt).toBe("2026-09-01T00:00:00.000Z");

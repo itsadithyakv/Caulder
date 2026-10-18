@@ -87,7 +87,7 @@ export function DeadlinesPanel({
   const openSource = (deadline: Deadline) =>
     deadline.source === "page"
       ? onOpenPage(deadline.id)
-      : onOpenSection(sectionForDeadline(deadline.source), deadline.source === "person" ? deadline.id : undefined);
+      : onOpenSection(sectionForDeadline(deadline.source));
 
   return (
     <div className="deadlines">
@@ -95,7 +95,7 @@ export function DeadlinesPanel({
         <Card
           icon={<CalendarClock size={15} aria-hidden />}
           title="Coming up"
-          hint="Late, or inside its notice. Contracts, registrations and documents are read from their own dates."
+          hint="Late, or due soon."
         >
           <ul className="duelist" aria-label="Coming up">
             {shown.deadlines.map((deadline) => (
@@ -130,7 +130,7 @@ export function DeadlinesPanel({
 
       <Card
         title="The filing calendar"
-        hint="What the company files and pays, again and again. Every date is a starting point: check them with your accountant."
+        hint="What the company files and pays. Check the dates with your accountant."
         actions={
           mode === "idle" &&
           !none && (

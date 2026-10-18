@@ -4,7 +4,6 @@ import { isLinkKind, keyOf, withLink, withoutLink, type LinkKind, type LinkRef, 
 import { neighbourhood, type LinkOutcome, type MapGraph, type MapPosition } from "@shared/map";
 import { findPageRow, savePageRow, summariesOf } from "../repositories/brain";
 import { backlinkIds, buildGraph, linkCandidates, resolveNames, savePositions, unpinAll } from "../repositories/links";
-import { isSealed } from "./journal-lock";
 
 /**
  * Links and the Map, as main hands them out (PLAN.md, phase 7).
@@ -70,8 +69,6 @@ function refOfKey(value: unknown): LinkRef {
   return refOf(value.slice(0, at), value.slice(at + 1));
 }
 
-const LOCKED = "That day of the journal is locked. Open the journal with its passcode, then link it.";
-
 /**
  * Links two dots, the way dragging one onto the other on the Map does. A link
  * is words in a page, so it is written into one: the page dragged from, or
@@ -101,7 +98,6 @@ export function connect(db: Db, companyId: string, from: unknown, to: unknown, n
     )
     .get(companyId, holder.id, target.kind, target.id, target.id, holder.kind, holder.id);
   if (joined) return { pageId: holder.id, pageTitle: row.title, already: true };
-  if (isSealed(db, holder.id)) throw new Error(LOCKED);
 
   const body = withLink(row.body, names[keyOf(target)]?.name ?? "", target);
   savePageRow(db, holder.id, { title: row.title, body, fields: row.stored }, row.revision, now.toISOString());
@@ -110,15 +106,13 @@ export function connect(db: Db, companyId: string, from: unknown, to: unknown, n
 
 /**
  * Takes the link between two dots out of the page or pages it is written in:
- * a line of links loses it, a sentence keeps its words. The ids of the pages
- * changed, so a journal day can go back under its seal. Refused for a line
- * Caulder draws itself, or one in a journal day that is locked.
+ * a line of links loses it, a sentence keeps its words. Returns the ids of
+ * the pages changed. Refused for a line Caulder draws itself.
  */
 export function disconnect(db: Db, companyId: string, one: unknown, other: unknown, now: Date): string[] {
   const a = refOfKey(one);
   const b = refOfKey(other);
   const changed: string[] = [];
-  let locked = false;
   for (const [holder, target] of [
     [a, b],
     [b, a],
@@ -126,19 +120,13 @@ export function disconnect(db: Db, companyId: string, one: unknown, other: unkno
     if (holder.kind !== "page") continue;
     const row = findPageRow(db, holder.id);
     if (!row || row.company_id !== companyId) continue;
-    if (isSealed(db, holder.id)) {
-      locked ||= db
-        .prepare(`SELECT 1 FROM brain_links WHERE from_page = ? AND to_kind = ? AND to_id = ?`)
-        .get(holder.id, target.kind, target.id) !== undefined;
-      continue;
-    }
     const body = withoutLink(row.body, target);
     if (body === row.body) continue;
     savePageRow(db, holder.id, { title: row.title, body, fields: row.stored }, row.revision, now.toISOString());
     changed.push(holder.id);
   }
   if (changed.length === 0) {
-    throw new Error(locked ? LOCKED : "Caulder draws that line itself, from what it already knows. It is not written in a page.");
+    throw new Error("Caulder draws that line itself, from what it already knows. It is not written in a page.");
   }
   return changed;
 }

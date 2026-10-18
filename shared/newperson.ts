@@ -1,5 +1,6 @@
 import { parseQuick } from "./quickadd";
 import { shiftDay } from "./dates";
+import { nextStepIn } from "./nextstep";
 
 /**
  * Somebody new, said the way you would tell a friend: "Jyothi the principal
@@ -95,6 +96,78 @@ function named(text: string, company: boolean): string {
 
 function capital(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/** Said of a person without being their name: nobody is asked where "the client" is from. */
+const NOT_A_PERSON = new Set([
+  "client", "customer", "boss", "team", "bank", "landlord", "vendor", "supplier", "lawyer", "auditor", "wife", "husband",
+  "friend", "guys", "sir", "madam", "maam", "office", "company", "school", "college", "support", "nobody", "google",
+]);
+
+/** A word a name could be. */
+function nameWord(word: string, doing: (word: string) => boolean): boolean {
+  const lower = word.toLowerCase();
+  if (lower.length < 3 || !/^[\p{L}][\p{L}.'-]*$/u.test(word)) return false;
+  if (NOT_A_NAME.has(lower) || NOT_A_PERSON.has(lower) || IN_A_SENTENCE.has(lower) || doing(lower)) return false;
+  if (A_ROLE.test(lower) || (lower.length >= 5 && /(?:ed|ing)$/.test(lower))) return false;
+  return true;
+}
+
+/** Somebody the line is about whom nobody has said where they are from. */
+type Stranger = {
+  /** As a name is written: Sumanth. */
+  name: string;
+  source: string | null;
+  /** What happened, for their history once they are a contact. */
+  happened: string;
+  then: NonNullable<NewPerson["then"]>;
+};
+
+/**
+ * "Sumanth asked me to reach out next week", with no "from RV PUC" and no
+ * contact of that name (PLAN.md, part nine). Somebody is named and something
+ * is owed them, and Caulder does not know who they are - so the line asks
+ * where they are from rather than keeping a task about nobody.
+ *
+ * Only ever when the line leaves a next step (shared/nextstep.ts): that is
+ * what makes them somebody to keep, and what keeps "mum asked me to buy milk"
+ * - which leaves none - a task like any other. The name comes first and what
+ * they said after, or it is my own word given to them: "told Sumanth I'd send
+ * the deck".
+ */
+export function readStranger(said: string, clock: Clock, doing: (word: string) => boolean = () => false): Stranger | null {
+  const line = said.trim().replace(/\s+/g, " ");
+  const theirs =
+    /^([\p{L}][\p{L}.'-]*(?:\s+[\p{L}][\p{L}.'-]*)?)\s+(?=(?:asked|told|said|says|wants|wanted|needs|needed|expects|requested|promised|agreed|will|would|is\s+going\s+to)\b)/iu.exec(
+      line,
+    );
+  const mine = theirs
+    ? null
+    : /^(?:(?:i|we)\s+)?(?:told|promised|assured)\s+([\p{L}][\p{L}.'-]*)\s+(?=(?:that\s+)?(?:i|we)(?:'d|'ll|\s+would|\s+will)\b)/iu.exec(line);
+  const typed = (theirs?.[1] ?? mine?.[1] ?? "").trim();
+  if (!typed || !typed.split(/\s+/).every((word) => nameWord(word, doing))) return null;
+
+  const name = named(typed, false);
+  const owed = nextStepIn(line, name, clock);
+  if (!owed) return null;
+  const rest = theirs ? line.slice(theirs[0].length) : line;
+  return {
+    name,
+    source: SOURCES.find(([pattern]) => pattern.test(line))?.[1] ?? null,
+    happened: capital(
+      rest
+        .replace(/[\s,;.!?]+$/, "")
+        .replace(/\blinked\s?in\b/gi, "LinkedIn")
+        .replace(/\binsta(?:gram)?\b/gi, "Instagram")
+        .replace(/\bwhats\s?app\b/gi, "WhatsApp"),
+    ),
+    then: { title: owed.title, day: owed.day, time: owed.time, daySaid: owed.daySaid },
+  };
+}
+
+/** A place as it is written on a contact: "rv puc" is RV PUC. */
+export function placeNamed(text: string): string {
+  return named(text.replace(/\s+/g, " ").replace(/^the\s+/i, ""), true);
 }
 
 /**
@@ -206,6 +279,13 @@ export function readNewPerson(
       time: reading.task.time,
       daySaid: reading.task.day !== null,
     };
+  }
+
+  // Nothing said as "I need to": the thing to do may be inside what they said -
+  // "asked me to reach out next week", "said she'll get back in a few days".
+  if (!task) {
+    const owed = nextStepIn(rest, person, clock);
+    if (owed) task = { title: owed.title, day: owed.day, time: owed.time, daySaid: owed.daySaid };
   }
 
   return {

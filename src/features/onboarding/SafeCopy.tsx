@@ -54,10 +54,8 @@ export function SafeCopy() {
   return (
     <Card icon={<HardDrive size={15} aria-hidden />} title="Keep a copy off this computer" className="safecopy">
       <p className="card__hint">
-        Everything is one file here, and Caulder backs it up every time it starts. Put those backups in a folder
-        OneDrive, Dropbox or Google Drive keeps in step, and they live somewhere else too - free, and with no account of
-        Caulder&rsquo;s.
-        {store && " This copy came from the Microsoft Store, and Windows removes its own folder when it is uninstalled; a copy elsewhere is the way round that."}
+        Keep your backups in OneDrive, Dropbox or Google Drive too.
+        {store && " Uninstalling the Store copy removes its own folder."}
       </p>
 
       {mirror ? (

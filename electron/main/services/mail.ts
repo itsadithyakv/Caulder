@@ -15,9 +15,11 @@ import { findLead } from "../repositories/leads";
 import {
   applyReport,
   dueAccountEmails,
+  dueAccountFollowUps,
   findEmail,
   forgettableEmailIds,
   heldForBarred,
+  keepMessageId,
   listEmailsForLead,
   markForgotten,
   recordEmail,
@@ -27,7 +29,7 @@ import {
 import { getSetting, setSetting } from "../repositories/settings";
 import { isConnected } from "./credentials";
 import { callScript, hello, type Hello } from "./gsync";
-import { mailSenders, sendFromAccount } from "./mailaccounts";
+import { accountReadsReplies, checkReplies, inboxInOrder, mailSenders, newMessageId, sendFromAccount } from "./mailaccounts";
 import { isFault, logProblem } from "../log";
 
 /**
@@ -171,6 +173,13 @@ function followUpFor(
   return { days: choice.days, body };
 }
 
+/** The template a message says it came from, when it is one of this company's; otherwise none. */
+function templateOf(db: Db, id: string | null, companyId: string): string | null {
+  if (!id) return null;
+  const template = findTemplate(db, id);
+  return template && template.companyId === companyId ? template.id : null;
+}
+
 export async function sendEmail(db: Db, raw: unknown, now: Date = new Date()): Promise<EmailRecord[]> {
   const input = sendEmailInput.parse(raw);
 
@@ -198,6 +207,7 @@ export async function sendEmail(db: Db, raw: unknown, now: Date = new Date()): P
   }
 
   const id = randomUUID();
+  const templateId = templateOf(db, input.templateId, lead.companyId);
   const remote = await callScript<RemoteEmail>("sendEmail", {
     id,
     to: lead.email,
@@ -211,6 +221,7 @@ export async function sendEmail(db: Db, raw: unknown, now: Date = new Date()): P
     db,
     {
       id,
+      templateId,
       companyId: lead.companyId,
       leadId: lead.id,
       to: lead.email,
@@ -228,32 +239,50 @@ export async function sendEmail(db: Db, raw: unknown, now: Date = new Date()): P
 
 /**
  * From Zoho, Outlook or any other account: sent now while Caulder waits, or
- * kept and sent by Caulder when it is due. No follow-up - that needs the
- * script, which is what sees whether they answered - and said so, rather than
- * a follow-up quietly never going.
+ * kept and sent by Caulder when it is due. A follow-up needs somebody to see
+ * whether they answered, so it is taken only from an account whose inbox is
+ * read - and refused in words otherwise, rather than quietly never going.
  */
 async function sendByAccount(
   db: Db,
-  input: { accountId: string; subject: string; body: string; sendAt: string | null; followUp: unknown },
+  input: { accountId: string; templateId: string | null; subject: string; body: string; sendAt: string | null; followUp: { days: number; templateId: string } | null },
   lead: Lead,
   now: Date,
 ): Promise<EmailRecord[]> {
-  if (input.followUp) {
-    throw new Error("A follow-up needs the Google script, which is what sees whether they replied. Send this from Gmail for one, or follow up by hand.");
-  }
   if (!db.prepare(`SELECT 1 FROM mail_accounts WHERE id = ?`).get(input.accountId)) throw new Error("That account is not connected any more.");
+  if (input.followUp && !accountReadsReplies(db, input.accountId)) {
+    throw new Error(
+      "A follow-up needs Caulder to see whether they replied. Switch on See replies for that account in Settings, send this from Gmail, or follow up by hand.",
+    );
+  }
+  const followUp = input.followUp ? followUpFor(db, lead, input.followUp) : null;
   const to = lead.email as string;
   const sendAt = scheduleFor(input.sendAt, now);
   const id = randomUUID();
+  const messageId = newMessageId(db, input.accountId);
   // Sent before anything is written: a message the server refused is not a message that was sent.
-  if (!sendAt) await sendFromAccount(db, input.accountId, { to, subject: input.subject, body: input.body });
+  if (!sendAt) await sendFromAccount(db, input.accountId, { to, subject: input.subject, body: input.body, messageId });
   const at = new Date().toISOString();
+  const waiting = followUp ? { status: "waiting" as const, sentAt: null, error: null } : null;
   recordEmail(
     db,
-    { id, accountId: input.accountId, companyId: lead.companyId, leadId: lead.id, to, subject: input.subject, body: input.body, sendAt, followUpDays: null, followUpBody: null },
+    {
+      id,
+      accountId: input.accountId,
+      templateId: templateOf(db, input.templateId, lead.companyId),
+      messageId,
+      companyId: lead.companyId,
+      leadId: lead.id,
+      to,
+      subject: input.subject,
+      body: input.body,
+      sendAt,
+      followUpDays: followUp?.days ?? null,
+      followUpBody: followUp?.body ?? null,
+    },
     sendAt
-      ? { id, status: "scheduled", sentAt: null, repliedAt: null, error: null, followUp: null }
-      : { id, status: "sent", sentAt: at, repliedAt: null, error: null, followUp: null },
+      ? { id, status: "scheduled", sentAt: null, repliedAt: null, error: null, followUp: waiting }
+      : { id, status: "sent", sentAt: at, repliedAt: null, error: null, followUp: waiting },
     new Date(),
   );
   if (!sendAt) settleAccountEmail(db, id);
@@ -271,7 +300,9 @@ export async function sendDueAccountMail(db: Db, now: Date = new Date()): Promis
   let sent = 0;
   for (const email of dueAccountEmails(db, now.toISOString())) {
     try {
-      await sendFromAccount(db, email.accountId, email);
+      const messageId = newMessageId(db, email.accountId);
+      await sendFromAccount(db, email.accountId, { ...email, messageId });
+      keepMessageId(db, email.id, messageId);
       applyReport(db, { id: email.id, status: "sent", sentAt: new Date().toISOString(), repliedAt: null, error: null, followUp: null }, new Date());
       sent += 1;
     } catch (error) {
@@ -279,6 +310,41 @@ export async function sendDueAccountMail(db: Db, now: Date = new Date()): Promis
       applyReport(db, { id: email.id, status: "failed", sentAt: null, repliedAt: null, error: reason, followUp: null }, new Date());
     }
     settleAccountEmail(db, email.id);
+  }
+  return sent + (await sendDueFollowUps(db, now));
+}
+
+/**
+ * Follow-ups to messages that went from an account, when their days are up
+ * and nobody has answered.
+ *
+ * **The inbox is looked at first, every time.** A follow-up to somebody who
+ * replied an hour ago is the one mistake this feature must not make, so
+ * nothing goes on the strength of a look ten minutes old - and when the
+ * inbox cannot be read, the follow-up waits rather than goes blind.
+ */
+async function sendDueFollowUps(db: Db, now: Date): Promise<number> {
+  if (dueAccountFollowUps(db, now.toISOString()).length === 0) return 0;
+  await checkReplies(db, now);
+  let sent = 0;
+  // Read again: whoever answered is no longer waiting for one.
+  for (const due of dueAccountFollowUps(db, now.toISOString())) {
+    if (!inboxInOrder(db, due.accountId)) continue;
+    const report = (followUp: { status: "sent" | "failed"; sentAt: string | null; error: string | null }) =>
+      applyReport(db, { id: due.id, status: "sent", sentAt: null, repliedAt: null, error: null, followUp }, new Date());
+    try {
+      await sendFromAccount(db, due.accountId, {
+        to: due.to,
+        subject: /^re:/i.test(due.subject) ? due.subject : `Re: ${due.subject}`,
+        body: due.body,
+        messageId: newMessageId(db, due.accountId),
+        inReplyTo: due.messageId,
+      });
+      report({ status: "sent", sentAt: new Date().toISOString(), error: null });
+      sent += 1;
+    } catch (error) {
+      report({ status: "failed", sentAt: null, error: error instanceof Error ? error.message : String(error) });
+    }
   }
   return sent;
 }
@@ -313,7 +379,13 @@ export async function cancelEmail(db: Db, id: string): Promise<EmailRecord[]> {
   // Kept by Caulder, not the script: cancelled here, and nowhere else to ask.
   const own = db.prepare(`SELECT account_id FROM emails WHERE id = ?`).get(id) as { account_id: string | null } | undefined;
   if (own?.account_id) {
-    applyReport(db, { id, status: "cancelled", sentAt: null, repliedAt: null, error: null, followUp: null }, new Date());
+    // A message that has not gone is cancelled; one that has, and has a follow-up waiting, loses only the follow-up.
+    const followUp = email.followUp?.status === "waiting" ? { status: "cancelled" as const, sentAt: null, error: null } : null;
+    applyReport(
+      db,
+      { id, status: email.status === "scheduled" ? "cancelled" : email.status, sentAt: null, repliedAt: null, error: null, followUp },
+      new Date(),
+    );
     settleAccountEmail(db, id);
     return listEmailsForLead(db, email.leadId);
   }

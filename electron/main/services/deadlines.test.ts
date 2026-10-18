@@ -264,8 +264,16 @@ describe("migration 26", () => {
       old.pragma(`user_version = ${migration.version}`);
     }
     const theirs = createCompany(old, { name: "Unifloe", accent: "blue", timezone: "Asia/Kolkata" });
-    const lead = createLead(old, theirs.id, leadInput.parse({ name: "Oakridge School" }));
     const at = "2026-04-01T00:00:00.000Z";
+    // Written as a row: this is the schema of version 25, which the
+    // repository no longer writes to (a contact has gained columns since).
+    const lead = { id: "lead-old" };
+    old
+      .prepare(
+        `INSERT INTO leads (id, company_id, name, tags, do_not_contact, relationship, created_at, updated_at)
+         VALUES (?, ?, 'Oakridge School', '[]', 0, 'prospect', ?, ?)`,
+      )
+      .run(lead.id, theirs.id, at, at);
 
     old
       .prepare(

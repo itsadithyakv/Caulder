@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Undo2 } from "lucide-react";
-import { TASK_AREAS, TASK_AREA_LABEL } from "@shared/domain";
-import type { AnswerInput, Guess, TuneState } from "@shared/tune";
+import type { AnswerInput, Guess, NameKept, TuneState } from "@shared/tune";
 import { messageOf } from "@/lib/errors";
+import { useWorkspace } from "@/lib/workspace";
 import { Card } from "@/components/Card";
 import { Explain } from "@/components/Explain";
 
@@ -20,8 +20,11 @@ import { Explain } from "@/components/Explain";
  * was given is listed underneath with a way to take it back, because a wrong
  * press here should cost exactly one more.
  */
-export function TuneCard({ onTaught }: { /** A name was given an area, and is now one of Your words. */ onTaught?: () => void }) {
+export function TuneCard() {
   const [state, setState] = useState<TuneState>({ asking: [], settled: [] });
+  /** Who a word means in this company, kept from answers the line was given (part twelve, phase 48). */
+  const { activeCompany } = useWorkspace();
+  const [names, setNames] = useState<NameKept[]>([]);
   /** Put off for this visit only. */
   const [later, setLater] = useState<readonly string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -30,6 +33,20 @@ export function TuneCard({ onTaught }: { /** A name was given an area, and is no
   useEffect(() => {
     void window.caulder.tune.get().then(setState, () => undefined);
   }, []);
+
+  useEffect(() => {
+    if (!activeCompany) return;
+    void window.caulder.tune.names(activeCompany.id).then(setNames, () => undefined);
+  }, [activeCompany]);
+
+  async function forgetName(id: string) {
+    try {
+      await window.caulder.tune.forgetName(id);
+      setNames((current) => current.filter((name) => name.id !== id));
+    } catch (cause) {
+      setError(messageOf(cause));
+    }
+  }
 
   const waiting = state.asking.filter((guess) => !later.includes(guess.id));
   const asked = waiting[0];
@@ -59,48 +76,22 @@ export function TuneCard({ onTaught }: { /** A name was given an area, and is no
         <div className="tune" role="group" aria-label="A question about something you typed">
           <Question guess={asked} />
           <div className="tune__answers">
-            {asked.kind === "slip" ? (
-              <>
-                <button
-                  type="button"
-                  className="btn btn--sm btn--primary"
-                  disabled={busy}
-                  onClick={() => void answer({ kind: "slip", id: asked.id, verdict: "same" })}
-                >
-                  Yes, same thing
-                </button>
-                <button
-                  type="button"
-                  className="btn btn--sm"
-                  disabled={busy}
-                  onClick={() => void answer({ kind: "slip", id: asked.id, verdict: "keep" })}
-                >
-                  No, leave &ldquo;{asked.typed}&rdquo; alone
-                </button>
-              </>
-            ) : (
-              <>
-                {TASK_AREAS.map((area) => (
-                  <button
-                    key={area}
-                    type="button"
-                    className={`area area--${area} tune__area`}
-                    disabled={busy}
-                    onClick={() => void answer({ kind: "name", id: asked.id, area }).then(onTaught)}
-                  >
-                    {TASK_AREA_LABEL[area]}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  className="btn btn--sm"
-                  disabled={busy}
-                  onClick={() => void answer({ kind: "name", id: asked.id, area: null })}
-                >
-                  None of them
-                </button>
-              </>
-            )}
+            <button
+              type="button"
+              className="btn btn--sm btn--primary"
+              disabled={busy}
+              onClick={() => void answer({ id: asked.id, verdict: "same" })}
+            >
+              Yes, same thing
+            </button>
+            <button
+              type="button"
+              className="btn btn--sm"
+              disabled={busy}
+              onClick={() => void answer({ id: asked.id, verdict: "keep" })}
+            >
+              No, leave &ldquo;{asked.typed}&rdquo; alone
+            </button>
             <button
               type="button"
               className="btn btn--sm btn--ghost"
@@ -114,8 +105,8 @@ export function TuneCard({ onTaught }: { /** A name was given an area, and is no
       ) : (
         <p className="card__hint">
           {state.asking.length > 0
-            ? "That is all of them for now. The ones put off will be back."
-            : "Nothing to ask. When the line guesses at something you typed, it will ask about it here."}
+            ? "That is all for now."
+            : "Nothing to ask."}
         </p>
       )}
 
@@ -123,6 +114,27 @@ export function TuneCard({ onTaught }: { /** A name was given an area, and is no
         <p className="field__error" role="alert">
           {error}
         </p>
+      )}
+
+      {names.length > 0 && (
+        <ul className="rules" aria-label="Who a word means">
+          {names.map((name) => (
+            <li key={name.id} className="rule">
+              <span className="rule__text">
+                <strong>{name.said}</strong> is {name.leadName}
+              </span>
+              <button
+                type="button"
+                className="btn btn--sm btn--ghost"
+                onClick={() => void forgetName(name.id)}
+                aria-label={`Forget who "${name.said}" means`}
+                title="Forget this - the line will ask again"
+              >
+                <Undo2 size={14} aria-hidden />
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
 
       {state.settled.length > 0 && (
@@ -151,8 +163,7 @@ export function TuneCard({ onTaught }: { /** A name was given an area, and is no
         <p>
           The line reads &ldquo;meetining&rdquo; as a meeting and says so, rather than stopping you to
           check. Say here that it was right and it stops mentioning it; say it was wrong and it never
-          touches that word again. A name that keeps coming up &mdash; a client, a course, a place
-          &mdash; is asked about once, and your answer becomes one of Your words.
+          touches that word again.
         </p>
       </Explain>
     </Card>
@@ -161,14 +172,10 @@ export function TuneCard({ onTaught }: { /** A name was given an area, and is no
 
 function Question({ guess }: { guess: Guess }) {
   const often = guess.times > 1 ? ` It has come up ${guess.times} times.` : "";
-  return guess.kind === "slip" ? (
+  return (
     <p className="tune__question">
       You typed <strong>&ldquo;{guess.typed}&rdquo;</strong> and it was read as{" "}
       <strong>&ldquo;{guess.meant}&rdquo;</strong>. Same thing?{often}
-    </p>
-  ) : (
-    <p className="tune__question">
-      <strong>&ldquo;{guess.typed}&rdquo;</strong> has come up {guess.times} times. Which part of your life is it?
     </p>
   );
 }

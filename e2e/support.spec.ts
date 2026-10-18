@@ -64,7 +64,7 @@ test("the first day asks nothing, and About Caulder has the ways to help", async
   await goTo(page, "Settings");
   const about = page.locator(".about");
   await expect(about.getByRole("heading", { name: "About Caulder" })).toBeVisible();
-  await expect(about.getByText(/made by one college student in India/)).toBeVisible();
+  await expect(about.getByText(/Made by one college student in India/)).toBeVisible();
   await expect(about.getByRole("button", { name: "Sponsor on GitHub" })).toBeVisible();
   await expect(about.getByRole("button", { name: "Licences" })).toBeVisible();
   await expect(about.getByRole("button", { name: "Privacy" })).toBeVisible();

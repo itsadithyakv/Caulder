@@ -5,10 +5,14 @@ import {
   CONTEXT_HINT,
   CONTEXT_LABEL,
   CONTEXT_SIZES,
+  ASK_SCOPES,
   DEFAULT_SERVICE,
+  SCOPE_HINT,
+  SCOPE_LABEL,
   connectInput,
   serviceOf,
   type AiService,
+  type AskScope,
   type AskState,
   type ContextSize,
 } from "@shared/ask";
@@ -77,7 +81,7 @@ export function AiCard({ title = "Ask the brain: connect an AI" }: { title?: str
     return (
       <Card
         title={title}
-        hint="Questions about the company, answered by an AI from everything written here. Any service works; Gemini is free."
+        hint="Ask an AI about the company. Gemini is free."
         className="aicard"
       >
         <div className="aicard__split">
@@ -255,9 +259,21 @@ export function AiCard({ title = "Ask the brain: connect an AI" }: { title?: str
       </div>
 
       <div className="field aicard__row">
-        <span className="field__label">How much of the company it reads</span>
+        <span className="field__label">What goes with a question</span>
         <Chips
-          aria-label="How much of the company it reads"
+          aria-label="What goes with a question"
+          value={state.scope}
+          disabled={busy}
+          onChange={(next: AskScope) => void run(() => window.caulder.ask.setScope(next))}
+          options={ASK_SCOPES.map((scope) => ({ value: scope, label: SCOPE_LABEL[scope] }))}
+        />
+        <span className="card__hint">{SCOPE_HINT[state.scope]}</span>
+      </div>
+
+      <div className="field aicard__row">
+        <span className="field__label">The most it is sent at once</span>
+        <Chips
+          aria-label="The most it is sent at once"
           value={state.context}
           disabled={busy}
           onChange={(next: ContextSize) => void run(() => window.caulder.ask.setContext(next))}
@@ -266,34 +282,12 @@ export function AiCard({ title = "Ask the brain: connect an AI" }: { title?: str
         <span className="card__hint">{CONTEXT_HINT[state.context]}</span>
       </div>
 
-      {/* Your own side of Caulder. Off until you say otherwise, because it is
-          the half you would mind a stranger reading. */}
-      <div className="checkline">
-        <button
-          type="button"
-          role="switch"
-          aria-checked={state.personal}
-          aria-label="Let it read your own pages"
-          className="toggle"
-          disabled={busy}
-          onClick={() => void run(() => window.caulder.ask.setPersonal(!state.personal))}
-        >
-          <span className="toggle__thumb" />
-        </button>
-        <span className="checkline__text">
-          <span className="checkline__title">Let it read your own pages</span>
-          <span className="card__hint">
-            Your journal, goals, habits, hobbies, courses and the lines you asked it to remember &mdash; so a
-            question about you gets an answer about you. <strong>A locked journal day, and anything Caulder took
-            as private, never goes</strong>, whatever this is set to.
-          </span>
-        </span>
-      </div>
 
       <ErrorLine>{error}</ErrorLine>
 
       <p className="card__hint aicard__privacy">
-        {service.privacy} Nothing is sent until you ask, and every answer says what went. Numbers are masked.
+        {service.privacy} Nothing is sent until you ask - a question, a line in AI mode, or a draft you ask for - and each
+        says what went. Numbers are masked. Nothing the AI writes is kept unless you keep it.
       </p>
     </Card>
   );

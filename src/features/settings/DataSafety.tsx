@@ -65,10 +65,7 @@ export function DataSafety({
     <section className="card datasafety">
       <h2 className="card__title">Your data</h2>
       <p className="card__hint">
-        Everything lives in one file on this machine. What you connect sends
-        only what it is for &mdash; Google your calendar and mail, your AI the
-        questions you ask &mdash; and none of that is a copy of this file, so a
-        copy off this computer is worth having.
+        Everything is in one file on this computer. Keep a copy somewhere else.
       </p>
 
       {error && (
@@ -208,10 +205,7 @@ export function DataSafety({
             Backups <span className="today__count">{backups.length}</span>
           </h3>
           <p className="card__hint">
-            One is taken every time Caulder starts, and the ten most recent are kept.
-            Restoring replaces everything with that copy &mdash; but the current
-            state is saved aside first, so restoring the wrong one is itself
-            undoable.
+            One every launch; the last ten are kept. A restore can be undone.
           </p>
 
           {backups.length === 0 ? (
@@ -271,8 +265,7 @@ export function DataSafety({
 
           {paths && (
             <p className="card__hint datasafety__where">
-              The database is at <code>{paths.database}</code>. Copy that file
-              somewhere else now and again, with Caulder closed.
+              The database: <code>{paths.database}</code>
             </p>
           )}
         </div>
@@ -307,8 +300,7 @@ export function DataSafety({
       {report !== null && (
         <div className="problemreport">
           <p className="card__hint">
-            This is everything in the report - nothing goes anywhere until you send it. Emails, phone numbers and your
-            Windows name are taken out. Add what happened, then copy it or open it as an issue.
+            Personal details are taken out. Nothing is sent until you send it.
           </p>
           <textarea
             className="textarea problemreport__text"
@@ -394,10 +386,7 @@ function DriveCopies({ companyId, sent }: { companyId: string; sent: number }) {
         {drive && <span className="today__count">{drive.backups.length}</span>}
       </h3>
       <p className="card__hint">
-        The copies sent with Back up to Google Drive, in the folder
-        &ldquo;{drive?.folder ?? "Caulder backups"}&rdquo;. To restore one,
-        download it from Drive into the backups folder; it then shows under
-        Backups above and restores like any other.
+        In &ldquo;{drive?.folder ?? "Caulder backups"}&rdquo; on Drive. To restore one, download it into the backups folder.
       </p>
 
       <ErrorLine>{error}</ErrorLine>

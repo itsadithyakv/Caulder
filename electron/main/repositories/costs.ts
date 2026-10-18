@@ -125,7 +125,7 @@ export function recordCostPaid(
   now: Date,
 ): void {
   db.prepare(
-    `INSERT INTO spend (id, company_id, spent_on, amount, what, campaign_id, cost_page_id, created_at)
-     VALUES (?, ?, ?, ?, ?, NULL, ?, ?)`,
+    `INSERT INTO spend (id, company_id, spent_on, amount, what, cost_page_id, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
   ).run(randomUUID(), companyId, day, cost.amount, cost.title, cost.pageId, now.toISOString());
 }

@@ -3,13 +3,13 @@ import { remembered } from "@shared/voice";
 /**
  * The window's half of shared/voice.ts: the memory and the dice.
  *
- * What has been said is kept in this browser's storage - it is a convenience,
- * not a record, and if it is lost the worst that happens is a joke told
+ * What has been shown is kept in this browser's storage - it is a convenience,
+ * not a record, and if it is lost the worst that happens is an example shown
  * twice. Every read and write can fail (a private profile, storage cleared
- * underneath it), and none of them may stop Today from drawing.
+ * underneath it), and none of them may stop the window from drawing.
  *
  * A slot is said once per stamp. The stamp is what makes it speak again: the
- * part of the day changing, or somebody asking for another.
+ * quick window opened another time.
  */
 
 const STORE = "caulder.said";
@@ -30,7 +30,7 @@ function keep(slot: string, seen: string[]): void {
     const all = JSON.parse(window.localStorage.getItem(STORE) ?? "{}") as Record<string, unknown>;
     window.localStorage.setItem(STORE, JSON.stringify({ ...all, [slot]: seen }));
   } catch {
-    // Told twice, then. Not worth a word to anybody.
+    // Shown twice, then. Not worth a word to anybody.
   }
 }
 

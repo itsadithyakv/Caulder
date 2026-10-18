@@ -27,9 +27,8 @@ beforeEach(() => {
 const bytes = (fill: number) => new Int8Array(4).fill(fill);
 
 describe("the queue", () => {
-  it("is filled by writing a page, a contact, a task or a note - and never a journal page", () => {
-    createPage(db, home, { section: "hobbies", template: "page", title: "Guitar", body: "Learning barre chords." }, NOW);
-    createPage(db, home, { section: "journal", template: "page", title: "Thursday", body: "A private day." }, NOW);
+  it("is filled by writing a page, a contact, a task or a note", () => {
+    createPage(db, home, { section: "ideas", template: "page", title: "Guitar", body: "Learning barre chords." }, NOW);
     createLead(db, home, leadInput.parse({ name: "Oakridge School" }));
     expect(queued(db, 10).map((row) => row.kind).sort()).toEqual(["contact", "page"]);
   });
@@ -40,7 +39,7 @@ describe("what a row is read as", () => {
     const id = createPage(
       db,
       home,
-      { section: "hobbies", template: "page", title: "Gym", body: "Part of [[Hobbies|page:x]].\n\nPush pull legs.\n\n- **PR: 60 kg** · bench _(2026-09-20)_" },
+      { section: "ideas", template: "page", title: "Gym", body: "Part of [[Hobbies|page:x]].\n\nPush pull legs.\n\n- **PR: 60 kg** · bench _(2026-09-20)_" },
       NOW,
     );
     const source = sourceOf(db, "page", id);
@@ -50,11 +49,6 @@ describe("what a row is read as", () => {
     ]);
   });
 
-  it("reads nothing of a journal page, an archived page or a row that is gone", () => {
-    const day = createPage(db, home, { section: "journal", template: "page", title: "Thursday", body: "Private." }, NOW);
-    expect(sourceOf(db, "page", day)).toBeNull();
-    expect(sourceOf(db, "contact", "gone")).toBeNull();
-  });
 });
 
 describe("what came back", () => {

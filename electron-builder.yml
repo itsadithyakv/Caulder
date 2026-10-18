@@ -66,7 +66,9 @@ win:
 # Partner Center reserved for Caulder (Product management > Product identity),
 # and must match it exactly or the upload is refused. It is built unsigned:
 # the Store signs a package itself once it passes certification. The tiles
-# are resources/appx, made by scripts/logo.py.
+# are resources/appx, made by scripts/logo.py. electron-builder's target is
+# called appx, but makeappx packs whatever the name ends in, and an .msix is
+# what the Store asks for now (from 1.0.0; 0.5.0 was an .appx).
 appx:
   identityName: AdithyaKV.Caulder
   publisher: CN=30ED0224-8255-4781-8ACD-EE3EF146115F
@@ -79,7 +81,11 @@ appx:
   maxVersionTested: 10.0.26100.0
   languages:
     - en-US
-  artifactName: Caulder-${version}-${arch}.${ext}
+  artifactName: Caulder-${version}-${arch}.msix
+  # Opens when Windows starts (electron/main/startup.ts): a Store copy cannot
+  # register itself, so the package declares the startup task. Windows'
+  # Startup apps page turns it off.
+  customExtensionsPath: resources/appx-startup.xml
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true

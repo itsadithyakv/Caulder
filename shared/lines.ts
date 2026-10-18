@@ -51,7 +51,6 @@ export type LastLine = {
 export const taskSnapshot = z.object({
   title: z.string().trim().min(1).max(200),
   kind: z.enum(["call", "email", "follow_up", "meeting", "todo"]),
-  area: z.string().max(40).nullable(),
   priority: z.enum(["must", "should", "spare"]).nullable(),
   dueOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   leadId: z.string().nullable(),
@@ -72,6 +71,14 @@ export type MoveInput = z.infer<typeof moveInput>;
 
 /** A question the line can answer from what is already kept (shared/questions.ts reads them). */
 export const question = z.discriminatedUnion("ask", [
+  /** "When did i last speak to maya": the last thing on their history that was a conversation (part twelve, phase 50). */
+  z.object({ ask: z.literal("last"), name: z.string().trim().min(1).max(80) }),
+  /** "How much does harbour owe", "who owes me": what is invoiced and not yet paid. */
+  z.object({ ask: z.literal("owed"), name: z.string().trim().min(1).max(80).nullable() }),
+  /** "Next free hour tomorrow", "when am i free friday": the first gap in your usual day. */
+  z.object({ ask: z.literal("slot"), day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), label: z.string().max(40), minutes: z.number().int().min(15).max(480) }),
+  /** "What did i promise sam": what is open for that contact. */
+  z.object({ ask: z.literal("promised"), name: z.string().trim().min(1).max(80) }),
   z.object({ ask: z.literal("day"), day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), label: z.string().max(40) }),
   z.object({
     ask: z.literal("free"),

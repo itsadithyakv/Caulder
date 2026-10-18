@@ -36,8 +36,7 @@ export class ErrorBoundary extends Component<
       <section className="card" role="alert">
         <h2 className="card__title">This screen hit a problem</h2>
         <p className="card__hint">
-          {this.state.error.message} Everything you had already saved is safe. The
-          details are in the log, which Settings &rsaquo; Your data can open.
+          {this.state.error.message} Your saved work is safe.
         </p>
         <div className="actions">
           <button

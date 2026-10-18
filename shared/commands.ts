@@ -16,11 +16,10 @@
  * and Enter does it - the same bargain as the rest of the line.
  */
 
-import { readBook, type ShelfStatus } from "./books";
 import type { NewPerson } from "./newperson";
 
 /** The screens, by the ids the app routes on (src/app/routes.ts). */
-type Place = "today" | "day" | "leads" | "pipeline" | "money" | "import" | "brain" | "map" | "journal" | "life" | "memories" | "settings";
+type Place = "today" | "day" | "leads" | "pipeline" | "money" | "import" | "brain" | "map" | "memories" | "settings";
 
 export type Command =
   | { do: "go"; place: Place; label: string }
@@ -42,30 +41,51 @@ export type Command =
       happened?: string | null;
       then?: NewPerson["then"];
     }
-  /** "I want to read the percy jackson series": books, and the pile they go on (shared/books.ts). */
-  | { do: "book"; status: ShelfStatus; titles: string[]; series: string | null }
   /** "Netflix 649 monthly": something paid again and again, kept as a running cost in the brain's Money. */
   | { do: "cost"; title: string; amount: number; cycle: "monthly" | "quarterly" | "yearly"; day: number | null };
 
 const PLACES: readonly { place: Place; label: string; words: RegExp }[] = [
-  { place: "today", label: "Today", words: /^(?:today|home|dashboard|start)$/ },
+  { place: "today", label: "Today", words: /^(?:today|home|dashboard|start|tasks?|to-?dos?|to-?do\s+list|task\s+list)$/ },
   { place: "day", label: "Calendar", words: /^(?:calendar|day|days|week|schedule|planner|timetable|time\s?table|plan)$/ },
   { place: "leads", label: "Contacts", words: /^(?:contacts?|leads?|clients?|customers?)$/ },
-  { place: "pipeline", label: "Pipeline", words: /^(?:pipeline|board|deals?|sales|kanban)$/ },
+  { place: "pipeline", label: "Deals", words: /^(?:pipeline|board|deals?|sales|kanban)$/ },
   { place: "money", label: "Money", words: /^(?:money|finances?|invoices?|quotes?|costs?|expenses?|spend|spending|payments?|billing|runway)$/ },
   { place: "import", label: "Import", words: /^(?:import|imports|importer)$/ },
   { place: "brain", label: "Brain", words: /^(?:brain|pages?|notes|knowledge|wiki|handbook|docs?|documents?)$/ },
   { place: "memories", label: "Memories", words: /^(?:memories|memory|remembered|what\s+i\s+remember(?:ed)?)$/ },
   { place: "map", label: "Map", words: /^(?:map|graph|connections|links|network|mind\s?map)$/ },
-  { place: "journal", label: "Journal", words: /^(?:journal|diary)$/ },
-  { place: "life", label: "Life", words: /^(?:life|habits?|hobbies|hobby|goals?|studies|study|courses?|me)$/ },
   { place: "settings", label: "Settings", words: /^(?:settings?|preferences|prefs|options|config|configuration|setup)$/ },
 ];
 
-const GO = /^\s*(?:(?:please|pls|can\s+you|could\s+you)\s+)?(?:go\s*to|goto|open(?:\s+up)?|show(?:\s+me)?|take\s+me\s+to|switch\s+to|jump\s+to|view|navigate\s+to)\s+(?:the\s+|my\s+|our\s+)?(.+?)(?:\s+(?:screen|page|tab|section|view))?\s*[.!]?\s*$/i;
+const GO = /^\s*(?:(?:please|pls|can\s+you|could\s+you)\s+)?(?:go\s*to|goto|open(?:\s+up)?|show(?:\s+me)?|take\s+me\s+to|switch\s+to|jump\s+to|view|navigate\s+to)\s+(?:the\s+|my\s+|our\s+)?(.+?)(?:\s+(?:screen|page|tab|section|view|board|list))?\s*[.!]?\s*$/i;
 
 const SYMBOL = String.raw`(?:rs\.?|inr|usd|eur|gbp|aed|sgd|₹|\$|€|£)`;
 const AMOUNT = String.raw`(?:${SYMBOL}\s*)?(\d[\d,]*(?:\.\d+)?)\s*(k|lakhs?|lacs?|l|crores?|cr|m|mn|million)?(?:\s*${SYMBOL})?`;
+/**
+ * The same, with the sum after what it went on: "bought a domain for the side
+ * project, $14.99", "paid the freelancer rs 18,000 for the icons". Only with
+ * a currency said, because a bare number after a thing is as often a count,
+ * a room or a model - and only said of oneself, at the start of the line.
+ */
+const SPENT_LATER = new RegExp(
+  String.raw`^\s*(?:(?:i|we)\s+)?(?:just\s+)?(?:spent|paid|bought)\s+(?!${SYMBOL}|\d)(.+?)[\s,:-]+(?:${SYMBOL}\s*(\d[\d,]*(?:\.\d+)?)|(\d[\d,]*(?:\.\d+)?)\s*${SYMBOL})\s*(k|lakhs?|lacs?|l|crores?|cr|m|mn|million)?(?:\s+(?:on|for|to|towards)\s+(.+?))?\s*$`,
+  "i",
+);
+/** The days a spend is said on, at the end of the line: "yesterday", "last night", "this morning". */
+const SPENT_WHEN = String.raw`yesterday|yday|ystd|last\s+night|today|tonight|just\s+now|earlier(?:\s+today)?|this\s+(?:morning|afternoon|evening)`;
+/** A sum with its currency on either side: "$14.99", "2,150 rupees", "96 usd". */
+const SUM = String.raw`(?:${SYMBOL}\s*)?(\d[\d,]*(?:\.\d+)?)\s*(k)?(?:\s*(?:${SYMBOL}|rupees?|dollars?|euros?|pounds?|bucks))?`;
+/**
+ * The sum first, and what it went on: "780 on train tickets, mysuru client
+ * visit". "On" is the word money is spent with; "for" is as often a price
+ * asked, and is left to be offered.
+ */
+const SUM_ON = new RegExp(String.raw`^\s*${SUM}\s+on\s+(?!(?:the\s+|a\s+|my\s+|our\s+)?(?:wait(?:ing)?\s*list|list|team|call|board|site|page|platform|app|plan|hold|track|time|leave|trial)\b)(\S.*?)\s*$`, "i");
+/** A thing, a sum, and the bank's word for it: "canva pro, 499, charged this morning", "aws 3,200 debited yesterday". */
+const CHARGED = new RegExp(
+  String.raw`^\s*(\S.*?)[\s,:–-]+${SUM}[\s,:–-]+(?:(?:got|was|were)\s+)?(?:charged|debited)(?:\s+(${SPENT_WHEN}))?\s*[.!]?\s*$`,
+  "i",
+);
 /** "Spent 500 on hosting", "paid rs 1,200 for the domain", "bought 2k of ads" - said of oneself, in the past. */
 const SPENT = new RegExp(
   String.raw`^\s*(?:(?:i|we)\s+)?(?:just\s+)?(?:spent|paid|bought|shelled\s+out|expensed?|logg?ed?\s+(?:an?\s+)?expense(?:\s+of)?|expense\s*[:-]?)\s+${AMOUNT}\s*(?:on|for|to|towards|of|in|-|:)?\s*(.*?)\s*$`,
@@ -77,8 +97,6 @@ const SPENT = new RegExp(
  * nobody spent is worse than one that has to be typed the other way round.
  */
 const COST = new RegExp(String.raw`^\s*(?:the\s+)?(.+?)\s+(?:cost(?:s|ed)?(?:\s+(?:me|us))?|came\s+to|set\s+(?:me|us)\s+back)\s+${AMOUNT}\s*$`, "i");
-/** The days a spend is said on, at the end of the line: "yesterday", "last night", "this morning". */
-const SPENT_WHEN = String.raw`yesterday|yday|ystd|last\s+night|today|tonight|just\s+now|earlier(?:\s+today)?|this\s+(?:morning|afternoon|evening)`;
 
 /**
  * "Uber 340", "coffee 150", "lunch 250": what it was, then what it cost, and
@@ -88,7 +106,7 @@ const SPENT_WHEN = String.raw`yesterday|yday|ystd|last\s+night|today|tonight|jus
  */
 const SPENT_ON = new RegExp(
   // A known thing first, and what came with it: "chai and samosa 60" (27 September 2026).
-  String.raw`^\s*((?:uber|ola|rapido|auto|cab|taxi|metro|bus|train\s+ticket|flight|petrol|fuel|diesel|parking|toll|coffee|chai|tea|lunch|dinner|breakfast|snacks?|samosas?|maggi|momos|biryani|pizza|burger|juice|dosa|sandwich|groceries|grocery|swiggy|zomato|blinkit|zepto|instamart|food|drinks|beer|movie|movies|movie\s+tickets?|netflix|spotify|recharge|haircut|laundry|gym|medicines?|pharmacy|books?|stationery|amazon|flipkart|rent|electricity|wifi|internet)(?:\s*(?:and|&|\+|,)\s*[\p{L}]+){0,3})\s+(?:rs\.?|inr|₹)?\s*(\d[\d,]*(?:\.\d+)?)\s*(k)?(?:\s+(${SPENT_WHEN}))?\s*$`,
+  String.raw`^\s*((?:uber|ola|rapido|auto|cab|taxi|metro|bus|train\s+ticket|flight|petrol|fuel|diesel|parking|toll|coffee|chai|tea|lunch|dinner|breakfast|snacks?|samosas?|maggi|momos|biryani|pizza|burger|juice|dosa|sandwich|groceries|grocery|swiggy|zomato|blinkit|zepto|instamart|food|drinks|beer|movie|movies|movie\s+tickets?|netflix|spotify|recharge|haircut|laundry|gym|medicines?|pharmacy|books?|stationery|amazon|flipkart|rent|electricity|wifi|internet|courier|postage|stamps|printing|hosting|domain|notion|figma|canva|slack|zoom|github|aws|vercel|netlify|adobe|chatgpt|claude|google\s+workspace|co-?working|hotel|airbnb|software|accountant|lawyer)(?:\s*(?:and|&|\+|,)\s*[\p{L}]+|\s+(?:to|for|with|w\/|at|from|in)\s+[\p{L}][\p{L}'’.-]*(?:\s+[\p{L}][\p{L}'’.-]*){0,2}){0,3})\s*[,:–-]?\s+(?:${SYMBOL}\s*)?(\d[\d,]*(?:\.\d+)?)\s*(k)?(?:\s*(?:${SYMBOL}|rupees?|dollars?|euros?|pounds?|bucks))?(?:\s+(${SPENT_WHEN}))?\s*$`,
   "iu",
 );
 
@@ -116,6 +134,13 @@ const RECURRING = new RegExp(
 );
 
 const CONTACT = /^\s*(?:please\s+)?(?:add|new|create|save|make)\s+(?:an?\s+)?(?:new\s+)?(?:contact|lead|client|customer)\s*(?:called|named|for|[:-])?\s+(.+?)\s*$/i;
+/** The same, asked after the telling: "tomas rhee, rhee optics, seoul - save him as a contact", "…, put her in". */
+const CONTACT_AFTER =
+  /^\s*(\S.*?)[\s,.;:–-]+(?:please\s+)?(?:save|add|put|keep)\s+(?:him|her|them|this\s+one|that\s+one)\s+(?:as\s+an?\s+(?:new\s+)?(?:contact|lead|client|customer)|in(?:to)?(?:\s+(?:the\s+|my\s+)?(?:contacts|crm|list|system))?|to\s+(?:the\s+|my\s+)?(?:contacts|crm|list))\s*[.!]?\s*$/i;
+/** "Add rohan mehta from pixel pantry, rohan@pixelpantry.com": no "contact" said, and an address or a number says it for it. */
+const CONTACT_BY_DETAIL = /^\s*(?:please\s+)?(?:add|save)\s+(?!.*\b(?:to|on|in)\s+(?:the|my|our|a)\b)(\S.*?)\s*$/i;
+/** "Wren & Fable Stationery is a new one for the list", "pixel pantry is a new client". */
+const CONTACT_IS_NEW = /^\s*(\S.{1,60}?)\s+is\s+a\s+new\s+(?:one|contact|lead|client|customer|prospect)\b(.*)$/i;
 const EMAIL = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/;
 /** Seven digits or more, however they are grouped - and never a year or a price, which are shorter. */
 const PHONE = /(?:\+|\b)\d[\d\s().-]{6,}\d\b/;
@@ -165,8 +190,11 @@ function readContact(rest: string): Command | null {
     .split(/\s*,\s*|\s+(?:from|at|of|@)\s+|\s+-\s+/i)
     .map((part) => part.replace(/\b(?:phone|mobile|mob|ph|email|mail|number|no)\b\s*[:.]?/gi, " ").replace(/[,;:()]+/g, " ").trim())
     .filter((part) => /\p{L}/u.test(part));
-  const [first, second] = parts;
-  if (!first) return null;
+  // "ines duarte runs a yoga studio in lisbon": the name is what comes before what she does.
+  const first = (parts[0] ?? "").replace(/\s+(?:runs|owns|is|was|works|heads|leads|manages|founded|started|does|makes|sells|has)\b.*$/i, "").trim();
+  // Where they are, when it is a name and not the rest of a sentence: "met her at the meetup" is not a company.
+  const second = parts.slice(1).find((part) => part.split(/\s+/).length <= 4 && !/^(?:met|saw|she|he|they|we|i|who|her|him|the)\b/i.test(part));
+  if (!first || first.split(/\s+/).length > 5) return null;
   return {
     do: "contact",
     // A contact is kept under the company it is at, with the person named on it.
@@ -189,9 +217,16 @@ export function readCommand(line: string): Command | null {
 
   const contact = CONTACT.exec(line);
   if (contact) return readContact(contact[1] ?? "");
-
-  const book = readBook(line);
-  if (book) return { do: "book", ...book };
+  const after = CONTACT_AFTER.exec(line);
+  if (after) return readContact(after[1] ?? "");
+  const byDetail = EMAIL.test(line) || PHONE.test(line) ? CONTACT_BY_DETAIL.exec(line) : null;
+  if (byDetail) return readContact(byDetail[1] ?? "");
+  const isNew = CONTACT_IS_NEW.exec(line);
+  if (isNew && (isNew[1] ?? "").split(/\s+/).length <= 5 && !/^(?:this|that|it|he|she|there|here)\b/i.test(isNew[1] ?? "")) {
+    // "Halima Yusuf runs it": the person there, when the line goes on to say.
+    const runBy = /([\p{L}][\p{L}'’-]*(?:\s+[\p{L}][\p{L}'’-]*){0,2})\s+(?:runs|owns|heads|leads|manages)\s+it\b/u.exec(isNew[2] ?? "");
+    return { do: "contact", name: named(isNew[1] ?? "", true), person: runBy ? named(runBy[1] ?? "", false) : null, phone: null, email: null };
+  }
 
   const recurring = RECURRING.exec(line);
   if (recurring) {
@@ -200,8 +235,10 @@ export function readCommand(line: string): Command | null {
     const cycle = /^(?:year|yr|yearly|annually|annual)$/.test(per) ? "yearly" : /^quarter/.test(per) ? "quarterly" : "monthly";
     const title = (recurring[1] ?? "").trim();
     const day = recurring[6] ? Number(recurring[6]) : null;
+    // A bill has a name, not a sentence: "a loyalty-card app we own, licensed to cafes at 30 a month" is not one.
+    const aName = title.split(/\s+/).length <= 6 && !/[,;]/.test(title);
     // A price said with no thing to pay for, or a thing that is plainly not a bill, is not a running cost.
-    if (amount > 0 && title && !/^(?:i|we|it|this|that|spent|paid|salary|stipend|allowance|pocket\s+money|income|pay)\b/i.test(title) && (day === null || (day >= 1 && day <= 31))) {
+    if (amount > 0 && title && aName && !/^(?:i|we|it|this|that|spent|paid|salary|stipend|allowance|pocket\s+money|income|pay)\b/i.test(title) && (day === null || (day >= 1 && day <= 31))) {
       // "aws" is AWS: a name of three letters or fewer is nearly always initials.
       const name = /^[a-z]{2,3}$/i.test(title) ? title.toUpperCase() : title.charAt(0).toUpperCase() + title.slice(1);
       return { do: "cost", title: name, amount, cycle, day };
@@ -240,12 +277,34 @@ export function readCommand(line: string): Command | null {
     return amount > 0 ? { do: "spend", amount, what: what.charAt(0).toUpperCase() + what.slice(1), daysAgo: whenSpent(short[4] ?? "").daysAgo } : null;
   }
 
+  const sumOn = SUM_ON.exec(line);
+  if (sumOn) {
+    const amount = amountOf(sumOn[1], sumOn[2]);
+    const what = (sumOn[3] ?? "").trim();
+    // Ten or more, the way a sum offered is: "3 on the team" is a count.
+    if (amount >= 10 && /\p{L}{2,}/u.test(what)) return { do: "spend", amount, what: capital(what), daysAgo: 0 };
+  }
+
+  const charged = CHARGED.exec(line);
+  if (charged) {
+    const amount = amountOf(charged[2], charged[3]);
+    const what = (charged[1] ?? "").trim();
+    if (amount >= 10 && /\p{L}{2,}/u.test(what)) return { do: "spend", amount, what: capital(what), daysAgo: whenSpent(charged[4] ?? "").daysAgo };
+  }
+
   const spent = SPENT.exec(line);
   if (spent) {
     const amount = amountOf(spent[1], spent[2]);
     const { what, daysAgo } = whenSpent(spent[3] ?? "");
     // Without what it was for it cannot be logged, and the line asks rather than guessing.
     return amount > 0 && what ? { do: "spend", amount, what: what.charAt(0).toUpperCase() + what.slice(1), daysAgo } : null;
+  }
+
+  const later = SPENT_LATER.exec(line);
+  if (later) {
+    const amount = amountOf(later[2] ?? later[3], later[4]);
+    const what = [later[1], later[5]].map((part) => (part ?? "").trim().replace(/^(?:for|on)\s+/i, "")).filter(Boolean).join(", ");
+    if (amount > 0 && what) return { do: "spend", amount, what: what.charAt(0).toUpperCase() + what.slice(1), daysAgo: 0 };
   }
 
   const cost = COST.exec(line);
@@ -258,4 +317,36 @@ export function readCommand(line: string): Command | null {
       : null;
   }
   return null;
+}
+
+/** What a number is when it is not money: an hour, a length, a count of something, a date. */
+const NOT_A_SUM =
+  /^(?:am|pm|a\.m|p\.m|min|mins|minutes?|h|hr|hrs|hours?|days?|weeks?|months?|years?|yrs?|%|percent|kg|km|g|m|cm|mm|gb|mb|tb|x|people|persons?|users?|students?|customers?|clients?|seats?|pages?|slides?|marks?|points?|times|th|st|nd|rd|calls?|emails?|leads?|units?|pcs|pieces)$/i;
+
+/**
+ * A sum in a line that never said it was spent: "swiggy 320 lunch", "figma
+ * 1200", "320 for the cab". Offered beside the reading as a way to log it -
+ * never taken for granted, because "room 204" and "iphone 15" are shaped the
+ * same. One number, ten or more, with words around it that are not a unit, an
+ * hour or a date.
+ */
+export function spendIn(line: string): Extract<Command, { do: "spend" }> | null {
+  const tokens = line.trim().split(/\s+/);
+  const at = tokens
+    .map((token, index) => ({ index, sum: new RegExp(String.raw`^${SYMBOL}?(\d[\d,]*(?:\.\d+)?)(k)?${SYMBOL}?$`, "i").exec(token) }))
+    .filter((each) => each.sum !== null);
+  if (at.length !== 1 || tokens.length < 2) return null;
+  const found = at[0];
+  if (!found?.sum) return null;
+  const amount = amountOf(found.sum[1], found.sum[2]);
+  const after = (tokens[found.index + 1] ?? "").replace(/[.,;:!?]+$/, "");
+  if (amount < 10 || NOT_A_SUM.test(after) || /^\d/.test(after)) return null;
+  const what = tokens
+    .filter((_, index) => index !== found.index)
+    .join(" ")
+    .replace(/^(?:for|on|to|of)\s+/i, "")
+    .replace(/\s+(?:for|on)$/i, "")
+    .trim();
+  if (!/\p{L}{2,}/u.test(what)) return null;
+  return { do: "spend", amount, what: capital(what), daysAgo: 0 };
 }

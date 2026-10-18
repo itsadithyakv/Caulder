@@ -77,6 +77,10 @@ export function contactRow(person: GooglePerson): Record<string, string> | null 
     Source: GOOGLE_SOURCE,
     Value: "",
     Website: first(person.urls),
+    // Google keeps a profile as one of a person's addresses, which Website
+    // carries: the importer moves a LinkedIn one to its own field.
+    LinkedIn: "",
+    Instagram: "",
     Notes: (person.biographies?.[0]?.value ?? "").trim(),
   };
 }

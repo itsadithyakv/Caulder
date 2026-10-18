@@ -3,7 +3,6 @@ import { ACTIVITY_LABEL, documentNumber, type ActivityKind } from "@shared/domai
 import type { SearchHit } from "@shared/search";
 import type { BrainSectionId } from "@shared/brain";
 import { linkLabelsOnly } from "@shared/links";
-import { PERSON_KIND_LABEL, type PersonKind } from "@shared/people";
 
 /**
  * Search over everything, from the FTS5 index migration 20 keeps.
@@ -19,7 +18,6 @@ const KIND_PENALTY: Record<SearchHit["kind"], number> = {
   page: 0,
   contact: 0,
   invoice: 0.5,
-  person: 0,
   note: 1,
   history: 2,
 };
@@ -88,7 +86,10 @@ function tidyMarkdown(snippet: string): string {
     .replace(/\|(?:page|contact):[0-9a-f-]*\]{0,2}/g, "")
     .replace(/#{1,6}\s+/g, "")
     .replace(/(^|\s)(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s*)?/g, "$1")
-    .replace(/\*\*|__|`/g, "");
+    .replace(/\*\*|__|`/g, "")
+    // A remembered line's day, "_(2026-09-24)_", as a day; and italics as plain words.
+    .replace(/_\((\d{4}-\d{2}-\d{2})\)_/g, "($1)")
+    .replace(/(^|[\s(])[_*]([^_*\n]+)[_*](?=[\s.,;:)]|$)/g, "$1$2");
 }
 
 function describe(db: Db, row: HitRow): SearchHit | null {
@@ -142,21 +143,6 @@ function describe(db: Db, row: HitRow): SearchHit | null {
             detail,
             section: null,
             leadId: entry.lead_id,
-          }
-        : null;
-    }
-    case "person": {
-      const person = db.prepare(`SELECT id, name, kind, role FROM people WHERE id = ?`).get(row.ref_id) as
-        | { id: string; name: string; kind: PersonKind; role: string | null }
-        | undefined;
-      return person
-        ? {
-            kind: "person",
-            id: person.id,
-            title: person.name,
-            detail: detail || [PERSON_KIND_LABEL[person.kind], person.role].filter(Boolean).join(" · "),
-            section: "people",
-            leadId: null,
           }
         : null;
     }

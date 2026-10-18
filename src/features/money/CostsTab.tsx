@@ -88,7 +88,7 @@ export function CostsTab({
         {runway.cash === null ? (
           !updating && (
             <p className="card__hint">
-              Say what is in the bank, and on what day, to see how long it lasts at the rate money goes out.
+              What is in the bank, to see how long it lasts.
             </p>
           )
         ) : (
@@ -144,8 +144,7 @@ export function CostsTab({
               </div>
             </dl>
             <p className="card__hint">
-              Averages are over the last {runway.basis === 1 ? "month" : `${runway.basis} months`}. Paying a
-              running cost here does not count twice.
+              Averaged over the last {runway.basis === 1 ? "month" : `${runway.basis} months`}.
             </p>
           </div>
         )}

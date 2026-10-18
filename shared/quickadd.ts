@@ -1,12 +1,13 @@
 import { minutesOf, shiftDay, startOfWeek, timeOf, weekdayOf } from "./dates";
+import { sideBefore, sideOf, type YourDay } from "./habitual";
+import type { Timed } from "./lines";
 import { expand } from "./slang";
-import { voteArea, type Lesson } from "./lessons";
 import { distance, slipAt } from "./slips";
 
 /**
  * One line of text into a task, without a model.
  *
- * "Datascience assignment at 4pm today", "call Oakridge tmrw 11:30",
+ * "Send the proposal at 4pm today", "call Oakridge tmrw 11:30",
  * "gym every mon wed fri 6am", "submit the form by the 15th". The vocabulary
  * a person uses for when something happens is small and regular - a few
  * hundred date, time and length words - so it is matched, not guessed at.
@@ -35,7 +36,11 @@ import { distance, slipAt } from "./slips";
 type QuickKind = "call" | "email" | "follow_up" | "meeting" | "todo";
 
 /** Days of the week a thing comes back on, and the last day it does. */
-type Repeat = { weekdays: number[]; until: string | null };
+/** Hours set aside on some days of the week - every week, or every other one. */
+type Repeat = { weekdays: number[]; until: string | null; every?: 2 };
+
+/** A task that comes back when it is ticked off (PLAN.md, part twelve, phase 47). */
+type Every = "fortnightly" | "monthly" | "yearly";
 
 type QuickTask = {
   title: string;
@@ -46,8 +51,6 @@ type QuickTask = {
   /** How long, when it was said. */
   minutes: number | null;
   kind: QuickKind;
-  /** Null when nothing in the text says; the caller fills in its default. */
-  area: string | null;
   priority: "must" | "spare" | null;
   /**
    * Null for a one-off. A repeat is hours set aside on the day grid rather
@@ -55,6 +58,8 @@ type QuickTask = {
    * it is added.
    */
   repeat: Repeat | null;
+  /** "Pay rent on the 1st of every month": the task comes back when ticked off. */
+  every: Every | null;
   /** Whatever was said after the task itself: its second sentence, kept as its note. */
   notes: string | null;
   /**
@@ -80,8 +85,6 @@ export type Answers = {
   time?: string | null;
   /** The last day of a repeat. */
   until?: string;
-  /** Picked on the reading, when the words pointed the wrong way. */
-  area?: string;
   /** Words to leave exactly as typed: "Keep “frida”", pressed under the line. */
   keep?: readonly string[];
 };
@@ -101,21 +104,15 @@ type Context = {
   today: string;
   /** Minutes since midnight, where the workspace is. */
   now: number;
-  /**
-   * Words the person has taught it - course names, a company, a gym - each
-   * pointing at an area. Checked before the built-in list, because they are
-   * knowledge about this one life rather than a guess about everyone's.
-   */
-  words?: readonly { word: string; area: string }[];
-  /** The last day of the term running now, for "until the end of term". */
-  termEnd?: string | null;
   learned?: Learned;
   /**
-   * What was learnt from lines moved to another part of life before they were
-   * kept (shared/lessons.ts). After Your words, which were taught outright,
-   * and before the built-in guesses, which are about everyone and not you.
+   * The shape of the person's working day, from their own blocks
+   * (shared/habitual.ts): what settles "at 11", "first thing" and "after
+   * lunch" before anything is asked.
    */
-  lessons?: readonly Lesson[];
+  day?: YourDay;
+  /** The person's own timed blocks: what this very thing has been before settles its morning or evening first. */
+  past?: readonly Timed[];
 };
 
 /** Which part of the day a line mentions - what settles "at 9". */
@@ -209,99 +206,30 @@ const LENGTH = [
 ].join("|");
 
 /**
- * Words that say which part of your life a task belongs to.
+ * Words the line knows are words. Two uses, and neither is a guess about the
+ * task: the long ones are worth mending a slip towards ("invocie" is an
+ * invoice), and none of them is ever mended into another.
  *
- * Only words that point one way. "Project" is the degree and the company in
- * equal measure, "call" is your mother as often as a client, "exercise 4.2"
- * is homework and "clean the dataset" is not housework - so none of those is
- * here: a wrong guess shown confidently is worse than the default.
+ * They used to say which part of life a task belonged to - the company, the
+ * degree, health, everything else. A task has no area now (PLAN.md, phase
+ * 32), and the list of a student's words went with it.
  */
-const AREA_WORDS: [string, string[]][] = [
-  // Company first. The company sells to schools, so "demo for class 10" and
-  // "exam-season campaign" are company work that happens to use school words;
-  // checked the other way round they would land in College.
-  ["company", [
-    "client", "clients", "invoice", "invoices", "invoicing", "pitch", "pitching", "demo", "demos",
-    "investor", "investors", "vc", "vcs", "fundraise", "fundraising", "funding", "proposal",
-    "proposals", "deck", "sales", "customer", "customers", "outreach", "mailshot", "campaign",
-    "campaigns", "payroll", "prospect", "prospects", "contract", "contracts", "onboarding",
-    "cofounder", "co-founder", "cofounders", "startup", "mvp", "roadmap", "standup", "stand-up",
-    "crm", "leads", "revenue", "gst", "vat", "invoice", "quotation", "vendor", "vendors", "supplier", "marketing",
-    "newsletter", "hiring", "sprint planning",
-  ]],
-  ["college", [
-    "assignment", "assignments", "assgn", "homework", "hw", "lecture", "lectures", "class",
-    "classes", "exam", "exams", "quiz", "quizzes", "lab", "labs", "tutorial", "tutorials", "tut",
-    "seminar", "midterm", "midterms", "midsem", "mid-sem", "mid sem", "endsem", "end-sem",
-    "end sem", "finals", "internals", "viva", "practical", "practicals", "coursework", "revise",
-    "revision", "study", "studying", "essay", "thesis", "dissertation", "professor", "prof",
-    "submission", "semester", "syllabus", "pset", "psets", "problem set", "problem sets",
-    "worksheet", "textbook", "lecture notes", "attendance", "hod", "dean", "uni", "university",
-    "college", "campus", "gpa", "cgpa", "office hours", "study group", "tutor",
-    "retest", "re-test", "reexam", "re-exam", "supplementary", "arrear", "arrears", "classroom",
-    "google classroom", "moodle", "timetable", "time table", "hall ticket", "admit card",
-    "elective", "electives", "lab record", "mini project", "invigilator", "question paper",
-    "answer sheet",
-  ]],
-  // No "run", "walk" or "work out": "run the numbers", "walk through the
-  // demo" and "work out the budget" are not exercise.
-  ["health", [
-    "gym", "workout", "workouts", "yoga", "swim", "swimming", "jog", "jogging", "doctor",
-    "dentist", "physio", "physiotherapy", "meds", "medicine", "medicines", "pills", "cardio",
-    "therapy", "therapist", "checkup", "check-up", "hospital", "clinic", "blood test", "eye test", "vitamin", "vitamins",
-    "vaccine", "vaccination", "pharmacy", "chemist", "badminton", "cricket", "football",
-    "basketball", "tennis", "squash", "volleyball", "cycling", "marathon", "5k", "10k",
-    "meditate", "meditation", "stretching", "pilates", "zumba", "hike", "hiking", "trek",
-    "trekking", "sports", "morning run", "evening run", "go for a run",
-  ]],
-  // Last: the rest of a life. What matters most here is that "buy groceries"
-  // typed into an outreach workspace is not filed under the company.
-  ["personal", [
-    "groceries", "grocery", "laundry", "rent", "bill", "bills", "electricity", "wifi", "recharge",
-    "mom", "mum", "mother", "dad", "father", "parents", "sister", "brother", "family", "grandma",
-    "grandpa", "birthday", "bday", "anniversary", "haircut", "barber", "salon", "bank", "passport",
-    "shopping", "cook", "cooking", "movie", "movies", "party", "gift", "gifts", "insurance",
-    "landlord", "friend", "friends", "roommate", "flatmate", "neighbour", "neighbours", "neighbor",
-    "neighbors", "cousin", "cousins", "aunt", "uncle", "wedding", "borrowed", "lent",
-    "mummy", "mumma", "amma", "appa", "papa", "nani", "dadi", "nana", "dada", "bhaiya", "didi", "bhai",
-  ]],
+const VOCABULARY: readonly string[] = [
+  // Running a company.
+  "client", "clients", "invoice", "invoices", "invoicing", "pitch", "pitching", "demo", "demos",
+  "investor", "investors", "vc", "vcs", "fundraise", "fundraising", "funding", "proposal",
+  "proposals", "deck", "sales", "customer", "customers", "outreach", "mailshot", "campaign",
+  "campaigns", "payroll", "prospect", "prospects", "contract", "contracts", "onboarding",
+  "cofounder", "co-founder", "cofounders", "startup", "mvp", "roadmap", "standup", "stand-up",
+  "crm", "leads", "revenue", "gst", "vat", "quotation", "vendor", "vendors", "supplier", "marketing",
+  "newsletter", "hiring", "sprint planning", "retainer", "estimate", "deposit", "accountant",
+  "subscription", "renewal", "deadline", "milestone", "deliverable", "handover", "testimonial",
+  // The rest of a day, which is typed into the same line.
+  "gym", "workout", "yoga", "doctor", "dentist", "physio", "medicine", "medicines", "checkup", "check-up",
+  "hospital", "clinic", "pharmacy", "groceries", "grocery", "laundry", "rent", "bill", "bills", "electricity",
+  "wifi", "recharge", "birthday", "bday", "anniversary", "haircut", "bank", "passport", "shopping", "insurance",
+  "landlord", "friend", "friends", "family", "wedding",
 ];
-
-const AREA_PATTERNS = AREA_WORDS.map(
-  ([area, words]) =>
-    [area, new RegExp(`(?<![a-z0-9])(?:${alternation(words).replace(/ /g, "\\s+")})(?![a-z0-9])`)] as const,
-);
-
-/** `#name` sets the area outright. These spellings map onto the four. */
-const AREA_TAGS: Record<string, string> = {
-  college: "college", uni: "college", univ: "college", school: "college", class: "college",
-  study: "college", acad: "college", academics: "college",
-  company: "company", work: "company", biz: "company", business: "company", startup: "company",
-  job: "company", office: "company",
-  personal: "personal", home: "personal", life: "personal", me: "personal", family: "personal",
-  errand: "personal", errands: "personal",
-  health: "health", gym: "health", fitness: "health", sport: "health", sports: "health",
-  workout: "health",
-};
-
-/**
- * The area a tag was aiming at: "#colege", "#wrk", "#pers". A tag is the most
- * direct thing a person can say, so it is read generously - the start of an
- * area's name, or a letter dropped or swapped - but never into a tag that
- * brings letters of its own, which is somebody's own area.
- */
-function tagArea(tag: string): string | null {
-  const exact = AREA_TAGS[tag];
-  if (exact) return exact;
-  let best: { area: string; d: number } | null = null;
-  for (const [name, area] of Object.entries(AREA_TAGS)) {
-    if (tag.length >= 3 && name.startsWith(tag)) return area;
-    if (tag[0] !== name[0] || ![...tag].every((letter) => name.includes(letter))) continue;
-    const d = distance(tag, name);
-    if (d <= (name.length >= 6 ? 2 : 1) && (!best || d < best.d)) best = { area, d };
-  }
-  return best?.area ?? null;
-}
 
 /* ---- Slips, mended before the reading ----------------------------------- */
 
@@ -321,13 +249,13 @@ const MENDABLE: readonly string[] = [
   "morning", "afternoon", "evening", "midnight", "fortnight", "minutes", "hours", "urgent",
   "important", "priority", "meeting", "email", "follow", "remind", "reminder", "remember",
   "appointment", "interview",
-  ...AREA_WORDS.flatMap(([, words]) => words.filter((word) => word.length >= 7 && /^[a-z]+$/.test(word))),
+  ...VOCABULARY.filter((word) => word.length >= 7 && /^[a-z]+$/.test(word)),
 ];
 
 /** Every word the line already understands, none of which is a slip at another. */
 const UNDERSTOOD = new Set<string>([
   ...MENDABLE,
-  ...AREA_WORDS.flatMap(([, words]) => words),
+  ...VOCABULARY,
   ...Object.keys(WEEKDAYS),
   ...Object.keys(MONTHS),
 ]);
@@ -360,42 +288,6 @@ function mend(
     return word === lower ? target : capital(target);
   });
   return { text: mended, corrections };
-}
-
-/* ---- Names it does not know yet ----------------------------------------- */
-
-const LEADS_IN = new Set(["for", "with", "from", "at", "@"]);
-const SMALL = new Set([
-  "the", "a", "an", "my", "our", "your", "his", "her", "their", "this", "that", "these", "those",
-  "and", "or", "to", "of", "in", "on", "by", "about", "re", "is", "are", "be", "it", "me", "us",
-  "them", "him", "you", "i", "we", "up", "out", "off", "over", "into", "as", "if", "so", "not",
-  "no", "new", "old", "all", "some", "any", "more", "next", "last", "first", "now", "then",
-]);
-
-/**
- * Who and what a title names that nothing here knows: "rahul", "ms puc" and
- * "unifloe" in "meeting with rahul from ms puc for unifloe".
- *
- * Only what follows a word that introduces a name - for, with, from, at - and
- * only up to the next small word, because without a dictionary that is the
- * one place a run of unfamiliar words is likelier a name than a sentence.
- * These are what Tune asks about later, once they have come up again.
- */
-function namesIn(title: string): string[] {
-  const words = title.split(/\s+/);
-  const found = new Set<string>();
-  words.forEach((lead, index) => {
-    if (!LEADS_IN.has(lead.toLowerCase())) return;
-    const run: string[] = [];
-    for (const next of words.slice(index + 1, index + 4)) {
-      const word = next.toLowerCase().replace(/[^\p{L}\p{N}&'-]/gu, "");
-      if (!word || SMALL.has(word) || LEADS_IN.has(word) || UNDERSTOOD.has(word) || /^\d+$/.test(word)) break;
-      run.push(word);
-    }
-    const phrase = run.join(" ");
-    if (phrase.length >= 3) found.add(phrase);
-  });
-  return [...found];
 }
 
 /* ---- Matching ----------------------------------------------------------- */
@@ -587,12 +479,6 @@ function readLength(raw: string): number | null {
   return null;
 }
 
-/** How long a line says, wherever it says it: "guitar 1h30", "an hour and a half of reading". */
-export function lengthIn(line: string): number | null {
-  const match = new RegExp(`\\b(?:${LENGTH})\\b`).exec(expand(line).toLowerCase());
-  return match ? readLength(match[0]) : null;
-}
-
 type Clock = { time: number } | { ask: { hour: number; minute: number } } | null;
 
 /**
@@ -630,19 +516,16 @@ const DAWN_LEAN = /\b(?:wake|waking|woke|alarm|sunrise|fajr)\b/;
 type Lean = "am" | "pm" | "dawn" | null;
 const EVENING_LEAN = /\b(?:party|movie|movies|film|drinks|pub|bar|club|date\s+night|netflix|concert|gig|game\s+night|bonfire)\b/;
 
-type DateRead = { day: string | null; length: number; term?: boolean };
+type DateRead = { day: string | null; length: number };
 
 /**
  * A date at the very start of `rest`, for the last day of a repeat: "dec 20",
- * "20/12", "the 20th", "friday", "the end of term".
+ * "20/12", "the 20th", "friday", "the end of the month".
  */
 function readDate(rest: string, today: string): DateRead | null {
   let m: RegExpExecArray | null;
-  if ((m = /^(?:the\s+)?end\s+of\s+(?:the\s+|this\s+)?(month|year|term|semester|sem)\b/.exec(rest)) ||
-      (m = /^(?:this\s+|the\s+)?(term|semester|sem)\b/.exec(rest))) {
-    if (m[1] === "month") return { day: lastOfMonth(today), length: m[0].length };
-    if (m[1] === "year") return { day: `${today.slice(0, 4)}-12-31`, length: m[0].length };
-    return { day: null, length: m[0].length, term: true };
+  if ((m = /^(?:the\s+)?end\s+of\s+(?:the\s+|this\s+)?(month|year)\b/.exec(rest))) {
+    return { day: m[1] === "month" ? lastOfMonth(today) : `${today.slice(0, 4)}-12-31`, length: m[0].length };
   }
   if ((m = /^(\d{4})-(\d{2})-(\d{2})\b/.exec(rest))) {
     return { day: dayMonth(today, Number(m[3]), Number(m[2]), Number(m[1])), length: m[0].length };
@@ -756,8 +639,6 @@ type Reading = {
   notes: string[];
   /** Each slip it read as something else, so the line can offer to keep the word as typed. */
   corrections: Correction[];
-  /** Names in the title that nothing here knows, for Tune to ask about another day. */
-  unknown: string[];
 };
 
 /**
@@ -821,8 +702,6 @@ function readLine(input: string, context: Context, answers: Answers): Reading {
     [
       ...(answers.keep ?? []),
       ...(context.learned?.keep ?? []),
-      // A word they taught it is a word, however close to another it sits.
-      ...(context.words ?? []).flatMap(({ word }) => word.split(/\s+/)),
     ].map((word) => word.toLowerCase()),
   );
   const { text, corrections } = mend(straight, shouting, context.learned, leave);
@@ -843,13 +722,6 @@ function readLine(input: string, context: Context, answers: Answers): Reading {
   // name of the subject does not.
   claim(lower, taken, /\bthe\s+(?:subject|topic|course|paper)(?:\s+of)?(?=\s+\S)/);
   claim(lower, taken, /[\s,]*\b(?:please|pls|plz|thanks|thank\s+you|thx)\b[\s.!]*$/);
-
-  /* -- Area, from a tag -- */
-  let area: string | null = null;
-  for (const match of claim(lower, taken, /#([a-z][\w-]*)/)) {
-    const tag = match[1] ?? "";
-    area = tagArea(tag) ?? tag;
-  }
 
   /* -- Priority. The negations first, so "not urgent" is never urgent. -- */
   let priority: "must" | "spare" | null = null;
@@ -903,11 +775,21 @@ function readLine(input: string, context: Context, answers: Answers): Reading {
     [...phrase.matchAll(new RegExp(`\\b(${WD})s?\\b`, "g"))].map((m) => WEEKDAYS[m[1] ?? ""] ?? 1);
   const SEP = String.raw`(?:\s*,\s*(?:and\s+)?|\s*&\s*|\s*\/\s*|\s*\+\s*|\s+and\s+|\s+)`;
 
-  if (claim(lower, taken, /\b(?:monthly|every\s+month|each\s+month|once\s+a\s+month|yearly|annually|every\s+year|each\s+year|once\s+a\s+year)\b/).length) {
-    notes.push("Repeats go by the days of the week, so this adds just the next one.");
+  // A task that comes back: "the 1st of every month", "monthly on the 15th",
+  // "every year on 3 may". The day it is due is read below as any day is.
+  let every = null as Every | null;
+  if (claim(lower, taken, /\b(?:of\s+)?(?:every|each)\s+month\b|\bmonthly\b|\bonce\s+a\s+month\b/).length) every = "monthly";
+  else if (claim(lower, taken, /\b(?:of\s+)?(?:every|each)\s+year\b|\byearly\b|\bannually\b|\bonce\s+a\s+year\b/).length) every = "yearly";
+  // Every other week: "every other monday", "alternate fridays", "fortnightly",
+  // "every 2 weeks". With an hour it is a run of blocks; without, a task that comes back.
+  let fortnight = false;
+  for (const match of claim(lower, taken, new RegExp(`\\b(?:every\\s+(?:other|second|alternate)|alternate)\\s+(${WD})s?\\b`))) {
+    fortnight = true;
+    repeatOf([WEEKDAYS[match[1] ?? ""] ?? 1]);
   }
-  if (claim(lower, taken, /\b(?:every\s+(?:other|second|alternate)|alternate|bi-?weekly|fortnightly|every\s+fortnight|every\s+(?:\d+|two|three|four)\s+(?:days|weeks))\b/).length) {
-    notes.push("Every other week is not something it can repeat, so this adds just the next one.");
+  if (claim(lower, taken, /\b(?:every\s+(?:other|second|alternate)\s+week|bi-?weekly|fortnightly|every\s+fortnight|every\s+(?:2|two)\s+weeks)\b/).length) fortnight = true;
+  if (claim(lower, taken, /\b(?:every\s+(?:other|second|alternate)|alternate)\b|\bevery\s+(?:\d+|two|three|four)\s+(?:days|weeks)\b/).length) {
+    notes.push("Every few days or weeks is not something it can repeat, so this adds just the next one.");
   }
   for (const _ of claim(lower, taken, /\b(?:every\s*day|everyday|daily|each\s+day|every\s+single\s+day|every\s+(?:morning|afternoon|evening|night))\b/)) repeatOf([1, 2, 3, 4, 5, 6, 7]);
   for (const _ of claim(lower, taken, /\b(?:every\s+week\s?day|(?:on\s+|every\s+)?week\s?days|every\s+working\s+day)\b/)) repeatOf([1, 2, 3, 4, 5]);
@@ -927,7 +809,7 @@ function readLine(input: string, context: Context, answers: Answers): Reading {
   if (claim(lower, taken, /\b(?:every\s+week|weekly|once\s+a\s+week|each\s+week)\b/).length) weekly = true;
 
   /* -- The last day of a repeat -- */
-  type Until = { day: string } | { weeks: number } | { months: number } | { term: true } | null;
+  type Until = { day: string } | { weeks: number } | { months: number } | null;
   let untilSpec: Until = null;
   if (weekdays !== null || weekly) {
     for (const match of lower.matchAll(/\b(?:until|till|til|thru|through|up\s*to|upto)\s+(?:the\s+)?/g)) {
@@ -936,10 +818,9 @@ function readLine(input: string, context: Context, answers: Answers): Reading {
       const end = start + match[0].length + (read?.length ?? 0);
       if (!read || overlapsTaken(taken, start, end)) continue;
       taken.push({ start, end });
-      untilSpec = read.term ? { term: true } : read.day ? { day: read.day } : null;
+      untilSpec = read.day ? { day: read.day } : null;
       break;
     }
-    for (const _ of claim(lower, taken, /\bfor\s+(?:the\s+)?(?:whole\s+|rest\s+of\s+the\s+|entire\s+)?(?:term|semester|sem)\b/)) untilSpec ??= { term: true };
     for (const match of claim(lower, taken, new RegExp(`\\bfor\\s+(${COUNT}|a\\s+couple\\s+of)\\s+(weeks?|months?)\\b`))) {
       const n = /couple/.test(match[1] ?? "") ? 2 : (NUMBER_WORDS[match[1] ?? ""] ?? Number(match[1]));
       untilSpec ??= match[2]?.startsWith("week") ? { weeks: n } : { months: n };
@@ -992,6 +873,27 @@ function readLine(input: string, context: Context, answers: Answers): Reading {
       1,
     )[0];
     if (match) time = Number(match[1] ?? match[3]) * 60 + Number(match[2] ?? match[4]);
+  }
+
+  /*
+   * Four figures with no "hrs": "standup 0930 tomorrow", "call rita 1645". A
+   * number like that is as often a price or a room, so only where it is
+   * plainly a time - it starts with a nought, or sits next to a day, or the
+   * line is a call or a meeting - on the quarter hour, and never in a line
+   * about money.
+   */
+  if (time === null && !/(?:₹|\$|€|£|\brs\.?(?=\s|\d)|\binr\b|\bpa(?:y|id|ying)\b|\bspent\b|\bcosts?\b|\bprice\b|\binvoice\b|\bquote\b|\bbudget\b)/.test(lower)) {
+    const callish = /^(?:(?:pls|please)\s+)?(?:call|ring|phone|meet|meeting|mtg|sync|zoom|catch\s+up)\b/.test(lower);
+    const four = new RegExp(
+      String.raw`\b(0\d)([0-5]\d)\b|(?<=\b(?:${DAY_WORD})\s+)(1\d|2[0-3])(00|15|30|45)\b|\b(1\d|2[0-3])(00|15|30|45)\b(?=\s+(?:${DAY_WORD})\b)` +
+        (callish ? String.raw`|\b(1\d|2[0-3])(00|15|30|45)\b(?![\d%])` : ""),
+    );
+    const match = claimIf(lower, taken, four, () => true, 1)[0];
+    if (match) {
+      const hour = match[1] ?? match[3] ?? match[5] ?? match[7];
+      const minute = match[2] ?? match[4] ?? match[6] ?? match[8];
+      time = Number(hour) * 60 + Number(minute);
+    }
   }
 
   /* -- Time range: "4-5pm", "from 2 to 4", "between 4 and 6", "14:00-16:00" -- */
@@ -1109,6 +1011,25 @@ function readLine(input: string, context: Context, answers: Answers): Reading {
   const hourOf =(raw: string | undefined) => NUMBER_WORDS[raw ?? ""] ?? Number(raw);
   const PREFIX = String.raw`(?:\b(?:at|around)\s+|@\s*)`;
 
+  // Your day's own words: "first thing" is when your day usually starts, and
+  // "after lunch" when lunch is usually over - fixed hours with no history.
+  // "First thing" only where it is plainly about when: next to a day, or at
+  // the end - never "the first thing to fix is the login".
+  if (open()) {
+    const firstThing = new RegExp(
+      String.raw`(?<=\b(?:${DAY_WORD})\s+)first\s+thing(?:\s+in\s+the\s+morning)?\b|\bfirst\s+thing(?:\s+in\s+the\s+morning)?(?=\s*(?:$|[,;.!?)]|(?:${DAY_WORD})\b))`,
+    );
+    for (const _ of claim(lower, taken, firstThing)) {
+      time = context.day?.starts ?? 9 * 60;
+      break;
+    }
+  }
+  if (open()) {
+    for (const _ of claim(lower, taken, /\bafter\s+lunch\b/)) {
+      time = context.day?.lunchEnds ?? 14 * 60;
+      break;
+    }
+  }
   if (open()) {
     for (const match of claim(lower, taken, /\b(?:12\s*)?(noon|midday)\b|\b(midnight|midnite)\b/)) {
       time = match[2] ? 0 : 12 * 60;
@@ -1127,13 +1048,19 @@ function readLine(input: string, context: Context, answers: Answers): Reading {
       },
     ],
     [
+      // "Half 3" - half past, the way it is said in Britain - only where it ends
+      // the phrase or a day follows: never "half an hour" or "half 3 pages".
+      new RegExp(String.raw`${PREFIX}?\bhalf\s+(\d{1,2}|${HOUR_WORD})(?![\d:.])(?=\s*(?:$|[,;.!?)]|(?:${AFTER_A_TIME}|${DAY_WORD})\b))`),
+      (m) => resolveClock(hourOf(m[1]), 30, undefined, hint, lean),
+    ],
+    [
       new RegExp(String.raw`${PREFIX}?\b(\d{1,2}|${HOUR_WORD})\s*(?:o'?\s?clock|oclock)(?:\s*${MER})?`),
       (m) => resolveClock(hourOf(m[1]), 0, meridiemOf(m[2]), hint, lean),
     ],
     [
       // "at four thirty", "around six" - a number word is only a time with an
       // "at" in front and the end of the phrase behind: "at one point" is not one.
-      new RegExp(String.raw`${PREFIX}(${HOUR_WORD})(?:[\s-]+(${PAST}))?(?:\s*${MER})?(?=\s*(?:$|[,;.!?)]|(?:${AFTER_A_TIME}|${DAY_WORD})\b))`),
+      new RegExp(String.raw`${PREFIX}(${HOUR_WORD})(?:[\s-]+(${PAST}))?(?:\s*${MER})?(?=\s*(?:$|[,;.!?)]|(?:${AFTER_A_TIME}|to|${DAY_WORD})\b))`),
       (m) => resolveClock(hourOf(m[1]), PAST_THE_HOUR[(m[2] ?? "").replace(/[\s-]+/g, " ")] ?? 0, meridiemOf(m[3]), hint, lean),
     ],
     [
@@ -1209,6 +1136,22 @@ function readLine(input: string, context: Context, answers: Answers): Reading {
     new RegExp(`\\bbefore\\s+(?=(?:(?:this|next|coming)\\s+)?(?:${WD}|${TOMORROW})\\b|(?:the\\s+)?\\d{1,2}(?:st|nd|rd|th)\\b|(?:${Object.keys(MONTHS).join("|")})\\b)`),
   ).length > 0;
 
+  // A week said loosely, by its part: the start is its Monday, the middle its Wednesday, the end its Friday.
+  for (const match of claim(lower, taken, /\b(early|(?:the\s+)?(?:start|beginning)\s+of|mid(?:dle\s+of)?|(?:the\s+)?end\s+of|late(?:r)?(?:\s+in)?)\s*(next|this)\s+week\b/)) {
+    const part = match[1] ?? "";
+    const weekday = /^(?:early|the\s+start|start|the\s+beginning|beginning)/.test(part) ? 1 : /^mid/.test(part) ? 3 : 5;
+    const said = weekdayDay(today, weekday, match[2] === "next");
+    // "Later this week" on a Friday is not last Wednesday: never a day that has gone.
+    setDay(said < today ? today : said);
+  }
+  // "After friday", "after the 20th", "after 5 nov": the day after it.
+  const after = claim(
+    lower,
+    taken,
+    // Not "the day after tomorrow", which is a day of its own, read just below.
+    new RegExp(`(?<!\\bday\\s)\\bafter\\s+(?=(?:(?:this|next|coming)\\s+)?(?:${WD}|${TOMORROW})\\b|(?:the\\s+)?\\d{1,2}(?:st|nd|rd|th)\\b|\\d{1,2}\\s+(?:${Object.keys(MONTHS).join("|")})\\b|(?:${Object.keys(MONTHS).join("|")})\\s+\\d)`),
+  ).length > 0;
+
   for (const match of claim(lower, taken, new RegExp(`\\b(${WD})\\s+(?:of\\s+)?next\\s+week\\b|\\bnext\\s+week(?:'s)?\\s+(?:on\\s+)?(${WD})\\b`))) {
     setDay(weekdayDay(today, WEEKDAYS[match[1] ?? match[2] ?? ""] ?? 1, true));
   }
@@ -1226,6 +1169,31 @@ function readLine(input: string, context: Context, answers: Answers): Reading {
   for (const _ of claim(lower, taken, /\b(?:(?:by|before)\s+)?(?:the\s+)?(?:eom|end\s+of\s+(?:the\s+|this\s+)?month|month[\s-]end)\b/)) setDay(lastOfMonth(today));
   for (const _ of claim(lower, taken, /\bnext\s+weekend\b/)) setDay(weekend(today, true));
   for (const _ of claim(lower, taken, /\b(?:(?:this|the|on\s+the|over\s+the|at\s+the)\s+)?weekend\b/)) setDay(weekend(today, false));
+  // "In a few days", "a few weeks from now": a few is three.
+  for (const match of claim(lower, taken, /\b(?:in|after)\s+a\s+few\s+(days?|weeks?|months?)\b|\ba\s+few\s+(days?|weeks?|months?)\s+(?:from\s+now|later)\b/)) {
+    const unit = match[1] ?? match[2] ?? "day";
+    setDay(unit.startsWith("month") ? addMonths(today, 3) : shiftDay(today, 3 * (unit.startsWith("week") ? 7 : 1)));
+  }
+  // A month said without a day, by its part: "early november" is the 5th, "mid" the 15th, "late" the
+  // 25th, "end of" its last day, and "sometime in november" its 1st. Never with a number after it -
+  // "november 5" is a date, and is read as one further down. And never a bare "in september": "the
+  // auditor signs off the accounts in september" says when a thing happens, not that one is due.
+  for (const match of claimIf(
+    lower,
+    taken,
+    // "Sometime" is looked back at rather than taken: it is already claimed as a word that says nothing.
+    new RegExp(`\\b(early|mid|late|(?:the\\s+)?(?:start|beginning|end)\\s+of|(?<=\\bsometime\\s+)in)[\\s-]+(${Object.keys(MONTHS).join("|")})\\b(?!\\s*\\d)`),
+    (m) => !(m[2] === "may" && /in$/.test(m[1] ?? "")),
+  )) {
+    const part = match[1] ?? "";
+    const month = MONTHS[match[2] ?? ""] ?? 1;
+    const dd = /^early/.test(part) ? 5 : /^mid/.test(part) ? 15 : /^late/.test(part) ? 25 : /end\s+of$/.test(part) ? 0 : 1;
+    const year = Number(today.slice(0, 4));
+    const build = (y: number) => (dd === 0 ? lastOfMonth(`${y}-${pad(month)}-01`) : `${y}-${pad(month)}-${pad(dd)}`);
+    // This year's, if it has not gone; today, when it is this very month and that part of it has; otherwise next year's.
+    const here = build(year);
+    setDay(here >= today ? here : here.slice(0, 7) === today.slice(0, 7) ? today : build(year + 1));
+  }
   for (const _ of claim(lower, taken, /\bnext\s+week\b/)) setDay(shiftDay(today, 7));
   for (const _ of claim(lower, taken, /\bnext\s+month\b/)) setDay(addMonths(today, 1));
   for (const match of claim(lower, taken, new RegExp(`\\bin\\s+(${COUNT}|a\\s+couple\\s+of)\\s+(days?|weeks?|months?|fortnights?)\\b`))) {
@@ -1295,24 +1263,11 @@ function readLine(input: string, context: Context, answers: Answers): Reading {
   }
 
   if (before && day !== null) day = shiftDay(day, -1) < today ? today : shiftDay(day, -1);
+  if (after && day !== null) day = shiftDay(day, 1);
   if (asap && day === null) day = today;
 
-  /* -- Kind and area, read from the words that stay in the title -- */
-  // Only from what was not already understood as the when: "for the
-  // semester" says how long the gym repeat runs, not that the gym is college.
-  const rest = blank(lower, taken);
-  const kind = kindOf(rest);
-
-  // Your words next - a tag has already had its say - and the longest one that
-  // matches wins, because "machine learning lab" is more specific than "lab".
-  if (area === null) area = yourArea(rest, context.words ?? []);
-  if (area === null && context.lessons?.length) {
-    area = voteArea(rest, context.lessons, (context.words ?? []).map(({ word }) => word));
-  }
-  if (area === null && /\b(?:yoga|zumba|pilates|dance|spin|boxing|swimming|swim|gym|fitness|aerobics|karate|martial\s+arts|crossfit|hiit)\s+class(?:es)?\b/.test(rest)) {
-    area = "health";
-  }
-  if (area === null) area = AREA_PATTERNS.find(([, pattern]) => pattern.test(rest))?.[0] ?? null;
+  /* -- Kind, read from the words that stay in the title -- */
+  const kind = kindOf(blank(lower, taken));
 
   /* -- The title is what is left -- */
   // A line typed in capitals is shouting, not an acronym: "PAY RENT TMRW"
@@ -1321,15 +1276,40 @@ function readLine(input: string, context: Context, answers: Answers): Reading {
   const title = shouting && /[A-Z]{2}/.test(kept) ? capital(kept.toLowerCase()) : kept;
 
   /* -- Answers, then what is still missing -- */
-  if (answers.area !== undefined) area = answers.area;
   if (answers.time !== undefined) {
     time = answers.time === null ? null : minutesOf(answers.time);
     meridiemAsk = null;
   }
   if (answers.day !== undefined) day = answers.day;
 
+  // Morning or evening, settled by when the person's days are before it is
+  // asked: 11 is the morning to somebody who works nine to seven. Said under
+  // the line, and typing "pm" changes it.
+  // This very thing's own past comes first: "call mum at 8" has been at 8pm.
+  if (meridiemAsk && (context.day || context.past)) {
+    const { hour, minute } = meridiemAsk;
+    const before = context.past ? sideBefore(title, hour, minute, context.past) : null;
+    const side = before ?? (context.day ? sideOf(hour, minute, context.day) : null);
+    if (side) {
+      time = clock(hour, minute, side);
+      notes.push(
+        `Read ${hour}${minute ? `:${pad(minute)}` : ""} as ${side === "am" ? "the morning" : "the evening"}, ${before ? "as it has been before" : "from the hours you work"}.`,
+      );
+      meridiemAsk = null;
+    }
+  }
+
+  // Every other week, on the weekday it said - or the day it falls on, or today's.
+  if (fortnight && weekdays === null) weekdays = [weekdayOf(day ?? today)];
+  // Every other week with no hour is a task that comes back, not hours set aside.
+  const fortnightTask = fortnight && time === null && answers.time === undefined;
+  if (fortnightTask) {
+    every = "fortnightly";
+    day = firstOn(day ?? today, weekdays ?? [weekdayOf(today)]);
+  }
+
   // A repeat answered with "only the next one" is a task on its first day.
-  const repeating = (weekdays !== null || weekly) && answers.time !== null;
+  const repeating = (weekdays !== null || weekly) && answers.time !== null && !fortnightTask;
   if ((weekdays !== null || weekly) && answers.time === null && day === null) {
     day = firstOn(today, weekdays ?? [weekdayOf(today)]);
   }
@@ -1344,7 +1324,6 @@ function readLine(input: string, context: Context, answers: Answers): Reading {
     if (spec && "day" in spec) until = spec.day;
     else if (spec && "weeks" in spec) until = shiftDay(day, spec.weeks * 7 - 1);
     else if (spec && "months" in spec) until = shiftDay(addMonths(day, spec.months), -1);
-    else if (spec && "term" in spec) until = context.termEnd ?? null;
     if (answers.until !== undefined) until = answers.until;
     if (until !== null && until < day) {
       notes.push("That last day is before the first one, so it needs a new last day.");
@@ -1354,7 +1333,7 @@ function readLine(input: string, context: Context, answers: Answers): Reading {
       notes.push("Repeats run for a year at most, so this one stops a year from its first day.");
       until = shiftDay(day, 365);
     }
-    repeat = { weekdays: days, until };
+    repeat = fortnight ? { weekdays: days, until, every: 2 } : { weekdays: days, until };
   }
 
   const questions: Question[] = [];
@@ -1400,7 +1379,7 @@ function readLine(input: string, context: Context, answers: Answers): Reading {
     questions.push({
       id: "until",
       text: `${describeWeekdays(repeat.weekdays)} - until when?`,
-      options: untilOptions(day, context.termEnd ?? null),
+      options: untilOptions(day),
     });
   }
 
@@ -1434,18 +1413,15 @@ function readLine(input: string, context: Context, answers: Answers): Reading {
       time: time === null ? null : timeOf(time),
       minutes,
       kind,
-      area,
       priority,
       repeat,
+      every,
       notes: null,
       followUp: null,
     },
     questions,
     notes,
     corrections,
-    // Only while nothing said which part of life it is: a name beside
-    // "invoice" has already been placed, and needs no question asked about it.
-    unknown: area === null ? namesIn(title) : [],
   };
 }
 
@@ -1472,26 +1448,6 @@ function kindOf(lower: string): QuickKind {
     return "meeting";
   }
   return "todo";
-}
-
-/**
- * The area your own words point at, or null.
- *
- * Whole words and phrases only, ignoring case: "lab" must not match inside
- * "collaborate", and "CS301" has to match as itself rather than as "cs" then
- * a number. The boundaries are letters and digits rather than `\b`, so a word
- * ending in a symbol - "c++" - still has an edge to stop at.
- */
-function yourArea(lower: string, words: readonly { word: string; area: string }[]): string | null {
-  let best: { length: number; area: string } | null = null;
-  for (const { word, area } of words) {
-    const phrase = word.trim().toLowerCase().replace(/\s+/g, " ");
-    if (phrase.length === 0) continue;
-    const escaped = escapeRegex(phrase).replace(/ /g, "\\s+");
-    if (!new RegExp(`(?<![a-z0-9])${escaped}(?![a-z0-9])`).test(lower)) continue;
-    if (!best || phrase.length > best.length) best = { length: phrase.length, area };
-  }
-  return best?.area ?? null;
 }
 
 /** The text with everything understood blanked out, same length. */
@@ -1544,8 +1500,14 @@ function titleFrom(text: string, taken: Span[]): string {
 }
 
 /** "Every day", "Weekdays", "Every Mon, Wed, Fri". */
-export function describeWeekdays(weekdays: readonly number[]): string {
+export function describeWeekdays(weekdays: readonly number[], every?: 2): string {
   const sorted = [...weekdays].sort((a, b) => a - b).join(",");
+  if (every === 2) {
+    const names = weekdays.length === 1
+      ? capital(FULL_WEEKDAYS[(weekdays[0] ?? 1) - 1] ?? "")
+      : sorted.split(",").map((d) => SHORT_WEEKDAY[Number(d) - 1] ?? "").join(", ");
+    return `Every other ${names}`;
+  }
   if (sorted === "1,2,3,4,5,6,7") return "Every day";
   if (sorted === "1,2,3,4,5") return "Weekdays";
   if (sorted === "6,7") return "Weekends";
@@ -1560,9 +1522,8 @@ function timeOptions(hint: Hint | null): { label: string; time: string }[] {
   return [{ label: "9 AM", time: "09:00" }, { label: "2 PM", time: "14:00" }, { label: "7 PM", time: "19:00" }];
 }
 
-function untilOptions(first: string, termEnd: string | null): { label: string; until: string }[] {
+function untilOptions(first: string): { label: string; until: string }[] {
   const options: { label: string; until: string }[] = [];
-  if (termEnd && termEnd >= first && termEnd <= shiftDay(first, 365)) options.push({ label: "End of term", until: termEnd });
   options.push({ label: "4 weeks", until: shiftDay(first, 27) });
   options.push({ label: "12 weeks", until: shiftDay(first, 83) });
   const yearEnd = `${first.slice(0, 4)}-12-31`;
@@ -1596,14 +1557,11 @@ function describeLength(minutes: number): string {
 }
 
 /**
- * What kind of block to set aside for a task with a time.
- *
- * A call or a meeting is a meeting on the day grid; otherwise the area says
- * what the hour is for.
+ * What kind of block to set aside for a task with a time: a meeting, a call,
+ * or an hour of work.
  */
-export function blockKindFor(task: Pick<QuickTask, "kind" | "area">): string {
-  if (task.kind === "meeting" || task.kind === "call") return "meeting";
-  if (task.area === "college") return "study";
-  if (task.area === "company") return "focus";
-  return "personal";
+export function blockKindFor(task: Pick<QuickTask, "kind">): string {
+  if (task.kind === "meeting") return "meeting";
+  if (task.kind === "call") return "call";
+  return "focus";
 }

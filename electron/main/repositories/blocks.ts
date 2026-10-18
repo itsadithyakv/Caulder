@@ -144,7 +144,7 @@ function insertBlock(
 }
 
 /**
- * Creates one block, or a whole term of them.
+ * Creates one block, or a whole run of them.
  *
  * A repeat writes every occurrence up front. The trade is rows for
  * predictability: editing one Tuesday is editing a block, and nothing else in
@@ -165,7 +165,7 @@ export function createBlock(
     return created;
   }
 
-  const rule = { weekdays: repeat.weekdays, from: input.day, until: repeat.until };
+  const rule = { weekdays: repeat.weekdays, from: input.day, until: repeat.until, every: repeat.every ?? 1 };
   const problem = checkRepeat(rule);
   if (!problem.ok) throw new Error(problem.reason);
 
@@ -182,8 +182,8 @@ export function createBlock(
     db.prepare(
       `INSERT INTO block_series
          (id, company_id, title, kind, notes, starts_at, minutes, weekdays,
-          from_day, until_day, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          from_day, until_day, every_weeks, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       seriesId,
       companyId,
@@ -195,6 +195,7 @@ export function createBlock(
       repeat.weekdays.join(","),
       input.day,
       repeat.until,
+      repeat.every ?? 1,
       now,
     );
 

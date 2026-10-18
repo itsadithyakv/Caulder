@@ -64,6 +64,17 @@ is nine o'clock, and an instant would move when the machine's timezone did.
 | 45 | search forgets what it is told to | `brain_search` set to `secure-delete`, and optimised |
 | 46 | understanding, on this machine | `vectors`, `embed_queue`, and the triggers that fill the queue |
 | 47 | said again | `said_again` |
+| 48 | where a contact is found | `leads.linkedin`, `leads.instagram`, `emails.template_id`; `activities` rebuilt without the `kind` `CHECK`, run with foreign keys off, and its three search triggers made again |
+| 49 | the company's, and nothing else's | drops `journal_private`, `journal_sealed`, `habits`, `habit_checks`, `hobby_logs`, `shelf_books`, `vision_tiles`, `day_checkins`, `day_themes`, `goal_checkins` and `brain_tombstones`, with the two tombstone triggers; deletes every page in the sections that were personal and every page in the calendar's own workspace; clears the settings that belonged to them and the `brain_*` columns on a company |
+| 50 | contacts as a google sheet | `sheet_links`, `sheet_rows` |
+| 51 | replies from other mail accounts | `mail_accounts.imap_host`, `imap_port`, `imap_checked_at`, `imap_error`; `emails.message_id` |
+| 52 | one person, and no people | drops the `search_person_*` and `links_person_gone` triggers; deletes people from `brain_search`, `search_map`, `brain_links` and `map_positions`; pages filed under `people` move to `company`. **`people` and `openings` are left in place and unread** |
+| 53 | a working day's blocks, and what a contact is there | `leads.contact_role`; `blocks.kind` and `block_series.kind` of `class`, `study`, `break` or `personal` become `away`. Nothing dropped: **`tasks.area`, `area_words`, `terms`, `block_series.term_id`, `line_lessons.area` and the `name` rows of `line_guesses` are left in place and unread** |
+| 54 | an invoice that repeats | `invoices.repeats` (`monthly`, `quarterly`, `yearly` or null): a retainer |
+| 55 | a task that comes back, and every other week | `tasks.repeats` (`fortnightly`, `monthly`, `yearly` or null); `block_series.every_weeks` (1 or 2) |
+| 56 | who a word means | `line_names` |
+| 57 | what stays true about a contact | `lead_facts` |
+| 58 | the week's three things | `week_things` |
 
 Each migration is one transaction, gated on `PRAGMA user_version`, with a
 backup taken before any of them runs. Additions use `ALTER TABLE ADD COLUMN`;
@@ -131,8 +142,24 @@ Lost.
 The core record. Only `name` is `NOT NULL` — the source spreadsheet has rows
 carrying nothing else, and refusing those would mean refusing most of the file.
 
-`contact_person`, `email`, `phone`, `alt_phone`, `location`, `city`, `pin`,
-`source`, `website`, `tags`, `notes`, `last_contacted_at`, `import_batch_id`.
+`contact_person`, `contact_role`, `email`, `phone`, `alt_phone`, `location`,
+`city`, `pin`, `source`, `website`, `linkedin`, `instagram`, `tags`, `notes`,
+`last_contacted_at`, `import_batch_id`.
+
+- **`contact_role`** (migration 53) is what the contact person is there -
+  "Owner", "Head of marketing". Set on the form, and by the quick line when
+  somebody new is told about with what they are.
+- **`alt_phone`, `location` and `pin`** came from the first customer's
+  spreadsheet. They are kept, imported and shown on a contact that has them,
+  and are no longer on the form.
+
+- **`linkedin` and `instagram`** (migration 48) are where a contact is found
+  when it is not by email or phone. Each holds one address in full -
+  `https://www.linkedin.com/in/priya-nair`, `https://www.instagram.com/priya.nair`
+  - whatever was typed, because `shared/profiles.ts` cleans it on the way in
+  and refuses what is not a profile on that site. Main builds the address it
+  opens from the row with the same functions, so the window never hands it
+  one. Neither is in the search index.
 
 - **`stage_id`, `value`, `loss_reason` and `closed_at` are no longer read.**
   They moved to `deals` in migration 22 and stay on the table only because
@@ -213,7 +240,7 @@ by `activity_id`); this table is the part something can count.
 - **`deal_id`, `script_id` and `activity_id` are `SET NULL`.** Deleting a deal
   or a script leaves the call; the contact going takes it.
 - **A call script is a `brain_pages` row** with template `call-script`, in
-  Playbooks; its `tone` and `caller` are fields, its parts are headings in
+  How we work (the section `playbooks`); its `tone` and `caller` are fields, its parts are headings in
   the text. See `shared/calls.ts`.
 - Logging a call is one transaction with everything it implies: the call, its
   history line, the contact's notes when they were edited, the task it came
@@ -230,20 +257,27 @@ when their lead goes or an import is undone. A correction is a new entry.
 
 `lead_id`, `kind`, `body`, `occurred_at`, `meta`.
 
-The `kind` vocabulary was declared complete up front, because SQLite cannot
-alter a `CHECK` without rebuilding the table. It did not stay complete: a
-bounce (migration 6) and a WhatsApp message (14) each needed a kind, and each
-cost a rebuild. Both copied every row across unchanged — the table is
-append-only, so there is nothing to reconcile, only to move.
+The `kind` vocabulary was declared complete up front, as a `CHECK`, because
+SQLite cannot alter one without rebuilding the table. It did not stay
+complete: a bounce (migration 6), a WhatsApp message (14) and then LinkedIn
+and Instagram (48) each needed a kind, and each cost a rebuild. The last of
+those took the `CHECK` off, so the next kind is a line of TypeScript
+(`ACTIVITY_KINDS` in `shared/domain.ts`) like every other enum here. Each
+rebuild copied every row across unchanged, ids and all — the table is
+append-only, so there is nothing to reconcile, only to move — and migration
+48 made the table's three search triggers again, since dropping a table
+takes its triggers with it. **`replied`** (phase 33) is the first kind added
+since: "They answered", put on by hand for a reply somewhere Caulder cannot
+read, and it needed no migration.
 
 ```
-created  note  call  meeting  whatsapp  stage_change  field_change
-email_queued  email_sent  email_opened  email_replied  email_failed
-email_bounced  task_done  imported  import_undone
+created  note  call  meeting  whatsapp  linkedin  instagram  stage_change
+field_change  email_queued  email_sent  email_opened  email_replied
+email_failed  email_bounced  task_done  imported  import_undone  replied
 ```
 
-`whatsapp` counts as contact and moves `last_contacted_at`, like a call; a note
-does not.
+`whatsapp`, `linkedin` and `instagram` count as contact and move
+`last_contacted_at`, like a call; a note does not.
 
 Ordered by `occurred_at DESC, created_at DESC, rowid DESC`. **The rowid matters**:
 timestamps are millisecond-resolution and entries written in one transaction
@@ -256,20 +290,58 @@ What drives Today. `lead_id` (**nullable** — "write the January mailshot" is
 still work), `title`, `kind`, `status`, `due_on`, `notes`, `completed_at`.
 
 - `kind` is `call`, `email`, `follow_up`, `meeting` or `todo` — the verb.
-- **`area`** is which part of a life it belongs to — `college`, `company`,
-  `personal`, `health` — kept apart from the verb. Free text underneath, so a
-  fifth area never needs a rebuild. Migration 15 backfilled it from the only
-  signal there was: a personal workspace's task was personal, an outreach
-  one's was the company's.
+- **`area`** is no longer read or written (PLAN.md, phase 32). It said
+  which part of a life a task belonged to - `college`, `company`, `personal`,
+  `health` - and a company's task is the company's. The column and its index
+  stay, because migrations are not edited; a task made since has null there.
 - **`priority`** is `must`, `should` or `spare`; null reads as `should`.
   Caulder's alone — Google Tasks has no such field.
 - `external_id` and `is_dirty` are the Google join key and the "changed here,
   not yet sent" flag. Unique per workspace where set.
 - `due_on` is a calendar day. See
   [architecture.md](architecture.md#dates-and-timezones).
+- **`repeats`** (migration 55) is `fortnightly`, `monthly` or `yearly`, or
+  null: a task that comes back - rent on the 1st, a birthday. Ticking it off
+  makes the next one, due a fortnight, a month or a year on (the same day of
+  the month, or its last day when the month is shorter), with its title,
+  kind, contact, priority and notes, and - when it had an hour on the
+  Calendar - the same hour on the new day. Only one is ever open: the next is
+  not made when an open one of the same title and repeat is already due then.
+  A week's days are not a task's repeat; they are a block series.
 
 Indexed on `(company_id, status, due_on)`, `(lead_id, status, due_on)` and
 `(company_id, area, status)`.
+
+## week_things
+
+Three things for a week (PLAN.md, part eight, phase 35): `company_id`,
+`week_start` (its Monday), `position` (0 to 2), `text`, `done_at` (when it
+was ticked, or null), `created_at`. Chosen at the head of the Calendar's week
+for the week after; shown at the head of Today until each is done or the week
+ends; said in Monday's morning brief. Unique on `(company_id, week_start,
+position)`, so a week never has more than three; typing over one replaces
+it, and an empty one is removed. Goes with the company.
+
+## lead_facts
+
+What stays true about a contact (PLAN.md, part twelve, phase 49):
+`company_id`, `lead_id`, `text` ("Maya prefers WhatsApp over email"),
+`until_day` (the day a fact that ends stops - "on leave till the 20th" - or
+null), `created_at`. Said to the quick line and kept on the contact, shown
+on their page as *Known about them*, and read by the line's questions - not
+on their history, where a fact and a call read alike. A birthday is a fact
+and, made with it, a task for that contact that comes back every year
+(`tasks.repeats`). Indexed on `(lead_id, created_at)`; goes with the contact.
+
+## line_names
+
+Who a word on the quick line means, once the line has asked and been told
+(PLAN.md, part twelve, phase 48): `company_id`, `said` (the word, as typed),
+`lead_id`, `created_at`. One row per word per company - unique on `said`
+ignoring case - and a second answer for the same word replaces the first.
+Read before any other way of finding a name, so "pk", answered once as Priya
+Nair, is her from then on. Listed in Settings, under Tune, each with Forget;
+goes with the contact or the company.
 
 ## import_batches
 
@@ -310,6 +382,14 @@ scheduled one, and what became of it — `status` is `scheduled`, `sent`,
   means the script has been told it may drop its copy. Caulder only asks the
   script about unsettled rows, and marks a row forgotten only once the script
   has answered.
+- **`template_id`** (migration 48) is the template a message started from,
+  so a template can say how many it sent and how many were answered. Null for
+  one written from scratch and for everything sent before; deleting the
+  template nulls it rather than taking the message.
+- **`message_id`** (migration 51) is the Message-ID a message went out with
+  when Caulder sent it itself, from an account: `<uuid@the-account's-domain>`.
+  A reply names it, which is how it is known for one. Null for anything
+  through the script, which keeps its own, and for everything sent before.
 - Deleting the contact deletes its messages; the history entries they wrote
   go with the contact anyway.
 
@@ -320,31 +400,27 @@ in `SETTING_KEYS` in `shared/domain.ts`, so a typo becomes a type error rather
 than a silently orphaned row: `activeCompanyId`, `coldAfterDays`, `followUpDays`,
 `notify`, `defaulted`, `captureShortcut`, `keepInTray`, `trayNoticed`,
 `googleConnection`, `googleAuto`, `googleScript`, `aiConnection`, `aiModels`,
-`aiModel`, `aiContext`, `thisIsMe`, `widgetOpen`, `widgetLevel`, `widgetSpot`.
-
-**`journalLock`** is the journal's lock as JSON: the public key, the private
-key encrypted under a key made from the passcode, how slow that key was to
-make (`n`, scrypt's cost as a power of two; 15 when missing, from before
-0.4.5), and **`recovery`**, the same private key encrypted under the recovery
-key, when one was made. **`journalLockToday`** is `on` when today is sealed as
-it is written. **`lookBackLocal`** is which model on this computer Looking
-back uses, as JSON - an address that must be this computer's, and a model name.
+`aiModel`, `aiContext`, `aiScope`, `aiLine`, `thisIsMe`, `widgetOpen`,
+`widgetLevel`, `widgetSpot`.
 
 The connection opens with `secure_delete` on (`db/connection.ts`), so deleted
-content is overwritten rather than left in free pages - a sealed journal day
-does not linger in the file.
+content is overwritten rather than left in free pages - what migration 49
+took out does not linger in the file.
 
-**`thisIsMe`** is who this Caulder is, for two founders, as JSON: a `name`
-written on every revision it makes, and an `id` made once, which the shared
-brain knows it by.
+**`thisIsMe`** is who this Caulder is, as JSON: a `name`, which Today greets
+and every revision written here carries, and an `id` made once.
 
 **`aiConnection`** is the AI service Ask the brain uses - which service, its
 address and its API key - ciphertext for the same reason as
 `googleConnection`, and an empty string once disconnected. **`aiModels`** is
 what that service offered when last asked, as JSON, so the picker needs no
 network to draw; **`aiModel`** is which of them answers, and may be a name
-typed by hand; **`aiContext`** is how much of the company goes with a
-question (`small`, `medium`, `large` or `whole`).
+typed by hand; **`aiContext`** is the most that goes with a question
+(`small`, `medium`, `large` or `whole`); **`aiScope`** is what goes within
+that - `needed`, the company in brief and what the question is about, which
+is also what an empty value means, or `all`, the whole company every time;
+and **`aiLine`** is `on` while the quick line is in AI mode, and emptied when
+the AI is disconnected.
 
 **`googleScript`** is what the script said about itself when last asked — its
 version, the Gmail address it sends from, today's remaining sends, and why it
@@ -377,25 +453,12 @@ table, never in here.
 
 ## area_words
 
-The words the quick-add line has been taught — "Datascience" is College,
-"Oakridge" is Company. `word`, `area`, `created_at`.
-
-**No `company_id`**, deliberately — with `settings`, the only table that is
-app-wide. A course name is a course name in whichever workspace it is typed,
-and a per-workspace list would mean teaching every word twice to a person who
-has two.
-
-**`UNIQUE (word COLLATE NOCASE)`**, so "CS301" and "cs301" cannot both exist
-and point in different directions — which one won would be down to the order
-the rows came back in. The repository checks first so it can say where the
-word already points; the index is there so anything else that writes here
-meets the same rule. Spaces inside a phrase are collapsed on the way in, so two
-spacings of one phrase are one row.
-
-`area` is one of the four task areas, checked at the bridge rather than by a
-CHECK, for the reason `channel` is free text: a fifth area should not need a
-table rebuild. Not in the CSV export — it is not per-workspace — but in the
-`caulder.db` copy that ships beside it, and in every backup.
+**Not read or written since phase 32.** It held the words the quick-add
+line had been taught, each pointing at one of a task's four areas -
+"Datascience" is College, "Oakridge" is Company - and a task has no area now.
+`word`, `area`, `created_at`, no `company_id`, `UNIQUE (word COLLATE NOCASE)`.
+The table and its rows are left where they are, and are in the `caulder.db`
+copy and every backup.
 
 ## line_guesses
 
@@ -403,106 +466,40 @@ What the quick-add line guessed at, kept so Settings' Tune can ask about it
 later instead of the line stopping to ask there and then. `kind`, `typed`,
 `meant`, `times`, `verdict`, `last_seen`, `created_at`.
 
-Two kinds of row. A **`slip`** is a word read as another - "meetining" as
-"meeting" - with what it was read as in `meant`. A **`name`** is something a
-title named that nothing knew - "ms puc" - and its `meant` is empty. `times`
-counts the lines it has turned up in: a slip is asked about from the first, a
-name only from the second (`worthAsking`, in `shared/tune.ts`), because a card
-that asks about every word ever typed after "for" is a card nobody opens.
+A row is a **`slip`**: a word read as another - "meetining" as "meeting" -
+with what it was read as in `meant`. `times` counts the lines it has turned up
+in. Rows of kind **`name`** - something a title named that nothing knew, asked
+about so it could be given an area - are from before phase 32, and are neither
+written nor read.
 
-`verdict` is null until answered. For a slip, `same` means it is read that way
-from then on without comment, and `keep` means the word is never touched again
-- which is also what "Keep as typed" under the line writes, before any
-question is asked. For a name, `taught` means it became a row in `area_words`
-and `none` means it belongs to no area; either way it is not asked about
-twice. Deleting the row takes an answer back, and leaves the line free to
+`verdict` is null until answered: `same` means it is read that way from then
+on without comment, and `keep` means the word is never touched again - which
+is also what "Keep as typed" under the line writes, before any question is
+asked. Deleting the row takes an answer back, and leaves the line free to
 guess - and ask - again.
 
-**No `company_id`**, for the reason `area_words` has none: the way somebody's
+**No `company_id`**: the way somebody's
 fingers slip does not change with the workspace. **`UNIQUE (kind, typed, meant)`
 ignoring case**, so a second sighting adds to the count rather than the list,
 and an answer once given is found again rather than asked again. Not in the CSV
 export; in the `caulder.db` copy and every backup.
 
-## journal_private
-
-The lines the quick line takes as nobody else's business - a crush, a regret
-about how somebody was spoken to (`shared/private.ts`). `company_id`, `day`,
-`box`, `body`, `created_at`.
-
-**Exactly one of `box` and `body` is filled**, which the `CHECK` says. With a
-journal passcode set, the line is in `box`, sealed with the journal's public
-key **the moment it is written** - not at midnight, as a day's entry is -
-which needs no passcode, because sealing only ever needs the public half.
-Reading it back takes the passcode, like any day that is over. With no
-passcode there is nothing to seal with, so the line is in `body` until one is
-set, and setting one seals every such row there and then. Removing the
-passcode opens them again; forgetting it deletes the sealed ones, as it does
-the sealed days, because nobody can open them any more.
-
-Inside the box is JSON - the words, who they were about, what kind of feeling
-it was - so none of that is readable either. **`day` is outside the box** on
-purpose: the journal has to be able to say a day has something locked in it
-without being able to say what.
-
-**Joined to nothing.** No `lead_id`, no `page_id`, not in `brain_search`, not
-in the dossier an AI is sent, not in the shared brain, not in the CSV export:
-a line about Julia that is linked to Julia's record is not private. It is in
-the `caulder.db` copy and every backup, sealed as it is here.
-
-## hobby_logs
-
-The numbers under the memories: twenty push ups, five kilometres, forty-five
-kilos three times. `company_id`, `day`, `topic`, `metric`, `value`, `unit`,
-`reps`, `best`, `created_at`. Written by the quick line when what it kept
-measured something (`measuresOf`, in `shared/subjects.ts`), and read for the
-year in numbers.
-
-**One log for every hobby**, not a table each. `topic` is what it is a measure
-of, titled as its page in the brain is ("Push Ups", "Running", "Body Weight"),
-and `metric` says what kind of number: `reps`, `weight` (with `reps` beside
-it), `distance`, `pace` (seconds per unit), `bodyweight`, `change`, `pages`.
-A hobby nobody thought of is counted without a migration. Joined to its page
-by title rather than by id on purpose: the log is written the moment a line
-is kept, which is before the page it belongs on may exist.
-
-## shelf_books
-
-The reading shelf: `title`, `series`, `position` in the series, `status`
-(`to-read`, `reading`, `read`), `finished_on`. **Unique by title within a
-workspace, ignoring case**, so "I am reading Dune", said of a book that was to
-be read, moves it rather than adding it again. A series is added as the books
-in it, in order, from the list in `shared/books.ts` - no lookup, because
-Caulder asks nobody on the internet what somebody is reading.
-
-## day_checkins
-
-What a day with nothing on it turned out to be, asked the day after and
-answered in one press: `rested`, `scrolled`, `unwell`, `elsewhere`, `off`
-(`shared/pulse.ts`). `company_id`, `day`, `answer`, `created_at`; one row a
-day a workspace, and answering again keeps the newer answer.
-
-It is the only thing the reading of how somebody has been keeps for itself.
-Everything else it reads from what is already there - the hours on the
-Calendar, the tasks finished, the journal's mood, the habits, what the line
-logged - and **never from `journal_private`**, which is sealed and which it
-has no key to. Switching the whole thing off (`pulseOff` in `settings`) stops
-the reading; the answers already given stay, as the person's own record.
-
 ## line_lessons
 
 What the quick line learns from being corrected (`shared/lessons.ts`). A line
-moved to another part of life, or another kind, before it was kept leaves one
-row: its `words` (plain, sorted, space-separated - the words that carry
-meaning, with "friends" and "friend" as one), the `area` or `kind` it was
-moved to, `times` it has been taught that, the line it was first learnt from
-as `sample`, `created_at`, `last_seen`. The same words taught the same answer
-again add to `times`; nothing else is kept.
+moved to another kind before it was kept leaves one row: its `words` (plain,
+sorted, space-separated - the words that carry meaning, with "friends" and
+"friend" as one), the `kind` it was moved to, `times` it has been taught that,
+the line it was first learnt from as `sample`, `created_at`, `last_seen`. The
+same words taught the same answer again add to `times`; nothing else is kept.
 
 A later line that shares words with a lesson is read that way - but a word
-taught two different answers counts for neither, and a word already one of
-Your words (`area_words`) is left to that. Each row is listed in Settings with
-a way to take it back.
+taught two different answers counts for neither. Each row is listed in
+Settings with a way to take it back.
+
+**`area`** is from when a line could be moved to another part of life as
+well. It is not written since phase 32, and a row that has only an area and
+no kind is not read.
 
 ## reminders
 
@@ -517,9 +514,8 @@ reminder switch: this was asked for in so many words, so it is sent whatever
 that switch says. A reminder for a task done first is settled without being
 sent, and deleting the task deletes it.
 
-The journal nudge and the morning brief keep no rows: their hours are
-`journalNudgeAt` and `briefAt` in `settings` (empty is off), and the day each
-was last sent is `journalNudged` and `briefed`, so each is sent once a day; `datesTold` is the day a birthday or anniversary coming round was last said.
+The morning brief keeps no rows: its hour is `briefAt` in `settings` (empty
+is off), and the day it was last sent is `briefed`, so it is sent once a day.
 
 ## mail_accounts
 
@@ -532,11 +528,21 @@ provider that offers one - is encrypted by the operating system before it is
 written, as `googleConnection` is, and no channel hands it back to the
 window. If the OS cannot encrypt, the account is not saved.
 
-These accounts only send. The Google script reads threads and SMTP does not,
-so a message from one of these has no reply watched for and no automatic
-follow-up; one scheduled for later is sent by Caulder when it is due, which
-means Caulder has to be running. `emails.account_id` says which account a
-message went from - null is the script, which is every message from before.
+**`imap_host` is the switch for seeing replies** (migration 51), null until
+the person turns it on for that account; `imap_port` goes with it. On,
+Caulder asks that inbox every ten minutes for the headers of what has
+arrived since the oldest message still listened for - who from, when, what
+it answers; never a subject or the text - and reports each answer the way
+the script's are reported. `imap_checked_at` is the last look, and
+`imap_error` what went wrong with it in a sentence, null when it went. The
+same password is used; nothing new is stored about the inbox, and nothing in
+it is changed.
+
+Off, an account only sends: no reply is watched for and no follow-up is
+taken. Either way a message scheduled for later, and a follow-up, is sent by
+Caulder when it is due, which means Caulder has to be running.
+`emails.account_id` says which account a message went from - null is the
+script, which is every message from before.
 
 ## campaigns
 
@@ -601,6 +607,15 @@ accountant would recognise. See PLAN.md, phase 3.
 - **Paid is derived from `payments`, never typed.** An invoice is paid when
   the payments cover the total and stops being paid if one is removed;
   `paid_on` follows. "Mark paid" records a payment for the remainder.
+- **A retainer is `invoices.repeats`** (migration 54), and only the newest
+  invoice of a run carries it. When the next is due to be written -
+  `issued_on` so many months on, and the invoice sent - `draftRepeats`
+  (`repositories/money.ts`) makes a draft from it and moves `repeats` to the
+  draft. Nothing is drafted from a draft, so a run has at most one waiting;
+  nothing is ever sent by it. It runs when Today and Money are read.
+- **Whether an invoice was chased is not stored.** `Invoice.reminded` is
+  read from `emails`: those sent to its contact with its number in the
+  subject (`remindersFor`, `shared/chase.ts`).
 - **Overdue is not a status.** It is a sent invoice past `due_on`, worked out
   when read, so nothing runs at midnight and nothing goes stale.
 - **A quote cascades to its lines; an invoice does not cascade to its quote.**
@@ -712,6 +727,14 @@ Indexed on `(company_id, category, name)`, `(lead_id, created_at DESC)` and
 `(company_id, expires_on)`.
 
 ## people, openings
+
+**Dormant since migration 52 (11 October 2026).** People and hiring was taken
+out - a one-person company has no team - and nothing in Caulder reads or
+writes these two tables now. They are still here, with whatever was in them,
+because `tasks.person_id` refers to `people`: a column with a reference
+cannot be dropped, and a table another still refers to cannot go without
+every later write to `tasks` failing. Export everything writes them out as
+`people.csv` and `roles.csv`. What follows is how they were used.
 
 Who works here and on what terms, and who might. See PLAN.md, phase 10.
 
@@ -844,121 +867,34 @@ so it has a clock and a length a task has never had.
   repeated sync update rather than duplicate.
 - `task_id` nulls rather than cascades: deleting the task leaves the hour you
   set aside standing.
-- **`page_id`** (on `blocks` and `block_series`, migration 30) is the page the
-  time was set aside for from Life - a course's study hours, a hobby's
-  evenings. It nulls when the page goes: the hours happened either way. What a
+- **`page_id`** (on `blocks` and `block_series`, migration 30) is a page the
+  time was set aside for. Nothing sets it now - it was for a course's study
+  hours and a hobby's evenings, which went with migration 49 - and it nulls
+  when the page goes: the hours happened either way. What a
   page's time "got" is the sum of its past blocks not skipped, worked out when
   read.
 
 ## block_series, terms
 
-Most of a student's week is the same week again. **Occurrences are written as
-ordinary blocks**, not computed when read, so moving one Tuesday is editing a
-block and the Google sync needs no idea repeats exist.
+Most of a week is the same week again. **Occurrences are written as ordinary
+blocks**, not computed when read, so moving one Tuesday is editing a block and
+the Google sync needs no idea repeats exist.
 
 - `block_series` — `title`, `kind`, `starts_at`, `minutes`, `weekdays` (ISO
-  numbers, `'1,3,5'`), `from_day`, `until_day`, `is_habit`, `term_id`. Only a
-  habit is counted for a streak, and streaks count scheduled occurrences, not
-  calendar days.
-- `terms` — `name`, `from_day`, `until_day`. A new semester is one action.
-- **`blocks.series_id` and `block_series.term_id` both null rather than
-  cascade.** Ending a repeat clears the future and leaves the past; ending a
-  term does not delete the timetable it held. Last semester happened.
-
-## habits, habit_checks
-
-The small things done most days, ticked on Today (PLAN.md, part four).
-`habits` - `name`, `area` (college, company, personal, health, or none),
-`weekdays` (ISO numbers, `'1,3,5'`), `position`, `archived_at`;
-`habit_checks` - one row per `(habit_id, day)` done.
-
-- **Nothing about a streak is stored.** The run of days, the best run and the
-  last twelve weeks are worked out from the ticks when read, counting only
-  the days the habit is for: a Monday-Wednesday-Friday habit is not broken by
-  a Tuesday. Today not ticked yet does not break it either - the day is not
-  over.
-- **Archived, not deleted**, keeps the ticks; deleting takes them.
-- Not `block_series.is_habit`: that was a repeat's hours, counted by a screen
-  since removed. A habit here has no time of day.
-
-## vision_tiles
-
-The vision board on top of Life (PLAN.md, part four, phase 17): pictures and
-words for what the year is for. `words` (a caption, or the whole tile),
-`picture` (a `BLOB`) with `picture_type`, `width` and `height`, `goal_id` (a
-page in the Goals section, `SET NULL` when it goes), `area`, `position`.
-
-- **A picture is kept in the database**, so a backup carries it and there is
-  no folder of files to lose track of. It arrives already made smaller - at
-  most 1,400 pixels on its long side, WebP, 1.5 MB at the very most - and is
-  checked by its first bytes before it is kept, whatever the window said it
-  was. It goes back to the window as a `data:` URL, the one image source the
-  window's CSP allows besides its own files.
-- **A tile has a picture, words, or both**, never neither: a `CHECK` says so,
-  and another that `picture` and `picture_type` come together.
-- **Yours alone.** Not a page, so never synced to a co-founder, never in the
-  brain's files, the data room, the handbook or the dossier.
-
-**Your level is not a table.** XP, levels, achievements and the week across
-the four areas are worked out when read (`services/progress.ts`) from
-`tasks.completed_at`, kept `blocks`, `calls`, won `deals`, paid `invoices`,
-journal entries, `habit_checks` and the revision where a goal was marked
-done. Undo any of those and the points go with it.
-
-## goal_checkins
-
-How your own goals move (after 0.4): `page_id` (a goal in Life, cascading),
-`on_day` (in the workspace's own day), `value` (where the goal stood after
-it), `note`, `is_start`, `created_at`.
-
-- **A check-in is where the goal stands, not how much it moved**, so a goal
-  can count down - a weight to lose - as easily as up, and "set to 79" and
-  "+1" are the same kind of row.
-- **The first check-in keeps a start**: a row with `is_start` on the day the
-  goal was set, at what its *So far* said before, so the line on its chart
-  begins where the goal did. A start is never undone and never listed.
-- **The page's *So far* follows the latest check-in**, saved as an edit of the
-  page like any other (merged with the page's other edits made in the same
-  few minutes), so the page, its history and your level all agree.
-- **Yours alone.** Never synced to a co-founder; in the database copy and
-  every backup, not in the CSV export.
-
-## day_themes
-
-Your week (after 0.4): a `weekday` (1 is Monday), and what it is for -
-`label`, and a `page_id` (a hobby, a course or a goal, `SET NULL` when it
-goes) or an `area`. One per weekday per workspace (the primary key). The
-Calendar heads the day with it, Today says it, and a hobby counts how many of
-its days it got. Yours alone, like `goal_checkins`.
-
-## journal_sealed
-
-The words of journal entries for days that are over, once the journal has a
-passcode (after 0.3): `page_id` (cascading), `box` (JSON: ciphertext and what
-opens it), `sealed_at`.
-
-- **Two keys.** Setting a passcode makes an X25519 key pair. The public half
-  is kept as it is in the `journalLock` setting and seals text without
-  asking for anything; the private half is kept there too, encrypted with
-  AES-256-GCM under a key made from the passcode by scrypt. Each entry is
-  sealed with a throwaway key pair and HKDF, then AES-256-GCM.
-- **Sealed means gone from everywhere else**: the page's `body`, every
-  `brain_revisions.body` for it and so the search index are emptied. The
-  title (the date) and the fields - the mood - stay, so the calendar keeps its
-  faces. Links written in the entry stay in `brain_links`.
-- **Today is sealed only when the journal locks as it is written**
-  (`journalLockToday`, after 0.4.5); otherwise it stays open until midnight.
-  A past day written into while the journal is open is sealed again as soon
-  as it is saved, and any day that is over is sealed by the next read.
-- **Parts.** `box` is one sealed text, or `{ "v": 2, "parts": [...] }`: words
-  added to a sealed entry while the journal is locked - a line from Today, a
-  note moved into its day - are sealed as a part of their own with the public
-  key, and read after the rest as if added to the open page. Saving the entry
-  open makes it one box again.
-- **A recovery key** (`recovery` in the `journalLock` setting) opens the same
-  private key, so a new passcode can be set without it.
-- Forgetting the passcode means those days cannot be opened; *I forgot the
-  passcode* deletes the boxes and the lock, and leaves the days and moods.
+  numbers, `'1,3,5'`), `from_day`, `until_day`, `is_habit`, `term_id`. `is_habit`
+  is no longer read: migration 49 set it to 0 everywhere. **`kind`** on a
+  block and on a repeat is one of `focus`, `meeting`, `call`, `admin`, `away`,
+  or whatever was typed; migration 53 made `away` of the four a student's day
+  had.
+- **`terms`** — `name`, `from_day`, `until_day` — **is no longer read or
+  written** (phase 32): it named the span a timetable of classes ran for, and
+  the Calendar's *A usual week* puts repeats in until a day without naming
+  anything. `block_series.term_id` is null on every repeat made since.
+- **`blocks.series_id` nulls rather than cascades.** Ending a repeat clears
+  the future and leaves the past.
+- **`every_weeks`** (migration 55) is 1, or 2 for a repeat every other week:
+  the occurrences written are the weeks counted from the week of `from_day`
+  that are even.
 
 ## notes
 
@@ -972,19 +908,11 @@ The brain (PLAN.md, phase 6). A page is a `section`, a `template`, a
 `title`, a Markdown `body`, and `fields` - the template's fields as JSON.
 
 - **`section` is checked in `shared/brain.ts`, not by the table.** It was a
-  `CHECK` listing the company's fifteen until migration 30 rebuilt the table
-  for the founder's own four - `studies`, `hobbies`, `goals`, `journal` -
-  and it was rebuilt without one, so a new section never costs a rebuild
-  again.
-- **The founder's own sections never leave the machine**: the shared brain
-  neither sends nor accepts them, the brain file leaves them out, and so do
-  the data room, the handbook and the dossier. They are brain pages so that
-  they link, are searched and keep a history; they are shown under *You*
-  (Journal and Life), not in the brain.
-- **One journal entry a day**, by a unique index on
-  `(company_id, json_extract(fields, '$.day'))` for the `entry` template. The
-  day is set when the entry is made and kept through every edit; an entry is
-  made only when something is written, never by opening the journal.
+  `CHECK` until migration 30 rebuilt the table without one, so a new section
+  never costs a rebuild again. That rebuild was for four personal sections -
+  `studies`, `hobbies`, `goals`, `journal` - which migration 49 emptied and
+  `shared/brain.ts` no longer lists; `remembered`, where the line keeps what
+  it was told about the company, is the company's now.
 
 - **Fields are JSON, not columns.** The templates are defined in
   `shared/brain.ts` and change with it, and nothing queries a field by
@@ -1006,49 +934,11 @@ The brain (PLAN.md, phase 6). A page is a `section`, a `template`, a
   person's saves fold together. `edited_by` is the "This is me" name of
   whoever wrote the version, and `brain_pages.updated_by` of whoever wrote
   the page last (both null before phase 12).
-- **`brain_revisions.concurrent`** marks a version written at the same time
-  as another by the other founder. The page shows so while its latest version
-  is marked; the next save is not, and the mark goes.
+- **`brain_revisions.concurrent`** marked a version written at the same time
+  as another by a second founder. Nothing writes it since founder sharing was
+  taken out (migration 49); the column stays.
 - Archiving keeps a page and takes it out of search and the home page;
   deleting takes its revisions with it.
-
-## brain_tombstones, and the shared brain
-
-Two founders sharing one brain through the Google script (PLAN.md, phase
-12). The script keeps a log in a spreadsheet in the owner's Drive - every
-change to a page a row, the page's revisions numbered there - and each
-Caulder reads it from where it got to and sends what changed here.
-
-On `companies`: `brain_key` (which brain in the log; null when not shared),
-`brain_name`, `brain_role` (`owner` when the brain is in this founder's
-script, `member` when it was joined by invitation), `brain_connection` (how
-to reach it - the owner's key, or the invitation - encrypted by the OS like
-`googleConnection`), `brain_cursor` (how far into the log this company has
-read), `brain_synced_at` and `brain_error`.
-
-On `brain_pages`: `sync_revision` (the log's revision this page matches;
-null for a page the log has never had) and `sync_dirty` (changed here since).
-
-`brain_tombstones`: `company_id`, `page_id`, `sync_revision`, `deleted_at` -
-a shared page deleted here, waiting to tell the log.
-
-- **Marking is the database's job.** A trigger marks a page dirty when its
-  content, section, template or archiving changes and `sync_revision` did
-  not change in the same statement; a change arriving from the log always
-  moves `sync_revision`, so it is never sent straight back. A new page with
-  no `sync_revision` is dirty from its first insert. No path that changes a
-  page can forget to.
-- **A tombstone only for a page the log has, in a company still here**:
-  deleting a company takes its pages without telling anyone, and a page that
-  never went up has nobody to tell.
-- **The rules on arrival**: a change to a page not changed here becomes the
-  page; a change to one that has changed here goes into its history, this
-  side's version is written on top, and both are marked `concurrent`; an edit
-  beats a delete, whichever side made which; secrets and pins never travel.
-  A company's one profile or cap table meeting the other side's is renamed
-  "(before sharing)" and made a plain page rather than lost.
-- **Not shared yet**: products, obligations, people, metrics, documents,
-  contacts and deals are rows of their own and stay on each machine.
 
 ## brain_links, map_positions
 
@@ -1121,10 +1011,8 @@ each (`shared/understand.ts` says how).
   that are read, for `brain_pages`, `leads`, `tasks` and `notes` - a trigger
   cannot run a model, so it queues. Deleting a row deletes its vectors at
   once, by `source_id`.
-- **The journal is never read**: its pages are not queued, and a queued page
-  that has become a journal page, or is archived, has its vectors removed
-  when it comes round. A sealed day empties its page, and a vector made
-  before would outlast the words. `journal_private` is not read at all.
+- **An archived page is not read**: a queued page that has been archived has
+  its vectors removed when it comes round.
 
 ## said_again
 
@@ -1139,6 +1027,30 @@ line that said it again, and `score` how alike they were.
   marked again, but it no longer counts.
 - Deleting the page deletes its marks; a line edited has a new hash, and its
   old mark no longer finds it.
+
+## sheet_links, sheet_rows
+
+A company's contacts kept as a Google Sheet in the person's own Drive, through
+their own script (PLAN.md, part seven; `shared/sheet.ts` says what a row is
+and which side is right, `services/sheetsync.ts` reads and writes).
+
+- **`sheet_links`** — one row a company that keeps one, and none for one that
+  does not: that is the switch. `url` is where the spreadsheet is, as the
+  script reported it; main checks it is a Google spreadsheet's address before
+  opening it, and the window never sees it. `synced_at`, `count`, `changed`
+  and `made` say how the last pass went; `problems` is a JSON list of
+  sentences about rows that could not be taken in; `error` is why a pass
+  failed, cleared by the next that works.
+- **`sheet_rows`** — what Caulder last wrote for each contact: `base`, the
+  cells the sheet may change, as JSON. A cell that differs from it on the
+  next read was edited in the sheet and is taken in; one that matches was
+  not, and Caulder's stands. Replaced whole on every pass.
+- Both go with their company, and a `sheet_rows` row with its contact — so a
+  contact deleted here is simply not in the next write, and its row leaves
+  the sheet. The other way round never happens: a row deleted from the sheet
+  comes back.
+- Stopping deletes both rows' worth and nothing else. The spreadsheet stays
+  in Drive, as it was last written.
 
 ## google_tombstones, google_sync
 

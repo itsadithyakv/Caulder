@@ -1,6 +1,6 @@
 /**
  * Caulder — the Google bridge: Calendar, Tasks, Gmail, Contacts, backups in
- * Drive, and the shared brain.
+ * Drive, and your contacts as a Google Sheet.
  *
  * Paste this whole file into a Google Apps Script project and follow the
  * steps below. It runs inside your own Google account and Caulder talks to it
@@ -73,18 +73,19 @@
  * deployment. Either takes effect immediately.
  *
  * ---------------------------------------------------------------------------
- * SHARING THE BRAIN WITH A CO-FOUNDER
+ * YOUR CONTACTS AS A GOOGLE SHEET
  * ---------------------------------------------------------------------------
  *
- * In Caulder, Brain > Two founders > Share. Caulder asks this script to keep
- * the brain in a spreadsheet in your Drive called "Caulder brain", and hands
- * you an invitation to send your co-founder. The invitation reaches that
- * brain and nothing else: not your calendar, not your email. Stop sharing
- * cancels it.
+ * In Caulder, Settings > Google > Contacts in a Google Sheet. Caulder asks
+ * this script to keep a spreadsheet in your Drive, one per company, called
+ * "Caulder contacts - <company>": a row a contact, so they can be read and
+ * edited on a phone. Caulder reads the sheet, takes in what you changed
+ * there, and writes it back. The sheet is yours: stop the sync in Caulder and
+ * it stays where it is.
  * ========================================================================= */
 
-/** Caulder reads this to know what the script can do. Email arrived in 2, the shared brain in 3, contacts and Drive backups in 4. */
-var SCRIPT_VERSION = 5;
+/** Caulder reads this to know what the script can do. Email arrived in 2, contacts and Drive backups in 4, the contacts sheet in 6. */
+var SCRIPT_VERSION = 7;
 
 /** Run once, by hand. Grants permission and prints the key. */
 function setUp() {
@@ -100,12 +101,19 @@ function setUp() {
   // during a run you are watching, rather than on the first request from
   // Caulder - where the failure would arrive as an unexplained error.
   CalendarApp.getDefaultCalendar().getName();
-  Tasks.Tasklists.list();
+  // Tasks only if the Tasks API is under Services; said plainly when it is not.
+  if (typeof Tasks === "undefined") {
+    Logger.log("The Tasks API is not under Services, so your tasks will not sync. Add it (step 2), then run setUp again.");
+  } else {
+    Tasks.Tasklists.list({ maxResults: 100 });
+  }
   GmailApp.getAliases();
   MailApp.getRemainingDailyQuota();
   // Backups go in a folder in your own Drive. Contacts only if you added the
   // People API under Services: it is optional, and its absence is not an error.
   if (typeof DriveApp !== "undefined") DriveApp.getRootFolder().getName();
+  // Your contacts as a spreadsheet, when Caulder is asked to keep one.
+  if (typeof SpreadsheetApp !== "undefined") SpreadsheetApp.getActiveSpreadsheet();
   if (typeof People !== "undefined") People.People.get("people/me", { personFields: "names" });
 
   // What sends a scheduled email, and notices a reply, with Caulder closed.
@@ -134,23 +142,6 @@ function doPost(e) {
     request = JSON.parse(e.postData.contents);
   } catch (error) {
     return reply({ ok: false, error: "That was not readable JSON." });
-  }
-
-  // An invitation to a shared brain: that brain's log, and nothing else.
-  if (request.invite) {
-    var invited = PropertiesService.getScriptProperties().getProperty(INVITE_PREFIX + String(request.invite));
-    if (!invited) {
-      return reply({ ok: false, error: "That invitation is not right, or the brain is no longer shared." });
-    }
-    if (INVITED_ACTIONS.indexOf(request.action) === -1) {
-      return reply({ ok: false, error: "An invitation only reaches the shared brain." });
-    }
-    request.key = invited;
-    try {
-      return reply({ ok: true, data: handle(request) });
-    } catch (error) {
-      return reply({ ok: false, error: String((error && error.message) || error) });
-    }
   }
 
   var expected = PropertiesService.getScriptProperties().getProperty("CAULDER_SECRET");
@@ -186,18 +177,10 @@ function handle(request) {
       return emailStatus(request);
     case "cancelEmail":
       return cancelEmail(request);
-    case "brainCreate":
-      return brainCreate(request);
-    case "brainInvite":
-      return brainInvite(request);
-    case "brainClose":
-      return brainClose(request);
-    case "brainInfo":
-      return brainInfo(request);
-    case "brainPush":
-      return brainPush(request);
-    case "brainPull":
-      return brainPull(request);
+    case "sheetRead":
+      return sheetRead(request);
+    case "sheetWrite":
+      return sheetWrite(request);
     case "saveContact":
       return saveContact(request);
     case "pullContacts":
@@ -225,10 +208,22 @@ function hello() {
     calendars.push({ id: all[i].getId(), name: all[i].getName() });
   }
 
+  // Without the Tasks API under Services there are no lists to offer - and
+  // that is said, rather than the whole connection failing over it.
   var lists = [];
-  var items = Tasks.Tasklists.list().items || [];
-  for (var j = 0; j < items.length; j += 1) {
-    lists.push({ id: items[j].id, name: items[j].title });
+  var tasksReady = typeof Tasks !== "undefined";
+  if (tasksReady) {
+    var listToken = null;
+    do {
+      var listOptions = { maxResults: 100 };
+      if (listToken) listOptions.pageToken = listToken;
+      var page = Tasks.Tasklists.list(listOptions);
+      var items = page.items || [];
+      for (var j = 0; j < items.length; j += 1) {
+        lists.push({ id: items[j].id, name: items[j].title });
+      }
+      listToken = page.nextPageToken || null;
+    } while (listToken);
   }
 
   // Asked separately, so a script updated but not yet re-authorised still
@@ -250,6 +245,7 @@ function hello() {
     email: Session.getActiveUser().getEmail(),
     calendars: calendars,
     taskLists: lists,
+    tasks: tasksReady,
     version: SCRIPT_VERSION,
     mail: mail,
     mailError: mailError,
@@ -559,7 +555,15 @@ function pushEvents(request) {
  * Caulder it was everything is how the hundred and first task gets deleted,
  * so this follows nextPageToken and says plainly whether it finished.
  */
+/** Said when the Tasks API was never added: the one way task sync fails that the person can mend. */
+function needTasks() {
+  if (typeof Tasks === "undefined") {
+    throw new Error("Your Google script has no Tasks API. Open it, add Tasks API under Services, and run setUp again.");
+  }
+}
+
 function pullTasks(request) {
+  needTasks();
   var out = [];
   var token = null;
   var pages = 0;
@@ -612,6 +616,7 @@ function taskFrom(task) {
 }
 
 function pushTasks(request) {
+  needTasks();
   var created = [];
   var failures = [];
 
@@ -1031,227 +1036,87 @@ function pruneJobs(now) {
   }
 }
 
-/* ---- The shared brain ---------------------------------------------------- */
+/* ---- Contacts in a Google Sheet ------------------------------------------ */
 
-/*
- * Two founders, one brain, no server: the brain's pages live in a
- * spreadsheet in the owner's Drive, called "Caulder brain", made the first
- * time somebody shares.
+/**
+ * Your contacts as a spreadsheet in your own Drive, one per company, so they
+ * can be read and edited on a phone.
  *
- * It is a log. Every change to a page is a row, never an edit of a row, and
- * each page's revisions are numbered here, so the two Caulders agree on what
- * revision 7 is. A change sent on top of an older revision than the latest
- * is still kept - as the next revision, marked as edited at the same time as
- * the one it did not see - so nothing is ever overwritten without a trace.
+ * Caulder does the thinking. It reads every row (`sheetRead`), works out what
+ * you changed here since it last wrote, takes that in, and writes the whole
+ * list back (`sheetWrite`). This script only fetches and stores: it never
+ * decides which side is right, so there is one place that rule lives.
  *
- * The co-founder never gets the key at the top of this file, which also
- * reaches the calendar and the email. Sharing makes an INVITATION for that
- * one brain, and an invitation reaches nothing else. Stopping sharing on the
- * owner's side cancels it.
+ * Which spreadsheet is a company's is remembered in this script's own
+ * properties, by the company's id. One moved to the bin is forgotten, and a
+ * new one is made the next time Caulder asks.
  */
+var SHEET_PREFIX = "CAULDER_CONTACTS_SHEET_";
+var SHEET_TAB = "Contacts";
+/** More rows than this in one sheet is not somebody's contact list. */
+var SHEET_MAX_ROWS = 5000;
 
-var BRAIN_SHEET = "CAULDER_BRAIN_SHEET";
-var INVITE_PREFIX = "CAULDER_BRAIN_INVITE_";
-/** Characters per cell: a sheet cell holds 50,000, and a page is split over three. */
-var CHUNK = 45000;
-var PULL_ROWS = 300;
-var PUSH_MOST = 100;
-var REVISION_COLUMNS = 11;
-/** What an invitation may ask for. */
-var INVITED_ACTIONS = ["brainInfo", "brainPull", "brainPush"];
-
-/** The spreadsheet, made on first use. Every column is plain text, so nothing in a page is read as a formula. */
-function brainBook() {
+function contactsBook(request) {
+  var company = String(request.company || "");
+  if (!/^[A-Za-z0-9-]{1,64}$/.test(company)) throw new Error("Caulder did not say which company's contacts these are.");
   var props = PropertiesService.getScriptProperties();
-  var id = props.getProperty(BRAIN_SHEET);
+  var id = props.getProperty(SHEET_PREFIX + company);
+  var book = null;
   if (id) {
     try {
-      return SpreadsheetApp.openById(id);
+      book = SpreadsheetApp.openById(id);
+      if (typeof DriveApp !== "undefined" && DriveApp.getFileById(id).isTrashed()) book = null;
     } catch (error) {
-      // Deleted from Drive. The brain is still on each founder's machine,
-      // and the next push fills a new sheet.
+      book = null;
     }
   }
-  var book = SpreadsheetApp.create("Caulder brain");
-  var brains = book.getSheets()[0];
-  brains.setName("brains");
-  brains.getRange("A:D").setNumberFormat("@");
-  brains.appendRow(["key", "name", "created", "by"]);
-  var pages = book.insertSheet("pages");
-  pages.getRange("A:C").setNumberFormat("@");
-  pages.appendRow(["key", "page", "revision"]);
-  var revisions = book.insertSheet("revisions");
-  revisions.getRange("A:K").setNumberFormat("@");
-  revisions.appendRow([
-    "key", "page", "revision", "author", "author id", "edited", "edited at the same time as", "deleted",
-    "page", "page, continued", "page, continued",
-  ]);
-  props.setProperty(BRAIN_SHEET, book.getId());
+  if (!book) {
+    book = SpreadsheetApp.create("Caulder contacts - " + String(request.name || "My company").slice(0, 80));
+    props.setProperty(SHEET_PREFIX + company, book.getId());
+  }
   return book;
 }
 
-/** Every row under the header, as values. */
-function rowsOf(sheet, columns) {
+function contactsTab(book) {
+  var sheet = book.getSheetByName(SHEET_TAB);
+  if (!sheet) {
+    sheet = book.getSheets()[0];
+    sheet.setName(SHEET_TAB);
+  }
+  return sheet;
+}
+
+/** Every row under the heading, as the text each cell shows. Makes the spreadsheet the first time. */
+function sheetRead(request) {
+  var book = contactsBook(request);
+  var sheet = contactsTab(book);
+  var width = Math.max(1, Math.min(40, Number(request.columns) || 1));
   var last = sheet.getLastRow();
-  if (last < 2) return [];
-  return sheet.getRange(2, 1, last - 1, columns).getValues();
+  if (last - 1 > SHEET_MAX_ROWS) throw new Error("That sheet has more than " + SHEET_MAX_ROWS + " rows, which is more than Caulder reads.");
+  var rows = last > 1 ? sheet.getRange(2, 1, last - 1, width).getDisplayValues() : [];
+  return { id: book.getId(), url: book.getUrl(), rows: rows };
 }
 
-function brainRow(book, key) {
-  var rows = rowsOf(book.getSheetByName("brains"), 4);
+/** The whole list, written over what was there. Every cell is text: a phone number is not a sum. */
+function sheetWrite(request) {
+  var header = request.header || [];
+  var rows = request.rows || [];
+  if (!header.length) throw new Error("Caulder sent no headings for the sheet.");
+  if (rows.length > SHEET_MAX_ROWS) throw new Error("That is more than " + SHEET_MAX_ROWS + " contacts, which is more than one sheet is given.");
+  var book = contactsBook(request);
+  var sheet = contactsTab(book);
+  var width = header.length;
+  var all = [header];
   for (var i = 0; i < rows.length; i += 1) {
-    if (String(rows[i][0]) === String(key)) return rows[i];
+    var row = [];
+    for (var j = 0; j < width; j += 1) row.push(rows[i][j] === null || rows[i][j] === undefined ? "" : String(rows[i][j]));
+    all.push(row);
   }
-  throw new Error("That shared brain is not in this script any more.");
-}
-
-/** A brain shared for the first time: its key, and the invitation to send the co-founder. */
-function brainCreate(request) {
-  var name = String(request.name || "").slice(0, 120) || "Caulder brain";
-  return withLock(function () {
-    var book = brainBook();
-    var key = Utilities.getUuid();
-    book.getSheetByName("brains").appendRow([key, name, new Date().toISOString(), String(request.author || "")]);
-    var invite = Utilities.getUuid().replace(/-/g, "") + Utilities.getUuid().replace(/-/g, "");
-    PropertiesService.getScriptProperties().setProperty(INVITE_PREFIX + invite, key);
-    return { key: key, name: name, invite: invite };
-  });
-}
-
-/** The invitation for a brain, made again if it was cancelled. For the owner. */
-function brainInvite(request) {
-  return withLock(function () {
-    brainRow(brainBook(), request.key);
-    var props = PropertiesService.getScriptProperties();
-    var all = props.getProperties();
-    for (var name in all) {
-      if (name.indexOf(INVITE_PREFIX) === 0 && all[name] === request.key) {
-        return { invite: name.slice(INVITE_PREFIX.length) };
-      }
-    }
-    var invite = Utilities.getUuid().replace(/-/g, "") + Utilities.getUuid().replace(/-/g, "");
-    props.setProperty(INVITE_PREFIX + invite, request.key);
-    return { invite: invite };
-  });
-}
-
-/** Cancels a brain's invitation: the co-founder can no longer reach it. The log stays. */
-function brainClose(request) {
-  return withLock(function () {
-    var props = PropertiesService.getScriptProperties();
-    var all = props.getProperties();
-    for (var name in all) {
-      if (name.indexOf(INVITE_PREFIX) === 0 && all[name] === request.key) props.deleteProperty(name);
-    }
-    return { closed: true };
-  });
-}
-
-/** What an invitation opens, so the co-founder can see it is the right one before joining. */
-function brainInfo(request) {
-  var row = brainRow(brainBook(), request.key);
-  var pages = rowsOf(brainBook().getSheetByName("pages"), 3);
-  var count = 0;
-  for (var i = 0; i < pages.length; i += 1) {
-    if (String(pages[i][0]) === String(request.key)) count += 1;
-  }
-  return { key: String(row[0]), name: String(row[1]), createdBy: String(row[3]), pages: count };
-}
-
-/**
- * Changes in: each one the next revision of its page. `baseRevision` is the
- * revision the change was made on top of; when that is not the latest, the
- * change is kept all the same and marked as made at the same time.
- */
-function brainPush(request) {
-  var changes = request.changes || [];
-  if (changes.length > PUSH_MOST) throw new Error("Send at most " + PUSH_MOST + " pages at a time.");
-  return withLock(function () {
-    var book = brainBook();
-    brainRow(book, request.key);
-    var pages = book.getSheetByName("pages");
-    var revisions = book.getSheetByName("revisions");
-
-    var index = {};
-    var known = rowsOf(pages, 3);
-    for (var i = 0; i < known.length; i += 1) {
-      if (String(known[i][0]) === String(request.key)) {
-        index[String(known[i][1])] = { row: i + 2, revision: Number(known[i][2]), fresh: -1 };
-      }
-    }
-
-    var added = [];
-    var fresh = [];
-    var results = [];
-    for (var j = 0; j < changes.length; j += 1) {
-      var change = changes[j];
-      var pageId = String(change.pageId || "");
-      if (!pageId) throw new Error("A page came without its id.");
-      var payload = change.deleted ? "" : String(change.payload || "");
-      if (payload.length > CHUNK * 3) throw new Error("A page is too long to share. Split it in two.");
-
-      var entry = index[pageId];
-      var latest = entry ? entry.revision : 0;
-      var base = Number(change.baseRevision) || 0;
-      var revision = latest + 1;
-      var concurrent = latest > base ? String(latest) : "";
-
-      added.push([
-        String(request.key), pageId, String(revision), String(request.author || ""), String(request.authorId || ""),
-        String(change.editedAt || new Date().toISOString()), concurrent, change.deleted ? "1" : "",
-        payload.slice(0, CHUNK), payload.slice(CHUNK, CHUNK * 2), payload.slice(CHUNK * 2),
-      ]);
-
-      if (!entry) {
-        fresh.push([String(request.key), pageId, String(revision)]);
-        index[pageId] = { row: -1, revision: revision, fresh: fresh.length - 1 };
-      } else if (entry.fresh >= 0) {
-        fresh[entry.fresh][2] = String(revision);
-        entry.revision = revision;
-      } else {
-        pages.getRange(entry.row, 3).setValue(String(revision));
-        entry.revision = revision;
-      }
-      results.push({ pageId: pageId, revision: revision, concurrent: concurrent !== "" });
-    }
-
-    if (added.length > 0) {
-      revisions.getRange(revisions.getLastRow() + 1, 1, added.length, REVISION_COLUMNS).setValues(added);
-    }
-    if (fresh.length > 0) pages.getRange(pages.getLastRow() + 1, 1, fresh.length, 3).setValues(fresh);
-    return { results: results };
-  });
-}
-
-/**
- * Changes out: every revision after `since`, a row in the log being one. The
- * cursor is a place in the log shared by every brain here, so another
- * brain's rows move it on without being sent.
- */
-function brainPull(request) {
-  var book = brainBook();
-  brainRow(book, request.key);
-  var revisions = book.getSheetByName("revisions");
-  var total = Math.max(0, revisions.getLastRow() - 1);
-  var since = Math.max(0, Math.min(total, Number(request.since) || 0));
-  var until = Math.min(total, since + PULL_ROWS);
-  var changes = [];
-  if (until > since) {
-    var rows = revisions.getRange(since + 2, 1, until - since, REVISION_COLUMNS).getValues();
-    for (var i = 0; i < rows.length; i += 1) {
-      var row = rows[i];
-      if (String(row[0]) !== String(request.key)) continue;
-      changes.push({
-        pageId: String(row[1]),
-        revision: Number(row[2]),
-        author: String(row[3]),
-        authorId: String(row[4]),
-        editedAt: String(row[5]),
-        concurrentWith: String(row[6]) === "" ? null : Number(row[6]),
-        deleted: String(row[7]) === "1",
-        payload: String(row[8]) + String(row[9]) + String(row[10]),
-      });
-    }
-  }
-  return { changes: changes, cursor: until, more: until < total };
+  sheet.clearContents();
+  sheet.getRange(1, 1, all.length, width).setNumberFormat("@").setValues(all);
+  sheet.setFrozenRows(1);
+  sheet.getRange(1, 1, 1, width).setFontWeight("bold");
+  // The first column is Caulder's own id for the row. Out of sight, so it is not typed over.
+  sheet.hideColumns(1);
+  return { id: book.getId(), url: book.getUrl(), count: rows.length };
 }

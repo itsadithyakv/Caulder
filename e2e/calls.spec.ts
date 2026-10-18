@@ -8,7 +8,7 @@ import { goTo, newPage, openBrainSection, passSetup } from "./nav";
 /**
  * The call prompter through the real window: a first call that starts its own
  * script and ends with the deal moved, a call made from a task on Today, and
- * scripts started from Playbooks.
+ * scripts started from How we work.
  */
 
 test.describe.configure({ mode: "serial" });
@@ -157,9 +157,9 @@ test("a call task on Today opens the prompter where the last call left off", asy
   await expect(page.locator(".detail__head")).toContainText("Interested");
 });
 
-test("Playbooks starts a call script from a tone", async () => {
+test("How we work starts a call script from a tone", async () => {
   const page = await launch();
-  await openBrainSection(page, "Playbooks");
+  await openBrainSection(page, "How we work");
   await newPage(page, "Call script");
   await page.getByRole("button", { name: /^Direct/ }).click();
   await expect(page.getByLabel("Title")).toHaveValue("Direct call script");

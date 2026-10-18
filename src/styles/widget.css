@@ -1,12 +1,11 @@
 /* ---- The desk widget ---------------------------------------------------
  *
- * A second window, 184x44 resting and 308x372 open, and the window itself is
- * what changes size - so the card fills the viewport in both states rather
- * than being drawn inside a window-shaped hole over the desktop.
+ * A second window, 260x44 resting and up to 308x372 open, and the window
+ * itself is what changes size - so the card fills the viewport in both states
+ * rather than being drawn inside a window-shaped hole over the desktop.
  *
- * Nothing here is interactive. At the desktop level Windows sends every click
- * to the wallpaper, so hover and focus styling would describe behaviour two
- * levels out of three actually have. See src/features/widget/Widget.tsx.
+ * A 1px edge rather than a shadow: the window is exactly the card's size, so
+ * a shadow was cut off at its edges and read as a flat, clipped box.
  * ------------------------------------------------------------------------ */
 
 :root[data-window="widget"] body {
@@ -20,27 +19,68 @@
   width: 100vw;
   height: 100vh;
   box-sizing: border-box;
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-lg);
   background: var(--surface);
-  box-shadow: var(--shadow-lg);
   /* It sits over a wallpaper nobody chose for its contrast. */
   color: var(--ink);
   overflow: hidden;
-  /* The pointer is watched from main, off the real cursor - the page never
-     needs to catch it, and catching it at the desktop level is impossible. */
   user-select: none;
   cursor: default;
 }
 
-/* Only the resting pill is draggable, and only where it can be clicked at
-   all. Dragging the open panel would move the widget every time somebody
-   read it. */
+/* Pressed to open Caulder, dragged to move it (main follows the cursor). */
 .desk--pill {
-  -webkit-app-region: drag;
+  flex-direction: row;
   align-items: center;
-  justify-content: center;
+  gap: var(--space-2);
   padding: 0 var(--space-3);
   border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+
+.desk__mark {
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
+
+.desk--pill[data-say="late"] .desk__line {
+  color: var(--danger);
+}
+
+.desk__more {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The head opens Caulder, and drags the widget like the pill. */
+.desk__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+
+.desk__day {
+  font-size: var(--text-md);
+}
+
+/* What is on now leads the list, in the accent; the rest wait their turn. */
+.desk__hour--now .desk__at,
+.desk__hour--now .desk__what {
+  color: var(--accent-strong);
+  font-weight: 600;
+}
+
+.desk__head .desk__mark {
+  width: 22px;
+  height: 22px;
 }
 
 /* The window is sized to the panel's contents (see electron/main/desk.ts), so
@@ -58,8 +98,9 @@
 }
 
 .desk__line {
+  flex: 1;
+  min-width: 0;
   margin: 0;
-  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -80,12 +121,6 @@
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--ink-3);
-}
-
-.desk__next {
-  margin: 0;
-  font-size: var(--text-sm);
-  color: var(--ink-2);
 }
 
 .desk__hours {
@@ -121,25 +156,87 @@
   white-space: nowrap;
 }
 
-.desk__counts {
+/* What to do: late first, each with a tick where a click can reach it. */
+.desk__tasks {
   display: flex;
-  gap: var(--space-2);
+  flex-direction: column;
+  gap: 4px;
   margin: 0;
+  padding: 0;
+  list-style: none;
   font-size: var(--text-sm);
 }
 
-/* Late is the one thing on this window that gets a colour of its own, and it
-   is the semantic one rather than the workspace accent - a missed call is as
-   late in every workspace. */
-.desk__late {
+.desk__task {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.desk__tick {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--surface);
+  color: transparent;
+  cursor: pointer;
+}
+
+.desk__tick:hover {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+.desk__task .desk__what {
+  flex: 1;
+  min-width: 0;
+}
+
+.desk__flag {
+  flex: none;
+  color: var(--danger);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.desk__extra {
+  color: var(--ink-3);
+}
+
+/* The company's lines: one fact a row, most pressing first. */
+.desk__facts {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+}
+
+.desk__fact {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Late and unpaid are the only things on this window that get a colour of
+   their own, and it is the semantic one rather than the workspace accent - a
+   missed call is as late in every workspace. */
+.desk__fact--urgent {
   color: var(--danger);
   font-weight: 500;
 }
 
-.desk__due {
-  color: var(--ink-2);
-}
-
 .desk__clear {
+  margin: 0;
+  font-size: var(--text-sm);
   color: var(--ink-3);
 }

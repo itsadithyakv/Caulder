@@ -6,13 +6,12 @@ vi.mock("../identity", () => ({ markFile: () => "" }));
 
 const { migrate } = await import("../db/migrations");
 const { createCompany } = await import("../repositories/companies");
-const { createLead } = await import("../repositories/leads");
-const { addSpend } = await import("../repositories/money");
+const { createLead, writeActivity } = await import("../repositories/leads");
+const { addSpend, saveInvoice, setInvoiceStatus } = await import("../repositories/money");
 const { quickAdd } = await import("./quickadd");
 const { answerQuestion, cancelTask, lineContext, moveTask, renameTask, restoreTask } = await import("./lines");
 const { leadInput } = await import("@shared/domain");
 const { newPage, savePage } = await import("./brain");
-const { addHabit, tickHabit } = await import("./habits");
 
 let db: Database.Database;
 let home: string;
@@ -25,7 +24,7 @@ beforeEach(() => {
 });
 
 const add = (title: string, day: string, time: string | null = null, remind = false) =>
-  quickAdd(db, home, { title, day, time, minutes: null, kind: "todo", area: null, priority: null, leadId: null, notes: null, followUp: null, repeat: null, remind }).task!;
+  quickAdd(db, home, { title, day, time, minutes: null, kind: "todo", priority: null, leadId: null, notes: null, followUp: null, repeat: null, remind }).task!;
 const hourOf = (taskId: string) =>
   db.prepare(`SELECT day, starts_at, minutes, title FROM blocks WHERE task_id = ?`).get(taskId) as
     | { day: string; starts_at: string; minutes: number; title: string }
@@ -103,14 +102,13 @@ describe("a question, answered from what is kept", () => {
     expect(answerQuestion(db, home, { ask: "day", day: "2026-09-29", label: "Tuesday" }).say).toBe("Nothing on tuesday yet.");
   });
 
-  it("says whether something was done, from your habits and the company's tasks alike, and ticks nothing", () => {
+  it("says whether something was done, from your own calendar and the company's tasks alike", () => {
     const company = createCompany(db, { name: "Unifloe", accent: "blue", timezone: "Asia/Kolkata" }).id;
-    const gym = addHabit(db, home, { name: "Gym", weekdays: [1, 2, 3, 4, 5, 6, 7] }).habits[0]!;
-    // Ticked as of the week asked about: ticking reaches back only a week from "now".
-    const then = new Date("2026-09-23T06:00:00Z");
-    tickHabit(db, gym.id, "2026-09-21", true, then);
-    tickHabit(db, gym.id, "2026-09-22", true, then);
-    const call = quickAdd(db, company, { title: "Call Rahul", day: "2026-09-22", time: null, minutes: null, kind: "call", area: null, priority: null, leadId: null, notes: null, followUp: null, repeat: null, remind: false }).task!;
+    // Two mornings at the gym, as hours on your own calendar.
+    for (const day of ["2026-09-21", "2026-09-22"]) {
+      quickAdd(db, home, { title: "Gym", day, time: "06:00", minutes: 60, kind: "todo", priority: null, leadId: null, notes: null, followUp: null, repeat: null, remind: false });
+    }
+    const call = quickAdd(db, company, { title: "Call Rahul", day: "2026-09-22", time: null, minutes: null, kind: "call", priority: null, leadId: null, notes: null, followUp: null, repeat: null, remind: false }).task!;
     // Finished at 11pm in Kolkata on the 22nd, which is still the 22nd there.
     db.prepare(`UPDATE tasks SET status = 'done', completed_at = '2026-09-22T17:30:00.000Z' WHERE id = ?`).run(call.id);
 
@@ -119,8 +117,6 @@ describe("a question, answered from what is kept", () => {
     expect(answerQuestion(db, company, { ask: "did", about: "gym", ...week }).say).toBe("Yes - 2 days this week.");
     expect(answerQuestion(db, company, { ask: "did", about: "call rahul", ...week }).items).toEqual([{ label: "Call Rahul", detail: "2026-09-22" }]);
     expect(answerQuestion(db, company, { ask: "did", about: "swim", ...week }).say).toBe("Not that Caulder can see, this week.");
-    const ticks = db.prepare(`SELECT COUNT(*) AS n FROM habit_checks`).get() as { n: number };
-    expect(ticks.n).toBe(2);
   });
 
   it("says whether an hour is free", () => {
@@ -178,5 +174,52 @@ describe("a question answered from what you told it to remember", () => {
   it("finds a birthday on the person's page before any task", () => {
     remembered("Mummy", "- **Birthday: 15 March** · mummy's birthday is on 15 march _(2026-01-02)_\n");
     expect(answerQuestion(db, home, { ask: "when", about: "mummy's birthday" }).say).toBe("Mummy · Birthday: 15 March");
+  });
+});
+
+describe("asked about a contact, the money and the hours left (part twelve, phase 50)", () => {
+  let studio: string;
+  let maya: string;
+  beforeEach(() => {
+    studio = createCompany(db, { name: "Studio", accent: "coffee", timezone: "Asia/Kolkata" }).id;
+    maya = createLead(db, studio, leadInput.parse({ name: "Harbour Coffee Roasters", contactPerson: "Maya Ellis" })).id;
+  });
+
+  it("says when you last spoke to somebody, from the conversations on their history", () => {
+    expect(answerQuestion(db, studio, { ask: "last", name: "maya" }).say).toBe("Not spoken to Maya (Harbour Coffee Roasters) yet.");
+    const sixDaysAgo = new Date(Date.now() - 6 * 86_400_000).toISOString();
+    writeActivity(db, { companyId: studio, leadId: maya, kind: "call", body: "Talked pricing", occurredAt: sixDaysAgo });
+    // A note is not a conversation.
+    writeActivity(db, { companyId: studio, leadId: maya, kind: "note", body: "Prefers mornings", occurredAt: new Date().toISOString() });
+    const answer = answerQuestion(db, studio, { ask: "last", name: "harbour" });
+    expect(answer.say).toBe("Maya (Harbour Coffee Roasters): a call 6 days ago.");
+    expect(answer.items[0]?.label).toBe("Call");
+    expect(answerQuestion(db, studio, { ask: "last", name: "zed" }).say).toBe("No contact called zed.");
+  });
+
+  it("says what is owed, by one contact or by everybody - sent and not yet paid", () => {
+    const lines = [{ description: "Workshop", quantity: 1, unitPrice: 2400 }];
+    const invoice = saveInvoice(db, studio, null, { leadId: maya, issuedOn: "2026-10-01", dueOn: "2026-10-26", notes: null, lines });
+    // A draft is not owed yet.
+    expect(answerQuestion(db, studio, { ask: "owed", name: "maya" }).say).toBe("Maya (Harbour Coffee Roasters) owes nothing.");
+    setInvoiceStatus(db, studio, invoice.id, "sent");
+    expect(answerQuestion(db, studio, { ask: "owed", name: "maya" }).say).toMatch(/^Maya \(Harbour Coffee Roasters\) owes \D*2,400, on one invoice\.$/);
+    expect(answerQuestion(db, studio, { ask: "owed", name: null }).say).toMatch(/^\D*2,400 owed, by one contact\.$/);
+  });
+
+  it("finds the first free stretch in the day that is long enough", () => {
+    const at = (title: string, time: string, minutes: number) =>
+      quickAdd(db, studio, { title, day: "2026-11-02", time, minutes, kind: "todo", priority: null, leadId: null, notes: null, followUp: null, repeat: null, remind: false });
+    at("Deep work", "09:00", 60);
+    at("Call", "10:30", 30);
+    expect(answerQuestion(db, studio, { ask: "slot", day: "2026-11-02", label: "Monday", minutes: 60 }).say).toBe("Monday: free from 11 AM to 6 PM.");
+    expect(answerQuestion(db, studio, { ask: "slot", day: "2026-11-02", label: "Monday", minutes: 30 }).say).toBe("Monday: free from 10 AM to 10:30 AM.");
+  });
+
+  it("says what is open for somebody", () => {
+    quickAdd(db, studio, { title: "Send Maya the deck", day: "2026-11-03", time: null, minutes: null, kind: "email", priority: null, leadId: maya, notes: null, followUp: null, repeat: null, remind: false });
+    const answer = answerQuestion(db, studio, { ask: "promised", name: "maya" });
+    expect(answer.say).toBe("One thing open for Maya (Harbour Coffee Roasters).");
+    expect(answer.items).toEqual([{ label: "Send Maya the deck", detail: "2026-11-03" }]);
   });
 });

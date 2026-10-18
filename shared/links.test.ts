@@ -104,3 +104,16 @@ describe("a link begun and never finished", () => {
     expect(unfinishedLinks("[[ ]]")).toEqual([]);
   });
 });
+
+describe("links to a team that is gone", () => {
+  it("puts a link to a person back to its words, and leaves every other link alone", async () => {
+    const { withoutPeopleLinks } = await import("./links");
+    const person = "[[Asha Rao|person:11111111-2222-3333-4444-555555555555]]";
+    const contact = "[[Oakridge|contact:11111111-2222-3333-4444-555555555555]]";
+    expect(withoutPeopleLinks(`Ask ${person} about ${contact}.`)).toBe(`Ask Asha Rao about ${contact}.`);
+    expect(withoutPeopleLinks("Nothing linked here.")).toBe("Nothing linked here.");
+    // Not a link at all: the words "person:" in a sentence are left as they are.
+    expect(withoutPeopleLinks("one person: the founder")).toBe("one person: the founder");
+  });
+});
+

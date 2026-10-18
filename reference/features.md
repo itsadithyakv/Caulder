@@ -1,5 +1,12 @@
 # What Caulder does
 
+> **This page is behind, as of 10 October 2026.** It describes Caulder before
+> the personal half was taken out (PLAN.md, part seven): there is no Journal,
+> Life, habits, goals, vision board, level or founder sharing now, the line
+> has six kinds, and outreach has gained LinkedIn, Instagram, writing to
+> several at once and a contacts sheet. Until it is rewritten,
+> [feature-map.md](feature-map.md) is the true account of what there is.
+
 Thirteen screens, ten rows in the sidebar, one workspace per company.
 
 **The sidebar is three groups and Settings.** *Plan* is Today and Calendar;

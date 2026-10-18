@@ -4,7 +4,6 @@ import type { BrainSectionId } from "@shared/brain";
 import { keyOf, type LinkKind, type LinkRef, type LinkTarget, type LinkedName } from "@shared/links";
 import { mapKindOf, type MapGraph, type MapLink, type MapNode, type MapPosition } from "@shared/map";
 import { DOCUMENT_CATEGORY_LABEL, type DocumentCategory } from "@shared/deadlines";
-import { PERSON_KIND_LABEL, type PersonKind } from "@shared/people";
 
 /**
  * Links, and the Map built from them (PLAN.md, phases 7 and 16).
@@ -77,7 +76,6 @@ const NAMED: Record<LinkKind, string> = {
   page: `SELECT id, title AS name, section FROM brain_pages WHERE id = ? AND `,
   contact: `SELECT id, name, NULL AS section FROM leads WHERE id = ? AND `,
   product: `SELECT id, name, NULL AS section FROM products WHERE id = ? AND `,
-  person: `SELECT id, name, NULL AS section FROM people WHERE id = ? AND `,
   document: `SELECT id, name, NULL AS section FROM documents WHERE id = ? AND `,
 };
 
@@ -112,7 +110,7 @@ export function backlinkIds(db: Db, ref: LinkRef): string[] {
 }
 
 /**
- * What `[[` offers: pages, contacts, products, people and documents whose
+ * What `[[` offers: pages, contacts, products and documents whose
  * name contains what was typed, those starting with it first. Archived pages
  * are left out - a link is a thing you mean to follow.
  */
@@ -147,14 +145,6 @@ export function linkCandidates(db: Db, companyId: string, text: string, limit = 
     )
     .all(...reach, like, starts, limit) as { id: string; name: string; detail: string | null }[];
 
-  const people = db
-    .prepare(
-      `SELECT id, name, kind, role FROM people
-       WHERE ${where} AND name LIKE ? ESCAPE '\\'
-       ORDER BY (name LIKE ? ESCAPE '\\') DESC, name LIMIT ?`,
-    )
-    .all(...reach, like, starts, limit) as { id: string; name: string; kind: PersonKind; role: string | null }[];
-
   const documents = db
     .prepare(
       `SELECT id, name, category FROM documents
@@ -168,12 +158,6 @@ export function linkCandidates(db: Db, companyId: string, text: string, limit = 
     ...pages.map((row) => ({ kind: "page" as const, id: row.id, name: row.name, detail: row.section ?? "" })),
     ...contacts.map((row) => ({ kind: "contact" as const, id: row.id, name: row.name, detail: row.section ?? "" })),
     ...products.map((row) => ({ kind: "product" as const, id: row.id, name: row.name, detail: row.detail ? `Per ${row.detail}` : "" })),
-    ...people.map((row) => ({
-      kind: "person" as const,
-      id: row.id,
-      name: row.name,
-      detail: row.role ?? PERSON_KIND_LABEL[row.kind] ?? "",
-    })),
     ...documents.map((row) => ({
       kind: "document" as const,
       id: row.id,
@@ -249,15 +233,6 @@ export function buildGraph(db: Db, companyId: string, options: { allContacts: bo
     .all(companyId) as { from_page: string; to_kind: LinkKind; to_id: string; created_at: string }[];
   const linkedTo = new Set(written.map((row) => `${row.to_kind}:${row.to_id}`));
 
-  const people = db
-    .prepare(`SELECT id, name, kind, lead_id, created_at FROM people WHERE company_id = ?`)
-    .all(companyId) as { id: string; name: string; kind: string; lead_id: string | null; created_at: string }[];
-  for (const row of people) {
-    // A candidate is on the map only when a page is about them.
-    if (row.kind === "candidate" && !linkedTo.has(`person:${row.id}`)) continue;
-    add("person", { id: row.id, name: row.name, section: null, created_at: row.created_at });
-  }
-
   const documents = db
     .prepare(`SELECT id, name, category, lead_id, page_id, created_at FROM documents WHERE company_id = ?`)
     .all(companyId) as { id: string; name: string; category: DocumentCategory; lead_id: string | null; page_id: string | null; created_at: string }[];
@@ -275,9 +250,6 @@ export function buildGraph(db: Db, companyId: string, options: { allContacts: bo
       createdAt: row.created_at,
       written: true,
     });
-  }
-  for (const row of people) {
-    if (row.lead_id) known.push({ source: `person:${row.id}`, target: `contact:${row.lead_id}`, createdAt: row.created_at });
   }
   for (const row of documents) {
     if (row.lead_id) known.push({ source: `document:${row.id}`, target: `contact:${row.lead_id}`, createdAt: row.created_at });
@@ -332,7 +304,7 @@ export function savePositions(db: Db, companyId: string, positions: readonly Map
   );
   db.transaction(() => {
     for (const position of positions) {
-      if (!/^(page|contact|product|person|document):[0-9a-f-]{36}$/.test(position.key)) continue;
+      if (!/^(page|contact|product|document):[0-9a-f-]{36}$/.test(position.key)) continue;
       if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) continue;
       upsert.run(companyId, position.key, position.x, position.y, position.pinned ? 1 : 0);
     }

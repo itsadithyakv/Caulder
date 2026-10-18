@@ -36,8 +36,8 @@ describe("topicWords", () => {
 describe("wentIn", () => {
   it("counts each kind and says it in words", () => {
     expect(
-      wentIn([piece(), piece(), piece({ kind: "under" }), piece({ kind: "journal" })]),
-    ).toEqual(["2 pages", "1 page under them", "1 journal day"]);
+      wentIn([piece(), piece(), piece({ kind: "under" }), piece({ kind: "task" })]),
+    ).toEqual(["2 pages", "1 page under them", "1 task"]);
   });
 
   it("is empty when nothing went in", () => {
@@ -52,9 +52,9 @@ describe("wentIn", () => {
 });
 
 describe("orderPieces", () => {
-  it("puts pages first and the journal near the end", () => {
+  it("puts pages first and tasks near the end", () => {
     const ordered = orderPieces([
-      piece({ kind: "journal", title: "Thursday" }),
+      piece({ kind: "task", title: "Thursday" }),
       piece({ kind: "note", title: "A note" }),
       piece({ kind: "page", title: "Guitar" }),
       piece({ kind: "under", title: "Riptide" }),
@@ -132,8 +132,7 @@ describe("briefMarkdown", () => {
   });
 
   it("names what was held back, in the foot", () => {
-    expect(brief.markdown).toContain("journal days that are locked");
-    expect(brief.markdown).toContain("as private");
+    expect(brief.markdown).toContain("**What did not:**");
     expect(brief.markdown).toContain("masked");
   });
 

@@ -32,7 +32,6 @@ describe("a task with a time", () => {
       title: "Datascience Assignment",
       day: "2026-09-10",
       time: "16:00",
-      area: "college",
     });
 
     expect(blocked).toBe(true);
@@ -45,7 +44,7 @@ describe("a task with a time", () => {
     expect(block).toMatchObject({
       starts_at: "16:00",
       minutes: 60,
-      kind: "study",
+      kind: "focus",
       title: "Datascience Assignment",
     });
   });
@@ -56,7 +55,6 @@ describe("a task with a time", () => {
       day: "2026-09-11",
       time: "06:00",
       minutes: 45,
-      area: "health",
     });
     const block = db.prepare(`SELECT minutes FROM blocks WHERE task_id = ?`).get(task?.id) as {
       minutes: number;
@@ -82,11 +80,10 @@ describe("a task with no time", () => {
     const { task, blocked } = quickAdd(db, companyId, {
       title: "Pay the phone bill",
       day: "2026-09-11",
-      area: "personal",
       priority: "must",
     });
     expect(blocked).toBe(false);
-    expect(task).toMatchObject({ dueOn: "2026-09-11", area: "personal", priority: "must" });
+    expect(task).toMatchObject({ dueOn: "2026-09-11", priority: "must" });
     expect(count("blocks")).toBe(0);
   });
 });
@@ -100,7 +97,6 @@ describe("a repeat", () => {
       day: "2026-09-11",
       time: "06:00",
       minutes: 45,
-      area: "health",
       repeat: { weekdays: [1, 3, 5], until: "2026-10-08" },
     });
 
@@ -144,7 +140,6 @@ describe("a line that said more than the task", () => {
     const { task, followUp } = quickAdd(db, companyId, {
       title: "Exam on DSA",
       day: "2026-09-14",
-      area: "college",
       notes: "Coursework has to be downloaded from google classroom",
     });
 
@@ -153,17 +148,16 @@ describe("a line that said more than the task", () => {
     expect(count("tasks")).toBe(1);
   });
 
-  it("makes the second task it asked for, on its own day, in the same part of life", () => {
+  it("makes the second task it asked for, on its own day", () => {
     const { task, followUp } = quickAdd(db, companyId, {
       title: "Study for ml exam",
       day: "2026-09-23",
-      area: "college",
       notes: "kiran sir requires permission for the retest",
       followUp: { title: "Remind kiran sir", day: "2026-09-21", kind: "todo", notes: "Before the exam." },
     });
 
     expect(task).toMatchObject({ title: "Study for ml exam", dueOn: "2026-09-23" });
-    expect(followUp).toMatchObject({ title: "Remind kiran sir", dueOn: "2026-09-21", area: "college" });
+    expect(followUp).toMatchObject({ title: "Remind kiran sir", dueOn: "2026-09-21" });
     expect(count("tasks")).toBe(2);
   });
 

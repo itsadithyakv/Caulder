@@ -30,14 +30,14 @@ describe("what the line was told to remember", () => {
     const found = memoriesOf({
       id: "p",
       title: "Bench Press",
-      section: "hobbies",
+      section: "ideas",
       body: "Part of [[Gym|page:g]].\n\n- **PR: 45 kg × 3** · hit a pr on the bench _(2026-09-18)_\n- felt heavy today _(2026-09-20)_\n- a bullet somebody wrote by hand\n\n## Notes\nfree text _(not a date)_\n",
     });
     expect(found).toEqual([
       {
         pageId: "p",
         pageTitle: "Bench Press",
-        section: "hobbies",
+        section: "ideas",
         day: "2026-09-18",
         fact: "PR: 45 kg × 3",
         says: "hit a pr on the bench",
@@ -48,7 +48,7 @@ describe("what the line was told to remember", () => {
       {
         pageId: "p",
         pageTitle: "Bench Press",
-        section: "hobbies",
+        section: "ideas",
         day: "2026-09-20",
         fact: null,
         says: "felt heavy today",
@@ -59,27 +59,26 @@ describe("what the line was told to remember", () => {
     ]);
   });
 
-  it("comes from your own workspace whichever company is open, and never from the journal", () => {
-    const trivia = page(home, "ideas", "Random knowledge", "- **Shivajinagar** · Shivajinagar was called black pally _(2026-09-20)_\n");
-    page(home, "hobbies", "Red Rising", "- loved chapter 25 _(2026-09-19)_\n");
-    page(home, "journal", "20 September", "- something about my day _(2026-09-20)_\n");
-    page(work, "ideas", "Pitch", "- said at the offsite _(2026-09-20)_\n");
-    page(home, "ideas", "No memories here", "Just a page.\n");
+  it("is the company's own: another company's pages are not read with it", () => {
+    const facts = page(work, "remembered", "Things to remember", "- **GST number: 29ABCDE1234F1Z5** · our gst number is 29ABCDE1234F1Z5 _(2026-09-20)_\n");
+    page(work, "customers", "Harbour Coffee", "- pay on the 5th _(2026-09-19)_\n");
+    page(home, "ideas", "Pitch", "- said at the offsite _(2026-09-20)_\n");
+    page(work, "ideas", "No memories here", "Just a page.\n");
 
-    const { companyId, memories } = allMemories(db);
-    expect(companyId).toBe(home);
-    expect(memories.map((each) => each.pageTitle).sort()).toEqual(["Random knowledge", "Red Rising"]);
-    expect(memories.find((each) => each.pageId === trivia)).toMatchObject({ fact: "Shivajinagar", day: "2026-09-20" });
+    const { companyId, memories } = allMemories(db, work);
+    expect(companyId).toBe(work);
+    expect(memories.map((each) => each.pageTitle).sort()).toEqual(["Harbour Coffee", "Things to remember"]);
+    expect(memories.find((each) => each.pageId === facts)).toMatchObject({ fact: "GST number: 29ABCDE1234F1Z5", day: "2026-09-20" });
   });
 
   it("says where each page hangs, the whole way up, from what the pages themselves say", () => {
-    const me = page(home, "goals", "Me", "Everything of mine.\n");
-    const hobbies = page(home, "hobbies", "Hobbies", `Part of [[Me|page:${me}]].\n`);
-    const reading = page(home, "hobbies", "Reading", `Part of [[Hobbies|page:${hobbies}]].\n`);
-    const book = page(home, "hobbies", "Red Rising", `Part of [[Reading|page:${reading}]].\n\n- loved chapter 25 _(2026-09-19)_\n`);
+    const me = page(home, "plan", "Me", "Everything of mine.\n");
+    const hobbies = page(home, "ideas", "Hobbies", `Part of [[Me|page:${me}]].\n`);
+    const reading = page(home, "ideas", "Reading", `Part of [[Hobbies|page:${hobbies}]].\n`);
+    const book = page(home, "ideas", "Red Rising", `Part of [[Reading|page:${reading}]].\n\n- loved chapter 25 _(2026-09-19)_\n`);
     const loose = page(home, "ideas", "Random knowledge", "- Honey never spoils _(2026-09-20)_\n");
 
-    const { trails } = allMemories(db);
+    const { trails } = allMemories(db, home);
     expect(trails[book]).toEqual(["Me", "Hobbies", "Reading"]);
     expect(trails[loose]).toEqual([]);
     // Only the pages with memories on are answered for.
@@ -115,7 +114,7 @@ describe("what the line was told to remember", () => {
   it("groups by what they are about, newest first, and narrows to a search", () => {
     const memories = [
       ...memoriesOf({ id: "a", title: "Random knowledge", section: "ideas", body: "- **Honey** · Honey never spoils _(2026-09-10)_\n- **Shivajinagar** · was called black pally _(2026-09-20)_\n" }),
-      ...memoriesOf({ id: "b", title: "Riptide", section: "hobbies", body: "- three chords, had fun _(2026-09-15)_\n" }),
+      ...memoriesOf({ id: "b", title: "Riptide", section: "ideas", body: "- three chords, had fun _(2026-09-15)_\n" }),
     ];
     const groups = groupMemories(memories);
     expect(groups.map((group) => group.pageTitle)).toEqual(["Random knowledge", "Riptide"]);
@@ -145,13 +144,11 @@ describe("a memory changed or let go", () => {
     const where = page(home, "remembered", "Where things are", body);
     const after = forgetMemory(db, { pageId: where, raw: "- **Parked: level 1** · parked on level 1 _(2026-09-01)_" }, NOW);
     expect(after.map((memory) => memory.fact)).toEqual(["Spare key: under the pot"]);
-    expect(allMemories(db).memories).toHaveLength(1);
+    expect(allMemories(db, home).memories).toHaveLength(1);
   });
 
-  it("is refused when the line has changed on its page since, or is not yours", () => {
+  it("is refused when the line has changed on its page since", () => {
     const where = page(home, "remembered", "Where things are", body);
     expect(() => forgetMemory(db, { pageId: where, raw: "- something else _(2026-09-01)_" }, NOW)).toThrow("changed on its page");
-    const theirs = page(work, "ideas", "Pitch", "- said at the offsite _(2026-09-20)_\n");
-    expect(() => forgetMemory(db, { pageId: theirs, raw: "- said at the offsite _(2026-09-20)_" }, NOW)).toThrow("not one of your memories");
   });
 });

@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { Db } from "../db/connection";
-import type { Task, TaskInput, TaskKind, TaskStatus } from "@shared/domain";
+import { blockInput, type Task, type TaskInput, type TaskKind, type TaskRepeat, type TaskStatus } from "@shared/domain";
+import { nextDue } from "@shared/repeat";
+import { createBlock } from "./blocks";
 import { rememberDeleted } from "./google";
 import { writeActivity } from "./leads";
 
@@ -18,11 +20,11 @@ type TaskRow = {
   page_title: string | null;
   title: string;
   kind: string;
-  area: string | null;
   priority: string | null;
   status: string;
   due_on: string;
   notes: string | null;
+  repeats: string | null;
   completed_at: string | null;
   created_at: string;
   updated_at: string;
@@ -39,11 +41,11 @@ function toTask(row: TaskRow): Task {
     pageTitle: row.page_title,
     title: row.title,
     kind: row.kind as TaskKind,
-    area: row.area,
     priority: row.priority,
     status: row.status as TaskStatus,
     dueOn: row.due_on,
     notes: row.notes,
+    repeats: (row.repeats as TaskRepeat | null) ?? null,
     completedAt: row.completed_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -92,17 +94,17 @@ export function createTask(db: Db, companyId: string, input: TaskInput): Task {
   db.transaction(() => {
     db.prepare(
       `INSERT INTO tasks (
-         id, company_id, lead_id, title, kind, area, priority, status, due_on, notes,
-         completed_at, created_at, updated_at
-       ) VALUES (@id, @companyId, @leadId, @title, @kind, @area, @priority, 'open', @dueOn,
-                 @notes, NULL, @now, @now)`,
+         id, company_id, lead_id, title, kind, priority, status, due_on, notes,
+         repeats, completed_at, created_at, updated_at
+       ) VALUES (@id, @companyId, @leadId, @title, @kind, @priority, 'open', @dueOn,
+                 @notes, @repeats, NULL, @now, @now)`,
     ).run({
       ...input,
-      area: input.area ?? null,
       // Accepted by the schema since migration 12 and never written until
       // now, so every task anybody marked as having to happen was saved as
       // though nobody had said.
       priority: input.priority ?? null,
+      repeats: input.repeats ?? null,
       id,
       companyId,
       now,
@@ -120,12 +122,14 @@ export function updateTask(db: Db, id: string, input: TaskInput): Task {
 
   db.prepare(
     `UPDATE tasks SET is_dirty = 1, lead_id = @leadId, title = @title, kind = @kind,
-       area = @area, priority = @priority, due_on = @dueOn, notes = @notes, updated_at = @now
+       priority = @priority, due_on = @dueOn, notes = @notes, repeats = @repeats, updated_at = @now
      WHERE id = @id`,
   ).run({
     ...input,
-    area: input.area ?? null,
     priority: input.priority ?? null,
+    // Left as it was unless the form said: a form that does not show the
+    // repeat must not stop it.
+    repeats: input.repeats === undefined ? before.repeats : input.repeats,
     id,
     now: new Date().toISOString(),
   });
@@ -164,11 +168,61 @@ export function completeTask(db: Db, id: string): Task {
         occurredAt: now,
       });
     }
+
+    if (task.repeats) comeBack(db, task);
   })();
 
   const done = findTask(db, id);
   if (!done) throw new Error("That task no longer exists.");
   return done;
+}
+
+/**
+ * The next one of a task that comes back (PLAN.md, part twelve, phase 47):
+ * due a fortnight, a month or a year after this one was due, the same in
+ * every other way - and at the same hour, when this one had an hour set
+ * aside. Never a second open one: ticked, reopened and ticked again makes the
+ * next one once.
+ */
+function comeBack(db: Db, task: Task): void {
+  if (!task.repeats) return;
+  const due = nextDue(task.dueOn, task.repeats);
+  const already = db
+    .prepare(`SELECT 1 FROM tasks WHERE company_id = ? AND status = 'open' AND title = ? AND repeats = ? AND due_on = ?`)
+    .get(task.companyId, task.title, task.repeats, due);
+  if (already) return;
+
+  const next = createTask(db, task.companyId, {
+    title: task.title,
+    kind: task.kind,
+    priority: (task.priority as TaskInput["priority"]) ?? null,
+    dueOn: due,
+    leadId: task.leadId,
+    notes: task.notes,
+    repeats: task.repeats,
+  });
+
+  const hour = db
+    .prepare(`SELECT starts_at, minutes, kind, priority, remind_minutes FROM blocks WHERE task_id = ? ORDER BY day ASC LIMIT 1`)
+    .get(task.id) as { starts_at: string; minutes: number; kind: string | null; priority: string | null; remind_minutes: number | null } | undefined;
+  if (hour) {
+    createBlock(
+      db,
+      task.companyId,
+      blockInput.parse({
+        day: due,
+        startsAt: hour.starts_at,
+        minutes: hour.minutes,
+        title: task.title,
+        kind: hour.kind,
+        notes: null,
+        taskId: next.id,
+        priority: hour.priority,
+        remindMinutes: hour.remind_minutes,
+        repeat: null,
+      }),
+    );
+  }
 }
 
 /** Undoes a completion. The timeline entry stays: it did happen. */

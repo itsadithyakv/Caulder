@@ -1,6 +1,9 @@
+import { RulesAside } from "@/components/RulesAside";
 import { useEffect, useState } from "react";
 import { Package, Plus, Trash2, X } from "lucide-react";
 import {
+  INVOICE_REPEATS,
+  INVOICE_REPEAT_LABEL,
   documentNumber,
   invoiceInput,
   paymentInput,
@@ -73,6 +76,8 @@ export function DocumentForm({
     existing && "dueOn" in existing ? existing.dueOn : shiftDay(day, 14),
   );
   const [notes, setNotes] = useState(existing?.notes ?? "");
+  /** A retainer: how often this invoice is written again. "" is never. */
+  const [repeats, setRepeats] = useState<string>(existing && "repeats" in existing ? (existing.repeats ?? "") : "");
   const [lines, setLines] = useState<LineDraft[]>(
     existing && existing.lines.length > 0
       ? existing.lines.map((line) => ({
@@ -157,6 +162,7 @@ export function DocumentForm({
     const raw = {
       leadId,
       dealId: dealId === "" ? null : dealId,
+      repeats: repeats === "" ? null : repeats,
       issuedOn,
       dueOn,
       notes: notes.trim() === "" ? null : notes,
@@ -205,6 +211,8 @@ export function DocumentForm({
         >
           <h2 className="card__title">{title}</h2>
           <ErrorLine>{error}</ErrorLine>
+          {/* What the company holds to, where it is needed: the terms beside an invoice, the pricing beside a quote. */}
+          <RulesAside companyId={companyId} subjects={kind === "invoice" ? ["Billing and payment"] : ["Pricing and discounts", "Billing and payment"]} />
 
           <label className="field">
             <span className="field__label">Contact</span>
@@ -257,6 +265,24 @@ export function DocumentForm({
               </label>
             )}
           </div>
+
+          {kind === "invoice" && (
+            <div className="field">
+              <span className="field__label">Repeats</span>
+              <Select
+                value={repeats}
+                onChange={setRepeats}
+                disabled={busy}
+                aria-label="Repeats"
+                options={[{ value: "", label: "No" }, ...INVOICE_REPEATS.map((each) => ({ value: each, label: INVOICE_REPEAT_LABEL[each] }))]}
+              />
+              {repeats !== "" && (
+                <span className="card__hint">
+                  Drafts the next one when it is due. Never sent by itself.
+                </span>
+              )}
+            </div>
+          )}
 
           <div className="field">
             <span className="field__label">Lines</span>
@@ -410,7 +436,7 @@ export function SpendForm({
 
   async function save() {
     setError(null);
-    const parsed = spendEntryInput.safeParse({ what, amount: Number(amount), spentOn, campaignId: null });
+    const parsed = spendEntryInput.safeParse({ what, amount: Number(amount), spentOn });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Check the details.");
       return;

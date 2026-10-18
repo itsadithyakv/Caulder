@@ -1,0 +1,423 @@
+/* ---------------------------------------------------------------------------
+ * The sketchbook: the notebook, drawn in.
+ *
+ * The last layer in globals.css, and the whole of the hand-made look in one
+ * place: the grain and ruling of the paper, sheets laid on it, the
+ * margin's double line in a wobbly pen, a
+ * highlighter on where you are, and a collage of things stuck on - sticky
+ * notes, a strip of paper, cards taped to a kraft board. The type is never
+ * handwritten: that was tried, twice, and it is Gilroy throughout.
+ *
+ * Printed lines stay straight: the page's ruling and the lines between rows.
+ * What is drawn by hand is what a person would have added - the margin, a
+ * scribble under a tab, a ring round a box to tick.
+ *
+ * Every colour is a token. The doodles are masks (`--doodle-*` in
+ * tokens.css), so a drawn line takes whatever colour the element paints.
+ * ------------------------------------------------------------------------- */
+
+/* ---- The paper ---------------------------------------------------------
+ * Off-white, with a fine grain and faint blue ruling across the whole sheet,
+ * margin and all, as on a notebook's page. Both lie on the body, and the
+ * frame and the scrolling pane are clear over them, so the sheet stays still
+ * while the work scrolls across it and no seam shows where the sidebar meets
+ * the page. */
+
+[data-face="notebook"] body {
+  background-image:
+    var(--paper-grain),
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0 calc(var(--rule-gap) - 1px),
+      var(--rule-line) calc(var(--rule-gap) - 1px) var(--rule-gap)
+    );
+}
+
+[data-face="notebook"] .titlebar {
+  background-color: transparent;
+}
+
+/* The margin takes the grain but not the ruling, so what is written in it
+ * never sits on a line. */
+[data-face="notebook"] .sidebar {
+  background: var(--bg) var(--paper-grain);
+}
+
+/* ---- Text on the ruling -------------------------------------------------
+ * What is written straight on the page - a screen's title, Today's hello,
+ * the offers under the line, a tab row, a group's heading in Settings -
+ * would have a line running through it. Behind each lies a patch of the
+ * page itself - its colour and its grain, without the ruling - feathered at
+ * its edges, so the ruling fades out under the words and carries on round
+ * them. A glow on the letters alone was tried
+ * first: a hairline between two letters barely noticed it. (The list was
+ * found by walking every screen for text with nothing painted between it
+ * and the page.) */
+
+[data-face="notebook"] .page-head__title,
+[data-face="notebook"] .today__day,
+[data-face="notebook"] .setupnudge,
+[data-face="notebook"] .day__when,
+[data-face="notebook"] .day__totals,
+[data-face="notebook"] .leads__count,
+[data-face="notebook"] .tabs--line,
+[data-face="notebook"] .brainhome__company,
+[data-face="notebook"] .memories__head,
+[data-face="notebook"] .settings__groupHead,
+[data-face="notebook"] .settings__colTitle,
+[data-face="notebook"] .detail__bar {
+  position: relative;
+  isolation: isolate;
+}
+
+[data-face="notebook"] .page-head__title::before,
+[data-face="notebook"] .today__day::before,
+[data-face="notebook"] .setupnudge::before,
+[data-face="notebook"] .day__when::before,
+[data-face="notebook"] .day__totals::before,
+[data-face="notebook"] .leads__count::before,
+[data-face="notebook"] .tabs--line::before,
+[data-face="notebook"] .brainhome__company::before,
+[data-face="notebook"] .memories__head::before,
+[data-face="notebook"] .settings__groupHead::before,
+[data-face="notebook"] .settings__colTitle::before,
+[data-face="notebook"] .detail__bar::before {
+  content: "";
+  position: absolute;
+  inset: -8px -16px;
+  z-index: -1;
+  background: var(--bg) var(--paper-grain);
+  /* Feathered on all four sides, so the patch has no edge of its own. */
+  mask:
+    linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent),
+    linear-gradient(to bottom, transparent, black 8px, black calc(100% - 8px), transparent);
+  mask-composite: intersect;
+  pointer-events: none;
+}
+
+/* Brain's own list is a sheet, like the sections beside it. */
+[data-face="notebook"] .brain__rail {
+  align-self: start;
+  padding: var(--space-2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+/* ---- Drawn rules ------------------------------------------------------- */
+
+/* The margin: a double line in a pen that wanders, the window's full height
+ * at the sidebar's edge. One line on the shell, not a piece in the title bar
+ * and a piece down the sidebar: the title bar sits above every overlay, so a
+ * piece in it stayed bright while the tour or a dialog dimmed the rest. */
+[data-face="notebook"] .sidebar {
+  border-right: 0;
+}
+
+[data-face="notebook"] .shell:has(.sidebar) .titlebar::after {
+  content: none;
+}
+
+[data-face="notebook"] .shell:has(.sidebar) {
+  position: relative;
+}
+
+[data-face="notebook"] .shell:has(.sidebar)::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--sidebar-w) - 3px);
+  width: 8px;
+  background: var(--margin-rule);
+  mask: var(--doodle-margin) repeat-y 0 0 / 8px 320px;
+  pointer-events: none;
+}
+
+/* The tab you are on is underlined with a scribble, not a bar. */
+[data-face="notebook"] .tabs--line .tab[aria-selected="true"] {
+  position: relative;
+  border-bottom-color: transparent;
+}
+
+[data-face="notebook"] .tabs--line .tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  right: -4px;
+  bottom: -5px;
+  left: -4px;
+  height: 9px;
+  background: var(--accent);
+  mask: var(--doodle-scribble) no-repeat 0 0 / 100% 100%;
+}
+
+/* ---- Pen and highlighter ----------------------------------------------- */
+
+/* Where you are, run over with a highlighter. Brain's own list slides a
+ * pill behind the row, so there it is the pill that is the highlighter. */
+[data-face="notebook"] .brain__railPill {
+  background: var(--highlight);
+  border-radius: var(--radius-hand-sm);
+}
+
+[data-face="notebook"] .brain__railItem[aria-current="page"] {
+  color: var(--ink);
+}
+
+[data-face="notebook"] .navitem[aria-current="page"] {
+  background: var(--highlight);
+  color: var(--ink);
+  border-radius: var(--radius-hand-sm);
+}
+
+[data-face="notebook"] .navitem[aria-current="page"] .navitem__icon {
+  color: var(--ink);
+}
+
+/* Buttons and fields, outlined by hand. */
+[data-face="notebook"] .btn {
+  border-radius: var(--radius-hand);
+}
+
+[data-face="notebook"] .input,
+[data-face="notebook"] .textarea,
+[data-face="notebook"] select {
+  border-radius: var(--radius-hand-sm);
+}
+
+/* The box to tick is a ring drawn round it. */
+[data-face="notebook"] .taskrow__tick {
+  border-width: 1.6px;
+  border-radius: var(--radius-blob);
+}
+
+/* ---- Collage -----------------------------------------------------------
+ * Things stuck on the page. Each tilts a little and carries a strip of
+ * tape; nothing tilts by more than a degree and a half, and anything you
+ * type into stays square. A dialog carries no tape: it scrolls, and the
+ * tape would be cut off at its top edge. */
+
+[data-face="notebook"] .hintbar--sample,
+[data-face="notebook"] .nowline,
+[data-face="notebook"] .money__figure,
+[data-face="notebook"] .boardcard {
+  position: relative;
+}
+
+[data-face="notebook"] .hintbar--sample::before,
+[data-face="notebook"] .nowline::before,
+[data-face="notebook"] .boardcard::before {
+  content: "";
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  width: 92px;
+  height: 22px;
+  background: var(--tape);
+  mask: var(--doodle-tape) no-repeat 0 0 / 100% 100%;
+  translate: -50% 0;
+  rotate: -2deg;
+  pointer-events: none;
+}
+
+/* The sample notice: a yellow sticky note. */
+[data-face="notebook"] .hintbar--sample {
+  background: var(--note-yellow);
+  border-color: transparent;
+  border-radius: 2px;
+  box-shadow: var(--shadow-sm);
+  rotate: -0.4deg;
+}
+
+/* Right now: a strip of blue paper, taped at its left end. */
+[data-face="notebook"] .nowline {
+  background: var(--note-blue);
+  border-radius: 2px;
+  box-shadow: var(--shadow-xs);
+  rotate: 0.2deg;
+}
+
+[data-face="notebook"] .nowline::before {
+  left: 36px;
+  width: 64px;
+  rotate: -6deg;
+}
+
+/* The month's figures: four sticky notes, each its own colour and tilt. */
+[data-face="notebook"] .money__figure {
+  border-color: transparent;
+  border-radius: 2px;
+  box-shadow: var(--shadow-sm);
+  background: var(--note-yellow);
+  rotate: -1deg;
+}
+
+[data-face="notebook"] .money__figure:nth-child(4n + 2) { background: var(--note-blue); rotate: 0.8deg; }
+[data-face="notebook"] .money__figure:nth-child(4n + 3) { background: var(--note-green); rotate: -0.5deg; }
+[data-face="notebook"] .money__figure:nth-child(4n + 4) { background: var(--note-pink); rotate: 1.1deg; }
+
+/* The board: cards taped to kraft. A card squares up under the pointer, and
+ * while it is dragged, so where it will land is never in doubt. */
+[data-face="notebook"] .column {
+  --column-wash: var(--kraft);
+  border-color: transparent;
+  border-radius: var(--radius-hand-sm);
+}
+
+[data-face="notebook"] .column--won { --column-wash: color-mix(in srgb, var(--ok) 10%, var(--kraft)); }
+[data-face="notebook"] .column--lost { --column-wash: color-mix(in srgb, var(--danger) 8%, var(--kraft)); }
+
+/* Room above each card for its tape, and to the sides for its tilt, inside
+ * the list's own scrolling edge - which scrolls down, never across. */
+[data-face="notebook"] .column__cards {
+  padding: var(--space-2) var(--space-1) var(--space-1);
+  overflow-x: hidden;
+}
+
+[data-face="notebook"] .boardcard {
+  border-color: transparent;
+  border-radius: 2px;
+  box-shadow: var(--shadow-xs);
+  transition:
+    rotate var(--dur) var(--ease),
+    box-shadow var(--dur-fast) var(--ease),
+    opacity var(--dur-fast) var(--ease);
+}
+
+[data-face="notebook"] .boardcard:nth-child(3n + 1) { rotate: -0.6deg; }
+[data-face="notebook"] .boardcard:nth-child(3n + 2) { rotate: 0.5deg; }
+[data-face="notebook"] .boardcard:nth-child(3n) { rotate: -0.2deg; }
+
+[data-face="notebook"] .boardcard:hover,
+[data-face="notebook"] .boardcard:focus-within {
+  rotate: none;
+  box-shadow: var(--shadow-sm);
+}
+
+/* A tilted card is a layer of its own, which would trap its Move menu under
+ * the card below it. A card with its menu open, or with focus, squares up
+ * and comes to the front. */
+[data-face="notebook"] .boardcard:focus-within,
+[data-face="notebook"] .boardcard:has(.boardmenu) {
+  z-index: 2;
+  rotate: none;
+}
+
+/* A card's tape sits inside the column's scrolling edge. */
+[data-face="notebook"] .boardcard::before {
+  top: -7px;
+  width: 64px;
+  height: 16px;
+}
+
+/* ---- More things stuck on ---------------------------------------------- */
+
+/* Today's side - who to reach, who is going quiet - is notes to yourself,
+ * pinned up beside the work: one colour each, a little crooked, a pin at the
+ * top in place of the drawn rule. */
+[data-face="notebook"] .today__side > .card {
+  position: relative;
+  padding: var(--space-5) var(--space-4) var(--space-4);
+  border-color: transparent;
+  background: var(--note-pink);
+  border-radius: 2px;
+  box-shadow: var(--shadow-sm);
+  rotate: 0.6deg;
+}
+
+[data-face="notebook"] .today__side > .card:nth-child(2n) {
+  background: var(--note-yellow);
+  rotate: -0.5deg;
+}
+
+[data-face="notebook"] .today__side > .card:nth-child(3n) {
+  background: var(--note-green);
+  rotate: 0.3deg;
+}
+
+[data-face="notebook"] .today__side > .card + .card {
+  margin-top: var(--space-2);
+}
+
+[data-face="notebook"] .today__side > .card::before {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  top: -6px;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--accent) 35%, var(--surface)) 0 22%, var(--accent) 26%);
+  box-shadow: var(--shadow-sm);
+  translate: -50% 0;
+}
+
+/* A contact's next steps: a yellow sticky note on their page. */
+[data-face="notebook"] .leadtasks--steps {
+  position: relative;
+  padding: var(--space-4);
+  background: var(--note-yellow);
+  border-radius: 2px;
+  box-shadow: var(--shadow-sm);
+  rotate: -0.4deg;
+}
+
+[data-face="notebook"] .leadtasks--steps:focus-within {
+  rotate: none;
+}
+
+[data-face="notebook"] .leadtasks--steps::before {
+  content: "";
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  width: 84px;
+  height: 20px;
+  background: var(--tape);
+  mask: var(--doodle-tape) no-repeat 0 0 / 100% 100%;
+  translate: -50% 0;
+  rotate: 2deg;
+  pointer-events: none;
+}
+
+/* The day's unplanned tasks, beside the calendar: little notes waiting to
+ * be stuck onto an hour. */
+[data-face="notebook"] .daytask {
+  background: var(--note-yellow);
+  border-color: transparent;
+  border-radius: 2px;
+  box-shadow: var(--shadow-xs);
+  rotate: -0.4deg;
+}
+
+[data-face="notebook"] .daytask:nth-child(2n) {
+  background: var(--note-blue);
+  rotate: 0.5deg;
+}
+
+/* The company in brief: an index card, ruled in pale blue. */
+[data-face="notebook"] .proposal__text {
+  --rule: 26px;
+  padding: calc(var(--rule) * 0.35) var(--space-4) calc(var(--rule) * 0.4);
+  background-color: var(--index-card);
+  background-image: repeating-linear-gradient(to bottom, transparent 0 calc(var(--rule) - 1px), var(--note-blue) calc(var(--rule) - 1px) var(--rule));
+  border-color: transparent;
+  border-radius: 2px;
+  box-shadow: var(--shadow-sm);
+  line-height: var(--rule);
+  background-origin: content-box;
+}
+
+/* Paid is stamped, the way a paid invoice is. */
+[data-face="notebook"] .money__row .badge--ok {
+  padding: 0 var(--space-2);
+  background: transparent;
+  border: 1.5px solid currentColor;
+  border-radius: var(--radius-hand-sm);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  rotate: -5deg;
+}

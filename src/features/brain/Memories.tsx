@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowRight, CalendarHeart, History, Pencil, Search, Sparkles, Trash2, Waypoints } from "lucide-react";
+import { ArrowRight, History, Pencil, Search, Sparkles, Trash2, Waypoints } from "lucide-react";
 import { sectionOf } from "@shared/brain";
-import { comingUp, groupMemories, matches, onThisDay, sayComing, type Memory } from "@shared/memories";
-import { sayTrail } from "@shared/branches";
-import { today as todayIn } from "@shared/dates";
+import { groupMemories, leadRepeats, matches, type Memory } from "@shared/memories";
 import { Card } from "@/components/Card";
 import { EmptyState } from "@/components/EmptyState";
 import { formatDay, formatMonth } from "@/lib/format";
@@ -12,41 +10,40 @@ import { PageView } from "./PageView";
 import { LooseEnds } from "./LooseEnds";
 
 /**
- * Everything the line was told to remember, in one place: a screen of its own
- * under You, beside the journal and Life, because it is the part of the app
- * that is about a life rather than a company.
+ * Everything the line was told to remember about the company, in one place.
  *
- * A memory is a dated line on a page in your own brain (shared/memories.ts).
- * This reads them all back - by what they are about, or as a timeline - with
- * what is coming round (a birthday, an anniversary) and what was kept on this
- * day before at the top. Each can be said differently or let go, on its page,
- * where the page's history keeps what it said.
+ * A memory is a dated line on a page of the company's brain
+ * (shared/memories.ts). This reads them all back - by what they are about, or
+ * as a timeline. Each can be said differently or let go, on its page, where
+ * the page's history keeps what it said.
  *
- * They are yours, not the company's, so this shows the same thing whichever
- * company is open, and says so. It once sat on the company Brain's rail,
- * which was the wrong house for it: the Brain is the company's knowledge.
+ * Reached from the Brain's rail, which is where it belongs: it is the brain
+ * read another way. It used to be a screen of its own under You, about a life
+ * rather than a company; that half went on 10 October 2026 (PLAN.md, part
+ * seven).
  */
 
 /**
  * Memories as a screen: the list, or one of the pages it opened, with the way
  * back to the list. A page opened from here is read here, whatever section it
- * is filed in - Random knowledge, Mummy, The Way Of Kings - because the list
- * is where the person came from and where they will want to go back to. So is
- * a page linked from that page, as it is in the company's Brain.
+ * is filed in, because the list is where the person came from and where they
+ * will want to go back to.
  */
 export function MemoriesScreen({
+  companyId,
   openPageId,
   onConsumeOpenPage,
   homeNonce,
   onOpenMap,
   onOpenContact,
 }: {
+  companyId: string;
   /** A remembered page asked for from somewhere else: search, a link. */
   openPageId: string | null;
   onConsumeOpenPage: () => void;
   /** Bumped when the Memories row is pressed while already here: back to the list. */
   homeNonce: number;
-  /** Your own map, where these hang together. */
+  /** The company's map, where these hang together. */
   onOpenMap: () => void;
   onOpenContact: (leadId: string) => void;
 }) {
@@ -84,26 +81,24 @@ export function MemoriesScreen({
           onOpenContact={onOpenContact}
         />
       ) : (
-        <Memories version={version} onOpenPage={(id) => setOpen({ id, editing: false })} onOpenMap={onOpenMap} />
+        <Memories companyId={companyId} version={version} onOpenPage={(id) => setOpen({ id, editing: false })} onOpenMap={onOpenMap} />
       )}
     </div>
   );
 }
 
-type Found = { companyId: string | null; memories: Memory[]; trails: Record<string, string[]> };
+type Found = { companyId: string; memories: Memory[]; trails: Record<string, string[]> };
 type View = "topics" | "timeline";
 
-const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-
 function Memories({
+  companyId,
   version,
   onOpenPage,
   onOpenMap,
 }: {
+  companyId: string;
   version: number;
-  /** Your own map, where these hang together. */
   onOpenMap: () => void;
-  /** The page knows which workspace it is in, which is not always the one that is open. */
   onOpenPage: (pageId: string) => void;
 }) {
   const [found, setFound] = useState<Found | null>(null);
@@ -114,20 +109,17 @@ function Memories({
 
   useEffect(() => {
     let live = true;
-    window.caulder.brain.memories().then(
+    window.caulder.brain.memories(companyId).then(
       (next) => live && setFound(next),
-      () => live && setFound({ companyId: null, memories: [], trails: {} }),
+      () => live && setFound({ companyId, memories: [], trails: {} }),
     );
     return () => {
       live = false;
     };
-  }, [version, changed]);
+  }, [companyId, version, changed]);
 
-  const today = todayIn(zone);
   const memories = useMemo(() => found?.memories ?? [], [found]);
   const groups = useMemo(() => groupMemories(memories, search), [memories, search]);
-  const coming = useMemo(() => comingUp(memories, today, 30), [memories, today]);
-  const again = useMemo(() => onThisDay(memories.filter((memory) => memory.current), today), [memories, today]);
   const timeline = useMemo(() => {
     const months = new Map<string, Memory[]>();
     for (const memory of [...memories].filter((each) => matches(each, search)).sort((a, b) => b.day.localeCompare(a.day))) {
@@ -144,7 +136,7 @@ function Memories({
       <EmptyState
         icon={<Sparkles size={24} className="empty__icon" aria-hidden />}
         title="Nothing remembered yet"
-        body="Tell the line on Today something worth keeping - “my blood group is O+”, “mummy's birthday is 15 march”, “the spare key is under the plant pot”, “red rising is a book by pierce brown” - and it is kept here, on a page for what it is about."
+        body="Tell the line on Today something worth keeping - “our GST number is …”, “remember that Harbour pay on the 5th”, “the printer on fourth takes A3” - and it is kept here, dated, on the page it is about."
       />
     );
   }
@@ -164,22 +156,19 @@ function Memories({
       <header className="memories__head">
         {/* The screen's own heading says Memories already, so this opens on what they are. */}
         <p className="card__hint">
-          {current === 1 ? "One thing" : `${current} things`} you have told the line on Today to remember, each on a page for what it is
-          about - about you, the people you know, where things are, what you read and lift and learn. A later memory about the same thing
-          is the newer answer; the one before stays, marked earlier. They are yours, the same whichever company is open, and leave this
-          machine only if you let your AI read your own pages.{" "}
+          {current === 1 ? "One thing" : `${current} things`} remembered.{" "}
           <button type="button" className="linkbtn" onClick={onOpenMap}>
-            <Waypoints size={13} aria-hidden /> See them on your map
+            <Waypoints size={13} aria-hidden /> See them on the map
           </button>
         </p>
         <div className="memories__tools">
           <label className="memories__search">
             <Search size={15} aria-hidden />
-            <span className="visually-hidden">Search your memories</span>
+            <span className="visually-hidden">Search what was remembered</span>
             <input
               className="memories__input"
               type="search"
-              placeholder="Search what you remembered"
+              placeholder="Search what was remembered"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
@@ -200,38 +189,7 @@ function Memories({
         )}
       </header>
 
-      <LooseEnds version={version + changed} onMoved={() => setChanged((n) => n + 1)} />
-
-      {!search.trim() && (coming.length > 0 || again.length > 0) && (
-        <div className="memories__soon">
-          {coming.length > 0 && (
-            <Card title="Coming up" hint="Birthdays and anniversaries you told it, in the next month.">
-              <ul className="memories__list" aria-label="Coming up">
-                {coming.map((each) => (
-                  <li key={`${each.pageId}-${each.what}`} className="memories__item">
-                    <span className="memories__says">
-                      <CalendarHeart size={14} className="memories__icon" aria-hidden />
-                      <button type="button" className="linkbtn" onClick={() => onOpenPage(each.pageId)}>
-                        {sayComing(each)}
-                      </button>
-                    </span>
-                    <time className="memories__day" dateTime={each.day}>
-                      {formatDay(each.day)}
-                    </time>
-                  </li>
-                ))}
-              </ul>
-            </Card>
-          )}
-          {again.length > 0 && (
-            <Card title="On this day" hint="Kept on this day before.">
-              <ul className="memories__list" aria-label="On this day">
-                {again.slice(0, 5).map(item)}
-              </ul>
-            </Card>
-          )}
-        </div>
-      )}
+      <LooseEnds companyId={companyId} version={version + changed} onMoved={() => setChanged((n) => n + 1)} />
 
       {view === "topics" ? (
         groups.length === 0 ? (
@@ -243,7 +201,7 @@ function Memories({
                 key={group.pageId}
                 title={group.pageTitle}
                 // Where it hangs, the whole way up; failing that, the section it is filed in.
-                hint={`${sayTrail((found.trails[group.pageId] ?? []).map((title) => ({ title }))) || sectionOf(group.section).label} · ${
+                hint={`${(found.trails[group.pageId] ?? []).join(" › ") || sectionOf(group.section).label} · ${
                   group.memories.length === 1 ? "1 memory" : `${group.memories.length} memories`
                 }`}
                 actions={
@@ -364,8 +322,12 @@ function MemoryItem({
   return (
     <li className={`memories__item${memory.current ? "" : " memories__item--earlier"}`}>
       <span className="memories__says">
-        {memory.fact && <strong className="memories__fact">{memory.fact}</strong>}
-        {memory.fact && " · "}
+        {memory.fact && !leadRepeats(memory) && (
+          <>
+            <strong className="memories__fact">{memory.fact}</strong>
+            {" · "}
+          </>
+        )}
         {memory.says}
         {!memory.current && (
           <span className="memories__earlier">

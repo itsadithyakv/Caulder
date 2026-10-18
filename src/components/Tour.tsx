@@ -24,14 +24,14 @@ function stepsFor(anywhere: string | null): Step[] {
     {
       target: '[data-tour="plan"]',
       title: "Your day, in one place",
-      body: "Today is what is due, what is late and what has gone quiet, with your own half of the day beside it. The Calendar is the week.",
+      body: "Today is what is due, what is late and who has gone quiet. The Calendar is the week, with everything else you have on in it.",
     },
     {
       target: ".today__quick",
       title: "One line for anything",
       body: (
         <>
-          Type it the way you would say it - <q>call Asha tomorrow 4pm</q>, <q>gym 45 min</q>, <q>rough day, but shipped it</q>. It
+          Type it the way you would say it - <q>call Asha tomorrow 4pm</q>, <q>Asha wants the invoice by the 5th</q>, <q>paid 1,200 for hosting</q>. It
           goes where it belongs and says where first. From any app,{" "}
           {anywhere ? (
             <>
@@ -45,14 +45,9 @@ function stepsFor(anywhere: string | null): Step[] {
       ),
     },
     {
-      target: '[data-tour="you"]',
-      title: "Yours, not the company's",
-      body: "The journal (J) and Life (Y): habits, studies, hobbies, goals, a vision board and your level. They stay put whichever company you pick.",
-    },
-    {
       target: '[data-tour="company"]',
       title: "Your company",
-      body: "Contacts, deals, money and the company's brain. Choose another company, or add one, from its name.",
+      body: "Contacts, deals, money and the company's brain. Choose another company, or add one, from its name at the top.",
     },
     {
       target: null,
@@ -147,7 +142,7 @@ export function Tour({ onDone }: { onDone: () => void }) {
           <div className="tour__scrim" aria-hidden />
         )}
         <div
-          className="tour__card card anim-modal"
+          className="tour__card card card--float anim-modal"
           role="dialog"
           aria-modal="true"
           aria-labelledby="tour-title"

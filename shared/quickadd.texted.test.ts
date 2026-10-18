@@ -107,7 +107,7 @@ describe("times, however they are typed", () => {
   });
 });
 
-describe("repeats, priorities and tags, mistyped", () => {
+describe("repeats, priorities and company words, mistyped", () => {
   it("reads a mistyped 'every' and 'daily', and a timetable's shorthand", () => {
     expect(parse("gym evry monday 6am").task.repeat?.weekdays).toEqual([1]);
     expect(parse("gym dialy 6am").task.repeat?.weekdays).toEqual([1, 2, 3, 4, 5, 6, 7]);
@@ -131,16 +131,8 @@ describe("repeats, priorities and tags, mistyped", () => {
     expect(task.title).toBe("Fix bug");
   });
 
-  it("reads a tag generously, and leaves somebody's own tag alone", () => {
-    expect(parse("essay friday #colege").task.area).toBe("college");
-    expect(parse("deck friday #wrk").task.area).toBe("company");
-    expect(parse("run friday #hea").task.area).toBe("health");
-    expect(parse("gig friday #sidegig").task.area).toBe("sidegig");
-  });
-
-  it("reads the area from a word with a slip in it, and spells it properly", () => {
-    expect(parse("assigment due friday").task).toMatchObject({ title: "Assignment", area: "college" });
-    expect(parse("invocie the client friday").task.area).toBe("company");
+  it("spells a company word with a slip in it properly", () => {
+    expect(parse("invocie the client friday").task.title).toBe("Invoice the client");
   });
 });
 
@@ -166,28 +158,20 @@ describe("a correction, and taking it back", () => {
     expect(same.corrections).toEqual([]);
     expect(parseQuick("report firday", settled).task.title).toBe("Report firday");
   });
-
-  it("does not mend a word that was taught as one of theirs", () => {
-    const taught = { ...NOW, words: [{ word: "invocie", area: "company" }] };
-    expect(parseQuick("invocie review friday", taught).task.title).toBe("Invocie review");
-  });
 });
 
-describe("names it does not know yet", () => {
-  it("finds who and what a title names, for Tune to ask about", () => {
-    expect(parse("meeting today 4 with rahul from ms puc for unifloe").unknown).toEqual(["rahul", "ms puc", "unifloe"]);
+describe("the words it learned in part twelve (phase 47)", () => {
+  it("reads half 3, four figures, and an hour in words before 'to'", () => {
+    expect(parse("call priya half 3 tmrw").task).toMatchObject({ title: "Call priya", day: "2026-09-11", time: "15:30" });
+    expect(parse("standup 0930 tomorrow").task).toMatchObject({ title: "Standup", day: "2026-09-11", time: "09:30" });
+    expect(parse("call rita 1645").task).toMatchObject({ title: "Call rita", time: "16:45" });
+    expect(parse("remind me tomorrow at four to call priya").task).toMatchObject({ title: "Call priya", day: "2026-09-11", time: "16:00" });
   });
 
-  it("stops at the small words, and asks nothing once the area is known", () => {
-    expect(parse("slides for the review friday").unknown).toEqual([]);
-    expect(parse("invoice for unifloe friday").unknown).toEqual([]);
-    expect(parse("slides for unifloe friday").unknown).toEqual(["unifloe"]);
-  });
-
-  it("knows a company by name once it is told the companies", () => {
-    const told = { ...NOW, words: [{ word: "Unifloe", area: "company" }] };
-    const { task, unknown } = parseQuick("slides for unifloe friday", told);
-    expect(task.area).toBe("company");
-    expect(unknown).toEqual([]);
+  it("leaves a number that is a price or a count alone", () => {
+    expect(parse("pay rent 1500 tomorrow").task.time).toBeNull();
+    expect(parse("print 1200 flyers").task.time).toBeNull();
+    expect(parse("read half a chapter").task.time).toBeNull();
+    expect(parse("half 3 pages of notes").task.time).toBeNull();
   });
 });

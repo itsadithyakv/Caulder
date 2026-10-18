@@ -9,10 +9,16 @@ import { z } from "zod";
  * connection, and is never handed back to the window. What the window sees
  * is the shape below, which has no secret in it.
  *
- * What these accounts cannot do, and say so: see a reply. The Google script
- * reads the thread; SMTP only sends. So a message from one of these is sent,
- * or scheduled and sent by Caulder when it is due, and that is the end of
- * what Caulder knows about it - no reply on Today, no automatic follow-up.
+ * **Seeing a reply is a switch on each account, off until turned on.** On,
+ * Caulder asks the account's inbox every ten minutes for the headers of what
+ * has arrived (shared/replies.ts) - who from, when, what it answers; never a
+ * subject or a word of the text - and a message from that account then gets
+ * what one through the Google script gets: the reply on Today and on the
+ * contact, and a follow-up that goes by itself when nobody answers. Off, an
+ * account only sends, and says so.
+ *
+ * Either way a message set for later, and a follow-up, is sent by Caulder
+ * when it is due, so Caulder has to be running then.
  */
 
 export type MailAccount = {
@@ -27,6 +33,11 @@ export type MailAccount = {
   secure: boolean;
   username: string;
   isDefault: boolean;
+  /** Whether its inbox is asked who replied. */
+  readsReplies: boolean;
+  /** When the inbox was last looked at, and what went wrong if it could not be. */
+  inboxCheckedAt: string | null;
+  inboxError: string | null;
   createdAt: string;
 };
 
@@ -35,7 +46,7 @@ export type MailSender = {
   id: string | null;
   label: string;
   address: string;
-  /** Only the script reads the thread, so only it sees a reply and can follow up by itself. */
+  /** Whether a reply to a message from here is seen: the script always, an account when its inbox is read. */
   seesReplies: boolean;
 };
 
@@ -56,6 +67,33 @@ export type MailAccountInput = z.input<typeof mailAccountInput>;
  * security settings; the note says where.
  */
 type MailPreset = { id: string; label: string; host: string; port: number; secure: boolean; note: string };
+
+/** Where each of the common providers keeps the inbox, by the server it sends through. */
+const INBOX_OF: Record<string, string> = {
+  "smtp.zoho.com": "imap.zoho.com",
+  "smtp.zoho.in": "imap.zoho.in",
+  "smtp.zoho.eu": "imap.zoho.eu",
+  "smtppro.zoho.com": "imappro.zoho.com",
+  "smtppro.zoho.in": "imappro.zoho.in",
+  "smtp.office365.com": "outlook.office365.com",
+  "smtp-mail.outlook.com": "outlook.office365.com",
+  "smtp.mail.yahoo.com": "imap.mail.yahoo.com",
+  "smtp.mail.me.com": "imap.mail.me.com",
+  "smtp.gmail.com": "imap.gmail.com",
+};
+
+/**
+ * The server an account's inbox is read from, given the one it sends
+ * through. A provider Caulder knows by name; otherwise the usual convention,
+ * smtp.example.com to imap.example.com, and failing that the same server.
+ */
+export function inboxFor(smtpHost: string): string {
+  const host = smtpHost.trim().toLowerCase();
+  return INBOX_OF[host] ?? (host.startsWith("smtp.") ? `imap.${host.slice(5)}` : host);
+}
+
+/** The port an inbox is read on: TLS from the first byte, everywhere that matters. */
+export const INBOX_PORT = 993;
 
 export const MAIL_PRESETS: readonly MailPreset[] = [
   {

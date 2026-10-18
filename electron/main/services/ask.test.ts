@@ -4,9 +4,11 @@ import Database from "better-sqlite3";
 /**
  * Ask the brain across services, with each one played by a stand-in for
  * `net.fetch`: a connection is checked by listing models before it is kept,
- * and kept sealed; a question goes in each service's own shape with the
- * dossier and the conversation; and a dossier too long for the size chosen is
- * cut to the contacts the question is about.
+ * and kept sealed; a question goes in each service's own shape with what it
+ * needs of the dossier and the conversation; the whole company, when asked
+ * for and too long for the size chosen, is cut to the contacts the question
+ * is about; a line is read by the AI without anything being written; and a
+ * draft comes back as a draft.
  */
 
 type Sent = { url: string; method: string; headers: Record<string, string>; body: Record<string, unknown> | null };
@@ -35,12 +37,15 @@ vi.mock("electron", () => ({
 const { migrate } = await import("../db/migrations");
 const { createCompany } = await import("../repositories/companies");
 const { createLead } = await import("../repositories/leads");
-const { createPage } = await import("../repositories/brain");
-const { buildDossier } = await import("./dossier");
-const { readQueued } = await import("./understand");
-const { normalise, toBytes } = await import("@shared/understand");
 const { getSetting } = await import("../repositories/settings");
 const ask = await import("./ask");
+const { readLine } = await import("./askline");
+const { proposeBrief, proposeNoticed, proposeSort, proposeTidy } = await import("./propose");
+const { remember } = await import("./remember");
+const { newPage, savePage, getPage } = await import("./brain");
+const { logActivity } = await import("../repositories/leads");
+const { readingFromAi, sameReading, isForAi, parseAiLine } = await import("@shared/ailine");
+const { readCapture } = await import("@shared/capture");
 const { leadInput } = await import("@shared/domain");
 
 const GEMINI_KEY = "AIzaSyTest0123456789abcdefghijWXYZ";
@@ -169,7 +174,7 @@ describe("connecting", () => {
 });
 
 describe("asking", () => {
-  it("asks Gemini with the dossier as the instruction, the thread as turns, and leaves its thinking out", async () => {
+  it("asks Gemini with what the question needs as the instruction, the thread as turns, and leaves its thinking out", async () => {
     const school = createLead(db, companyId, leadInput.parse({ name: "Oakridge", notes: "Call before 10am." }));
     await ask.connect(db, { service: "gemini", key: GEMINI_KEY });
     sent.length = 0;
@@ -187,9 +192,9 @@ describe("asking", () => {
       service: "Google Gemini",
       model: "Gemini 2.5 Flash",
       usage: { input: 1200, output: 20, cached: 800 },
-      sent: { contacts: 1, leftOut: 0 },
+      sent: { contacts: 1, leftOut: 0, whole: false, parts: ["the company in brief", "Calls in the last 30 days", "Oakridge"] },
     });
-    expect(reply.sent.documents).toEqual(["Read me first", "The company", "Customers and sales", "People and running the company"]);
+    expect(reply.sent.documents).toEqual(["The company in brief", "Calls in the last 30 days", "Contacts"]);
     expect(reply.references).toContainEqual({ kind: "contact", id: school.id, name: "Oakridge" });
 
     const request = sent[0];
@@ -200,6 +205,8 @@ describe("asking", () => {
     };
     expect(body.systemInstruction.parts[0]?.text).toContain("company brain of Unifloe");
     expect(body.systemInstruction.parts[0]?.text).toContain("> Call before 10am.");
+    // Told that it has a part and not the whole, so "it was not sent" is never said as "it is not written".
+    expect(body.systemInstruction.parts[0]?.text).toContain("They are not everything Caulder holds");
     expect(body.contents).toEqual([
       { role: "user", parts: [{ text: "Who is keen?" }] },
       { role: "model", parts: [{ text: "Nobody yet." }] },
@@ -243,7 +250,7 @@ describe("asking", () => {
     expect(system[1]?.cache_control).toEqual({ type: "ephemeral" });
   });
 
-  it("sends only the contacts a question is about when the company is bigger than the size chosen", async () => {
+  it("cuts the whole company, when it is asked for, to the contacts the question is about once it is bigger than the size chosen", async () => {
     const note = "Talked about timetables and the trust. ".repeat(40);
     for (let i = 0; i < 60; i += 1) {
       createLead(db, companyId, leadInput.parse({ name: `School ${String(i).padStart(3, "0")}`, notes: note }));
@@ -253,7 +260,13 @@ describe("asking", () => {
     ask.setContext(db, "small");
     sent.length = 0;
 
-    const reply = await ask.askBrain(db, companyId, { question: "What does Beacon Academy want?" });
+    const one = await ask.askBrain(db, companyId, { question: "What does Beacon Academy want?" });
+    expect(one.sent).toMatchObject({ contacts: 1, leftOut: 60, whole: false });
+    expect(one.sent.characters).toBeLessThan(3_000);
+    sent.length = 0;
+
+    const reply = await ask.askBrain(db, companyId, { question: "What does Beacon Academy want?", whole: true });
+    expect(reply.sent.whole).toBe(true);
     expect(reply.sent.contacts).toBe(10);
     expect(reply.sent.leftOut).toBe(51);
     expect(reply.sent.characters).toBeLessThanOrEqual(62_000);
@@ -261,39 +274,6 @@ describe("asking", () => {
     expect(context).toContain("### Beacon Academy");
     expect(context).toContain("left out of this copy");
     expect(reply.references).toContainEqual({ kind: "contact", id: named.id, name: "Beacon Academy" });
-  });
-
-  it("sends no page of yours with a question until you say it may, even asked from your home", async () => {
-    const home = createCompany(db, { name: "Me", accent: "coffee", timezone: "Asia/Kolkata", kind: "personal" }).id;
-    const at = new Date().toISOString();
-    createPage(db, home, { section: "hobbies", template: "page", title: "Guitar", body: "Practising the F chord." }, at);
-    createPage(db, home, { section: "remembered", template: "page", title: "About me", body: "- **Blood group: O+** · said _(2026-09-20)_" }, at);
-    createPage(db, home, { section: "ideas", template: "page", title: "Gift ideas", body: "A watch for Dad." }, at);
-    await ask.connect(db, { service: "gemini", key: GEMINI_KEY });
-
-    for (const word of ["guitar", "blood", "watch"]) {
-      sent.length = 0;
-      const reply = await ask.askBrain(db, home, { question: word, scope: "line" });
-      expect(reply.sent.documents).not.toContain("What you asked about");
-      const context = (sent[0]?.body as { systemInstruction: { parts: { text: string }[] } }).systemInstruction.parts[0]?.text ?? "";
-      expect(context).not.toMatch(/F chord|O\+|watch for Dad/);
-    }
-
-    ask.setPersonal(db, true);
-    sent.length = 0;
-    const allowed = await ask.askBrain(db, home, { question: "guitar", scope: "line" });
-    expect(allowed.sent.documents).toContain("What you asked about");
-  });
-
-  it("keeps your ideas out of the dossier, and a company's own ideas in it", () => {
-    const home = createCompany(db, { name: "Me", accent: "coffee", timezone: "Asia/Kolkata", kind: "personal" }).id;
-    const at = new Date().toISOString();
-    createPage(db, home, { section: "ideas", template: "page", title: "Gift ideas", body: "A watch for Dad." }, at);
-    createPage(db, companyId, { section: "ideas", template: "page", title: "Referrals", body: "Pay schools for introductions." }, at);
-
-    const text = (id: string) => buildDossier(db, id, { secrets: false }).map((document) => document.text).join("\n");
-    expect(text(home)).not.toContain("watch for Dad");
-    expect(text(companyId)).toContain("Pay schools for introductions.");
   });
 
   it("says what went wrong in words, and needs a connection first", async () => {
@@ -305,8 +285,20 @@ describe("asking", () => {
     await expect(ask.askBrain(db, companyId, { question: "Anything?" })).rejects.toThrow("free tiers allow only a few a minute");
     handler = () => ({ status: 404, body: { error: { message: "models/gemini-9 is not found" } } });
     await expect(ask.askBrain(db, companyId, { question: "Anything?" })).rejects.toThrow("does not know that model");
+    // Busy is tried once more before it is said: twice busy is busy.
     handler = () => ({ status: 503, body: { error: { message: "overloaded" } } });
+    const before = sent.length;
     await expect(ask.askBrain(db, companyId, { question: "Anything?" })).rejects.toThrow("busy or having trouble");
+    expect(sent.length - before).toBe(2);
+    // Busy for a moment, then not: the answer comes, and nobody is told.
+    let tries = 0;
+    handler = (request) => ((tries += 1) === 1 ? { status: 503, body: { error: { message: "overloaded" } } } : gemini(request));
+    await expect(ask.askBrain(db, companyId, { question: "Anything?" })).resolves.toMatchObject({ text: "Call [[Oakridge]] before ten." });
+    // A refusal is never tried again: too many questions is said at once.
+    tries = 0;
+    handler = () => ((tries += 1), { status: 429, body: { error: { message: "Resource has been exhausted" } } });
+    await expect(ask.askBrain(db, companyId, { question: "Anything?" })).rejects.toThrow("too many questions");
+    expect(tries).toBe(1);
     handler = () => ({ body: { promptFeedback: { blockReason: "SAFETY" } } });
     await expect(ask.askBrain(db, companyId, { question: "Anything?" })).rejects.toThrow("would not answer that (safety)");
     handler = () => ({ body: { candidates: [{ content: { parts: [] } }] } });
@@ -315,29 +307,280 @@ describe("asking", () => {
   });
 });
 
-describe("chosen by meaning as well as words (phase 22)", () => {
-  // A stand-in for the model: lines are near when they share one of a few words.
-  const WORDS = ["coffee", "gym", "school", "guitar"];
-  const read = async (lines: readonly string[]) =>
-    lines.map((line) => toBytes(normalise(Float32Array.from(WORDS, (word) => (line.toLowerCase().includes(word) ? 1 : 0.01)))));
+/** A Gemini that answers a request for JSON with `json`, and anything else with `text`. */
+function geminiSaying(json: unknown, text = "Call [[Oakridge]] before ten."): Handler {
+  return (request) => {
+    if (request.method === "GET") return { body: geminiModels };
+    const wantsJson = (request.body as { generationConfig?: { responseMimeType?: string } } | null)?.generationConfig?.responseMimeType === "application/json";
+    return {
+      body: {
+        candidates: [{ content: { parts: [{ text: wantsJson ? JSON.stringify(json) : text }] } }],
+        usageMetadata: { promptTokenCount: 300, candidatesTokenCount: 40 },
+      },
+    };
+  };
+}
 
-  it("sends a page no word of the question finds, and never one of yours without the switch", async () => {
-    const at = new Date().toISOString();
-    createPage(db, companyId, { section: "plan", template: "page", title: "Brewing", body: "Pour over coffee for the office, twice a day." }, at);
-    const home = createCompany(db, { name: "Me", accent: "coffee", timezone: "Asia/Kolkata", kind: "personal" }).id;
-    createPage(db, home, { section: "hobbies", template: "page", title: "Beans", body: "Ethiopian coffee is fruity." }, at);
-    while ((await readQueued(db, read)) > 0);
+const system = (request: Sent | undefined) =>
+  (request?.body as { systemInstruction: { parts: { text: string }[] } } | null)?.systemInstruction.parts[0]?.text ?? "";
+
+describe("what goes with a question", () => {
+  it("says what would go before anything is sent, and sends the whole company every time when that is chosen", async () => {
+    createLead(db, companyId, leadInput.parse({ name: "Oakridge", notes: "Call before 10am." }));
     await ask.connect(db, { service: "gemini", key: GEMINI_KEY });
-
-    // "Grinder" and "buy" are on no page, so the words alone find nothing.
-    const reply = await ask.askBrain(db, companyId, { question: "which coffee grinder should we buy", scope: "line" }, new Date(), read);
-    expect(reply.sent.documents).toContain("What you asked about");
-    const context = (sent.at(-1)?.body as { systemInstruction: { parts: { text: string }[] } }).systemInstruction.parts[0]?.text ?? "";
-    expect(context).toContain("Pour over coffee for the office");
-
     sent.length = 0;
-    await ask.askBrain(db, home, { question: "which coffee grinder should we buy", scope: "line" }, new Date(), read);
-    const mine = (sent.at(-1)?.body as { systemInstruction: { parts: { text: string }[] } }).systemInstruction.parts[0]?.text ?? "";
-    expect(mine).not.toContain("Ethiopian coffee is fruity");
+
+    const preview = await ask.previewAsk(db, companyId, { question: "What did Oakridge say?" });
+    expect(preview).toMatchObject({ whole: false, parts: ["the company in brief", "Oakridge"] });
+    expect(preview.characters).toBeGreaterThan(0);
+    // Worked out here: nothing was asked of anybody.
+    expect(sent).toHaveLength(0);
+
+    expect(ask.askState(db).scope).toBe("needed");
+    expect(ask.setScope(db, "all").scope).toBe("all");
+    expect((await ask.previewAsk(db, companyId, { question: "What did Oakridge say?" })).whole).toBe(true);
+    expect(() => ask.setScope(db, "some")).toThrow("not a choice");
+  });
+});
+
+describe("the line in AI mode", () => {
+  const CLOCK = { today: "2026-10-13", now: 600 };
+  const NOW = new Date("2026-10-13T05:00:00Z");
+
+  it("is switched on only with an AI connected, and off again when it is disconnected", async () => {
+    expect(() => ask.setLineMode(db, true)).toThrow("Connect an AI in Settings to use AI mode");
+    await ask.connect(db, { service: "gemini", key: GEMINI_KEY });
+    expect(ask.askState(db).line).toBe(false);
+    expect(ask.setLineMode(db, true).line).toBe(true);
+    expect(ask.disconnect(db).line).toBe(false);
+    await ask.connect(db, { service: "gemini", key: GEMINI_KEY });
+    expect(ask.askState(db).line).toBe(false);
+  });
+
+  it("sends the line, today and the names it might mean - and nothing else about anybody", async () => {
+    createLead(db, companyId, leadInput.parse({ name: "RV PUC", contactPerson: "Sumanth", phone: "96860 12345", notes: "Met at the fair." }));
+    handler = geminiSaying({ kind: "happened", contact: "RV PUC", via: "linkedin", then: { title: "Reach out to Sumanth", day: "2026-10-20" } });
+    await ask.connect(db, { service: "gemini", key: GEMINI_KEY });
+    sent.length = 0;
+
+    const result = await readLine(db, companyId, { line: "sumnath asked me to reach out next week, i messaged him on linkedin" }, NOW);
+    expect(result).toMatchObject({ is: "reading", service: "Google Gemini", sent: { contacts: 1 }, line: { kind: "happened", contact: "RV PUC" } });
+    expect(sent).toHaveLength(1);
+    const told = system(sent[0]);
+    expect(told).toContain("Today is Tuesday 2026-10-13");
+    expect(told).toContain("RV PUC | Sumanth");
+    // A name to be matched, and no more: not their number, not what is noted about them.
+    expect(told).not.toContain("96860");
+    expect(told).not.toContain("Met at the fair");
+    expect((sent[0]?.body as { contents: { parts: { text: string }[] }[] }).contents.at(-1)?.parts[0]?.text).toBe(
+      "sumnath asked me to reach out next week, i messaged him on linkedin",
+    );
+    // Nothing was written by reading it.
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM tasks`).get()).toEqual({ n: 0 });
+  });
+
+  it("answers a line that is a question, with what the question needs, in one request", async () => {
+    createLead(db, companyId, leadInput.parse({ name: "Oakridge", notes: "Call before 10am." }));
+    await ask.connect(db, { service: "gemini", key: GEMINI_KEY });
+    sent.length = 0;
+    const result = await readLine(db, companyId, { line: "when should I call Oakridge?" }, NOW);
+    expect(result).toMatchObject({ is: "answer", answer: { text: "Call [[Oakridge]] before ten.", sent: { whole: false } } });
+    expect(sent).toHaveLength(1);
+    expect(isForAi("draft an email to maya about the late invoice")).toBe(true);
+    expect(isForAi("write to jonas now")).toBe(false);
+    expect(isForAi("call maya tomorrow")).toBe(false);
+  });
+
+  it("never sends a line that looks like a password, and says what went wrong in a sentence", async () => {
+    await ask.connect(db, { service: "gemini", key: GEMINI_KEY });
+    sent.length = 0;
+    await expect(readLine(db, companyId, { line: "the wifi password is hunter2-office" }, NOW)).rejects.toThrow("was not sent to Google Gemini");
+    expect(sent).toHaveLength(0);
+
+    handler = geminiSaying("no idea");
+    await expect(readLine(db, companyId, { line: "harbour said yes" }, NOW)).rejects.toThrow("did not say what that line is");
+  });
+
+  it("puts what the AI said into the reading the line already shows, checked against what Caulder holds", () => {
+    const known = {
+      contacts: [
+        { id: "c1", name: "RV PUC", person: "Sumanth" },
+        { id: "c2", name: "Harbour Coffee Roasters", person: "Maya Ellis" },
+      ],
+      pages: [],
+    };
+    const read = (json: unknown, line: string) => readingFromAi(parseAiLine(JSON.stringify(json)) ?? (null as never), line, known, CLOCK);
+
+    // Something that happened, and what it leaves: on his history, with his task.
+    expect(read({ kind: "happened", contact: "rv puc | sumanth", via: "linkedin", then: { title: "Reach out to Sumanth", day: "2026-10-20" } }, "sumnath asked me to reach out next week")).toMatchObject({
+      kind: "contact",
+      contact: { id: "c1", name: "RV PUC" },
+      logged: "linkedin",
+      then: { title: "Reach out to Sumanth", day: "2026-10-20", daySaid: true },
+      doubt: null,
+      because: "read by the AI",
+    });
+    // A task, with its own title and day.
+    expect(read({ kind: "task", contact: "Maya Ellis", title: "Send Maya the revised quote", day: "2026-10-16", time: "15:00" }, "need to get that quote thing over to maya by fri 3")).toMatchObject({
+      kind: "task",
+      contact: { id: "c2" },
+      task: { title: "Send Maya the revised quote", day: "2026-10-16", time: "15:00" },
+    });
+    // Somebody new: a contact, with what happened. A contact it made up is nobody.
+    expect(read({ kind: "new_contact", person: "Kiran Rao", company: "brightside labs", happened: "Asked for a demo.", then: { title: "Book a demo with Kiran", day: null } }, "kiran rao from brightside labs asked for a demo")).toMatchObject({
+      kind: "command",
+      ask: { do: "contact", name: "Brightside Labs", person: "Kiran Rao", happened: "Asked for a demo.", then: { title: "Book a demo with Kiran", day: "2026-10-14", daySaid: false } },
+    });
+    expect(read({ kind: "happened", contact: "Acme Corp" }, "acme said yes").contact).toBeNull();
+    // Somebody "new" who is a contact already is that contact.
+    expect(read({ kind: "new_contact", person: "Sumanth", company: "RV PUC" }, "sumanth from rv puc called")).toMatchObject({ kind: "contact", contact: { id: "c1" } });
+    // Unsure: it asks, in words - and a person from nowhere is asked about whether or not it thought to.
+    expect(read({ kind: "task", title: "Call Priya", ask: "Which Priya?" }, "call priya").doubt).toMatchObject({ text: "Which Priya?", open: true });
+    expect(read({ kind: "new_contact", person: "Anil" }, "anil wants a quote").doubt).toMatchObject({ text: "Where is Anil from?", open: true });
+    // Money, a detail, and the rest.
+    expect(read({ kind: "spend", amount: 1200, what: "Figma" }, "figma was 1200").ask).toEqual({ do: "spend", amount: 1200, what: "Figma", daysAgo: 0 });
+    expect(read({ kind: "update_contact", contact: "RV PUC", phone: "96860 12345" }, "sumanth's new number 96860 12345").ask).toEqual({
+      do: "update",
+      contact: { id: "c1", name: "RV PUC" },
+      phone: "96860 12345",
+      email: null,
+    });
+    // Kept where the rules would keep it: a rule on its subject's page, anything else with the rest.
+    expect(read({ kind: "remember" }, "we never discount retainers")).toMatchObject({ kind: "memory", topic: "Pricing and discounts" });
+    expect(read({ kind: "remember" }, "the printer on fourth takes A3")).toMatchObject({ kind: "memory", topic: "Things to remember" });
+    // A reply that is not what was asked for is still read as far as it goes.
+    expect(read({ kind: "dance", day: "next tuesday" }, "hmm")).toMatchObject({ kind: "note" });
+    expect(parseAiLine("not json")).toBeNull();
+  });
+
+  it("knows when the AI read a line the way the rules did", () => {
+    const known = { contacts: [{ id: "c1", name: "RV PUC", person: "Sumanth" }], pages: [] };
+    const line = "Sumanth asked me to reach out next week";
+    const rules = readCapture(line, known, CLOCK);
+    const same = readingFromAi(parseAiLine(JSON.stringify({ kind: "happened", contact: "RV PUC", then: { title: "Write to Sumanth", day: "2026-10-20" } })) as never, line, known, CLOCK);
+    const other = readingFromAi(parseAiLine(JSON.stringify({ kind: "happened", contact: "RV PUC", then: { title: "Write to Sumanth", day: "2026-10-22" } })) as never, line, known, CLOCK);
+    expect(sameReading({ kind: rules.kind, reading: rules, day: null, time: null }, same)).toBe(true);
+    expect(sameReading({ kind: rules.kind, reading: rules, day: null, time: null }, other)).toBe(false);
+  });
+});
+
+describe("what the AI proposes", () => {
+  const NOW = new Date("2026-10-13T05:00:00Z");
+
+  it("drafts the company in brief from what is written, and writes nothing", async () => {
+    const profile = newPage(db, companyId, "company", "profile", NOW);
+    savePage(db, profile.id, { title: profile.title, body: "We sell timetabling to schools.", fields: profile.fields, secrets: {}, baseRevision: profile.revision }, NOW);
+    createLead(db, companyId, leadInput.parse({ name: "Oakridge", phone: "98450 12345", notes: "Call before 10am." }));
+    handler = geminiSaying(null, "```\n- Sells timetabling to schools.\n- Bills yearly.\n```");
+    await ask.connect(db, { service: "gemini", key: GEMINI_KEY });
+    sent.length = 0;
+    const pagesBefore = db.prepare(`SELECT COUNT(*) AS n FROM brain_pages`).get();
+
+    const draft = await proposeBrief(db, companyId, NOW);
+    expect(draft.text).toBe("- Sells timetabling to schools.\n- Bills yearly.");
+    expect(draft.sent).toMatchObject({ service: "Google Gemini", model: "Gemini 2.5 Flash", usage: { input: 300 } });
+    expect(draft.sent.parts).toContain("Company");
+    expect(system(sent[0])).toContain("We sell timetabling to schools.");
+    // What the company says it is, not who it knows.
+    expect(system(sent[0])).not.toContain("98450");
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM brain_pages`).get()).toEqual(pagesBefore);
+  });
+
+  it("tidies one page by sending only that page, and leaves it as it was", async () => {
+    const page = newPage(db, companyId, "plan", "page", NOW);
+    const body = "pricing is 999 a month\n\nwe bill yearly\n\nPricing: 999 monthly, billed every year in advance.";
+    savePage(db, page.id, { title: "Pricing notes", body, fields: page.fields, secrets: {}, baseRevision: page.revision }, NOW);
+    createLead(db, companyId, leadInput.parse({ name: "Oakridge", notes: "Call before 10am." }));
+    handler = geminiSaying(null, "# Pricing notes\n\n## Pricing\n\n- 999 a month, billed yearly in advance.");
+    await ask.connect(db, { service: "gemini", key: GEMINI_KEY });
+    sent.length = 0;
+
+    const draft = await proposeTidy(db, companyId, page.id);
+    expect(draft.text).toBe("## Pricing\n\n- 999 a month, billed yearly in advance.");
+    expect(draft.sent.parts).toEqual(["the page “Pricing notes”"]);
+    expect(JSON.stringify(sent[0]?.body)).not.toContain("Oakridge");
+    expect(getPage(db, page.id).body).toBe(body);
+
+    const short = newPage(db, companyId, "plan", "page", NOW);
+    await expect(proposeTidy(db, companyId, short.id)).rejects.toThrow("too little on this page");
+  });
+
+  it("says what the history shows, only about contacts that were sent, with where each came from", async () => {
+    const late = createLead(db, companyId, leadInput.parse({ name: "Kettle & Crumb" }));
+    for (const body of ["Invoice 12 paid 9 days late.", "Invoice 15 paid 14 days late.", "Chased for invoice 19."]) {
+      logActivity(db, { leadId: late.id, kind: "note", body });
+    }
+    createLead(db, companyId, leadInput.parse({ name: "Quiet Co" }));
+    handler = geminiSaying({
+      facts: [
+        { about: "Kettle & Crumb", fact: "Has paid late twice.", from: ["Invoice 12 paid 9 days late.", "Invoice 15 paid 14 days late."] },
+        { about: "Somebody Else Ltd", fact: "Made up.", from: [] },
+      ],
+    });
+    await ask.connect(db, { service: "gemini", key: GEMINI_KEY });
+    sent.length = 0;
+
+    const noticed = await proposeNoticed(db, companyId, NOW);
+    expect(noticed.facts).toEqual([
+      { leadId: late.id, about: "Kettle & Crumb", fact: "Has paid late twice.", from: ["Invoice 12 paid 9 days late.", "Invoice 15 paid 14 days late."] },
+    ]);
+    expect(noticed.sent.parts).toEqual(["1 contacts and their history"]);
+    expect(system(sent[0])).toContain("Invoice 12 paid 9 days late.");
+    expect(system(sent[0])).not.toContain("Quiet Co");
+    expect(db.prepare(`SELECT notes FROM leads WHERE id = ?`).get(late.id)).toEqual({ notes: null });
+  });
+
+  it("says so when nobody has history enough to show anything", async () => {
+    createLead(db, companyId, leadInput.parse({ name: "Quiet Co" }));
+    await ask.connect(db, { service: "gemini", key: GEMINI_KEY });
+    await expect(proposeNoticed(db, companyId, NOW)).rejects.toThrow("No contact has enough history yet");
+  });
+});
+
+describe("a page sorted with the AI's help", () => {
+  const NOW = new Date("2026-10-13T05:00:00Z");
+
+  it("asks only about the lines the rules here could not place, and moves nothing", async () => {
+    const harbour = createLead(db, companyId, leadInput.parse({ name: "Harbour Coffee Roasters", phone: "98450 12345" }));
+    const say = (said: string, pageId: string | null = null) =>
+      remember(db, { companyId, pageId, topic: pageId ? null : "Things to remember", said, fact: null, day: "2026-10-13" }, NOW);
+    const page = say("we never discount retainers");
+    say("fifty percent before any work starts", page.pageId);
+    say("the roasters want everything by email", page.pageId);
+    say("the printer on fourth takes A3", page.pageId);
+    const before = getPage(db, page.pageId).body;
+    handler = geminiSaying({
+      lines: [
+        { n: 1, to: "rule", subject: "Billing and payment" },
+        { n: 2, to: "contact", contact: "Harbour Coffee Roasters" },
+        { n: 3, to: "rule", subject: "A subject it made up" },
+      ],
+    });
+    await ask.connect(db, { service: "gemini", key: GEMINI_KEY });
+    sent.length = 0;
+
+    const draft = await proposeSort(db, companyId, page.pageId);
+    expect(draft.lines.map((line) => [line.says, line.to, line.by])).toEqual([
+      ["we never discount retainers", { kind: "rule", subject: "Pricing and discounts" }, "rules"],
+      ["fifty percent before any work starts", { kind: "rule", subject: "Billing and payment" }, "ai"],
+      ["the roasters want everything by email", { kind: "contact", id: harbour.id, name: "Harbour Coffee Roasters" }, "ai"],
+      // A subject there is not is nowhere to put anything: it stays.
+      ["the printer on fourth takes A3", null, "rules"],
+    ]);
+    // The three it could not place went, with names - not the rule it placed itself, and nobody's number.
+    const asked = (sent[0]?.body as { contents: { parts: { text: string }[] }[] }).contents.at(-1)?.parts[0]?.text ?? "";
+    expect(asked.split("\n")).toEqual(["1. fifty percent before any work starts", "2. the roasters want everything by email", "3. the printer on fourth takes A3"]);
+    expect(system(sent[0])).toContain("Harbour Coffee Roasters | -");
+    expect(system(sent[0])).not.toContain("98450");
+    expect(draft.sent?.parts[0]).toBe("3 lines of the page “Things to remember”");
+    expect(getPage(db, page.pageId).body).toBe(before);
+  });
+
+  it("asks nobody when the rules placed every line", async () => {
+    const page = remember(db, { companyId, pageId: null, topic: "Things to remember", said: "we never discount retainers", fact: null, day: "2026-10-13" }, NOW);
+    await ask.connect(db, { service: "gemini", key: GEMINI_KEY });
+    sent.length = 0;
+    expect((await proposeSort(db, companyId, page.pageId)).sent).toBeNull();
+    expect(sent).toHaveLength(0);
   });
 });

@@ -1,8 +1,7 @@
 import type { Db } from "../db/connection";
 import { isDay, today as todayIn } from "@shared/dates";
 import { taskInput } from "@shared/domain";
-import { dueOfStep, matchesOwner, pageSteps, type PageTasks, type StepTask } from "@shared/steps";
-import { daysLeftOf } from "@shared/deadlines";
+import { dueOfStep, pageSteps, type PageTasks, type StepTask } from "@shared/steps";
 import { createTask } from "../repositories/tasks";
 
 /**
@@ -14,11 +13,6 @@ import { createTask } from "../repositories/tasks";
  * every step becomes a task again each time, for a contact if one is named -
  * onboarding a client is the same list for every client.
  *
- * The founder's own pages work like a meeting (PLAN.md, part four): a
- * course's assignments, an exam's revision, a hobby's or a goal's next steps
- * become tasks once each, in the area they belong to - college for studies,
- * personal for a hobby, and whatever the goal says for a goal - so Today can
- * weigh the degree against the company.
  */
 
 /** Days after a meeting that an action item without a date is due: the next weekly check-in. */
@@ -35,8 +29,7 @@ type PageRow = {
 };
 
 /** Sections whose steps become tasks once each, like a meeting's action items. */
-const ONCE = new Set(["meetings", "studies", "hobbies", "goals"]);
-const AREAS = new Set(["college", "company", "personal", "health"]);
+const ONCE = new Set(["meetings"]);
 
 function pageOf(db: Db, pageId: string): PageRow & { mode: PageTasks["mode"] } {
   const row = db
@@ -57,16 +50,6 @@ function fieldsOf(page: PageRow): Record<string, unknown> {
   }
 }
 
-/** Which part of life a page's tasks belong to. A meeting's are the company's by being a meeting, which needs no tag. */
-function areaOf(page: PageRow): string | null {
-  if (page.section === "studies") return "college";
-  if (page.section === "hobbies") return "personal";
-  if (page.section === "goals") {
-    const area = fieldsOf(page)["area"];
-    return typeof area === "string" && AREAS.has(area) ? area : "personal";
-  }
-  return null;
-}
 
 type TaskRow = { id: string; source_step: string | null; due_on: string; status: string };
 
@@ -90,18 +73,6 @@ export function pageTasks(db: Db, pageId: string): PageTasks {
   };
 }
 
-/** Somebody on the team named in an item: "@Asha" is Asha Rao, if she is still here. */
-function ownerFor(db: Db, companyId: string, written: string | null, today: string): { id: string; name: string } | null {
-  if (!written) return null;
-  const people = db
-    .prepare(
-      `SELECT id, name FROM people
-        WHERE company_id = ? AND kind != 'candidate' AND (ends_on IS NULL OR ends_on >= ?)`,
-    )
-    .all(companyId, today) as { id: string; name: string }[];
-  return people.find((person) => matchesOwner(person.name, written)) ?? null;
-}
-
 function contactName(db: Db, companyId: string, leadId: string): string {
   const row = db.prepare(`SELECT company_id, name FROM leads WHERE id = ?`).get(leadId) as
     | { company_id: string; name: string }
@@ -120,22 +91,15 @@ export function makeTasks(db: Db, pageId: string, leadId: unknown, now: Date = n
 
   const made = new Set(tasksOf(db, pageId).map((task) => task.source_step));
   let start = today;
-  let fallback = page.mode === "actions" ? ACTION_DAYS : 0;
+  const fallback = page.mode === "actions" ? ACTION_DAYS : 0;
   let lead: { id: string; name: string } | null = null;
   let chosen = steps;
-  const area = areaOf(page);
 
   if (page.mode === "actions") {
     const fields = fieldsOf(page);
-    // A meeting's items, and a class's, are counted from the day it was held.
+    // A meeting's items are counted from the day it was held.
     const heldOn = fields["heldOn"];
-    if (isDay(heldOn) && page.section !== "hobbies" && page.section !== "goals") start = heldOn;
-    // Revision for an exam is due the day before it, while there is a day before it.
-    const examOn = fields["examOn"];
-    if (page.template === "exam" && isDay(examOn) && examOn > today) {
-      start = today;
-      fallback = Math.max(0, daysLeftOf(examOn, today) - 1);
-    }
+    if (isDay(heldOn)) start = heldOn;
     chosen = steps.filter((step) => !step.ticked && !made.has(step.title));
     if (chosen.length === 0) throw new Error("Every open step is a task already.");
   } else if (typeof leadId === "string" && leadId) {
@@ -144,8 +108,8 @@ export function makeTasks(db: Db, pageId: string, leadId: unknown, now: Date = n
 
   db.transaction(() => {
     for (const step of chosen) {
-      const owner = ownerFor(db, page.company_id, step.owner, today);
-      const who = owner?.name ?? step.owner;
+      // Whoever an item was @-named for is kept in the task's words: there is no team to look them up in.
+      const who = step.owner;
       const task = createTask(
         db,
         page.company_id,
@@ -154,13 +118,11 @@ export function makeTasks(db: Db, pageId: string, leadId: unknown, now: Date = n
           kind: "todo",
           dueOn: dueOfStep(step, start, today, fallback),
           leadId: lead?.id ?? null,
-          area,
         }),
       );
-      db.prepare(`UPDATE tasks SET page_id = ?, source_step = ?, person_id = ? WHERE id = ?`).run(
+      db.prepare(`UPDATE tasks SET page_id = ?, source_step = ? WHERE id = ?`).run(
         page.id,
         step.title,
-        owner?.id ?? null,
         task.id,
       );
     }

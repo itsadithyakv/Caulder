@@ -6,10 +6,15 @@ import { ErrorLine } from "@/components/ErrorLine";
 import { Explain } from "@/components/Explain";
 import { Select } from "@/components/Select";
 import { messageOf } from "@/lib/errors";
+import { formatDay } from "@/lib/format";
 
 /**
  * Mail accounts beside the Google script: Zoho, Outlook, Yahoo, iCloud, or
  * any server that speaks SMTP.
+ *
+ * Each has a switch, off until turned on, for seeing who replied
+ * (shared/replies.ts): Caulder then reads that inbox's headers, and nothing
+ * else in it.
  *
  * Adding one tries it first, so a wrong password is found here and not when a
  * message will not go. The password is encrypted by Windows and never shown
@@ -81,12 +86,26 @@ export function MailAccountsCard() {
   const act = (change: () => Promise<MailAccount[]>) =>
     void change().then(setAccounts, (cause: unknown) => setError(messageOf(cause)));
 
+  /** The account being tried, while its inbox is opened for the first time. */
+  const [trying, setTrying] = useState<string | null>(null);
+  async function seeReplies(accountId: string, on: boolean) {
+    setTrying(accountId);
+    setError(null);
+    try {
+      setAccounts(await window.caulder.mailAccounts.readReplies(accountId, on));
+    } catch (cause) {
+      setError(messageOf(cause));
+    } finally {
+      setTrying(null);
+    }
+  }
+
   if (!accounts) return null;
 
   return (
     <Card
       title="Other mail accounts"
-      hint="Send to a contact from Zoho, Outlook or any other account, beside or instead of Gmail."
+      hint="Send from Zoho, Outlook or any other account."
       actions={
         !adding && (
           <button type="button" className="btn btn--sm" onClick={() => setAdding(true)}>
@@ -98,11 +117,34 @@ export function MailAccountsCard() {
       {accounts.length > 0 && (
         <ul className="rules" aria-label="Mail accounts">
           {accounts.map((account) => (
-            <li key={account.id} className="rule">
+            <li key={account.id} className="rule mailacct__row">
               <span className="rule__text">
                 <strong>{account.label}</strong> · {account.address}
                 {account.isDefault && <span className="card__hint"> · used first</span>}
+                <span className="card__hint mailacct__state">
+                  {account.inboxError
+                    ? `Replies could not be looked for: ${account.inboxError}`
+                    : account.readsReplies
+                      ? account.inboxCheckedAt
+                        ? `Replies are seen. Last looked ${formatDay(account.inboxCheckedAt.slice(0, 10))}.`
+                        : "Replies are seen, and a follow-up can go by itself."
+                      : "Sends only: a reply is not seen."}
+                </span>
               </span>
+              <label className="mailacct__switch">
+                <button
+                  type="button"
+                  className="toggle"
+                  role="switch"
+                  aria-checked={account.readsReplies}
+                  aria-label={`See replies to ${account.address}`}
+                  disabled={trying !== null}
+                  onClick={() => void seeReplies(account.id, !account.readsReplies)}
+                >
+                  <span className="toggle__thumb" />
+                </button>
+                <span className="card__hint">{trying === account.id ? "Trying the inbox…" : "See replies"}</span>
+              </label>
               {!account.isDefault && accounts.length > 1 && (
                 <button type="button" className="btn btn--sm btn--ghost" onClick={() => act(() => window.caulder.mailAccounts.setDefault(account.id))}>
                   <Check size={14} aria-hidden /> Use first
@@ -123,7 +165,7 @@ export function MailAccountsCard() {
       )}
 
       {accounts.length === 0 && !adding && (
-        <p className="card__hint">None yet. Gmail goes through the Google script above, which also sees replies.</p>
+        <p className="card__hint">None yet.</p>
       )}
 
       {adding && (
@@ -218,9 +260,16 @@ export function MailAccountsCard() {
       <Explain>
         <p>
           The password is encrypted by Windows the moment it is saved and never shown again - most providers want an app password
-          here, made in their security settings, not the account&rsquo;s own. These accounts only send: they cannot see a reply, so
-          a message from one gets no automatic follow-up, and one scheduled for later is sent by Caulder when it is due, so Caulder
-          has to be running then.
+          here, made in their security settings, not the account&rsquo;s own.
+        </p>
+        <p>
+          <strong>See replies</strong> is off until you switch it on. On, Caulder asks that account&rsquo;s inbox every ten minutes
+          who has written - only who each message is from, when, and what it answers; never a subject or a word of the text - and
+          changes nothing there. A reply then shows on Today and on the contact, and a follow-up can go by itself when nobody
+          answers. Some providers want reading by other apps switched on first: in Zoho it is Settings, Mail Accounts, IMAP Access.
+        </p>
+        <p>
+          A message scheduled for later, and a follow-up, is sent by Caulder when it is due, so Caulder has to be running then.
         </p>
       </Explain>
     </Card>

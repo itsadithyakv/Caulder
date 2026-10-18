@@ -1,8 +1,9 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { ArrowRight, Check, ChevronDown, ChevronUp, Circle, Waypoints } from "lucide-react";
 import { AskBox } from "./AskBox";
+import { BriefCard } from "./Proposals";
 import { ContextCard } from "./ContextCard";
-import { withoutJournalDays, type MapGraph, type MapNode } from "@shared/map";
+import type { MapGraph, MapNode } from "@shared/map";
 import {
   CHECKLIST_STEPS,
   CHECKLIST_STEP_LABEL,
@@ -31,8 +32,8 @@ export function BrainHome({
   onOpenMap,
   onOpenSection,
   onCreate,
-  onGoToSettings,
   onGoToProducts,
+  onChanged,
 }: {
   companyId: string;
   home: Home;
@@ -42,9 +43,10 @@ export function BrainHome({
   onOpenMap: () => void;
   onOpenSection: (section: BrainSectionId, focus?: string) => void;
   onCreate: (section: BrainSectionId, template: string) => void;
-  onGoToSettings: () => void;
   /** The catalogue, which is a tab on Money rather than a page here. */
   onGoToProducts: () => void;
+  /** Something was written from here: what is listed may be stale. */
+  onChanged: () => void;
 }) {
   const { company } = home;
   const openRef = useOpenRef();
@@ -84,19 +86,22 @@ export function BrainHome({
           </p>
         </header>
 
-        <AskBox companyId={companyId} onOpenPage={onOpenPage} onOpenContact={onOpenContact} onGoToSettings={onGoToSettings} />
+        <AskBox companyId={companyId} onOpenPage={onOpenPage} onOpenContact={onOpenContact} />
 
-        <ContextCard companyId={companyId} />
+        {/* What is written first: this is the brain, not a form about it. */}
+        {pages.length > 0 && (
+          <Card title={home.pinned.length > 0 ? "Pinned and recent" : "Recently written"}>
+            <PageList pages={pages} onOpen={onOpenPage} label="Pinned and recent pages" showSection />
+          </Card>
+        )}
+
+        {/* What goes with every question, under the box that asks them. */}
+        <BriefCard companyId={companyId} version={version} onOpenPage={onOpenPage} onChanged={onChanged} />
 
         <Checklist items={home.checklist} onOpen={open} />
 
-        <Card title={home.pinned.length > 0 ? "Pinned and recent" : "Recently written"}>
-          {pages.length > 0 ? (
-            <PageList pages={pages} onOpen={onOpenPage} label="Pinned and recent pages" showSection />
-          ) : (
-            <p className="card__hint">Nothing written yet. The list above is a good place to start.</p>
-          )}
-        </Card>
+        {/* Last: it is for taking what is written somewhere else, so it comes after what is written. */}
+        <ContextCard companyId={companyId} />
       </div>
 
       <div className="brainhome__side">
@@ -135,13 +140,15 @@ function SmallMap({
     let live = true;
     window.caulder.brain
       .map(companyId, false)
-      // Journal days are left off, as on the map itself unless switched on there.
-      .then((found) => live && setGraph(withoutJournalDays(found)))
+      .then((found) => live && setGraph(found))
       .catch(() => live && setGraph(null));
     return () => {
       live = false;
     };
   }, [companyId, version]);
+
+  // Nothing linked yet: no card of instructions in its place. The rail has the map, and a page says how to link.
+  if (!graph || graph.links.length === 0) return null;
 
   return (
     <Card
@@ -154,19 +161,12 @@ function SmallMap({
         </button>
       }
     >
-      {graph && graph.links.length > 0 ? (
-        <MapCanvas
-          graph={graph}
-          height={320}
-          label={`A small map of the company: ${graph.nodes.length} dots and ${graph.links.length} links.`}
-          onOpen={onOpen}
-        />
-      ) : (
-        <p className="card__hint">
-          Every page is a dot and every link a line. Type [[ in a page to link it to another page, a contact, a product
-          or a person.
-        </p>
-      )}
+      <MapCanvas
+        graph={graph}
+        height={320}
+        label={`A small map of the company: ${graph.nodes.length} dots and ${graph.links.length} links.`}
+        onOpen={onOpen}
+      />
     </Card>
   );
 }
@@ -176,9 +176,10 @@ function SmallMap({
  *
  * It used to be a list of field names - "Entity type and incorporation date" -
  * that said neither what was being asked nor why anybody should answer. Now
- * each is a question, with what Caulder does with the answer under it, and
- * only the step you are on is open: three questions read as a start, where
- * twelve read as a form. Gone once they are all answered.
+ * each is a question, with what Caulder does with the answer under it.
+ * Folded until asked for: the brain's first page shows what is written, and
+ * offers the questions in a line rather than standing in front of it as a
+ * form. Gone once they are all answered.
  */
 function Checklist({ items, onOpen }: { items: ChecklistItem[]; onOpen: (item: ChecklistItem) => void }) {
   const [all, setAll] = useState(false);
@@ -186,9 +187,7 @@ function Checklist({ items, onOpen }: { items: ChecklistItem[]; onOpen: (item: C
   if (done === items.length) return null;
 
   const steps = CHECKLIST_STEPS.map((step) => ({ step, items: items.filter((item) => item.step === step) }));
-  // The step you are on: the first with anything left in it.
-  const current = steps.find((each) => each.items.some((item) => !item.done));
-  const shown = all ? steps : current ? [{ step: current.step, items: current.items.filter((item) => !item.done) }] : [];
+  const shown = all ? steps : [];
   const left = items.length - done;
 
   return (
@@ -200,8 +199,7 @@ function Checklist({ items, onOpen }: { items: ChecklistItem[]; onOpen: (item: C
             {done === 0 ? "Tell Caulder about the company" : "Keep going"}
           </h2>
           <p className="card__hint">
-            {left === 1 ? "One question left." : `${left} short questions, about fifteen minutes in all.`} You answer each once, and
-            Caulder uses it everywhere: on invoices, in reminders, and when you ask it something. In any order.
+            {left === 1 ? "One question left." : `${left} short questions left.`}
           </p>
         </div>
       </div>
@@ -251,7 +249,7 @@ function Checklist({ items, onOpen }: { items: ChecklistItem[]; onOpen: (item: C
 
       <button type="button" className="btn btn--sm btn--ghost checklist__more" aria-expanded={all} onClick={() => setAll((open) => !open)}>
         {all ? <ChevronUp size={14} aria-hidden /> : <ChevronDown size={14} aria-hidden />}
-        {all ? "Just the step I am on" : `All ${items.length}`}
+        {all ? "Fold them away" : `All ${items.length}`}
       </button>
     </section>
   );

@@ -45,7 +45,7 @@ export function DeskCard() {
   return (
     <Card
       title="Desk widget"
-      hint="A small pill on the desktop showing what is on now and what is late. Hover it and it opens."
+      hint="What is on now and what is late, on your desktop."
     >
       <ErrorLine>{problem}</ErrorLine>
 
@@ -63,10 +63,6 @@ export function DeskCard() {
         </button>
         <span className="checkline__text">
           <span className="checkline__title">Show the desk widget</span>
-          <span className="card__hint">
-            It comes back where you left it on the next launch. Nothing on it is
-            clickable &mdash; it is there to be read.
-          </span>
         </span>
       </div>
 
@@ -94,7 +90,7 @@ export function DeskCard() {
               setting having been ignored. */}
           {state?.reason && (
             <p className="card__hint">
-              Windows would not pin it to the desktop, so it is in front instead. {state.reason}
+              Windows would not pin it, so it is in front.
             </p>
           )}
         </>

@@ -1,18 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
-  MAP_LOOK,
   asOf,
   clipLabel,
-  isJournalDay,
   labelsShown,
-  lookFrom,
   mapKindOf,
   matching,
   neighbourhood,
   radiusOf,
   replaySteps,
   withKinds,
-  withoutJournalDays,
   type LabelBox,
   type MapGraph,
   type MapNode,
@@ -42,16 +38,14 @@ const graph: MapGraph = {
 const keys = (g: MapGraph) => g.nodes.map((n) => n.key);
 
 describe("what a dot is", () => {
-  it("is what it is - and a page is a page, a decision, or the founder's own", () => {
+  it("is what it is - and a page is a page or a decision", () => {
     expect(mapKindOf("contact", null)).toBe("contact");
     expect(mapKindOf("product", null)).toBe("product");
-    expect(mapKindOf("person", null)).toBe("person");
     expect(mapKindOf("document", null)).toBe("document");
     // The thinking around products is a page; the products are their own dots.
     expect(mapKindOf("page", "products")).toBe("page");
     expect(mapKindOf("page", "decisions")).toBe("decision");
-    expect(mapKindOf("page", "journal")).toBe("own");
-    expect(mapKindOf("page", "studies")).toBe("own");
+    expect(mapKindOf("page", "remembered")).toBe("page");
     expect(mapKindOf("page", "plan")).toBe("page");
   });
 
@@ -96,27 +90,6 @@ describe("filters", () => {
     const pages = withKinds(graph, new Set(["page"]));
     expect(keys(pages)).toEqual(["page:a", "page:b", "page:e"]);
     expect(pages.links).toEqual([graph.links[0]]);
-  });
-
-  it("leaves the journal's days off, and their lines, but not the rest of your own", () => {
-    const day = { ...node("page:day", "2026-09-23", "own"), label: "Wednesday 23 September 2026", section: "journal" as const };
-    const hobby = { ...node("page:pottery", "2026-09-01", "own"), section: "hobbies" as const };
-    const withDays: MapGraph = {
-      nodes: [...graph.nodes, day, hobby],
-      links: [...graph.links, { source: "page:day", target: "page:pottery", createdAt: "2026-09-23" }],
-    };
-    expect(isJournalDay(day)).toBe(true);
-    expect(isJournalDay(hobby)).toBe(false);
-    const without = withoutJournalDays(withDays);
-    expect(keys(without)).toEqual([...keys(graph), "page:pottery"]);
-    expect(without.links).toEqual(graph.links);
-  });
-
-  it("keeps the journal off unless a stored look asks for it", () => {
-    expect(MAP_LOOK.journal).toBe(false);
-    expect(lookFrom({}).journal).toBe(false);
-    expect(lookFrom({ journal: "yes" }).journal).toBe(false);
-    expect(lookFrom({ journal: true }).journal).toBe(true);
   });
 
   it("matches a search anywhere in the name, ignoring case", () => {

@@ -358,7 +358,7 @@ describe("the Markdown export", () => {
       const masked = exportBrain(db, companyId, "Unifloe", parent, { secrets: false }, NOW);
       expect(masked.files).toBe(5);
       expect(readdirSync(join(masked.folder, "02 Plan")).sort()).toEqual(["Goal (2).md", "Goal.md"]);
-      expect(readdirSync(join(masked.folder, "Archived", "15 Ideas"))).toEqual(["Idea.md"]);
+      expect(readdirSync(join(masked.folder, "Archived", "14 Ideas"))).toEqual(["Idea.md"]);
 
       const page = readFileSync(join(masked.folder, "01 Company", "Company profile.md"), "utf8");
       expect(page).toContain("- **Legal name:** Unifloe LLP");

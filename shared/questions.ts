@@ -86,7 +86,35 @@ function spanOf(words: string, today: string): { from: string; to: string; label
 
 const DAY_WORDS = String.raw`today|tonight|tomorrow|tmrw|tmr|day\s+after\s+tomorrow|this\s+weekend|the\s+weekend|next\s+week|this\s+week|(?:this\s+|next\s+)?(?:mon|tues|wednes|thurs|fri|satur|sun)day|(?:the\s+)?\d{1,2}(?:st|nd|rd|th)`;
 
+/** How long a slot was asked for: an hour unless it said otherwise. */
+function slotMinutes(said: string | undefined): number {
+  const words = (said ?? "").toLowerCase();
+  if (/half|30/.test(words)) return 30;
+  if (/two|2\s*h/.test(words)) return 120;
+  return 60;
+}
+
 const RULES: { says: RegExp; ask: (m: RegExpExecArray, clock: Clock) => Question | null }[] = [
+  // Part twelve, phase 50: asked about a contact, the money, and the hours left.
+  {
+    says: /^(?:when\s+(?:did|have)\s+i\s+(?:last\s+)?(?:talk(?:ed)?|speak|spoken|spoke|meet|met|call(?:ed)?|e-?mail(?:ed)?|messag(?:e|ed)|text(?:ed)?|hear(?:d)?)\s+(?:to\s+|with\s+|from\s+)?(.+?)(?:\s+last)?|when\s+was\s+i\s+last\s+in\s+touch\s+with\s+(.+)|(?:the\s+)?last\s+time\s+i\s+(?:spoke|talked|met|called|heard\s+from)\s+(?:to\s+|with\s+)?(.+))$/i,
+    ask: (m) => ({ ask: "last", name: (m[1] ?? m[2] ?? m[3] ?? "").trim() }),
+  },
+  {
+    says: /^(?:how\s+much\s+(?:does|do)\s+(.+?)\s+owe(?:\s+(?:me|us))?|what\s+(?:does|do)\s+(.+?)\s+owe(?:\s+(?:me|us))?|who\s+owes\s+(?:me|us)(?:\s+money)?|what(?:'?s|\s+is)\s+(?:outstanding|owed|unpaid|still\s+owed)|(?:money\s+)?owed\s+to\s+(?:me|us))$/i,
+    ask: (m) => ({ ask: "owed", name: (m[1] ?? m[2] ?? "").trim() || null }),
+  },
+  {
+    says: /^(?:(?:my\s+|the\s+)?next\s+free\s+(slot|hour|half\s+(?:an\s+)?hour|30\s*min(?:ute)?s?|two\s+hours|2\s*h(?:ours?)?)|when\s+am\s+i\s+(?:next\s+)?(free)|find\s+(?:me\s+)?(?:an?\s+)?(hour|half\s+(?:an\s+)?hour|slot|time|30\s*min(?:ute)?s?|two\s+hours|2\s*h(?:ours?)?))(?:\s+(?:on\s+)?(.+))?$/i,
+    ask: (m, clock) => {
+      const day = m[4] ? dayOf(m[4], clock) : { day: clock.today, label: "Today" };
+      return day ? { ask: "slot", day: day.day, label: day.label, minutes: slotMinutes(m[1] ?? m[3]) } : null;
+    },
+  },
+  {
+    says: /^(?:what\s+did\s+i\s+(?:promise|say\s+i(?:'?d|\s+would)\s+do\s+for)|what\s+do\s+i\s+owe|what(?:'?s|\s+is)\s+(?:pending|open|left)\s+(?:with|for))\s+(.+)$/i,
+    ask: (m) => ({ ask: "promised", name: (m[1] ?? "").trim() }),
+  },
   {
     // "what's on tomorrow", "what do i have friday", "anything on the weekend", "how does tomorrow look"
     says: new RegExp(
@@ -157,6 +185,16 @@ const RULES: { says: RegExp; ask: (m: RegExpExecArray, clock: Clock) => Question
       if (!thing && /park/i.test(m[1] ?? "")) return { ask: "recall", about: "parked", label: "where you parked" };
       return thing ? { ask: "recall", about: thing, label: thing } : null;
     },
+  },
+  {
+    // "what is our policy on refunds", "what's the rule about discounts", "what are our terms for late payment"
+    says: /^what(?:'?s|\s+is|\s+are)\s+(?:our|my|the)\s+(?:policy|policies|rules?|terms?|stance|position)\s+(?:on|about|for|with|around)\s+(.+)$/i,
+    ask: (m) => ({ ask: "recall", about: (m[1] ?? "").trim(), label: `the rule on ${(m[1] ?? "").trim()}` }),
+  },
+  {
+    // "how do we handle late payers", "how do we bill retainers"
+    says: /^how\s+do\s+(?:we|i)\s+(?:usually\s+|normally\s+)?(?:handle|deal\s+with|do|treat|bill|invoice|charge\s+for|price|quote)\s+(.+)$/i,
+    ask: (m) => ({ ask: "recall", about: (m[1] ?? "").trim(), label: `how you handle ${(m[1] ?? "").trim()}` }),
   },
   {
     // "what's my blood group", "what is my shoe size" - not "what's my day like", read above.

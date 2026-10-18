@@ -48,7 +48,7 @@ export function ShortcutHelp({ onClose, onTour }: { onClose: () => void; onTour?
       }}
     >
       <div
-        className="card shortcuts anim-modal"
+        className="card card--float shortcuts anim-modal"
         role="dialog"
         aria-modal="true"
         aria-labelledby="shortcuts-title"
@@ -69,8 +69,7 @@ export function ShortcutHelp({ onClose, onTour }: { onClose: () => void; onTour?
         </div>
 
         <p className="card__hint">
-          Single letters, so they stay out of the way while you are typing. The
-          quick window works from any app.
+          The quick window works from any app.
         </p>
         {onTour && (
           <button type="button" className="btn btn--sm shortcuts__tour" onClick={onTour}>

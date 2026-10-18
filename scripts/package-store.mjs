@@ -1,6 +1,7 @@
 // Builds the Microsoft Store package: npm run package:store.
 //
-// electron-builder packs an .appx with makeappx and makepri. The copies in its
+// electron-builder packs it with makeappx and makepri - an .msix, from the
+// name electron-builder.yml gives it. The copies in its
 // own download (winCodeSign 2.6.0) no longer start on current Windows 11 -
 // "side-by-side configuration is incorrect" - so this points it at the newest
 // Windows SDK installed here instead, through ELECTRON_BUILDER_WINDOWS_KITS_PATH.

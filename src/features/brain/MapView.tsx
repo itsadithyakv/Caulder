@@ -9,7 +9,6 @@ import {
   lookFrom,
   replaySteps,
   withKinds,
-  withoutJournalDays,
   withoutOrphans,
   type MapGraph,
   type MapKind,
@@ -110,9 +109,7 @@ export function MapView({
   useEffect(() => store(LOOK_KEY, look), [look]);
   useEffect(() => store(KINDS_KEY, [...kinds]), [kinds]);
 
-  // The journal's days first, so the kinds count only what could be drawn,
-  // and the list follows the same switch as the map.
-  const drawable = useMemo(() => (graph && !look.journal ? withoutJournalDays(graph) : graph), [graph, look.journal]);
+  const drawable = graph;
   const filtered = useMemo(() => {
     if (!drawable) return null;
     const some = withKinds(drawable, kinds);
@@ -447,12 +444,10 @@ export function MapView({
 
         <ErrorLine>{error}</ErrorLine>
         <p className="card__hint">
-          <strong>To link two things</strong>, hover one and drag its <strong>+</strong> onto the other - or hold Alt
-          and drag the dot itself. The link is written at the foot of the page. Click a line to take it out.
+          <strong>Link:</strong> drag a dot&rsquo;s <strong>+</strong> onto another. Click a line to remove it.
         </p>
         <p className="card__hint">
-          Click a dot to open it; drag it and the rest follows, then settles - hold Shift as you let go to pin it there,
-          and double-click a pinned dot to let it go. Scroll to zoom.
+          Click to open &middot; drag to move &middot; Shift to pin &middot; scroll to zoom.
         </p>
       </section>
     </div>
@@ -504,7 +499,6 @@ function DisplayPanel({
       <p className="mapdisplay__group">Show</p>
       {toggle(look.orphans, "Dots with no lines", (on) => onLook({ ...look, orphans: on }))}
       {toggle(allContacts, "Every contact", onAllContacts)}
-      {toggle(look.journal, "Journal days", (on) => onLook({ ...look, journal: on }))}
       {toggle(look.arrows, "Arrows, the way links were written", (on) => onLook({ ...look, arrows: on }))}
       <p className="mapdisplay__group">Looks</p>
       {slider("labelsAt", "Labels show from", 0.3, 3, 0.05)}

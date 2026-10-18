@@ -31,7 +31,6 @@ export const BRAIN_SECTIONS = [
   "products",
   "money",
   "tax",
-  "people",
   "customers",
   "playbooks",
   "legal",
@@ -41,11 +40,7 @@ export const BRAIN_SECTIONS = [
   "metrics",
   "documents",
   "ideas",
-  "studies",
-  "hobbies",
-  "goals",
   "remembered",
-  "journal",
 ] as const;
 
 export type BrainSectionId = (typeof BRAIN_SECTIONS)[number];
@@ -90,9 +85,23 @@ export type BrainTemplate = {
   presets?: readonly { id: string; label: string; hint: string }[];
 };
 
+/**
+ * The four things a brain is for, which is how its sections are listed
+ * (PLAN.md, part eleven): what the company is, how it works, where it is
+ * going, and what it has learned.
+ */
+export const BRAIN_GROUPS = [
+  { id: "is", label: "What we are" },
+  { id: "works", label: "How we work" },
+  { id: "going", label: "Where we are going" },
+  { id: "learned", label: "What we have learned" },
+] as const;
+type BrainGroupId = (typeof BRAIN_GROUPS)[number]["id"];
+
 type BrainSection = {
   id: BrainSectionId;
   label: string;
+  group: BrainGroupId;
   /** The prompt at the top of the section, written to be read once. */
   prompt: string;
   templates: readonly string[];
@@ -136,25 +145,6 @@ export const GST_STATUSES = kept(
 );
 
 const LEVELS = options("Low", "Medium", "High");
-
-/** How a day felt, worst to best: a word, never a colour alone. */
-export const MOODS = options("Rough", "Low", "Okay", "Good", "Great");
-export type Mood = "rough" | "low" | "okay" | "good" | "great";
-
-export function isMood(value: unknown): value is Mood {
-  return typeof value === "string" && MOODS.some((mood) => mood.value === value);
-}
-
-/** The four areas a life goal can be in, the same four a task has. */
-const AREAS = [
-  { value: "college", label: "College" },
-  { value: "company", label: "Company" },
-  { value: "personal", label: "Personal" },
-  { value: "health", label: "Health" },
-];
-
-/** The journal's own template: one a day. */
-export const ENTRY_TEMPLATE = "entry";
 
 /* ---- Templates ------------------------------------------------------------ */
 
@@ -394,7 +384,6 @@ export const BRAIN_TEMPLATES: readonly BrainTemplate[] = [
     ],
     body: "## What they handle\n\n",
   },
-  // People
   // Customers and market
   {
     id: "persona",
@@ -423,7 +412,16 @@ export const BRAIN_TEMPLATES: readonly BrainTemplate[] = [
     fields: [{ key: "customer", label: "Customer", kind: "text" }],
     body: "## Before\n\n\n## What we did\n\n\n## After\n\n\n## In their words\n\n",
   },
-  // Playbooks
+  // How we work: the rules, a page a subject (shared/rules.ts), and then the steps.
+  {
+    id: "rules",
+    section: "playbooks",
+    name: "Rules",
+    adds: "Add a page of rules",
+    title: "Rules",
+    fields: [],
+    body: PAGE_BODY,
+  },
   {
     id: "playbook",
     section: "playbooks",
@@ -501,8 +499,8 @@ export const BRAIN_TEMPLATES: readonly BrainTemplate[] = [
   {
     id: "policy",
     section: "legal",
-    name: "Policy",
-    adds: "Add a policy",
+    name: "Published policy",
+    adds: "Add a published policy",
     title: "Privacy policy",
     fields: [
       { key: "url", label: "Published at", kind: "url" },
@@ -608,100 +606,6 @@ export const BRAIN_TEMPLATES: readonly BrainTemplate[] = [
     ],
     body: "## What we think\n\n\n## How we will test it\n\n\n## What happened\n\n",
   },
-  // Studies
-  {
-    id: "course",
-    section: "studies",
-    name: "Course",
-    adds: "Add a course",
-    title: "Course",
-    fields: [
-      { key: "code", label: "Code", kind: "text", hint: "As the timetable writes it: CS2101." },
-      { key: "term", label: "Term", kind: "text", hint: "Semester 3, or Autumn 2026." },
-      { key: "teacher", label: "Taught by", kind: "text" },
-      { key: "credits", label: "Credits", kind: "number" },
-      { key: "status", label: "Status", kind: "choice", options: options("Taking", "Planned", "Done", "Dropped") },
-      { key: "grade", label: "Grade", kind: "text", hint: "As the university writes it: A, 8.5, First." },
-      {
-        key: "gradePoints",
-        label: "Grade points",
-        kind: "number",
-        hint: "The grade as a number on your university's scale - 10, 4 or 100 - so the average works itself out.",
-      },
-    ],
-    body: "## What it covers\n\n\n## Assignments\n\n- [ ] \n\n## How it is marked\n\n",
-  },
-  {
-    id: "exam",
-    section: "studies",
-    name: "Exam",
-    adds: "Add an exam",
-    title: "Exam",
-    fields: [
-      { key: "examOn", label: "On", kind: "date", hint: "It comes up on Today and the Calendar a month before." },
-      { key: "at", label: "At", kind: "text", hint: "The time, and the room." },
-      { key: "countsFor", label: "Counts for", kind: "text", hint: "40% of the grade." },
-      { key: "result", label: "Result", kind: "text" },
-    ],
-    body: "## What it covers\n\n\n## To revise\n\n- [ ] \n",
-  },
-  {
-    id: "class-notes",
-    section: "studies",
-    name: "Class notes",
-    adds: "Write class notes",
-    title: "Class notes",
-    fields: [{ key: "heldOn", label: "On", kind: "date" }],
-    body: "## Key ideas\n\n\n## Questions\n\n\n## To revise\n\n- [ ] \n",
-  },
-  // Hobbies
-  {
-    id: "hobby",
-    section: "hobbies",
-    name: "Hobby",
-    adds: "Add a hobby",
-    title: "Hobby",
-    fields: [
-      { key: "status", label: "Status", kind: "choice", options: options("Doing it", "Paused", "Someday") },
-      {
-        key: "hoursWanted",
-        label: "Hours a week",
-        kind: "number",
-        hint: "What you want to give it. Make time for it and the page says what it actually got.",
-      },
-      { key: "goal", label: "Working towards", kind: "text", hint: "Grade 5 piano, a 10 km run, a finished sketchbook." },
-    ],
-    body: "## Why I do it\n\n\n## What I am working on\n\n- [ ] \n\n## What I have learned\n\n",
-  },
-  // Goals
-  {
-    id: "life-goal",
-    section: "goals",
-    name: "Goal",
-    adds: "Add a goal",
-    title: "Goal",
-    fields: [
-      { key: "area", label: "Area", kind: "choice", options: AREAS },
-      { key: "byOn", label: "By", kind: "date" },
-      { key: "target", label: "Target", kind: "number", hint: "A number to reach, if it has one: 12 books, 5 km, a 9.0 average." },
-      { key: "progress", label: "So far", kind: "number" },
-      { key: "unit", label: "Of what", kind: "text", hint: "books, km, points." },
-      { key: "done", label: "Done", kind: "check" },
-    ],
-    body: "## Why it matters\n\n\n## How I will get there\n\n- [ ] \n",
-  },
-  // Journal
-  {
-    id: ENTRY_TEMPLATE,
-    section: "journal",
-    name: "Journal entry",
-    adds: "Write today's entry",
-    title: "Today",
-    // The day an entry is for is kept beside the fields rather than among
-    // them: it is set when the entry is made, and never edited.
-    fields: [{ key: "mood", label: "How it felt", kind: "choice", options: MOODS }],
-    body: "## Today\n\n\n## Grateful for\n\n\n## Tomorrow\n\n",
-  },
   // Any section
   {
     id: "page",
@@ -717,6 +621,7 @@ export const BRAIN_TEMPLATES: readonly BrainTemplate[] = [
 export const BRAIN_SECTION_LIST: readonly BrainSection[] = [
   {
     id: "company",
+    group: "is",
     label: "Company",
     prompt:
       "What the company is on paper: names, numbers, addresses, and the account invoices are paid into. The profile's legal name, address and tax number print on every invoice.",
@@ -724,41 +629,41 @@ export const BRAIN_SECTION_LIST: readonly BrainSection[] = [
   },
   {
     id: "plan",
+    group: "going",
     label: "Plan",
     prompt:
-      "Where the company is going and why: the one-page plan, this quarter's goals, the milestones on the way, and the risks you are watching.",
-    templates: ["lean-plan", "goal", "milestone", "risk", "competitor"],
+      "Where the company is going and why: the one-page plan, this quarter's goals, and the risks you are watching.",
+    // A milestone is a goal with a date, and a competitor is a page like any other: neither is offered as a kind.
+    templates: ["lean-plan", "goal", "risk"],
   },
   {
     id: "products",
+    group: "going",
     label: "Products and pricing",
     prompt:
-      "What you sell is on Money, under Products, with its prices and what it has actually brought in. This is the thinking around it: how you price, who it is for, what you will not build.",
+      "What you sell is on Money, under Products, with its prices and what it has actually brought in. This is the thinking around it: who it is for, what you will not build. The rules you price by are in How we work.",
     templates: [],
   },
   {
     id: "money",
+    group: "going",
     label: "Money plan",
     prompt:
-      "The budget, what the company pays for every month, fundraising and who owns what. Cash in and out is already on the Money screen; this is the plan around it.",
-    templates: ["budget", RUNNING_COST_TEMPLATE, "fundraise", "cap-table"],
+      "The budget, and what the company pays for every month. Cash in and out is already on the Money screen; this is the plan around it.",
+    // Fundraising and a cap table are for a company with investors: not offered, and a plain page does for the one that has them.
+    templates: ["budget", RUNNING_COST_TEMPLATE],
   },
   {
     id: "tax",
+    group: "is",
     label: "Tax and compliance",
     prompt:
       "What the company has to file and pay, and when - set up from the presets for your kind of company - with the registrations and the accountant. Every date is a starting point: check them with your accountant, because the rules change.",
     templates: ["registration", "accountant"],
   },
   {
-    id: "people",
-    label: "People",
-    prompt:
-      "Who works here and on what terms - the founders with what each owns and their equity, the team, interns and freelancers - and who you are hiring. Somebody new gets an onboarding checklist that becomes tasks.",
-    templates: [],
-  },
-  {
     id: "customers",
+    group: "learned",
     label: "Customers and market",
     prompt:
       "What you have learned from the people you sell to: who they are, what they object to and what answered it, and the stories worth retelling.",
@@ -766,20 +671,23 @@ export const BRAIN_SECTION_LIST: readonly BrainSection[] = [
   },
   {
     id: "playbooks",
-    label: "Playbooks",
+    group: "works",
+    label: "How we work",
     prompt:
-      "How things are done here, written once: onboarding a client, sending an invoice, running a demo. Steps written as - [ ] can be ticked while you work, or run as tasks - (day 3) for when.",
-    templates: ["playbook", CALL_SCRIPT_TEMPLATE],
+      "The rules the company keeps, a page a subject - billing, pricing, hours, clients, suppliers - and how things are done, step by step. Tell the line a rule (we invoice on the 1st, never discount a retainer) and it lands on its page here. In a playbook, steps written as - [ ] can be ticked while you work, or run as tasks - (day 3) for when.",
+    templates: ["rules", "playbook", CALL_SCRIPT_TEMPLATE],
   },
   {
     id: "legal",
+    group: "is",
     label: "Legal and contracts",
     prompt:
-      "Contracts, NDAs, trademarks and the policies on your website - with the dates that matter.",
+      "Contracts, NDAs, trademarks and the policies published on your website - with the dates that matter. The rules the company itself keeps are in How we work.",
     templates: ["contract", "trademark", "policy"],
   },
   {
     id: "tools",
+    group: "is",
     label: "Tools and accounts",
     prompt:
       "What you pay for, when it renews, and where each login lives. Never a password: say which password manager has it.",
@@ -787,6 +695,7 @@ export const BRAIN_SECTION_LIST: readonly BrainSection[] = [
   },
   {
     id: "decisions",
+    group: "going",
     label: "Decisions",
     prompt:
       "Why things went the way they did, as a log. A decision written down on the day is one nobody has to re-argue in six months.",
@@ -794,6 +703,7 @@ export const BRAIN_SECTION_LIST: readonly BrainSection[] = [
   },
   {
     id: "meetings",
+    group: "learned",
     label: "Meetings",
     prompt:
       "Founder check-ins and advisor calls: the agenda, what was said, and who does what next. Action items written as - [ ] become tasks - @Asha for who, (by 2026-10-02) for when.",
@@ -801,6 +711,7 @@ export const BRAIN_SECTION_LIST: readonly BrainSection[] = [
   },
   {
     id: "metrics",
+    group: "going",
     label: "Metrics",
     prompt:
       "The handful of numbers that say how the company is doing, with a year of history each. Most are worked out from what Caulder already holds; the rest you write down as you count them.",
@@ -808,6 +719,7 @@ export const BRAIN_SECTION_LIST: readonly BrainSection[] = [
   },
   {
     id: "documents",
+    group: "is",
     label: "Documents",
     prompt:
       "Every paper the company has to be able to find: kept here as a file, or written down with where it is. One that expires says so on Today before it does.",
@@ -815,45 +727,19 @@ export const BRAIN_SECTION_LIST: readonly BrainSection[] = [
   },
   {
     id: "ideas",
+    group: "going",
     label: "Ideas",
     prompt:
-      "The parking lot. Notes caught with the quick key can be filed here from Today, and an idea worth testing becomes an experiment.",
-    templates: ["idea", "experiment"],
-  },
-  {
-    id: "studies",
-    label: "Studies",
-    prompt:
-      "Your courses, exams and class notes. An exam's day reaches Today and the Calendar; assignments written as - [ ] with (by 2026-10-02) become college tasks. Give a course its grade points and the average works itself out, on whatever scale your university uses.",
-    templates: ["course", "exam", "class-notes"],
-  },
-  {
-    id: "hobbies",
-    label: "Hobbies",
-    prompt:
-      "What you do because you want to. Say how many hours a week you want to give each, make time for it on the Calendar, and see what it actually got.",
-    templates: ["hobby"],
-  },
-  {
-    id: "goals",
-    label: "Goals",
-    prompt:
-      "What you want from the next year of your life, not only the company's: a grade, a distance, a skill, money saved. Each with a day, and a number to reach if it has one.",
-    templates: ["life-goal"],
+      "The parking lot. Tell the line an idea - what if we charged per page - and it lands here; notes caught with the quick key can be filed here from Today.",
+    templates: ["idea"],
   },
   {
     id: "remembered",
+    group: "learned",
     label: "Remembered",
     prompt:
-      "What you know about your own life, kept for you by the line on Today: facts about you, a page for each person you know, where things are and what you lent. Tell the line - my blood group is O+, mummy's birthday is 15 march, the spare key is under the plant pot - and it lands here, dated, the newest first.",
+      "What the line on Today was told to keep: a fact about the company, how a supplier works, what a client said they wanted. Tell the line - our GST number is …, the printer on fourth takes A3, remember that Harbour pay on the 5th - and it lands on a page here, dated, the newest first.",
     templates: [],
-  },
-  {
-    id: "journal",
-    label: "Journal",
-    prompt:
-      "A few lines a day, and how the day felt. Beside each entry Caulder puts what happened - tasks done, calls made, hours kept - so the entry is only what you made of it.",
-    templates: [ENTRY_TEMPLATE],
   },
 ];
 
@@ -865,42 +751,6 @@ export function sectionOf(id: BrainSectionId): BrainSection {
 
 export function isSection(value: unknown): value is BrainSectionId {
   return typeof value === "string" && (BRAIN_SECTIONS as readonly string[]).includes(value);
-}
-
-/**
- * The founder's own sections, as against the company's. They stay on this
- * machine: never sent to a co-founder, never in a data room, a handbook or
- * the dossier an assistant reads.
- */
-const PERSONAL_SECTIONS: readonly BrainSectionId[] = ["studies", "hobbies", "goals", "remembered", "journal"];
-
-/** The same, as a list SQL can test against. The ids are this file's own constants, never input. */
-export const PERSONAL_SQL = PERSONAL_SECTIONS.map((section) => `'${section}'`).join(", ");
-
-export function isPersonalSection(section: BrainSectionId): boolean {
-  return PERSONAL_SECTIONS.includes(section);
-}
-
-/**
- * Whether a page may be sent to an AI: found for a question on Today's Ask
- * line, or written into the dossier (which Ask sends and *Export for an AI*
- * writes out).
- *
- * `inHome` is true when the page lives in your home workspace rather than a
- * company's. Pages move there because they are yours - an `ideas` page full
- * of your memories, say - whatever their section is called.
- * `personalAllowed` is the "your own pages" switch on the AI card; the
- * dossier always passes false, because your side travels separately, in the
- * You document (`services/yours.ts`), which has its own rules for the journal.
- */
-export function mayGoToAi(section: BrainSectionId, where: { inHome: boolean; personalAllowed: boolean }): boolean {
-  // The journal has roads of its own (the You document, Looking back), each
-  // checking for a sealed day itself; a page found by search never is one.
-  if (section === "journal") return false;
-  // Anything in your home is yours, whatever its section is called - a plan
-  // written before there was a company is still your own writing.
-  if (isPersonalSection(section) || where.inHome) return where.personalAllowed;
-  return true;
 }
 
 /** A template by id, or the blank page for anything unknown. */
@@ -1196,14 +1046,14 @@ export function maskSecret(last4: string): string {
 
 /* ---- Write these down first ------------------------------------------------- */
 
-/** Twelve things in a row read as a form. Four steps of three read as a start. */
-export const CHECKLIST_STEPS = ["basics", "people", "money", "plan"] as const;
+/** Ten things in a row read as a form. Four short steps read as a start. */
+export const CHECKLIST_STEPS = ["basics", "selling", "money", "plan"] as const;
 export type ChecklistStep = (typeof CHECKLIST_STEPS)[number];
 
 export const CHECKLIST_STEP_LABEL: Record<ChecklistStep, string> = {
   basics: "The basics",
-  people: "Who, and what you sell",
-  money: "Money in, money out",
+  selling: "What you sell, and how you are paid",
+  money: "Who helps, and what it costs",
   plan: "Where it is going",
 };
 
@@ -1222,7 +1072,7 @@ const has = (page: ChecklistPage | undefined, key: string): boolean => {
 };
 
 /**
- * The twelve things worth writing down first, and whether each is.
+ * The ten things worth writing down first, and whether each is.
  *
  * Each is answered from the pages alone, so ticking one means writing the
  * thing down rather than pressing a box.
@@ -1230,12 +1080,11 @@ const has = (page: ChecklistPage | undefined, key: string): boolean => {
 export function evaluateChecklist(
   pages: readonly ChecklistPage[],
   day: string,
-  /** What only the tables know: products live on Money, and people in their own table. */
-  elsewhere: { pricedProducts: number; founders: { count: number; withOwns: number; withEquity: number } },
+  /** What only the tables know: products live on Money. */
+  elsewhere: { pricedProducts: number },
 ): ChecklistItem[] {
   const all = (template: string) => pages.filter((page) => page.template === template);
   const profile = all("profile")[0];
-  const { founders } = elsewhere;
   const goals = all("goal").filter((page) => page.fields["quarter"] === quarterOf(day));
 
   const item = (
@@ -1279,30 +1128,8 @@ export function evaluateChecklist(
       "profile",
     ),
     item(
-      "founders",
-      "people",
-      "Who the founders are, and what each looks after",
-      "Written down now, so who decides what is settled before it matters.",
-      founders.count > 0 && founders.withOwns === founders.count,
-      "people",
-      "page",
-      founders.count > 0 ? `${founders.count} written` : null,
-      "section",
-    ),
-    item(
-      "equity",
-      "people",
-      "Who owns how much",
-      "A percentage beside each founder. It is the one number nobody should have to remember differently.",
-      founders.count > 0 && founders.withEquity === founders.count,
-      "people",
-      "page",
-      null,
-      "section",
-    ),
-    item(
       "product",
-      "people",
+      "selling",
       "What you sell, and what it costs",
       "One product with a price is enough. Invoices and deals pick from this list.",
       elsewhere.pricedProducts > 0,
@@ -1313,7 +1140,7 @@ export function evaluateChecklist(
     ),
     item(
       "gst",
-      "money",
+      "selling",
       "Whether you charge GST, VAT or sales tax",
       "Registered or not. It decides which tax filings you are reminded about.",
       has(profile, "gstStatus"),
@@ -1322,7 +1149,7 @@ export function evaluateChecklist(
     ),
     item(
       "bank",
-      "money",
+      "selling",
       "The bank account customers pay into",
       "Printed at the foot of every invoice, so nobody has to ask where to send the money.",
       all("bank").some((page) => has(page, "onInvoices") && has(page, "number")),

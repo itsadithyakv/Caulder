@@ -1,12 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { lessonInput, voteArea, voteKind, wordsOf, type Lesson } from "./lessons";
+import { lessonInput, voteKind, wordsOf, type Lesson } from "./lessons";
 
 let counter = 0;
-const lesson = (sample: string, over: Partial<Pick<Lesson, "area" | "kind" | "times">>): Lesson => ({
+const lesson = (sample: string, over: Pick<Lesson, "kind"> & Partial<Pick<Lesson, "times">>): Lesson => ({
   id: `l${(counter += 1)}`,
   words: wordsOf(sample),
-  area: over.area ?? null,
-  kind: over.kind ?? null,
+  kind: over.kind,
   times: over.times ?? 1,
   sample,
 });
@@ -20,40 +19,6 @@ describe("the words of a line", () => {
   });
 });
 
-describe("learning which part of life a line is", () => {
-  it("reads a later line the way the earlier one was corrected", () => {
-    const lessons = [lesson("I have to return my friends jacket", { area: "personal" })];
-    expect(voteArea("give rahul his jacket back", lessons)).toBe("personal");
-    expect(voteArea("send the client the deck", lessons)).toBeNull();
-  });
-
-  it("gives no answer for a word corrected two ways, and takes the other words instead", () => {
-    const lessons = [lesson("write the client report", { area: "company" }), lesson("write the lab report", { area: "college" })];
-    expect(voteArea("finish the report", lessons)).toBeNull();
-    expect(voteArea("lab report due", lessons)).toBe("college");
-    expect(voteArea("report for the client", lessons)).toBe("company");
-  });
-
-  it("weighs a lesson given twice over one given once", () => {
-    const lessons = [lesson("gym with rahul", { area: "personal", times: 3 }), lesson("gym with the team", { area: "company" })];
-    // "gym" is taught two ways and counts for neither; "rahul" and "team" decide.
-    expect(voteArea("gym rahul", lessons)).toBe("personal");
-    expect(voteArea("gym team", lessons)).toBe("company");
-    expect(voteArea("gym", lessons)).toBeNull();
-  });
-
-  it("leaves a word you taught outright to Your words", () => {
-    const lessons = [lesson("unifloe invoice is late", { area: "personal" })];
-    expect(voteArea("unifloe invoice", lessons, ["unifloe", "invoice"])).toBeNull();
-    expect(voteArea("unifloe is late", lessons, ["unifloe"])).toBe("personal");
-  });
-
-  it("needs a tie broken, or says nothing", () => {
-    const lessons = [lesson("jacket", { area: "personal" }), lesson("jacket", { area: "company" })];
-    expect(voteArea("the jacket", lessons)).toBeNull();
-  });
-});
-
 describe("learning where a line goes", () => {
   it("moves a later line the way the earlier one was moved, and only between the soft kinds", () => {
     const lessons = [lesson("my friends jacket is in my room", { kind: "task" }), lesson("thoughts on the pricing page", { kind: "idea" })];
@@ -62,9 +27,23 @@ describe("learning where a line goes", () => {
     expect(voteKind("went to the gym", lessons)).toBeNull();
   });
 
+  it("lets a word taught two ways count for neither", () => {
+    const lessons = [lesson("report for the bakery", { kind: "task" }), lesson("report on what the meetup said", { kind: "note" })];
+    // "Report" was moved both ways, so it says nothing; "bakery" was moved one way.
+    expect(voteKind("the report", lessons)).toBeNull();
+    expect(voteKind("bakery report", lessons)).toBe("task");
+  });
+
+  it("weighs a lesson given more than once above one given once, and calls a tie nothing", () => {
+    const often = [lesson("loyalty card", { kind: "idea", times: 3 }), lesson("stamp sheet", { kind: "note" })];
+    expect(voteKind("a loyalty card or a stamp sheet", often)).toBe("idea");
+    const even = [lesson("loyalty card", { kind: "idea" }), lesson("stamp sheet", { kind: "note" })];
+    expect(voteKind("a loyalty card or a stamp sheet", even)).toBeNull();
+  });
+
   it("takes a lesson only with an answer in it", () => {
     expect(() => lessonInput.parse({ text: "something" })).toThrow(/Nothing was chosen/);
-    expect(lessonInput.parse({ text: "something", area: "personal" })).toEqual({ text: "something", area: "personal", kind: null });
+    expect(lessonInput.parse({ text: "something", kind: "task" })).toEqual({ text: "something", kind: "task" });
     expect(() => lessonInput.parse({ text: "x", kind: "private" })).toThrow();
   });
 });

@@ -6,7 +6,7 @@
  *     [[Pricing|page:3f0c…]]      [[Oakridge School|contact:9a1e…]]
  *
  * and, since phase 16, to a product, a person or a document the same way:
- * `product:`, `person:`, `document:`.
+ * `product:`, `document:`.
  *
  * The id is what the link means, so renaming the page or the contact never
  * breaks it; the label is only what was written, kept so the text still reads
@@ -16,7 +16,7 @@
 
 import type { MapKind } from "./map";
 
-export const LINK_KINDS = ["page", "contact", "product", "person", "document"] as const;
+export const LINK_KINDS = ["page", "contact", "product", "document"] as const;
 export type LinkKind = (typeof LINK_KINDS)[number];
 
 export function isLinkKind(value: unknown): value is LinkKind {
@@ -37,7 +37,18 @@ const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 
 /** A fresh pattern each time: a shared /g regex keeps its position between calls. */
 function tokens(): RegExp {
-  return new RegExp(`\\[\\[([^\\]|\\n]{1,160})\\|(page|contact|product|person|document):(${UUID})\\]\\]`, "g");
+  return new RegExp(`\\[\\[([^\\]|\\n]{1,160})\\|(page|contact|product|document):(${UUID})\\]\\]`, "g");
+}
+
+/**
+ * A page's text with its links to people put back to their words.
+ *
+ * People and hiring went on 11 October 2026 (migration 52), and a link to
+ * somebody on the team would otherwise be left in a page as its brackets.
+ * Run once over the pages that have one (`services/brain.ts`).
+ */
+export function withoutPeopleLinks(text: string): string {
+  return text.replace(new RegExp(`\\[\\[([^\\]|\\n]{1,160})\\|person:${UUID}\\]\\]`, "g"), (_whole, label: string) => label.trim());
 }
 
 export function parseLinks(text: string): ParsedLink[] {

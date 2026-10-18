@@ -11,8 +11,8 @@ const HOURS = Array.from({ length: 36 }, (_, index) => {
 });
 
 /**
- * The notifications Caulder sends on its own: a journal nudge and a morning
- * brief, each off until switched on, at the hour picked - and a test, so
+ * The notification Caulder sends on its own: a morning brief, off until
+ * switched on, at the hour picked - and a test, so
  * whether Windows is letting them through is found out here rather than by a
  * reminder that never arrived.
  */
@@ -21,7 +21,7 @@ export function NudgeRows() {
   const [tested, setTested] = useState<"sent" | "unsupported" | null>(null);
 
   useEffect(() => {
-    void window.caulder.nudges.get().then(setSettings, () => setSettings({ journalAt: null, briefAt: null }));
+    void window.caulder.nudges.get().then(setSettings, () => setSettings({ briefAt: null }));
   }, []);
 
   if (!settings) return null;
@@ -63,7 +63,6 @@ export function NudgeRows() {
 
   return (
     <>
-      {row("journalAt", "Remind me to write in the journal", "Only on a day with nothing written yet, so a day already written is never nagged about.", "21:00")}
       {row("briefAt", "A morning brief of what matters today", "The must-dos by name, then how many more and how many are late. Nothing on a day with nothing.", "09:00")}
       <p className="card__hint">
         Anything you tell the line to <strong>remind me</strong> about - &ldquo;remind me in 20 mins to check the oven&rdquo;,
@@ -81,8 +80,7 @@ export function NudgeRows() {
         </button>
         {tested === "sent" && (
           <span className="card__hint" role="status">
-            Sent. If nothing appeared, Windows is holding it back: check Focus assist, and that Caulder is allowed under Settings, System,
-            Notifications.
+            Sent. If nothing appeared, check Windows&rsquo; notification settings.
           </span>
         )}
         {tested === "unsupported" && (

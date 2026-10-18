@@ -1,6 +1,5 @@
 import type { Db } from "../db/connection";
-import { ENTRY_TEMPLATE, sectionOf, templateOf, type BrainSectionId } from "@shared/brain";
-import { sayTrail } from "@shared/branches";
+import { sectionOf, templateOf, type BrainSectionId } from "@shared/brain";
 import { today as todayIn } from "@shared/dates";
 import { linkLabelsOnly } from "@shared/links";
 import { trailsOf, underOf } from "@shared/memories";
@@ -9,7 +8,6 @@ import { briefMarkdown, coveredBy, PIECE_BUDGET, topicName, topicWords, type Top
 import { pagesOf } from "../repositories/brain";
 import { searchEverything } from "../repositories/search";
 import { describeValue } from "./brain";
-import { isSealed } from "./journal-lock";
 
 /**
  * Everything Caulder holds about one topic, as one block of Markdown to paste
@@ -23,18 +21,8 @@ import { isSealed } from "./journal-lock";
  * every page it found drags in everything hanging beneath it, which is what
  * `underOf` reads off the "Part of" line each page carries.
  *
- * **Why the journal is pulled out of the page hits.** A journal day is a
- * brain page like any other, so the index returns it as one. It must not be
- * written out as one: a locked day has to be checked for, and a day reads as
- * a day rather than as a page. Routing it by template rather than by section
- * is deliberate - the section is where a page is filed and can be changed;
- * the template is what the page is.
- *
- * **What never comes near this file.** `journal_private` is not queried,
- * imported or joined to, the way `yours.ts` does not query it: the lines in
- * it are plain text until a passcode exists, so a guard phrased as "skip the
- * private ones" would be a guard that has already read them. Secrets are
- * masked by `describeValue`, and the search index does not hold them at all.
+ * **What never goes.** Secrets are masked by `describeValue`, and the search
+ * index does not hold them at all.
  */
 
 /** Hits to start from. More than the palette shows, because this is not a list to read. */
@@ -56,8 +44,8 @@ type Page = ReturnType<typeof pagesOf>[number];
 
 /**
  * A LIKE clause per word, all of which must match. The index does its own
- * matching; this is for the three tables it does not cover - the calendar,
- * what the line logged, and tasks - and there every word typed has to appear
+ * matching; this is for the two tables it does not cover - the calendar and
+ * tasks - and there every word typed has to appear
  * or "guitar" pulls in every hour ever set aside for anything.
  */
 function allWords(columns: readonly string[], words: readonly string[]): { sql: string; args: string[] } {
@@ -82,7 +70,7 @@ function fieldLines(page: Page): string[] {
 /** What a page is and where it sits: "Hobby · Me › Hobbies". */
 function placeOf(page: Page, trail: readonly string[]): string {
   const what = templateOf(page.template).name;
-  const where = sayTrail(trail.map((title) => ({ title })));
+  const where = trail.join(" › ");
   return where.length > 0 ? `${what} · ${where}` : `${what} · ${sectionOf(page.section as BrainSectionId).label}`;
 }
 
@@ -127,49 +115,21 @@ function hours(db: Db, companyId: string, words: readonly string[]): TopicPiece 
   };
 }
 
-function logged(db: Db, companyId: string, words: readonly string[]): TopicPiece | null {
-  const where = allWords(["topic", "metric"], words);
-  const rows = db
-    .prepare(
-      `SELECT day, topic, metric, value, unit, reps, best FROM hobby_logs
-        WHERE company_id = ? AND ${where.sql} ORDER BY day DESC LIMIT ?`,
-    )
-    .all(companyId, ...where.args, ROWS_MOST) as {
-    day: string;
-    topic: string;
-    metric: string;
-    value: number;
-    unit: string;
-    reps: number | null;
-    best: number;
-  }[];
-  if (rows.length === 0) return null;
-  return {
-    kind: "logged",
-    title: "What was logged about it",
-    note: "Numbers the owner told Caulder in a sentence, newest first. A best is the best so far at the time it was set.",
-    lines: rows.map(
-      (row) =>
-        `- ${row.day}: ${row.topic} ${row.metric} ${row.value}${row.unit}${row.reps ? ` x ${row.reps}` : ""}${row.best === 1 ? " (best)" : ""}`,
-    ),
-  };
-}
-
 function tasks(db: Db, companyId: string, words: readonly string[]): TopicPiece | null {
   const where = allWords(["title", "notes"], words);
   const rows = db
     .prepare(
-      `SELECT title, due_on, status, area FROM tasks
+      `SELECT title, due_on, status FROM tasks
         WHERE company_id = ? AND ${where.sql} ORDER BY status, due_on DESC LIMIT ?`,
     )
-    .all(companyId, ...where.args, ROWS_MOST) as { title: string; due_on: string; status: string; area: string | null }[];
+    .all(companyId, ...where.args, ROWS_MOST) as { title: string; due_on: string; status: string }[];
   if (rows.length === 0) return null;
   return {
     kind: "task",
     title: "Tasks about it",
     note: "Open ones first.",
     lines: rows.map(
-      (row) => `- [${row.status === "done" ? "x" : " "}] ${row.title}${row.area ? ` (${row.area})` : ""} - ${row.due_on}`,
+      (row) => `- [${row.status === "done" ? "x" : " "}] ${row.title} - ${row.due_on}`,
     ),
   };
 }
@@ -257,16 +217,6 @@ export function buildTopicBrief(
       const page = byId.get(hit.id);
       if (!page || taken.has(page.id)) continue;
       taken.add(page.id);
-      if (page.template === ENTRY_TEMPLATE) {
-        // A journal day. Sealing empties the page, and the page is checked as
-        // well, because a guard that leans on another function having emptied
-        // something is not a guard.
-        if (isSealed(db, page.id)) continue;
-        const words = linkLabelsOnly(page.body).trim();
-        if (words.length === 0) continue;
-        pieces.push({ kind: "journal", title: page.title, note: "A day in the journal", lines: [words.slice(0, PIECE_BUDGET)] });
-        continue;
-      }
       pieces.push(pagePiece(page, trails[page.id] ?? [], "page"));
     } else if (hit.kind === "contact" && hit.leadId) {
       if (taken.has(hit.leadId)) continue;
@@ -287,11 +237,10 @@ export function buildTopicBrief(
   }
 
   // What the topic means, after what its words found: "coffee" brings the page
-  // about beans that never says the word. Never a journal page - they are never
-  // read for meaning - and before the pages under them are gathered.
+  // about beans that never says the word - before the pages under them are gathered.
   for (const id of meant) {
     const page = byId.get(id);
-    if (!page || taken.has(page.id) || page.template === ENTRY_TEMPLATE) continue;
+    if (!page || taken.has(page.id)) continue;
     taken.add(page.id);
     pieces.push(pagePiece(page, trails[page.id] ?? [], "page"));
   }
@@ -316,7 +265,7 @@ export function buildTopicBrief(
       if (added >= TRAIL_MOST) break;
       if (taken.has(id)) continue;
       const page = byId.get(id);
-      if (!page || page.template === ENTRY_TEMPLATE) continue;
+      if (!page) continue;
       if (!coveredBy(words, matched, trails[id] ?? [])) continue;
       taken.add(id);
       pieces.push(pagePiece(page, trails[id] ?? [], "page"));
@@ -337,11 +286,11 @@ export function buildTopicBrief(
   }
   for (const id of beneath.slice(0, UNDER_MOST)) {
     const page = byId.get(id);
-    if (!page || page.template === ENTRY_TEMPLATE) continue;
+    if (!page) continue;
     pieces.push(pagePiece(page, trails[page.id] ?? [], "under"));
   }
 
-  for (const piece of [logged(db, companyId, words), hours(db, companyId, words), tasks(db, companyId, words)]) {
+  for (const piece of [hours(db, companyId, words), tasks(db, companyId, words)]) {
     if (piece) pieces.push(piece);
   }
 

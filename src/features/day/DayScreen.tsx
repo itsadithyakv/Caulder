@@ -1,21 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
-import type { DayPlan, LaidOutBlock, Task, Term, WeekPlan } from "@shared/domain";
+import type { DayPlan, LaidOutBlock, Task, WeekPlan } from "@shared/domain";
 import { BLOCK_KINDS, BLOCK_KIND_LABEL, type BlockKind } from "@shared/domain";
 import { clashesIn } from "@shared/priority";
+import { doubleBooked } from "@shared/day";
+import { Clashes } from "./Clashes";
 import { minutesOf, shiftDay, startOfWeek, timeOf, today as todayIn } from "@shared/dates";
 import { useWorkspace } from "@/lib/workspace";
-import { dateFormatter, formatDuration, formatTime } from "@/lib/format";
+import { dateFormatter, formatDuration, formatLongDay, formatTime } from "@/lib/format";
 import { BlockForm } from "./BlockForm";
-import { Timetable } from "./Timetable";
+import { UsualWeek } from "./UsualWeek";
 import { WeekGrid } from "./WeekGrid";
+import { WeekReview } from "./WeekReview";
 import { HOUR_PX, PER_MINUTE, SNAP, hourWindow, snapTo } from "./grid";
 import { messageOf } from "@/lib/errors";
 import { ErrorLine } from "@/components/ErrorLine";
 import { describeDeadline } from "@shared/deadlines";
-import type { JournalDay } from "@shared/life";
-import { MoodTag } from "@/features/life/MoodPicker";
-import { useDayThemes } from "@/features/life/useDayThemes";
 
 /**
  * The day, as hours you can see.
@@ -43,15 +43,10 @@ type Drag = {
 
 export function DayScreen({
   onOpenPage,
-  onOpenJournal,
 }: {
   onOpenPage?: (pageId: string) => void;
-  /** The journal, on this day. */
-  onOpenJournal?: (day: string) => void;
 } = {}) {
-  const { activeCompany, home } = useWorkspace();
-  // Your week's theme days head the Calendar's days: they are yours, whichever company is chosen.
-  const themes = useDayThemes(home?.id ?? activeCompany?.id);
+  const { activeCompany } = useWorkspace();
   const companyId = activeCompany?.id ?? null;
   const timezone = activeCompany?.timezone ?? "UTC";
 
@@ -63,9 +58,7 @@ export function DayScreen({
   /** The task a new block is being set aside for, when it is for one. */
   const [forTask, setForTask] = useState<Task | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
-  const [timetable, setTimetable] = useState(false);
-  /** Your terms, read when the timetable opens: it is the one place they are made and removed. */
-  const [terms, setTerms] = useState<Term[]>([]);
+  const [usualWeek, setUsualWeek] = useState(false);
   // The day is the default because it is the one you work in. The week is
   // what you open to find room in, which is a thing you do once a week.
   const [view, setView] = useState<"day" | "week">("day");
@@ -89,22 +82,6 @@ export function DayScreen({
     void load();
   }, [load]);
 
-  // Terms are yours, kept in your home whichever company is chosen - the
-  // quick line reads the term's last day from there - so they are made,
-  // listed and removed there too.
-  const termsIn = home?.id ?? companyId;
-
-  useEffect(() => {
-    if (!timetable || !termsIn) return;
-    let live = true;
-    window.caulder.terms.list(termsIn).then(
-      (all) => live && setTerms(all),
-      (cause: unknown) => live && setError(messageOf(cause)),
-    );
-    return () => {
-      live = false;
-    };
-  }, [timetable, termsIn]);
 
   /** Every mutation goes through here, so the day is never patched by hand. */
   const act = useCallback(
@@ -217,7 +194,7 @@ export function DayScreen({
             <ChevronLeft size={16} aria-hidden />
           </button>
           <h2 className="day__date">
-            {view === "week" ? spanOf(startOfWeek(day)) : longDay(day)}
+            {view === "week" ? spanOf(startOfWeek(day)) : formatLongDay(day)}
           </h2>
           <button
             type="button"
@@ -266,8 +243,8 @@ export function DayScreen({
               {formatDuration(plan.elapsed)} gone
             </span>
           )}
-          <button type="button" className="btn btn--sm" onClick={() => setTimetable(true)}>
-            Timetable
+          <button type="button" className="btn btn--sm" onClick={() => setUsualWeek(true)}>
+            A usual week
           </button>
           <button type="button" className="btn btn--sm btn--primary" onClick={() => setAdding("09:00")}>
             <Plus size={15} aria-hidden />
@@ -278,10 +255,16 @@ export function DayScreen({
 
       {view === "week" ? (
         week && (
+          <>
+          {/* What happened, what slipped, and three things for the week after (phase 35). */}
+          {companyId && <WeekReview companyId={companyId} day={day} version={week} />}
+          {/* The week's clashes, a line each day that has any. */}
+          {week.days.map((each) => (
+            <Clashes key={each.day} clashes={doubleBooked(each.blocks)} label={`${formatLongDay(each.day)}, two things at once`} />
+          ))}
           <WeekGrid
             week={week}
             today={currentDay}
-            themes={themes}
             onOpenDay={(chosen) => {
               setDay(chosen);
               setView("day");
@@ -300,8 +283,11 @@ export function DayScreen({
               void act(() => window.caulder.day.moveBlock(id, where));
             }}
           />
+          </>
         )
       ) : (
+      <>
+      <Clashes clashes={doubleBooked(blocks)} />
       <div className="day__body">
         <div className="grid">
           <div className="grid__hours">
@@ -407,7 +393,6 @@ export function DayScreen({
         </div>
 
         <aside className="day__side">
-          {onOpenJournal && day <= currentDay && <DayJournal companyId={home?.id ?? companyId} day={day} onOpen={onOpenJournal} />}
           <section className="card">
             <h2 className="card__title">Due today</h2>
             {plan.deadlines.length > 0 && (
@@ -471,7 +456,7 @@ export function DayScreen({
             <h2 className="card__title">How the day went</h2>
             {plan.spent.length === 0 ? (
               <p className="card__hint">
-                Nothing to break down yet. Blocks are grouped by what kind of work they are.
+                Nothing to break down yet.
               </p>
             ) : (
               <ul className="spent">
@@ -500,22 +485,18 @@ export function DayScreen({
           )}
         </aside>
       </div>
+      </>
       )}
 
-      {timetable && (
-        <Timetable
+      {usualWeek && (
+        <UsualWeek
           day={day}
-          terms={terms}
-          onRemoveTerm={async (id) => setTerms(await window.caulder.terms.remove(id, termsIn ?? companyId))}
-          onClose={() => setTimetable(false)}
-          onApply={async (rows, term) => {
-            // The term first, so the timetable it names exists before the
-            // blocks that belong to it.
-            await window.caulder.terms.create(termsIn ?? companyId, term);
+          onClose={() => setUsualWeek(false)}
+          onApply={async (rows) => {
             for (const row of rows) {
               await window.caulder.day.createBlock(companyId, row.input);
             }
-            setTimetable(false);
+            setUsualWeek(false);
             await load();
           }}
         />
@@ -527,6 +508,7 @@ export function DayScreen({
           startsAt={adding ?? editing?.startsAt ?? "09:00"}
           block={editing}
           tasks={plan.tasks}
+          others={plan.blocks}
           workspaceLead={activeCompany?.remindMinutes ?? null}
           forTask={forTask}
           {...(onOpenPage ? { onOpenPage } : {})}
@@ -643,12 +625,6 @@ function nextFreeHour(blocks: readonly LaidOutBlock[]): string {
   return timeOf(Math.ceil(end / 60) * 60);
 }
 
-// A stored day is midnight UTC, so it is written in UTC: in the Americas the
-// local clock would make it the evening before (phase 24).
-function longDay(day: string): string {
-  return dateFormatter({ weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(`${day}T00:00:00Z`));
-}
-
 const shortFormat = { format: (date: Date) => dateFormatter({ day: "numeric", month: "short", timeZone: "UTC" }).format(date) };
 
 /** "7 Sep – 13 Sep", the week named by what it contains. */
@@ -659,38 +635,3 @@ function spanOf(from: string): string {
   )}`;
 }
 
-/**
- * The day's journal entry, at the top of the day's side (PLAN.md, part
- * four): its mood and first words when it is written, and a way to write it
- * when it is not - for today or any day that has been.
- */
-function DayJournal({ companyId, day, onOpen }: { companyId: string; day: string; onOpen: (day: string) => void }) {
-  const [entry, setEntry] = useState<JournalDay | null | undefined>(undefined);
-
-  useEffect(() => {
-    let live = true;
-    window.caulder.life.month(companyId, day.slice(0, 7)).then(
-      (month) => live && setEntry(month.entries.find((each) => each.day === day) ?? null),
-      () => live && setEntry(null),
-    );
-    return () => {
-      live = false;
-    };
-  }, [companyId, day]);
-
-  if (entry === undefined) return null;
-
-  return (
-    <button type="button" className={`dayjournal${entry ? " dayjournal--written" : ""}`} onClick={() => onOpen(day)}>
-      <strong>Journal</strong>
-      {entry ? (
-        <>
-          {entry.mood && <MoodTag mood={entry.mood} />}
-          <span className="dayjournal__excerpt">{entry.locked ? "Locked" : entry.excerpt || "Written"}</span>
-        </>
-      ) : (
-        <span className="dayjournal__excerpt">Write about this day</span>
-      )}
-    </button>
-  );
-}

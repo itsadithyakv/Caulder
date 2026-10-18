@@ -175,19 +175,19 @@ export function FirstRun({
           preview the new company rather than showing the colour of whichever
           company happens to be open behind this screen. */}
       <form
-        className="firstrun__card card anim-modal"
+        className="firstrun__card card card--float anim-modal"
         data-accent={accent}
         onSubmit={submit}
         noValidate
       >
         {!onCancel && <span className="brandmark firstrun__mark anim-mark" aria-hidden />}
         <h1 className="firstrun__title">
-          {onCancel ? "Add a company" : "Your company, and your life around it"}
+          {onCancel ? "Add a company" : "Your company, in one place"}
         </h1>
         <p className="firstrun__body">
           {onCancel
-            ? "Its contacts, deals, money and pages live here. The sidebar switches between companies; your days, journal and memories stay yours across all of them."
-            : "Caulder is where a one-person company is run: who you sell to, your money, your days, and you. All of it in one file on this computer, with no account."}
+            ? "Its contacts, deals, money and pages live here. The sidebar switches between companies; your calendar stays yours across all of them."
+            : "Caulder is where a one-person company is run: who you sell to, the deals, the money, the calendar and what the company knows. All of it in one file on this computer, with no account."}
         </p>
 
         <div className="field firstrun__wide">

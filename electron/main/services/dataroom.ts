@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { basename, extname, join, posix } from "node:path";
 import type { Db } from "../db/connection";
-import { BRAIN_SECTION_LIST, isPersonalSection, isSection, templateOf, type BrainSectionId } from "@shared/brain";
+import { BRAIN_SECTION_LIST, isSection, templateOf, type BrainSectionId } from "@shared/brain";
 import {
   DOCUMENT_CATEGORIES,
   DOCUMENT_CATEGORY_LABEL,
@@ -16,13 +16,11 @@ import {
   type RoomChoices,
   type RoomExtra,
 } from "@shared/dataroom";
-import { PERSON_KIND_LABEL } from "@shared/people";
 import { PRODUCT_STATUS_LABEL, describeRecurrence } from "@shared/products";
 import { today as todayIn } from "@shared/dates";
 import { pagesOf, type StoredFields } from "../repositories/brain";
 import { readMe } from "../repositories/me";
 import { describeValue } from "./brain";
-import { buildPeople } from "./people";
 import { buildCatalogue } from "./products";
 import { buildMetrics } from "./metrics";
 import { buildDeadlines } from "./deadlines";
@@ -86,7 +84,7 @@ function displayName(db: Db, company: Company): { name: string; oneLiner: string
 
 /** The sections a data room or a handbook can hold: the company's, not the founder's own. */
 function offeredSections(): { id: BrainSectionId; label: string }[] {
-  return BRAIN_SECTION_LIST.filter((section) => !isPersonalSection(section.id)).map(({ id, label }) => ({ id, label }));
+  return BRAIN_SECTION_LIST.map(({ id, label }) => ({ id, label }));
 }
 
 type DocumentRow = {
@@ -129,7 +127,6 @@ export function roomChoices(db: Db, companyId: string, now: Date = new Date()): 
       written: documents.filter((row) => row.category === category && !row.file).length,
     })),
     extras: {
-      people: rows(`SELECT COUNT(*) AS n FROM people WHERE company_id = ? AND kind != 'candidate'`),
       products: rows(`SELECT COUNT(*) AS n FROM products WHERE company_id = ?`),
       metrics: rows(`SELECT COUNT(*) AS n FROM metrics WHERE company_id = ?`),
       filings: (db.prepare(`SELECT COUNT(*) AS n FROM obligations WHERE company_id = ? AND is_active = 1 AND (ends_on IS NULL OR ends_on >= ?)`).get(companyId, today) as { n: number }).n,
@@ -143,7 +140,7 @@ type Chosen = { section: { id: BrainSectionId; label: string }; pages: Page[] }[
 
 /** The live pages of the ticked sections, in the rail's order. Unknown and personal sections are ignored. */
 function chosenPages(db: Db, companyId: string, sections: readonly string[]): Chosen {
-  const wanted = new Set(sections.filter((id) => isSection(id) && !isPersonalSection(id)));
+  const wanted = new Set(sections.filter((id) => isSection(id)));
   const pages = pagesOf(db, companyId).filter((page) => page.is_archived === 0 && wanted.has(page.section));
   return offeredSections()
     .filter((section) => wanted.has(section.id))
@@ -197,24 +194,6 @@ function namesOf(db: Db, companyId: string): Map<string, string> {
 function extrasHtml(db: Db, company: Company, extras: ReadonlySet<RoomExtra>, forHandbook: boolean, now: Date): { id: RoomExtra; title: string; html: string }[] {
   const out: { id: RoomExtra; title: string; html: string }[] = [];
   const day = (value: string | null) => (value ? spellDay(value) : "");
-
-  if (extras.has("people")) {
-    const people = buildPeople(db, company.id, now).people.filter((person) => person.kind !== "candidate");
-    if (people.length > 0) {
-      // A handbook is read by the team: who does what, never what anybody holds.
-      const head = forHandbook ? ["Name", "Role", "Kind", "Since", "Looks after"] : ["Name", "Role", "Kind", "Since", "Equity", "Looks after"];
-      const rows = people.map((person) => {
-        const base = [person.name, person.role ?? "", PERSON_KIND_LABEL[person.kind], day(person.startsOn)];
-        const vested = person.vesting ? Math.round(person.vesting.vested * 100) / 100 : null;
-        const equity =
-          person.equity !== null
-            ? `${person.equity}%${vested !== null && vested < person.equity ? `, ${vested}% vested` : ""}`
-            : "";
-        return forHandbook ? [...base, person.owns ?? ""] : [...base, equity, person.owns ?? ""];
-      });
-      out.push({ id: "people", title: forHandbook ? "Who is who" : ROOM_EXTRA_LABEL.people, html: tableHtml(head, rows) });
-    }
-  }
 
   if (extras.has("products")) {
     const catalogue = buildCatalogue(db, company.id, now);
@@ -456,7 +435,7 @@ export function handbookHtml(db: Db, companyId: string, raw: unknown, now: Date 
   const extras = new Set(input.extras.filter((extra) => HANDBOOK_EXTRAS.includes(extra)));
   const tables = extrasHtml(db, company, extras, true, now);
   if (chosen.length === 0 && tables.length === 0) {
-    throw new Error("Tick a section with pages in it, or the people or the products, to make a handbook of.");
+    throw new Error("Tick a section with pages in it, or the products, to make a handbook of.");
   }
 
   const included = new Set(chosen.flatMap((entry) => entry.pages.map((page) => page.id)));

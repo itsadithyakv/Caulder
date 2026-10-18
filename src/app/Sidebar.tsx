@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { ChevronsUpDown } from "lucide-react";
-import { GROUP_LABEL, navFor, navRouteOf, type RouteId } from "./routes";
+import { navFor, navRouteOf, type RouteId } from "./routes";
 import type { Company } from "@shared/domain";
 
 type Props = {
@@ -23,11 +23,12 @@ function initials(name: string): string {
 }
 
 /**
- * The sidebar: where you are, and which company.
+ * The sidebar: which company, and where you are in it.
  *
- * Plan and You are yours, whichever company is chosen. The company is chosen
- * where its screens are - its name heads Contacts, Deals, Money and Brain -
- * because that is all choosing one changes.
+ * The company heads the whole list, because the whole app is the company's
+ * now. Under it, one list in the order of a working day: your time first
+ * (Today, Calendar), then the company's own screens, with a small gap between
+ * the two and no labels - six rows do not need headings.
  */
 export function Sidebar({
   current,
@@ -54,49 +55,36 @@ export function Sidebar({
   return (
     <nav className="sidebar" aria-label="Main" style={{ "--switcher-top": `${below}px` } as CSSProperties}>
       <div className="sidebar__nav">
+        <div className="companyhead">
+          <button
+            ref={head}
+            type="button"
+            className="company"
+            onClick={onToggleSwitcher}
+            aria-haspopup="menu"
+            aria-expanded={switcherOpen}
+            aria-label={company ? `Company: ${company.name}. Switch company` : "Switch company"}
+          >
+            {/* The company's own colour is here, on its mark - not across the app. */}
+            <span className="company__mark" data-accent={company?.accent} aria-hidden>
+              {company?.logo ? <img src={company.logo} alt="" className="company__logo" /> : initials(company?.name ?? "")}
+            </span>
+            <span className="company__text">
+              <span className="company__name">{company ? company.name : "No company"}</span>
+              <span className="company__meta">
+                {!company ? "Create one to start" : `${company.leadCount} ${company.leadCount === 1 ? "contact" : "contacts"}`}
+              </span>
+            </span>
+            <ChevronsUpDown size={15} className="company__chevron" aria-hidden />
+          </button>
+        </div>
+
         {navFor().map((entry) => (
           <div
             key={entry.group}
             className={`navgroup${entry.group === "app" ? " navgroup--foot" : ""}`}
             data-tour={entry.group}
           >
-            {entry.group === "company" ? (
-              <div className="companyhead">
-                <button
-                  ref={head}
-                  type="button"
-                  className="company"
-                  onClick={onToggleSwitcher}
-                  aria-haspopup="menu"
-                  aria-expanded={switcherOpen}
-                  aria-label={company ? `Company: ${company.name}. Switch company` : "Switch company"}
-                >
-                  {/* The company's own colour is here, on its mark - not across the app. */}
-                  <span className="company__mark" data-accent={company?.accent} aria-hidden>
-                    {company?.logo ? (
-                      <img src={company.logo} alt="" className="company__logo" />
-                    ) : (
-                      initials(company?.name ?? "")
-                    )}
-                  </span>
-                  <span className="company__text">
-                    <span className="company__name">{company ? company.name : "No company"}</span>
-                    <span className="company__meta">
-                      {!company
-                        ? "Create one to start"
-                        : `${company.leadCount} ${company.leadCount === 1 ? "contact" : "contacts"}`}
-                    </span>
-                  </span>
-                  <ChevronsUpDown size={15} className="company__chevron" aria-hidden />
-                </button>
-              </div>
-            ) : (
-              GROUP_LABEL[entry.group] && (
-                <span className="navgroup__label" aria-hidden>
-                  {GROUP_LABEL[entry.group]}
-                </span>
-              )
-            )}
             {entry.routes.map((route) => {
               const Icon = route.icon;
               const showOverdue = route.id === "today" && overdueCount > 0;

@@ -94,7 +94,7 @@ test("a meeting's action items become tasks, once each, and reach Today", async 
 
 test("a playbook runs as tasks, again each time", async () => {
   const page = await openApp();
-  await openSection(page, "Playbooks");
+  await openSection(page, "How we work");
   await writePage(
     page,
     "New page: Playbook",

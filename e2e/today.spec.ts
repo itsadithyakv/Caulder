@@ -84,29 +84,27 @@ test("an empty day says so rather than showing empty lists", async () => {
   await expect(page.getByRole("heading", { name: "Notes", exact: true })).toHaveCount(0);
 });
 
-test("the work comes straight after the quick line, and the joke waits beside it", async () => {
+test("the work comes straight after the quick line, and nothing on Today is there to amuse", async () => {
   app = await launch();
   const page = await app.firstWindow();
   await ensureCompany(page);
 
-  // In the order of the page: the line, then the day's work - the aside and
-  // the memory are in the side column, after the work in the page's order.
   const quick = page.locator(".today__quick");
   const work = page.locator(".today__work");
-  const aside = page.locator(".today__side .today__aside");
   await expect(quick).toBeVisible();
-  await expect(aside).toHaveCount(1);
   expect(
     await page.evaluate(() => {
       const line = document.querySelector(".today__quick");
       const first = document.querySelector(".today__work");
-      const joke = document.querySelector(".today__aside");
-      if (!line || !first || !joke) return false;
-      const follows = (a: Element, b: Element) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
-      return follows(line, first) && follows(first, joke);
+      if (!line || !first) return false;
+      return (line.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
     }),
   ).toBe(true);
   await expect(work).toBeVisible();
+  // A plain hello and the day in numbers: no joke, no quotation.
+  await expect(page.locator(".today__greeting")).toHaveText(/^Good (morning|afternoon|evening)\.$/);
+  await expect(page.locator(".today__aside")).toHaveCount(0);
+  await expect(page.locator(".today__summary")).toHaveText("Nothing due today.");
 });
 
 test("a task set on a lead appears on Today", async () => {
@@ -184,12 +182,16 @@ test("completing a task records it on the lead's history", async () => {
 test("a lead with nothing planned turns up under Going quiet", async () => {
   // Aged past the threshold, and the threshold lowered, rather than waiting
   // two weeks. Everything the task left open is cleared so the lead really
-  // has nothing planned.
+  // has nothing planned - and they were rung once, forty days ago: somebody
+  // nobody has ever written to is under Reach out, not here.
   edit((db) => {
     const old = new Date(Date.now() - 40 * 86400000).toISOString();
     db.prepare("DELETE FROM tasks").run();
-    db.prepare("UPDATE leads SET created_at = ?, updated_at = ?").run(old, old);
+    db.prepare("UPDATE leads SET created_at = ?, updated_at = ?, last_contacted_at = ?").run(old, old, old);
     db.prepare("UPDATE activities SET occurred_at = ?").run(old);
+    db.prepare(
+      "INSERT INTO activities (id, company_id, lead_id, kind, body, occurred_at, created_at) SELECT 'e2e-call', company_id, id, 'call', 'Spoke to the office', ?, ? FROM leads LIMIT 1",
+    ).run(old, old);
     db.prepare(
       "INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('coldAfterDays', '7', ?)",
     ).run(new Date().toISOString());
@@ -282,15 +284,14 @@ test("a task is changed from its own row, and Escape puts the row back", async (
   await expect(page.getByText("Ten slides at most")).toBeVisible();
 });
 
-test("with no AI connected, the line offers no way to ask one", async () => {
+test("the line files what is typed, and has no switches beside it", async () => {
   app = await launch();
   const page = await app.firstWindow();
   await ensureCompany(page);
 
-  // Asking is one of the line's modes, drawn only when there is an AI to ask;
-  // the other mode, copying context for an AI elsewhere, is always there.
+  // Asking an AI and copying context for one each live in the Brain, and only there.
   const quick = page.locator(".today__quick");
   await expect(quick.getByLabel("Anything, in one line")).toBeVisible();
-  await expect(quick.getByRole("button", { name: "Copy context for another AI" })).toBeVisible();
+  await expect(quick.getByRole("button", { name: "Copy context for another AI" })).toHaveCount(0);
   await expect(quick.getByRole("button", { name: /Ask the AI/ })).toHaveCount(0);
 });

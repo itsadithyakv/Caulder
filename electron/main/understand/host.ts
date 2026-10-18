@@ -51,7 +51,11 @@ function send(op: "load" | "read", payload: Record<string, unknown>): Promise<In
   });
 }
 
+/** Set on the way out: nothing may start the model again once the app is quitting. */
+let closed = false;
+
 function start(): Promise<void> {
+  if (closed) return Promise.reject(new Error("Caulder is closing."));
   if (ready) return ready;
   if (starts >= MOST_STARTS) return Promise.reject(new Error("The model stopped too often, and is left off until Caulder starts again."));
   if (!modelHere()) return Promise.reject(new Error("The model is not on this computer."));
@@ -93,6 +97,12 @@ export async function readLines(lines: readonly string[]): Promise<Int8Array[]> 
   if (lines.length === 0) return [];
   await start();
   return send("read", { lines: [...lines] });
+}
+
+/** Stops it for good: on the way out, so a read still in flight cannot start it again. */
+export function closeModel(): void {
+  closed = true;
+  stopModel();
 }
 
 export function stopModel(): void {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import { House, LayoutGrid, Share2, Waypoints } from "lucide-react";
-import { BRAIN_SECTION_LIST, isPersonalSection, sectionOf, type BrainHome as Home, type BrainSectionId } from "@shared/brain";
+import { BookHeart, House, LayoutGrid, Share2, Waypoints } from "lucide-react";
+import { BRAIN_SECTION_LIST, sectionOf, type BrainHome as Home, type BrainSectionId } from "@shared/brain";
 import { ErrorLine } from "@/components/ErrorLine";
 import { messageOf } from "@/lib/errors";
 import { useWorkspace } from "@/lib/workspace";
@@ -43,7 +43,7 @@ type View =
   | { kind: "map" }
   | { kind: "all" }
   | { kind: "share" }
-  | { kind: "section"; section: BrainSectionId; focus?: string }
+  | { kind: "section"; section: BrainSectionId }
   | { kind: "page"; id: string; editing: boolean; from: From };
 
 export function BrainScreen({
@@ -53,8 +53,8 @@ export function BrainScreen({
   onConsumeOpenSection,
   homeNonce,
   onOpenContact,
-  onGoToSettings,
   onGoToProducts,
+  onOpenMemories,
 }: {
   /** Bumped when the sidebar's Brain row is pressed while already here. */
   homeNonce: number;
@@ -62,14 +62,15 @@ export function BrainScreen({
   openPageId: string | null;
   onConsumeOpenPage: () => void;
   /** Set when Today or search sends the user to a section: a filing to Tax, a person to People. */
-  openSection: { section: BrainSectionId; focus: string | null } | null;
+  openSection: { section: BrainSectionId } | null;
   onConsumeOpenSection: () => void;
   /** A link or a dot that is a contact opens it on Contacts. */
   onOpenContact: (leadId: string) => void;
   /** Ask the brain needs a key, which is set in Settings. */
-  onGoToSettings: () => void;
   /** The checklist's product line opens the catalogue, which is on Money. */
   onGoToProducts: () => void;
+  /** What the line was told to remember, read back off the pages. */
+  onOpenMemories: () => void;
 }) {
   const { activeCompany } = useWorkspace();
   const companyId = activeCompany?.id ?? null;
@@ -104,7 +105,7 @@ export function BrainScreen({
 
   useEffect(() => {
     if (!openSection) return;
-    setView({ kind: "section", section: openSection.section, ...(openSection.focus ? { focus: openSection.focus } : {}) });
+    setView({ kind: "section", section: openSection.section });
     onConsumeOpenSection();
   }, [openSection, onConsumeOpenSection]);
 
@@ -114,24 +115,6 @@ export function BrainScreen({
   }, [homeNonce]);
 
   const changed = useCallback(() => setVersion((n) => n + 1), []);
-
-  // A shared brain is brought in step when it is opened, quietly: what the
-  // other founder wrote since shows without waiting for the next pass, and a
-  // failure is on the Two founders card rather than in the way.
-  useEffect(() => {
-    if (!companyId) return;
-    let live = true;
-    window.caulder.share
-      .state(companyId)
-      .then((state) => (state.shared ? window.caulder.share.sync(companyId) : null))
-      .then((synced) => {
-        if (live && synced) changed();
-      })
-      .catch(() => undefined);
-    return () => {
-      live = false;
-    };
-  }, [companyId, changed]);
 
   const current = view.kind === "section" ? view.section : view.kind === "page" ? view.from : view.kind;
   const pill = useRailPill(current, home);
@@ -180,9 +163,13 @@ export function BrainScreen({
           <Waypoints size={15} aria-hidden />
           <span className="brain__railLabel">Map</span>
         </button>
+        <button type="button" className="brain__railItem" onClick={onOpenMemories}>
+          <BookHeart size={15} aria-hidden />
+          <span className="brain__railLabel">Memories</span>
+        </button>
         <span className="brain__railRule" aria-hidden />
         {BRAIN_SECTION_LIST.filter(
-          (section) => !isPersonalSection(section.id) && (section.id === current || (home?.counts[section.id] ?? 0) > 0),
+          (section) => section.id === current || (home?.counts[section.id] ?? 0) > 0,
         ).map((section) => {
           const Icon = SECTION_ICON[section.id];
           const count = home?.counts[section.id] ?? 0;
@@ -238,28 +225,27 @@ export function BrainScreen({
               onOpenPage={(id) => openPage(id, "home")}
               onOpenContact={onOpenContact}
               onOpenMap={() => setView({ kind: "map" })}
-              onOpenSection={(section, focus) => setView({ kind: "section", section, ...(focus ? { focus } : {}) })}
+              onOpenSection={(section) => setView({ kind: "section", section })}
               onCreate={(section, template) => void create(section, template)}
-              onGoToSettings={onGoToSettings}
               onGoToProducts={onGoToProducts}
+              onChanged={changed}
             />
           )
         ) : view.kind === "all" ? (
           home && <SectionsIndex counts={home.counts} onOpen={(section) => setView({ kind: "section", section })} />
         ) : view.kind === "share" ? (
-          <BrainShare companyId={companyId} version={version} onGoToSettings={onGoToSettings} onChanged={changed} />
+          <BrainShare companyId={companyId} version={version} />
         ) : view.kind === "map" ? (
-          <MapOf companyId={companyId} companyOnly onOpenPage={(id) => openPage(id, "map")} onOpenContact={onOpenContact} />
+          <MapOf companyId={companyId} onOpenPage={(id) => openPage(id, "map")} onOpenContact={onOpenContact} />
         ) : view.kind === "section" ? (
           <SectionView
-            key={`${view.section}:${view.focus ?? ""}`}
+            key={view.section}
             companyId={companyId}
             section={view.section}
-            focus={view.focus ?? null}
             version={version}
             onOpen={(id, editing) => setView({ kind: "page", id, editing: editing === true, from: view.section })}
             onCreate={(template, preset) => void create(view.section, template, preset)}
-            onOpenSection={(section, focus) => setView({ kind: "section", section, ...(focus ? { focus } : {}) })}
+            onOpenSection={(section) => setView({ kind: "section", section })}
             onOpenContact={onOpenContact}
             onChanged={changed}
           />

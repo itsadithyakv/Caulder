@@ -111,7 +111,7 @@ describe("runway", () => {
       ["2026-05-10", 999999], // too old to count
       ["2026-09-10", 999999], // this month, not whole yet
     ] as const) {
-      addSpend(db, company.id, { spentOn, amount, what: "Ads", campaignId: null });
+      addSpend(db, company.id, { spentOn, amount, what: "Ads" });
     }
     const school = createLead(db, company.id, leadInput.parse({ name: "Oakridge" }));
     const invoice = saveInvoice(db, company.id, null, {

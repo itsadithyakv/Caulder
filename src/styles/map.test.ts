@@ -5,7 +5,7 @@ import { join } from "node:path";
 /**
  * The Map's six dot colours tell six kinds of thing apart, on either theme.
  *
- * The same two gates as the area colours (areas.test.ts): every pair at least
+ * The same two gates as the area colours once had: every pair at least
  * 15 apart in OKLab, which is what full colour vision needs to tell two dots
  * apart, and 3:1 against every surface a dot can sit on. The legend on the Map
  * names every colour in words as well, because colour alone is not allowed to
@@ -34,8 +34,8 @@ function block(needle: string): Map<string, string> {
 
 const light = block(":root {");
 const dark = block(':root[data-theme="dark"]');
-const personalLight = block(':root[data-face="personal"] {');
-const personalDark = block(':root[data-face="personal"][data-theme="dark"]');
+const personalLight = block(':root[data-face="notebook"] {');
+const personalDark = block(':root[data-face="notebook"][data-theme="dark"]');
 
 
 function hex(value: string | undefined): string {
@@ -79,7 +79,7 @@ function contrast(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-const KINDS = ["--map-page", "--map-contact", "--map-product", "--map-person", "--map-document", "--map-decision"];
+const KINDS = ["--map-page", "--map-contact", "--map-product", "--map-document", "--map-decision"];
 
 const media = block("@media (prefers-color-scheme: dark)");
 

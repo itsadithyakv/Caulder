@@ -181,15 +181,6 @@
   font-size: var(--text-base);
 }
 
-.firstrun__tz {
-  padding: var(--space-2) var(--space-3);
-  background: var(--surface-sunken);
-  border-radius: var(--radius-sm);
-  color: var(--ink-2);
-  font-size: var(--text-base);
-  border: 1px solid var(--border);
-}
-
 /* The looks, folded away. Name and kind are the two answers a first run
  * needs; a logo, an accent and a timezone it already knows are not. */
 .firstrun__more { grid-column: 1 / -1; margin-top: 0; }
@@ -548,6 +539,16 @@
   align-items: stretch;
 }
 
+/* A column's own heading: what the cards under it are about. */
+/* A column's name is a heading over sections, so it is set as one: the
+ * sections under it carry the small ruled labels. */
+.settings__colTitle {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+
 .settings__col {
   display: flex;
   flex-direction: column;
@@ -741,6 +742,24 @@
 .safecopy__done svg { flex: none; color: var(--accent-strong); }
 
 /* Adding a mail account: the provider, the address and password, and the server tucked away unless it is needed. */
+/* An account's row: what it does said under its name, and its one switch. */
+.mailacct__row {
+  align-items: flex-start;
+}
+
+.mailacct__state {
+  display: block;
+  margin-top: 2px;
+}
+
+.mailacct__switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+  white-space: nowrap;
+}
+
 .mailacct {
   display: flex;
   flex-direction: column;
@@ -764,4 +783,25 @@
   gap: var(--space-3);
   flex-wrap: wrap;
   padding-top: var(--space-2);
+}
+
+/* "This is me" in Settings: the name Today greets. */
+.thisisme {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.thisisme .input {
+  width: min(280px, 100%);
+}
+
+.thisisme__saved {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--ok);
+  font-size: var(--text-sm);
 }

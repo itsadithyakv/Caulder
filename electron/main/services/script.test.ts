@@ -609,3 +609,113 @@ describe("contacts and backups", () => {
     expect(refused.error).toContain("not a backup file");
   });
 });
+
+describe("contacts in a Google Sheet", () => {
+  const loose = (reply: unknown) => reply as { ok: boolean; error?: string; data: Record<string, unknown> };
+
+  /** Spreadsheets, as far as the script is concerned: a grid each, and whether it is in the bin. */
+  function sheets() {
+    const books = new Map<string, { name: string; cells: string[][]; trashed: boolean; hidden: number[]; frozen: number }>();
+    let made = 0;
+    const open = (id: string) => {
+      const book = books.get(id);
+      if (!book) throw new Error("Document is missing.");
+      const tab = {
+        setName: () => undefined,
+        getLastRow: () => book.cells.length,
+        clearContents: () => void (book.cells = []),
+        setFrozenRows: (rows: number) => void (book.frozen = rows),
+        hideColumns: (column: number) => void book.hidden.push(column),
+        getRange: (row: number, _column: number, rows: number, width: number) => {
+          const range = {
+            getDisplayValues: () => book.cells.slice(row - 1, row - 1 + rows).map((cells) => Array.from({ length: width }, (_each, at) => cells[at] ?? "")),
+            setNumberFormat: () => range,
+            setFontWeight: () => range,
+            setValues: (values: string[][]) => {
+              values.forEach((cells, at) => (book.cells[row - 1 + at] = [...cells]));
+              return range;
+            },
+          };
+          return range;
+        },
+      };
+      return { getId: () => id, getUrl: () => `https://docs.google.com/spreadsheets/d/${id}/edit`, getSheetByName: () => tab, getSheets: () => [tab] };
+    };
+    return {
+      books,
+      SpreadsheetApp: {
+        getActiveSpreadsheet: () => null,
+        create: (name: string) => {
+          const id = `sheet${(made += 1)}`;
+          books.set(id, { name, cells: [], trashed: false, hidden: [], frozen: 0 });
+          return open(id);
+        },
+        openById: open,
+      },
+      DriveApp: {
+        getRootFolder: () => ({ getName: () => "My Drive" }),
+        getFileById: (id: string) => ({ isTrashed: () => books.get(id)?.trashed ?? true }),
+      },
+    };
+  }
+
+  const header = ["Caulder ID", "Name", "Phone"];
+  const rows = [
+    ["c1", "Harbour Coffee", "'+1 415 555 0100"],
+    ["c2", "Nordlys Design", ""],
+  ];
+
+  it("makes one spreadsheet a company, named for it, and reads it empty the first time", () => {
+    const google = sheets();
+    const with_ = harness(google);
+    with_.script.setUp();
+    const read = loose(with_.post("sheetRead", { company: "co-1", name: "Northwind", columns: 3 }));
+    expect(read.data).toMatchObject({ id: "sheet1", url: "https://docs.google.com/spreadsheets/d/sheet1/edit", rows: [] });
+    expect(google.books.get("sheet1")?.name).toBe("Caulder contacts - Northwind");
+    // Asked again, it is the same one - and another company has its own.
+    expect(loose(with_.post("sheetRead", { company: "co-1", name: "Northwind", columns: 3 })).data["id"]).toBe("sheet1");
+    expect(loose(with_.post("sheetRead", { company: "co-2", name: "Second", columns: 3 })).data["id"]).toBe("sheet2");
+  });
+
+  it("writes the list over what was there, under a heading that stays put, with its id out of sight", () => {
+    const google = sheets();
+    const with_ = harness(google);
+    with_.script.setUp();
+    const wrote = loose(with_.post("sheetWrite", { company: "co-1", name: "Northwind", header, rows }));
+    expect(wrote.data).toMatchObject({ id: "sheet1", count: 2 });
+    const book = google.books.get("sheet1")!;
+    expect(book.cells).toEqual([header, ...rows]);
+    expect(book.frozen).toBe(1);
+    expect(book.hidden).toEqual([1]);
+
+    // A shorter list leaves nothing of the longer one behind.
+    with_.post("sheetWrite", { company: "co-1", name: "Northwind", header, rows: [rows[1]] });
+    expect(google.books.get("sheet1")!.cells).toEqual([header, rows[1]]);
+    expect(loose(with_.post("sheetRead", { company: "co-1", name: "Northwind", columns: 3 })).data["rows"]).toEqual([rows[1]]);
+  });
+
+  it("makes a new one when the old one was moved to the bin", () => {
+    const google = sheets();
+    const with_ = harness(google);
+    with_.script.setUp();
+    with_.post("sheetWrite", { company: "co-1", name: "Northwind", header, rows });
+    google.books.get("sheet1")!.trashed = true;
+    expect(loose(with_.post("sheetRead", { company: "co-1", name: "Northwind", columns: 3 })).data).toMatchObject({ id: "sheet2", rows: [] });
+  });
+
+  it("refuses a request that does not say whose contacts, or has no headings, or the wrong key", () => {
+    const with_ = harness(sheets());
+    with_.script.setUp();
+    expect(loose(with_.post("sheetRead", { company: "../etc", columns: 3 })).error).toContain("which company");
+    expect(loose(with_.post("sheetWrite", { company: "co-1", header: [], rows })).error).toContain("no headings");
+    expect(loose(with_.post("sheetRead", { company: "co-1", columns: 3 }, "wrong")).error).toContain("key is not right");
+  });
+
+  it("no longer answers to an invitation, or to anything about a shared brain", () => {
+    const with_ = harness(sheets());
+    with_.script.setUp();
+    const out = with_.script.doPost({ postData: { contents: JSON.stringify({ action: "brainPull", invite: "anything" }) } });
+    expect(JSON.parse(out.text)).toMatchObject({ ok: false, error: "That key is not right." });
+    expect(loose(with_.post("brainPull", {})).error).toContain("does not do");
+  });
+});

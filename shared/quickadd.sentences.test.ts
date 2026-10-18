@@ -19,7 +19,6 @@ describe("the two lines this was built for", () => {
     expect(task).toMatchObject({
       title: "Exam on DSA",
       day: "2026-09-14",
-      area: "college",
       notes: "Coursework has to be downloaded from google class rooms",
       followUp: null,
     });
@@ -30,7 +29,7 @@ describe("the two lines this was built for", () => {
     const { task, questions } = parse(
       "Study for ml exam on 23rd of this month, kiran sir requires permission for the retest so i need to remind him 2 days prior.",
     );
-    expect(task).toMatchObject({ title: "Study for ml exam", day: "2026-09-23", area: "college" });
+    expect(task).toMatchObject({ title: "Study for ml exam", day: "2026-09-23" });
     expect(task.notes).toBe("kiran sir requires permission for the retest so i need to remind him 2 days prior.");
     expect(task.followUp).toMatchObject({ title: "Remind kiran sir", day: "2026-09-21", kind: "todo" });
     expect(task.followUp?.notes).toContain("Study for ml exam");
@@ -113,12 +112,12 @@ describe("a second task, hung off the first one's day", () => {
 
 describe("academics", () => {
   it.each([
-    ["there's a quiz on friday for the course DBMS", "Quiz for DBMS", "college"],
-    ["i have to submit the lab record by friday", "Submit the lab record", "college"],
-    ["retest for maths next wk", "Retest for maths", "college"],
-    ["download notes from google classroom tmrw", "Download notes from google classroom", "college"],
-    ["collect hall ticket monday", "Collect hall ticket", "college"],
-  ])("reads '%s'", (text, title, area) => {
-    expect(parse(text).task).toMatchObject({ title, area });
+    ["there's a quiz on friday for the course DBMS", "Quiz for DBMS"],
+    ["i have to submit the lab record by friday", "Submit the lab record"],
+    ["retest for maths next wk", "Retest for maths"],
+    ["download notes from google classroom tmrw", "Download notes from google classroom"],
+    ["collect hall ticket monday", "Collect hall ticket"],
+  ])("reads '%s'", (text, title) => {
+    expect(parse(text).task).toMatchObject({ title });
   });
 });

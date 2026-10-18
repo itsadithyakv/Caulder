@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, ExternalLink, Phone, Trash2 } from "lucide-react";
+import { ArrowLeft, ExternalLink, Phone, Plus, Trash2 } from "lucide-react";
+import { MenuButton } from "@/components/MenuButton";
 import type {
   Activity,
   Lead,
@@ -13,11 +14,13 @@ import { Timeline } from "./Timeline";
 import { StageBadge } from "./StageBadge";
 import { LeadTasks } from "./LeadTasks";
 import { LeadEmail } from "./LeadEmail";
-import { LeadWhatsApp } from "./LeadWhatsApp";
+import { LeadMessage } from "./LeadMessage";
+import { profileShown } from "@shared/profiles";
 import { SaveToPhone } from "./SaveToPhone";
 import { LeadMoney } from "./LeadMoney";
 import { LeadDeals } from "./LeadDeals";
 import { Attachments, CustomFields } from "./LeadExtras";
+import { KnownAbout } from "./KnownAbout";
 import { BrainLinks } from "@/features/brain/BrainLinks";
 import { useStartCall } from "@/features/calls/CallProvider";
 import { formatDate, relativeDay } from "@/lib/format";
@@ -39,6 +42,7 @@ export function LeadDetail({
   onDeleted,
   onOpenPage,
   onOpenContact,
+  onNamed,
 }: {
   leadId: string;
   stages: PipelineStage[];
@@ -49,8 +53,13 @@ export function LeadDetail({
   /** For Linked here: a brain page, or another contact on the local map. */
   onOpenPage?: (pageId: string) => void;
   onOpenContact?: (leadId: string) => void;
+  /** Told the contact's name once it is known, so the page can be titled by it. */
+  onNamed?: (name: string) => void;
 }) {
   const [lead, setLead] = useState<Lead | null>(null);
+  useEffect(() => {
+    if (lead) onNamed?.(lead.name);
+  }, [lead?.name, onNamed]);
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -156,6 +165,31 @@ export function LeadDetail({
 
   const stage = lead.stageId ? stages.find((s) => s.id === lead.stageId) : undefined;
 
+  // The ways to reach them first: those are what the page is opened for.
+  const details: { label: string; missing: string; value: string | null; href?: string }[] = [
+    {
+      label: "Contact",
+      missing: "who to ask for",
+      value: lead.contactPerson && lead.contactRole ? `${lead.contactPerson}, ${lead.contactRole}` : (lead.contactPerson ?? lead.contactRole),
+    },
+    { label: "Email", missing: "email", value: lead.email },
+    { label: "Phone", missing: "phone", value: lead.phone },
+    { label: "Alt phone", missing: "", value: lead.altPhone },
+    { label: "LinkedIn", missing: "LinkedIn", value: profileShown("linkedin", lead.linkedin), href: lead.linkedin ?? undefined },
+    { label: "Instagram", missing: "Instagram", value: profileShown("instagram", lead.instagram), href: lead.instagram ?? undefined },
+    { label: "Website", missing: "website", value: lead.website, href: lead.website ? href(lead.website) : undefined },
+    { label: "City", missing: "city", value: lead.city },
+    { label: "Location", missing: "", value: lead.location },
+    { label: "PIN", missing: "", value: lead.pin },
+    { label: "Source", missing: "where they came from", value: lead.source },
+  ];
+  const known = details.filter((fact) => fact.value !== null && fact.value !== "");
+  // A second phone, a street address and a postcode are kept when given and
+  // never asked after.
+  const missing = details
+    .filter((fact) => (fact.value === null || fact.value === "") && fact.missing !== "")
+    .map((fact) => fact.missing);
+
   return (
     <div className="detail">
       <div className="detail__bar">
@@ -195,14 +229,21 @@ export function LeadDetail({
             </button>
           )}
           {!confirmingDelete ? (
-            <button
-              type="button"
-              className="btn btn--sm btn--ghost btn--danger"
-              onClick={() => setConfirmingDelete(true)}
-            >
-              <Trash2 size={14} aria-hidden />
-              Delete
-            </button>
+            // Deleting is done now and then, and cannot be taken back: one click further in.
+            <MenuButton
+              label="More"
+              className="btn btn--sm btn--ghost"
+              align="right"
+              items={[
+                {
+                  label: "Delete",
+                  hint: "The contact and its history.",
+                  icon: <Trash2 size={14} aria-hidden />,
+                  danger: true,
+                  onSelect: () => setConfirmingDelete(true),
+                },
+              ]}
+            />
           ) : (
             <span className="detail__confirm">
               <span className="card__hint">Deletes the contact and its history.</span>
@@ -241,7 +282,7 @@ export function LeadDetail({
           ) : (
             <>
               <div className="detail__head">
-                <h2 className="detail__name">{lead.name}</h2>
+                {/* The name is the page's title, above: not said twice. */}
                 <StageBadge stage={stage} />
                 {lead.doNotContact && (
                   <span className="badge badge--danger">Do not contact</span>
@@ -250,17 +291,13 @@ export function LeadDetail({
 
               <SaveToPhone lead={lead} />
 
+              {/* What is known, and one line for what is not: a new contact
+                  with a name and a city used to be a column of "Not known". */}
               <dl className="facts">
                 <Fact label="Relationship" value={RELATIONSHIP_LABEL[lead.relationship]} />
-                <Fact label="Contact" value={lead.contactPerson} />
-                <Fact label="Email" value={lead.email} />
-                <Fact label="Phone" value={lead.phone} />
-                <Fact label="Alt phone" value={lead.altPhone} />
-                <Fact label="City" value={lead.city} />
-                <Fact label="Location" value={lead.location} />
-                <Fact label="PIN" value={lead.pin} />
-                <Fact label="Source" value={lead.source} />
-                <Fact label="Website" value={lead.website} link />
+                {known.map((fact) => (
+                  <Fact key={fact.label} label={fact.label} value={fact.value} href={fact.href} />
+                ))}
                 <Fact
                   label="Last contacted"
                   value={lead.lastContactedAt ? relativeDay(lead.lastContactedAt) : null}
@@ -268,6 +305,18 @@ export function LeadDetail({
                 />
                 <Fact label="Added" value={formatDate(lead.createdAt)} />
               </dl>
+
+              {missing.length > 0 && (
+                <p className="facts__missing">
+                  <span className="card__hint">Not known yet: {missing.join(", ")}.</span>
+                  <button type="button" className="btn btn--sm btn--ghost" onClick={() => setEditing(true)}>
+                    <Plus size={14} aria-hidden />
+                    Add a detail
+                  </button>
+                </p>
+              )}
+
+              <KnownAbout leadId={leadId} version={tasksVersion} />
 
               {lead.notes && (
                 <div className="detail__notes">
@@ -296,10 +345,36 @@ export function LeadDetail({
         </section>
 
         <section className="card detail__timeline">
-          {/* What happens next, then the ways to make it happen, then what
-              already did. The history is the reason to open a contact at all,
-              and it used to sit under four other cards. */}
+          {/* What happens next, the ways to write to them, what already
+              happened - and only then what they are worth. The history is the
+              reason to open a contact at all, and it used to sit at the foot. */}
           <LeadTasks key={tasksVersion} leadId={leadId} onTimelineChanged={load} />
+
+          <div className="detail__historyTitle">
+            <LeadEmail lead={lead} onTimelineChanged={load} />
+          </div>
+
+          {/* Each only where they can be reached that way: an empty panel on
+              every contact would be furniture. What is missing is said once,
+              under their details, with the way to add it. */}
+          {lead.phone && (
+            <div className="detail__historyTitle">
+              <LeadMessage channel="whatsapp" lead={lead} onTimelineChanged={load} />
+            </div>
+          )}
+          {lead.linkedin && (
+            <div className="detail__historyTitle">
+              <LeadMessage channel="linkedin" lead={lead} onTimelineChanged={load} />
+            </div>
+          )}
+          {lead.instagram && (
+            <div className="detail__historyTitle">
+              <LeadMessage channel="instagram" lead={lead} onTimelineChanged={load} />
+            </div>
+          )}
+
+          <h2 className="card__title detail__historyTitle">History</h2>
+          <Timeline activities={activities} onLog={log} />
 
           <div className="detail__historyTitle">
             <LeadDeals
@@ -311,19 +386,8 @@ export function LeadDetail({
           </div>
 
           <div className="detail__historyTitle">
-            <LeadEmail lead={lead} onTimelineChanged={load} />
-          </div>
-
-          <div className="detail__historyTitle">
-            <LeadWhatsApp lead={lead} onTimelineChanged={load} />
-          </div>
-
-          <div className="detail__historyTitle">
             <LeadMoney leadId={leadId} onOpenMoney={onGoToMoney} />
           </div>
-
-          <h2 className="card__title detail__historyTitle">History</h2>
-          <Timeline activities={activities} onLog={log} />
         </section>
       </div>
     </div>
@@ -333,12 +397,13 @@ export function LeadDetail({
 function Fact({
   label,
   value,
-  link,
+  href: address,
   empty = "Not known",
 }: {
   label: string;
   value: string | null;
-  link?: boolean;
+  /** Where it opens, for a website or a profile. */
+  href?: string | undefined;
   empty?: string;
 }) {
   return (
@@ -347,8 +412,8 @@ function Fact({
       <dd className="facts__value">
         {value === null || value === "" ? (
           <span className="leadrow__missing">{empty}</span>
-        ) : link ? (
-          <a href={href(value)} target="_blank" rel="noreferrer noopener">
+        ) : address ? (
+          <a href={address} target="_blank" rel="noreferrer noopener">
             {value}
             <ExternalLink size={12} aria-hidden />
           </a>

@@ -52,7 +52,7 @@ export function quickAdd(
         repeat: input.repeat,
       }),
     );
-    const repeats = occurrencesOf({ weekdays: input.repeat.weekdays, from: input.day, until: input.repeat.until }).length;
+    const repeats = occurrencesOf({ weekdays: input.repeat.weekdays, from: input.day, until: input.repeat.until, every: input.repeat.every }).length;
     return { task: null, blocked: true, repeats, followUp: null };
   }
 
@@ -63,16 +63,16 @@ export function quickAdd(
       taskInput.parse({
         title: input.title,
         kind: input.kind,
-        area: input.area,
         priority: input.priority,
         dueOn: input.day,
         leadId: input.leadId,
         notes: input.notes,
+        repeats: input.every,
       }),
     );
 
     // "...so i need to remind him 2 days prior": the second thing the line
-    // asked for, in the same part of life and for the same contact. Inside the
+    // asked for, for the same contact. Inside the
     // transaction, so a reminder is never left behind for a task that failed.
     const followUp = input.followUp
       ? createTask(
@@ -81,7 +81,6 @@ export function quickAdd(
           taskInput.parse({
             title: input.followUp.title,
             kind: input.followUp.kind,
-            area: input.area,
             priority: null,
             dueOn: input.followUp.day,
             leadId: input.leadId,

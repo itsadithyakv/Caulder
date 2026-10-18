@@ -10,7 +10,7 @@ import type { Busy, OpenTask, Said, Timed } from "./lines";
  *    so "gym tomorrow" is at 7 without asking - said, and one click to drop.
  *  - **A clash.** "Meeting at 5" when Guitar is at 5 says so before Enter.
  *  - **Already there.** "Pay rent" when "Pay rent" is open for the 1st.
- *  - **Getting ready.** An exam or a pitch a few days off offers the day before
+ *  - **Getting ready.** A pitch or a demo a few days off offers the day before
  *    to prepare.
  *  - **Tab.** The rest of the line, from what you have typed before and the
  *    names you know - the thing you do at this hour first.
@@ -69,6 +69,99 @@ const minutesOf = (time: string) => {
   return hour * 60 + minute;
 };
 
+/** What kind of thing a block's title says it was, for its usual length: a call, or a meeting. */
+function kindOfTitle(title: string): "call" | "meeting" | null {
+  const lower = expand(title).toLowerCase();
+  if (/\b(?:call|calls|ring|phone)\b/.test(lower)) return "call";
+  if (/\b(?:meet|meeting|catch[\s-]?up|sync|1:1|one[\s-]on[\s-]one|standup|stand-up|interview|coffee\s+with|lunch\s+with)\b/.test(lower)) return "meeting";
+  return null;
+}
+
+/**
+ * The length a call or a meeting has usually had, when the line said none and
+ * this very thing has no usual of its own: thirty minutes, if most of the
+ * person's calls have been thirty minutes. Counted the way `usualFor` counts.
+ */
+export function usualLength(kind: string, timed: readonly Timed[]): Usual | null {
+  if (kind !== "call" && kind !== "meeting") return null;
+  const before = timed.filter((each) => kindOfTitle(each.title) === kind);
+  if (before.length < 3) return null;
+  const length = mostOf(before.map((each) => each.minutes));
+  if (!length || length.count < 3 || length.count / before.length < 0.6) return null;
+  return { time: null, minutes: length.value, of: length.count, out: before.length, about: kind === "call" ? "a call" : "a meeting" };
+}
+
+/** This thing's own usual, else the usual length of its kind. */
+export function usualOf(title: string, kind: string, timed: readonly Timed[]): Usual | null {
+  return usualFor(title, timed) ?? usualLength(kind, timed);
+}
+
+/**
+ * The shape of the person's working day, from their own blocks over the last
+ * eight weeks (PLAN.md, part twelve, phase 46): when it usually starts, when
+ * it usually ends, and when lunch is over. Each is the middle value of the
+ * days that had one, and null with fewer than five days (three lunches) to
+ * count - a new workspace leans on nothing.
+ */
+export type YourDay = { starts: number | null; ends: number | null; lunchEnds: number | null };
+
+export const NO_DAY: YourDay = { starts: null, ends: null, lunchEnds: null };
+
+const middle = (values: readonly number[], least = 5): number | null => {
+  if (values.length < least) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.floor(sorted.length / 2)] ?? null;
+};
+
+export function yourDay(timed: readonly Timed[], today: string): YourDay {
+  const since = shiftDay(today, -56);
+  const recent = timed.filter((each) => each.day >= since && each.day < today);
+  const byDay = new Map<string, Timed[]>();
+  for (const block of recent) byDay.set(block.day, [...(byDay.get(block.day) ?? []), block]);
+  const days = [...byDay.values()];
+  const lunches = recent.filter((each) => /\blunch\b/i.test(each.title)).map((each) => minutesOf(each.startsAt) + each.minutes);
+  return {
+    starts: middle(days.map((blocks) => Math.min(...blocks.map((each) => minutesOf(each.startsAt))))),
+    ends: middle(days.map((blocks) => Math.max(...blocks.map((each) => minutesOf(each.startsAt) + each.minutes)))),
+    lunchEnds: middle(lunches, 3),
+  };
+}
+
+/**
+ * Morning or evening for this very thing, from when it has been before
+ * (PLAN.md, part twelve, phase 48): "call mum at 8" has gone in at 8pm twice
+ * and never at 8am, so it is 8pm without asking. Learned from what was kept,
+ * the way `usualFor` learns an hour - nothing stored apart from the blocks.
+ */
+export function sideBefore(title: string, hour: number, minute: number, timed: readonly Timed[]): "am" | "pm" | null {
+  const core = coreOf(title);
+  if (core.length === 0) return null;
+  const at = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+  const [am, pm] = [at(hour * 60 + minute), at((hour + 12) * 60 + minute)];
+  const before = timed.filter((each) => same(coreOf(each.title), core));
+  const mornings = before.filter((each) => each.startsAt === am).length;
+  const evenings = before.filter((each) => each.startsAt === pm).length;
+  if (evenings >= 2 && mornings === 0) return "pm";
+  if (mornings >= 2 && evenings === 0) return "am";
+  return null;
+}
+
+/**
+ * Morning or evening for an hour said bare, from when the person's days are:
+ * eleven is the morning to somebody who works nine to seven, because 11pm
+ * falls outside their day and 11am inside it. An hour either side of the day
+ * still counts as in it. Null - so the line asks - when both fall inside, or
+ * neither does, or there is no day to go on.
+ */
+export function sideOf(hour: number, minute: number, day: YourDay): "am" | "pm" | null {
+  if (day.starts === null || day.ends === null) return null;
+  const inside = (at: number) => at >= day.starts! - 60 && at <= day.ends! + 60;
+  const am = inside(hour * 60 + minute);
+  const pm = inside((hour + 12) * 60 + minute);
+  if (am === pm) return null;
+  return am ? "am" : "pm";
+}
+
 /** An hour already taken when this would be, that is not this itself. */
 export function clashWith(
   task: { title: string; day: string; time: string; minutes: number | null },
@@ -97,21 +190,19 @@ export function alreadyOpen(title: string, day: string, open: readonly OpenTask[
   return open.find((task) => same(coreOf(task.title), core) && Math.abs(daysBetween(day, task.dueOn)) <= 14) ?? null;
 }
 
-const EXAM = /\b(?:exam|exams|test|viva|midsem|mid-sem|midterm|endsem|end-sem|finals?|quiz|board)\b/i;
-const EVENT = /\b(?:interview|presentation|pitch|demo|recital|audition|match|competition|hackathon|debate)\b/i;
-const ALREADY_READY = /^(?:prepare|prep|revise|study|practise|practice|rehearse|get\s+ready)\b/i;
+const EVENT = /\b(?:interview|presentation|pitch|demo|talk|workshop|webinar|launch|audit|hackathon)\b/i;
+const ALREADY_READY = /^(?:prepare|prep|practise|practice|rehearse|get\s+ready)\b/i;
 
-/** For an exam or a pitch a few days off: the day before, to get ready. */
+/** For a pitch or a demo a few days off: the day before, to get ready. */
 export function readyFor(title: string, day: string, today: string): { title: string; day: string } | null {
   if (ALREADY_READY.test(title) || daysBetween(today, day) < 2) return null;
   const what = title.replace(/^(?:have|has|attend|give|write|take|appear\s+for)\s+(?:an?\s+|the\s+|my\s+)?/i, "").trim();
-  if (EXAM.test(title)) return { title: `Revise for ${lower(what)}`, day: shiftDay(day, -1) };
   if (EVENT.test(title)) return { title: `Prepare for ${lower(what)}`, day: shiftDay(day, -1) };
   return null;
 }
 
 function lower(title: string): string {
-  // "DBMS exam" stays DBMS; "Exam" is "exam" in the middle of a sentence.
+  // "CRM demo" stays CRM; "Demo" is "demo" in the middle of a sentence.
   return /^[A-Z][a-z]/.test(title) ? title.charAt(0).toLowerCase() + title.slice(1) : title;
 }
 
@@ -125,7 +216,7 @@ type Completions = { phrases: readonly { text: string; weight: number }[]; names
  */
 export function completionsFrom(
   context: { said: readonly Said[]; timed: readonly Timed[] },
-  known: { contacts: readonly { name: string; person: string | null }[]; hobbies: readonly { title: string }[]; habits?: readonly { name: string }[]; pages?: readonly { title: string }[] },
+  known: { contacts: readonly { name: string; person: string | null }[]; hobbies?: readonly { title: string }[]; habits?: readonly { name: string }[]; pages?: readonly { title: string }[] },
   now: number,
 ): Completions {
   const nearNow = new Set(
@@ -140,7 +231,7 @@ export function completionsFrom(
   }));
   const names = [
     ...(known.habits ?? []).map((habit) => ({ text: habit.name, weight: 30 })),
-    ...known.hobbies.map((hobby) => ({ text: hobby.title, weight: 25 })),
+    ...(known.hobbies ?? []).map((hobby) => ({ text: hobby.title, weight: 25 })),
     ...known.contacts.flatMap((contact) => [
       ...(contact.person ? [{ text: contact.person, weight: 20 }] : []),
       { text: contact.name, weight: 15 },

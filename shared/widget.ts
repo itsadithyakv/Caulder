@@ -1,3 +1,7 @@
+import type { Today } from "./domain";
+import { minutesOf } from "./dates";
+import { whatNow } from "./priority";
+
 /**
  * What the desk widget's three levels are, and how its settings read.
  *
@@ -14,7 +18,7 @@ export const WIDGET_LEVELS = [
   {
     id: "front",
     title: "In front",
-    detail: "Above your other windows, wherever you drag it. Hover it to open it.",
+    detail: "Above your windows.",
   },
   {
     id: "desktop",
@@ -24,13 +28,12 @@ export const WIDGET_LEVELS = [
      * after. Somebody who picks this and then cannot find the widget has not
      * hit a bug - they have a browser open.
      */
-    detail:
-      "Part of the wallpaper, behind your windows and your icons. You see it when you see the desktop, and it cannot be clicked or dragged there - Windows sends those to the desktop instead. Move it while it is in front, then send it back.",
+    detail: "On the wallpaper. Cannot be clicked there.",
   },
   {
     id: "normal",
     title: "An ordinary window",
-    detail: "In the stack with everything else, so whatever you are working in covers it.",
+    detail: "Covered by other windows.",
   },
 ] as const;
 
@@ -75,3 +78,96 @@ export function widgetSpot(saved: string | null): { x: number; y: number } | nul
     return null;
   }
 }
+
+/* ---- What it says ---------------------------------------------------------
+ *
+ * The widget answers the three things Caulder is for without anything being
+ * opened: what is on, who has written or is waiting, and what is late or
+ * owed. What is said, and in which order, is decided here so it can be
+ * tested; the words and the times are the window's (src/features/widget).
+ * ------------------------------------------------------------------------ */
+
+/** A block about to start outranks everything: it is the one thing that cannot wait. */
+const DESK_SOON_MINUTES = 10;
+
+/** The most blocks the open panel lists. */
+const DESK_HOURS = 4;
+
+/** The most tasks the open panel lists, late ones first. */
+const DESK_TASKS = 4;
+
+type DeskDay = Pick<Today, "blocks" | "overdue" | "dueToday" | "replies" | "unpaid" | "reach">;
+
+/** The one thing the resting pill says. */
+export type DeskGlance =
+  | { say: "soon"; title: string; minutes: number }
+  | { say: "replied"; name: string; others: number }
+  | { say: "late"; title: string; others: number }
+  | { say: "now"; title: string; others: number }
+  | { say: "next"; title: string; minutes: number }
+  | { say: "due"; title: string; others: number }
+  | { say: "nothing" };
+
+/**
+ * What the pill has room for, soonest first.
+ *
+ * A block starting within ten minutes cannot wait. A reply is the warmest
+ * thing in the app and goes cold if left. Late work was already late an hour
+ * ago. Then what is on, what is next, and what is due.
+ */
+export function deskGlance(day: DeskDay, minutes: number): DeskGlance {
+  const advice = whatNow(day.blocks, minutes);
+  if (advice.next && advice.nextIn !== null && advice.nextIn <= DESK_SOON_MINUTES) {
+    return { say: "soon", title: advice.next.title, minutes: advice.nextIn };
+  }
+  const first = day.replies[0];
+  if (first) return { say: "replied", name: first.leadName, others: day.replies.length - 1 };
+  const late = day.overdue[0];
+  if (late) return { say: "late", title: late.title, others: day.overdue.length - 1 };
+  const on = advice.at[0];
+  if (on) return { say: "now", title: on.title, others: advice.at.length - 1 };
+  if (advice.next && advice.nextIn !== null) return { say: "next", title: advice.next.title, minutes: advice.nextIn };
+  const due = day.dueToday[0];
+  if (due) return { say: "due", title: due.title, others: day.dueToday.length - 1 };
+  return { say: "nothing" };
+}
+
+/**
+ * The tasks the panel lists by name, to be ticked off there: late first, then
+ * due today, at most four, and how many more there are. Named rather than
+ * counted - "2 due today" made you open the app to find out which.
+ */
+export function deskTasks<T>(day: { overdue: readonly T[]; dueToday: readonly T[] }): { tasks: { task: T; late: boolean }[]; more: number } {
+  const all = [...day.overdue.map((task) => ({ task, late: true })), ...day.dueToday.map((task) => ({ task, late: false }))];
+  return { tasks: all.slice(0, DESK_TASKS), more: Math.max(0, all.length - DESK_TASKS) };
+}
+
+/** One line under the tasks in the open panel. `urgent` is the only thing that earns a colour. */
+export type DeskFact =
+  | { about: "replied"; name: string; others: number }
+  | { about: "unpaid"; count: number; urgent: true }
+  | { about: "waiting"; count: number }
+  | { about: "reached"; count: number };
+
+/**
+ * The rest of the company's day, under the tasks: who wrote, what is owed,
+ * who is waiting. Only what is so; the tasks themselves are listed by name.
+ */
+export function deskFacts(day: DeskDay): DeskFact[] {
+  const facts: DeskFact[] = [];
+  const reply = day.replies[0];
+  if (reply) facts.push({ about: "replied", name: reply.leadName, others: day.replies.length - 1 });
+  if (day.unpaid.length > 0) facts.push({ about: "unpaid", count: day.unpaid.length, urgent: true });
+  if (day.reach.waiting > 0) facts.push({ about: "waiting", count: day.reach.waiting });
+  if (day.reach.today > 0) facts.push({ about: "reached", count: day.reach.today });
+  return facts;
+}
+
+/** The blocks worth listing: what has not finished yet, soonest first. A morning that is over is not on the desk. */
+export function deskHours<T extends { startsAt: string; minutes: number }>(blocks: readonly T[], minutes: number): T[] {
+  return blocks
+    .filter((block) => minutesOf(block.startsAt) + block.minutes > minutes)
+    .sort((a, b) => minutesOf(a.startsAt) - minutesOf(b.startsAt))
+    .slice(0, DESK_HOURS);
+}
+

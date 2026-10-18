@@ -1,49 +1,45 @@
 import { z } from "zod";
-import { TASK_AREAS } from "./domain";
 
 /**
  * What the line learns from being corrected.
  *
- * Move a task from Company to Personal, or a line from Note to Task, before
- * pressing Enter, and the words of that line are kept with the choice. The
- * next line that shares those words is read the way you chose - "give
- * rahul his jacket back" lands in Personal because "return my friends
- * jacket" did. No model: a lesson is the words and the answer, and every one
- * can be seen and taken back in Settings.
+ * Move a line from Note to Task, or from Task to Idea, before pressing Enter,
+ * and the words of that line are kept with the choice. The next line that
+ * shares those words is read the way you chose - "look into a loyalty card"
+ * is an idea because "look into a referral scheme" was. No model: a lesson
+ * is the words and the answer, and every one can be seen and taken back in
+ * Settings.
  *
- * Two rules keep it from learning the wrong thing. A word that has been
- * corrected towards two different answers says nothing ("report" is a client's
- * and a lab's), and a word you have taught outright as one of Your words is
- * left to that, which already speaks for it. A lesson wins only when it has a
- * word the others do not.
+ * One rule keeps it from learning the wrong thing: a word that has been
+ * corrected towards two different answers says nothing. A lesson wins only
+ * when it has a word the others do not.
+ *
+ * A lesson used to say which part of life a task was in as well. A task has
+ * no area now (PLAN.md, phase 32); the column on `line_lessons` stays, unread.
  */
 
 /** The kinds a line can be moved between and learn from. Never private, contact, done or command. */
-export const LESSON_KINDS = ["task", "journal", "idea", "note", "memory"] as const;
+export const LESSON_KINDS = ["task", "idea", "note", "memory"] as const;
 export type LessonKind = (typeof LESSON_KINDS)[number];
 
 export type Lesson = {
   id: string;
   /** The words of the line, plain and sorted: what a later line is matched on. */
   words: readonly string[];
-  area: string | null;
-  kind: LessonKind | null;
+  kind: LessonKind;
   /** How many times this exact lesson was given. */
   times: number;
   /** The line as it was typed the first time, to show what was learnt from. */
   sample: string;
 };
 
-export const lessonInput = z
-  .object({
-    text: z.string().trim().min(1).max(2000),
-    area: z.enum(TASK_AREAS).nullable().default(null),
-    kind: z.enum(LESSON_KINDS).nullable().default(null),
-  })
-  .refine((value) => value.area !== null || value.kind !== null, "Nothing was chosen to learn from.");
+export const lessonInput = z.object({
+  text: z.string().trim().min(1).max(2000),
+  kind: z.enum(LESSON_KINDS, { error: "Nothing was chosen to learn from." }),
+});
 export type LessonInput = z.input<typeof lessonInput>;
 
-/** Words that carry nothing about which part of life a line is, or what it is. */
+/** Words that carry nothing about what a line is. */
 const STOP = new Set([
   "a", "an", "the", "and", "or", "but", "so", "to", "of", "in", "on", "at", "for", "with", "from", "by", "about",
   "into", "over", "after", "before", "up", "down", "out", "off", "it", "its", "this", "that", "these", "those",
@@ -75,34 +71,30 @@ export function wordsOf(text: string): string[] {
   return [...seen].sort();
 }
 
-type Field = "area" | "kind";
-
 /**
- * Which answer the lessons give for a line, for one field, or null when they
- * give none or cannot agree. A word that has been taught two answers counts
- * for neither. The answer with the most weight wins, and only outright.
+ * Which kind the lessons give for a line, or null when they give none or
+ * cannot agree. A word that has been taught two answers counts for neither.
+ * The answer with the most weight wins, and only outright.
  */
-function vote(text: string, lessons: readonly Lesson[], field: Field, leave: ReadonlySet<string>): string | null {
-  const words = wordsOf(text).filter((word) => !leave.has(word));
+function vote(text: string, lessons: readonly Lesson[]): string | null {
+  const words = wordsOf(text);
   if (words.length === 0) return null;
-  const relevant = lessons.filter((lesson) => lesson[field] !== null);
 
   // What each word has been taught, across every lesson that has it.
   const taught = new Map<string, Set<string>>();
-  for (const lesson of relevant) {
+  for (const lesson of lessons) {
     for (const word of lesson.words) {
       const answers = taught.get(word) ?? new Set<string>();
-      answers.add(lesson[field] as string);
+      answers.add(lesson.kind);
       taught.set(word, answers);
     }
   }
 
   const weight = new Map<string, number>();
-  for (const lesson of relevant) {
-    const answer = lesson[field] as string;
+  for (const lesson of lessons) {
     const shared = lesson.words.filter((word) => words.includes(word) && taught.get(word)?.size === 1);
     if (shared.length === 0) continue;
-    weight.set(answer, (weight.get(answer) ?? 0) + shared.length * Math.max(1, lesson.times));
+    weight.set(lesson.kind, (weight.get(lesson.kind) ?? 0) + shared.length * Math.max(1, lesson.times));
   }
 
   const ranked = [...weight.entries()].sort((a, b) => b[1] - a[1]);
@@ -112,17 +104,11 @@ function vote(text: string, lessons: readonly Lesson[], field: Field, leave: Rea
   return best[0];
 }
 
-/** Which part of life the lessons say a line is. `taught` are Your words, which already speak for themselves. */
-export function voteArea(text: string, lessons: readonly Lesson[], taught: readonly string[] = []): string | null {
-  const leave = new Set(taught.flatMap((word) => wordsOf(word)));
-  return vote(text, lessons, "area", leave);
-}
-
 /** The line a choice was learnt from, to say so under the line: "the way you moved “return my friends jacket”". */
-export function learntFrom(text: string, lessons: readonly Lesson[], field: Field, answer: string): string | null {
+export function learntFrom(text: string, lessons: readonly Lesson[], answer: LessonKind): string | null {
   const words = wordsOf(text);
   const best = lessons
-    .filter((lesson) => lesson[field] === answer)
+    .filter((lesson) => lesson.kind === answer)
     .map((lesson) => ({ lesson, shared: lesson.words.filter((word) => words.includes(word)).length }))
     .filter(({ shared }) => shared > 0)
     .sort((a, b) => b.shared - a.shared || b.lesson.times - a.lesson.times)[0];
@@ -131,6 +117,6 @@ export function learntFrom(text: string, lessons: readonly Lesson[], field: Fiel
 
 /** Where the lessons say a line goes. */
 export function voteKind(text: string, lessons: readonly Lesson[]): LessonKind | null {
-  const kind = vote(text, lessons, "kind", new Set());
+  const kind = vote(text, lessons);
   return kind !== null && (LESSON_KINDS as readonly string[]).includes(kind) ? (kind as LessonKind) : null;
 }

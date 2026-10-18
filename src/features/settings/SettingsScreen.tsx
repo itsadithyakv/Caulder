@@ -9,20 +9,18 @@ import { ErrorLine } from "@/components/ErrorLine";
 import { useWorkspace } from "@/lib/workspace";
 import { StageEditor } from "./StageEditor";
 import { DataSafety } from "./DataSafety";
-import { setShowLevels, useLevelsSetting } from "@/features/life/levels";
 import { FieldsCard, RemindersCard } from "./Workbench";
 import { GoogleCard } from "./GoogleCard";
+import { ContactsSheetCard } from "./ContactsSheetCard";
 import { AiCard } from "./AiCard";
-import { WordsCard } from "./WordsCard";
 import { TuneCard } from "./TuneCard";
 import { LessonsCard } from "./LessonsCard";
 import { MailAccountsCard } from "./MailAccountsCard";
 import { TemplatesCard } from "./TemplatesCard";
 import { ConnectionsCard } from "./Connected";
 import { DeskCard } from "./DeskCard";
-import { PetCard } from "./PetCard";
 import { UnderstandCard } from "./UnderstandCard";
-import { ThisIsMeCard } from "@/features/sharing/ThisIsMeCard";
+import { ThisIsMeCard } from "./ThisIsMeCard";
 import { getTheme, setTheme, type ThemeChoice } from "@/lib/theme";
 import { DEFAULT_CAPTURE_SHORTCUT, sayShortcut, type AccentId, type Company } from "@shared/domain";
 import { countryName } from "@shared/countries";
@@ -47,10 +45,10 @@ const THEME_OPTIONS: { id: ThemeChoice; label: string }[] = [
  * full width underneath, with its two halves side by side.
  */
 const GROUPS = [
-  { id: "workspace", label: "Workspace", note: "Who you are, your companies, and how the board reads them." },
-  { id: "planning", label: "Planning", note: "How the quick-add line reads you, and when Caulder speaks up." },
-  { id: "connections", label: "Connections", note: "Google and an AI, each on its own card." },
-  { id: "computer", label: "This computer", note: "How Caulder looks and opens here, its updates, and your data." },
+  { id: "workspace", label: "Workspace", note: "You, your companies and the board." },
+  { id: "planning", label: "Planning", note: "The quick line and reminders." },
+  { id: "connections", label: "Connections", note: "Google, mail and an AI." },
+  { id: "computer", label: "This computer", note: "Looks, updates and your data." },
 ] as const;
 
 type GroupId = (typeof GROUPS)[number]["id"];
@@ -107,7 +105,7 @@ export function SettingsScreen({
 
       <div className="settings__groups">
         <Group id="workspace">
-          <Column>
+          <Column title="You and your companies">
             <ThisIsMeCard />
             <Card
               title="Companies"
@@ -126,12 +124,12 @@ export function SettingsScreen({
                   ))}
               </div>
             </Card>
-            {activeCompany && <FieldsCard />}
           </Column>
-          {/* The board reads straight from this list. */}
+          {/* Everything about how contacts and deals are kept. The board reads straight from the stages. */}
           {activeCompany && (
-            <Column>
+            <Column title="Contacts and deals">
               <StageEditor key={activeCompany.id} companyId={activeCompany.id} />
+              <FieldsCard />
               <TemplatesCard key={`templates-${activeCompany.id}`} />
             </Column>
           )}
@@ -152,6 +150,7 @@ export function SettingsScreen({
           </Column>
           <Column>
             <GoogleCard />
+            <ContactsSheetCard />
             <MailAccountsCard />
           </Column>
           <Band>
@@ -167,7 +166,6 @@ export function SettingsScreen({
           <Column>
             <CaptureCard />
             <DeskCard />
-            <PetCard />
             <UnderstandCard />
           </Column>
           {activeCompany && (
@@ -205,8 +203,13 @@ function Group({ id, children }: { id: GroupId; children: ReactNode }) {
 }
 
 /** Cards one under another. The last one stretches, so the columns beside each other end on one line. */
-function Column({ children }: { children: ReactNode }) {
-  return <div className="settings__col">{children}</div>;
+function Column({ title, children }: { title?: string; children: ReactNode }) {
+  return (
+    <div className="settings__col">
+      {title && <h3 className="settings__colTitle">{title}</h3>}
+      {children}
+    </div>
+  );
 }
 
 /** A card across the whole group, under its columns. */
@@ -216,7 +219,6 @@ function Band({ children }: { children: ReactNode }) {
 
 function AppearanceCard() {
   const [theme, setThemeState] = useState<ThemeChoice>(getTheme);
-  const levels = useLevelsSetting();
 
   function chooseTheme(next: ThemeChoice) {
     setTheme(next);
@@ -224,7 +226,7 @@ function AppearanceCard() {
   }
 
   return (
-    <Card title="Appearance" hint="Match system follows Windows. The other two override it.">
+    <Card title="Appearance">
       <div className="tabs settings__themes" role="tablist" aria-label="Theme">
         {THEME_OPTIONS.map((option) => (
           <button
@@ -240,24 +242,6 @@ function AppearanceCard() {
         ))}
       </div>
 
-      {/* Not shown until the answer is in, so the box never ticks itself a moment after opening. */}
-      {levels !== null && (
-        <label className="field checkline">
-          <input
-            type="checkbox"
-            className="tickbox"
-            checked={levels}
-            onChange={(event) => void setShowLevels(event.target.checked)}
-            aria-label="Show levels and XP"
-          />
-          <span className="checkline__text">
-            <span className="checkline__title">Show levels and XP</span>
-            <span className="card__hint">
-              Your level on Today, and your level and achievements on Life. Off, the points are still counted, just not shown.
-            </span>
-          </span>
-        </label>
-      )}
     </Card>
   );
 }
@@ -485,6 +469,7 @@ function CaptureCard() {
   const [draft, setDraft] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
   const [keep, setKeep] = useState(true);
+  const [startup, setStartup] = useState<{ on: boolean; store: boolean } | null>(null);
 
   async function load() {
     const now = await window.caulder.capture.get();
@@ -495,6 +480,7 @@ function CaptureCard() {
   useEffect(() => {
     void load();
     void window.caulder.capture.keepInTray().then(setKeep);
+    window.caulder.app.startup().then(setStartup, () => undefined);
   }, []);
 
   async function apply(next: string) {
@@ -514,7 +500,7 @@ function CaptureCard() {
   return (
     <Card
       title="Quick add from anywhere"
-      hint="A key that opens a small task window over whatever you are doing. The tray icon opens the same window."
+      hint="A key that opens a task window from any app."
     >
       <ErrorLine>{problem}</ErrorLine>
 
@@ -565,7 +551,7 @@ function CaptureCard() {
           ? `${state.accelerator} is held. Press it anywhere to add a task.`
           : state?.reason && !problem
             ? state.reason
-            : "No key is set, so nothing is being taken from anything else. The tray icon still works."}
+            : "No key set. The tray icon still works."}
       </p>
 
       {/* `field` carries the display; `checkline` only sets its direction. */}
@@ -580,10 +566,34 @@ function CaptureCard() {
         <span className="checkline__text">
           <span className="checkline__title">Keep Caulder in the tray when its window is closed</span>
           <span className="card__hint">
-            So the key and the reminders keep working. Quit from the icon&rsquo;s menu.
+            Quit from the tray icon&rsquo;s menu.
           </span>
         </span>
       </label>
+
+      {startup && !startup.store && (
+        <label className="field checkline">
+          <input
+            type="checkbox"
+            className="tickbox"
+            checked={startup.on}
+            onChange={(event) => void window.caulder.app.setStartup(event.target.checked).then(setStartup)}
+            aria-label="Open Caulder when Windows starts"
+          />
+          <span className="checkline__text">
+            <span className="checkline__title">Open Caulder when Windows starts</span>
+            <span className="card__hint">{keep ? "In the tray, out of the way." : "With its window open."}</span>
+          </span>
+        </label>
+      )}
+      {startup?.store && (
+        <p className="card__hint">
+          Opens when Windows starts.{" "}
+          <button type="button" className="linkbtn" onClick={() => void window.caulder.app.startupApps()}>
+            Change it in Windows
+          </button>
+        </p>
+      )}
 
       <Explain label="What the window does">
         <p>
@@ -602,17 +612,11 @@ function CaptureCard() {
   );
 }
 
-/**
- * Your words, and the questions that add to them. A name given an area in
- * Tune is one of Your words from that press, so the list above is read again
- * rather than left saying otherwise until the screen is next opened.
- */
+/** How the line reads: what it was unsure of, and what it learnt from being moved. */
 function WordsAndTune() {
-  const [taught, setTaught] = useState(0);
   return (
     <>
-      <WordsCard key={taught} />
-      <TuneCard onTaught={() => setTaught((count) => count + 1)} />
+      <TuneCard />
       <LessonsCard />
     </>
   );

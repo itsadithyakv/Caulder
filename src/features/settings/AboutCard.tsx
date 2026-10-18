@@ -32,9 +32,7 @@ export function AboutCard() {
       className="about"
     >
       <p className="card__hint">
-        No account, no ads, and nothing about you leaves this computer unless you connect something yourself. Caulder
-        is made by one college student in India. If it has earned its place in your day, you can help keep it going -
-        or tell one other founder about it, which helps as much.
+        No account, no ads. Made by one college student in India - if it helps you, you can help keep it going.
       </p>
       <div className="actions">
         <button type="button" className="btn btn--sm btn--primary" onClick={() => window.open(SUPPORT.sponsors, "_blank")}>

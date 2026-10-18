@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import {
   TEMPLATE_VARIABLES,
@@ -7,6 +7,7 @@ import {
   type TemplateInput,
 } from "@shared/email";
 import { unknownTokens } from "@shared/render";
+import { sayStats, type TemplateStats } from "@shared/mail";
 import { Chips } from "@/components/Select";
 import { messageOf } from "@/lib/errors";
 
@@ -30,6 +31,11 @@ export function TemplateList({
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** How each has done, read when the list is: a count of what went, never a verdict. */
+  const [stats, setStats] = useState<TemplateStats[]>([]);
+  useEffect(() => {
+    window.caulder.email.templateStats(companyId).then(setStats, () => setStats([]));
+  }, [companyId, templates]);
 
   async function save(id: string | null, input: TemplateInput) {
     setBusy(true);
@@ -72,10 +78,12 @@ export function TemplateList({
         )}
       </div>
 
-      <p className="card__hint">
-        Use {TEMPLATE_VARIABLES.map((v) => v.token).join(", ")}. Anything else is
-        left exactly as written.
-      </p>
+      <details className="templates__help">
+        <summary className="card__hint">What fills itself in</summary>
+        <p className="card__hint">
+          {TEMPLATE_VARIABLES.map((v) => v.token).join(", ")}. Anything else is left exactly as written.
+        </p>
+      </details>
 
       {error && (
         <p className="field__error" role="alert">
@@ -92,7 +100,7 @@ export function TemplateList({
       )}
 
       {templates.length === 0 && !adding && (
-        <p className="card__hint">Nothing yet. A template is a message worth writing once.</p>
+        <p className="card__hint">No templates yet.</p>
       )}
 
       <ul className="templates">
@@ -118,6 +126,9 @@ export function TemplateList({
                 <span className="templaterow__subject">
                   {template.channel === "whatsapp" ? template.body : template.subject}
                 </span>
+                {sayStats(stats.find((each) => each.templateId === template.id)) && (
+                  <span className="templaterow__stats">{sayStats(stats.find((each) => each.templateId === template.id))}</span>
+                )}
               </div>
               <div className="detail__barActions">
                 <button

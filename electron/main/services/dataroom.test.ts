@@ -23,7 +23,6 @@ const { migrate } = await import("../db/migrations");
 const { createCompany } = await import("../repositories/companies");
 const { createLead } = await import("../repositories/leads");
 const { recordDocument } = await import("../repositories/documents");
-const { addPerson } = await import("./people");
 const { newProduct, newPrice } = await import("./products");
 const { leadInput } = await import("@shared/domain");
 const { linkToken } = await import("@shared/links");
@@ -62,12 +61,11 @@ describe("the data room", () => {
   it("offers the company's sections, the kinds of document and the tables, with how much of each", () => {
     write("plan", "goal", "Forty schools", "By March.");
     recordDocument(db, companyId, { name: "GST certificate", category: "certificate", location: "Drive" }, null, now);
-    addPerson(db, companyId, { name: "Asha", kind: "founder", equity: 50 }, now);
     const choices = roomChoices(db, companyId, now);
     expect(choices.company).toBe("Unifloe");
     expect(choices.sections.find((section) => section.id === "plan")?.pages).toBe(1);
     expect(choices.categories.find((category) => category.id === "certificate")).toMatchObject({ files: 0, written: 1 });
-    expect(choices.extras.people).toBe(1);
+    expect(choices.extras).toEqual({ products: 0, metrics: 0, filings: 0 });
   });
 
   it("writes an index and a page per page, linked to each other, with numbers masked", () => {
@@ -159,16 +157,12 @@ describe("the data room", () => {
     }
   });
 
-  it("carries the people with their equity, and the catalogue with what it brought in", () => {
-    addPerson(db, companyId, { name: "Asha", kind: "founder", role: "CEO", equity: 50, owns: "Sales", startsOn: "2025-01-15" }, now);
-    addPerson(db, companyId, { name: "Kiran", kind: "candidate" }, now);
+  it("carries the catalogue with what it brought in, and nothing about a team", () => {
     const workshop = newProduct(db, companyId, { name: "Attendance workshop", unit: "workshop" }, now).product;
     newPrice(db, workshop.id, { name: "List", amount: 15000 }, now);
 
-    const index = room({ extras: ["people", "products"] }).text("index.html");
-    expect(index).toContain("People and equity");
-    expect(index).toContain("<td>Asha</td><td>CEO</td><td>Founder</td><td>15 January 2025</td><td>50%</td><td>Sales</td>");
-    expect(index).not.toContain("Kiran");
+    const index = room({ extras: ["products"] }).text("index.html");
+    expect(index).not.toContain("People and equity");
     expect(index).toContain("Attendance workshop");
     expect(index).toMatch(/15,000 one-off/);
   });
@@ -179,24 +173,21 @@ describe("the data room", () => {
 });
 
 describe("the handbook", () => {
-  it("prints the chosen sections as chapters, links between them as anchors, and who is who without anyone's equity", () => {
+  it("prints the chosen sections as chapters, with links between them as anchors", () => {
     const playbook = write("playbooks", "playbook", "Onboarding a school", "## Steps\n\n- [ ] Call the principal");
     write("tools", "tool", "Notion", `Where the docs live. See ${linkToken("onboarding", { kind: "page", id: playbook.id })}.`, {
       cost: 800,
       cycle: "monthly",
     });
     write("money", "budget", "Budget", "Private.");
-    addPerson(db, companyId, { name: "Asha", kind: "founder", role: "CEO", equity: 50, owns: "Sales" }, now);
 
-    const book = handbookHtml(db, companyId, { sections: ["playbooks", "tools"], extras: ["people", "metrics"] }, now);
+    const book = handbookHtml(db, companyId, { sections: ["playbooks", "tools"], extras: ["products", "metrics"] }, now);
     expect(book.pages).toBe(2);
     expect(book.title).toBe("Unifloe handbook");
     expect(book.html).toContain('<p class="what">Company handbook</p>');
-    expect(book.html).toContain('<section class="chapter" id="chapter-1"><h1>Playbooks</h1>');
+    expect(book.html).toContain('<section class="chapter" id="chapter-1"><h1>How we work</h1>');
     expect(book.html).toContain(`<a href="#page-${playbook.id}">Onboarding a school</a>`);
-    expect(book.html).toContain("Who is who");
-    expect(book.html).toContain("Sales");
-    expect(book.html).not.toContain("50%");
+    expect(book.html).not.toContain("Who is who");
     expect(book.html).not.toContain("Budget");
     // A handbook has no metrics table, whatever is asked.
     expect(book.html).not.toContain("Metrics");

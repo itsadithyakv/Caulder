@@ -38,15 +38,14 @@
   gap: var(--space-4);
 }
 
-/* Hello and the day, held together as one short header: two lines, then the
- * work. The screen's own gap would open them up into two separate things. */
+/* Hello and the day, in one line: the hello and the date at one size, then
+ * how much is waiting. The work is the point of the screen, so the header is
+ * not its biggest thing. */
 .today__head {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
 }
 
-/* The day in one line, under the hello: which day, and how much is waiting. */
 .today__day {
   display: flex;
   flex-wrap: wrap;
@@ -55,130 +54,24 @@
   margin: 0;
 }
 
-/* Hello, above the day: the one line on the screen that is not about work.
-   It stands where every other screen has its title, at the title's size. */
-.today__hello {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-1) var(--space-3);
-  min-height: calc(var(--text-xl) * var(--leading-tight));
-}
-
 .today__greeting {
-  margin: 0;
   color: var(--ink);
-  font-size: var(--text-xl);
+  font-size: var(--text-lg);
   font-weight: 700;
   line-height: var(--leading-tight);
   letter-spacing: -0.01em;
 }
 
-.today__name {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.today__name .input {
-  width: 180px;
-}
-
 .today__date {
-  color: var(--ink);
-  font-size: var(--text-md);
-  font-weight: 700;
+  color: var(--ink-2);
+  font-size: var(--text-lg);
+  font-weight: 400;
+  line-height: var(--leading-tight);
 }
 
 .today__summary {
   color: var(--ink-3);
   font-size: var(--text-sm);
-}
-
-/* The joke and the memory, at the head of the side column: beside the work,
- * as quiet as they were under the day, and out of its way. */
-.today__ambient {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: 0 var(--space-1);
-}
-
-/* The aside: a joke beside the work. A button, because the thing to do with a joke is ask for another. */
-.today__aside {
-  align-self: flex-start;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--ink-3);
-  font: inherit;
-  font-size: var(--text-sm);
-  font-style: italic;
-  line-height: var(--leading);
-  text-align: left;
-  cursor: pointer;
-}
-
-/* A memory brought back: under the aside, as quiet, and a door to its page. */
-.today__remember {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  align-self: flex-start;
-  gap: var(--space-1) var(--space-2);
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--ink-2);
-  font: inherit;
-  font-size: var(--text-sm);
-  line-height: var(--leading);
-  text-align: left;
-  cursor: pointer;
-}
-
-.today__remember svg {
-  flex-shrink: 0;
-  color: var(--accent);
-}
-
-.today__remember:hover {
-  color: var(--ink);
-}
-
-.today__rememberWhen {
-  color: var(--ink-3);
-}
-
-.today__aside:hover {
-  color: var(--ink-2);
-}
-
-.today__aside:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  border-radius: var(--radius-xs);
-}
-
-.today__by {
-  font-style: normal;
-  color: var(--ink-3);
-}
-
-.today__by::before {
-  content: "\2014\00a0";
-}
-
-/* What today is for, when your week gives it a theme: a quiet pill between the day and its count. */
-.today__theme {
-  padding: 1px var(--space-2);
-  background: var(--accent-soft);
-  color: var(--accent-strong);
-  border-radius: var(--radius-pill);
-  font-size: var(--text-sm);
-  font-weight: 700;
 }
 
 /* Finish setting up, in one line under the quick line: what is left, each a
@@ -353,16 +246,15 @@
   text-align: left;
 }
 
-.today__actions {
-  display: flex;
-  gap: var(--space-2);
+/* Overdue is the one section allowed to announce itself, and it does it with
+ * its heading and its edge rather than a tint: a red sheet would shout over
+ * everything else on the page. */
+.card--alert {
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--surface));
 }
 
-/* Overdue is the one card allowed to announce itself, and it does it with its
- * edge rather than a full tint: a red card would shout over everything else on
- * the page. The heading and the count say what the edge means. */
-.card--alert {
-  border-color: color-mix(in srgb, var(--danger) 30%, var(--surface));
+.card--alert .card__title {
+  color: var(--danger);
 }
 
 .today__group + .today__group {
@@ -789,10 +681,6 @@
   border: 1px solid var(--border);
 }
 
-/* A paused rule says so by going quiet rather than by disappearing: it is
- * still yours, it is just not running. */
-.rule--off { opacity: 0.55; }
-
 .rule__text {
   flex: 1;
   min-width: 0;
@@ -831,64 +719,44 @@
   list-style: none;
 }
 
-.agenda__row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  border: 1px solid var(--border);
-}
-
-.agenda__time {
-  color: var(--ink-2);
-  font-size: var(--text-sm);
-  font-variant-numeric: tabular-nums;
-  flex: none;
-  min-width: 7ch;
-}
-
-.agenda__title {
-  flex: 1;
-  color: var(--ink);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.agenda__len {
-  flex: none;
-  color: var(--ink-3);
-  font-size: var(--text-xs);
-}
-
 /* ---- The now line -------------------------------------------------------
  * One line answering the question the app is opened to ask. It sits above
  * everything because it outranks everything: what is owed later cannot matter
  * more than what is happening at this minute.
  * ------------------------------------------------------------------------ */
 
-.nowline {
+/* Your name, typed where it was offered. */
+.setupnudge__name {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2);
+}
+
+.setupnudge__name .input {
+  width: 170px;
+  padding-block: var(--space-1);
+}
+
+.nowline {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
   flex-wrap: wrap;
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  border: 1px solid var(--face-edge);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
 }
 
 .nowline__main,
 .nowline__free {
   margin: 0;
-  flex: 1;
-  min-width: 240px;
   color: var(--ink);
-  font-size: var(--text-md);
+  font-size: var(--text-base);
+}
+
+/* Open the day, at the end of the line. */
+.nowline > .btn {
+  margin-left: auto;
 }
 
 .nowline__label {
@@ -900,38 +768,9 @@
 
 .nowline__meta {
   margin: 0;
-  width: 100%;
   color: var(--ink-3);
   font-size: var(--text-sm);
 }
-
-/* ---- Area of life ------------------------------------------------------
- * A dot and a word. The dot carries the hue, the word stays in body ink, so a
- * list of twelve tasks across four areas reads as a list and not a paint
- * chart.
- * ---------------------------------------------------------------------- */
-
-.area {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--ink-2);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.area::before {
-  content: "";
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--area-personal);
-}
-
-.area--college::before { background: var(--area-college); }
-.area--company::before { background: var(--area-company); }
-.area--health::before { background: var(--area-health); }
 
 /* ---- The quick-add line ------------------------------------------------
  * The biggest input on the screen, because it is the one used most. The
@@ -943,13 +782,14 @@
 .today__quick {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
+  align-items: start;
   gap: var(--space-2) var(--space-3);
 }
 
-/* The full form sits by the line's hint, not beside the line itself. */
+/* The full form sits beside the line it is the long way round for, at the
+ * line's own height - not adrift at the foot of the card. */
 .today__form {
-  margin-bottom: 2px;
+  min-height: 58px;
 }
 
 .today__quick > .quickadd {
@@ -975,159 +815,77 @@
   transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 
+/* The mark at the start of the line is a switch: pressed, lines are read by the
+ * AI that is connected. Quiet until pressed, and plainly on when it is. */
+.quickadd__mode {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  margin-left: calc(var(--space-1) * -1);
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+
+.quickadd__mode:hover {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+
+.quickadd__mode:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.quickadd__mode--on,
+.quickadd__mode--on:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
+/* What AI mode is doing with this line: who read it, and what went. */
+.quickadd__ai {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+/* What the AI answered, when the line was a question for it. */
+.quickadd__answer {
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.quickadd__answerActions {
+  display: flex;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+}
+
+/* A question answered in words, in the row the question is asked in. */
+.quickadd__reply {
+  flex: 1 1 14rem;
+  min-width: 10rem;
+  max-width: 22rem;
+  padding-block: var(--space-1);
+}
+
 .quickadd__row:focus-within {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-halo);
 }
 
-/* ---- The switches: what the line does -------------------------------------
- *
- * Plain icons at the head of the line, tinted with the flame they would
- * light: green asks the AI, violet hands the context to another one. Pressed,
- * the switch fills with its flame, so the state is said by the fill as well
- * as the colour, and by each switch's title and the line's placeholder.
- */
-.quickadd__modes {
-  display: flex;
-  align-items: center;
-  flex: none;
-  gap: 2px;
-}
-
-.quickadd__icon {
-  flex-shrink: 0;
-  color: var(--ink-3);
-}
-
-.quickadd__star {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-pill);
-  background: transparent;
-  color: var(--ink-3);
-  cursor: pointer;
-  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
-}
-
-.quickadd__star[data-flame] {
-  color: var(--flame-deep);
-}
-
-.quickadd__star:hover {
-  color: var(--ink);
-  background: var(--hover);
-}
-
-.quickadd__star[data-flame]:hover {
-  color: var(--flame-deep);
-}
-
-.quickadd__star:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-.quickadd__star--on,
-.quickadd__star--on:hover {
-  color: var(--ink-on-accent);
-  background: var(--accent);
-}
-
-.quickadd__star--on[data-flame],
-.quickadd__star--on[data-flame]:hover {
-  color: var(--ink-on-accent);
-  background: var(--flame-deep);
-}
-
-/* ---- Ember's door ----------------------------------------------------------
- *
- * She lives at the end of this line, behind a little door standing on the top
- * edge of the card - the same edge she walks along, so the door and her feet
- * are on one line. Anchored to the card's outer edge: out past the card's
- * padding and its border, from the line inside it.
- *
- * She herself is drawn over the whole window (features/ember/EmberStage.tsx);
- * the perch holds nothing but the door, and lets every click through except
- * the ones meant for the door.
- * ------------------------------------------------------------------------ */
-
-.quickadd__perch {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: calc(100% + var(--space-5) + 1px);
-  height: 36px;
-  pointer-events: none;
-}
-
-/* The headroom. On the card rather than on the perch, so nothing overlaps
- * whatever is above the line on Today. */
-.today__quick {
-  margin-top: 60px;
-  overflow: visible;
-}
-
-/* Nothing to ask: the flame is the mark it always was, not a button. */
-.quickadd__star--still {
-  cursor: default;
-}
-
-/* What was copied, said where what was added is said. */
-.quickadd__kept {
-  display: inline-flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  color: var(--ink-2);
-}
-
 /* ---- The answers, under the line they were asked from ------------------- */
-
-.askline__thread {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  margin: var(--space-3) 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.askline__turn {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-/* What was asked, kept quiet: it is there to say what the answer answers. */
-.askline__question {
-  margin: 0;
-  padding-left: var(--space-3);
-  border-left: 2px solid var(--border);
-  color: var(--ink-3);
-  font-size: var(--text-sm);
-}
-
-.askline__answer {
-  color: var(--ink-2);
-}
-
-.askline__answer > :first-child { margin-top: 0; }
-.askline__answer > :last-child { margin-bottom: 0; }
-
-.askline__thinking {
-  margin: 0;
-  color: var(--ink-3);
-  font-size: var(--text-sm);
-}
-
-.askline__examples { margin-top: var(--space-3); }
-
-.askline__foot { margin-top: var(--space-3); }
 
 .quickadd__input {
   flex: 1;
@@ -1186,33 +944,6 @@
 
 .quickadd__note {
   color: var(--ink-3);
-}
-
-/* The area in the reading is a button - the guess most worth correcting -
-   but it keeps the dot-and-label look of every other area in the app, and
-   only admits to being a button on hover. */
-.quickadd__area {
-  padding: 2px var(--space-2);
-  margin: -2px 0;
-  background: transparent;
-  border: 0;
-  border-radius: var(--radius-sm);
-  font-family: inherit;
-  cursor: pointer;
-}
-
-.quickadd__area:hover {
-  background: var(--surface-hover);
-  color: var(--ink);
-}
-
-/* Faint until wanted: enough to say "this changes" without shouting it. */
-.quickadd__areaIcon {
-  opacity: 0.5;
-}
-
-.quickadd__area:hover .quickadd__areaIcon {
-  opacity: 1;
 }
 
 /* What the reading needs to say out loud: a slip it corrected, a repeat it
@@ -1397,9 +1128,6 @@
   gap: var(--space-2);
 }
 
-.tune__area { cursor: pointer; }
-.tune__area:disabled { opacity: 0.55; cursor: default; }
-
 /* ---- Renewing soon ----------------------------------------------------- */
 
 .renewrow {
@@ -1437,4 +1165,49 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+}
+
+/* Reach out: the ways somebody can be written to, as small marks at the row's end. */
+.reach__ways {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink-3);
+}
+
+/* ---- The week's three, at the head of Today (phase 35) ----------------- */
+.weekthree {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.weekthree__label {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.weekthree__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.weekthree__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink);
+  font-size: var(--text-sm);
 }

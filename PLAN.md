@@ -1716,7 +1716,7 @@ The plan as written:
 - The Store listing, free: its first line is the local promise; screenshots
   of Today, the quick line, a contact and Ask.
 
-### Phase 26 - Market
+### Phase 26 - Market - *dropped 10 October 2026; see part seven*
 
 - **Content**: a post or a newsletter goes from idea to draft to scheduled to
   published, on a channel, and sits on its day in the Calendar. The quick
@@ -1726,7 +1726,7 @@ The plan as written:
 - **Audience**: who signed up and where from, as contacts with a source.
 - This settles item 10: a campaign becomes a launch or a channel, or goes.
 
-### Phase 27 - Make
+### Phase 27 - Make - *dropped 10 October 2026; see part seven*
 
 - **The roadmap**: what is being built, now, next and later, each a page
   with its steps.
@@ -1735,13 +1735,13 @@ The plan as written:
 - **The changelog**: what shipped, when, and who asked for it, so they can be
   told.
 
-### Phase 28 - Money from shops online
+### Phase 28 - Money from shops online - *dropped 10 October 2026; see part seven*
 
 - Read the CSV that Razorpay, Instamojo, Gumroad, Lemon Squeezy, Stripe or
   PayPal exports, through the import that exists: each sale a payment, each
   buyer a contact, with the product matched. No API and no account.
 
-### Phase 29 - The weekly plan
+### Phase 29 - The weekly plan - *moved to the front; see part seven*
 
 - A short page once a week: what was done and what slipped, read from what
   happened rather than assumed, and the three things that matter next week.
@@ -1768,3 +1768,1079 @@ The plan as written:
    from anywhere) and UPI. Stripe and Buy Me a Coffee do not pay out there.
 4. **Local and free come first** when choosing how anything connects, as
    listed under the promise above.
+
+---
+
+# Part seven: the company's, and nothing else's
+
+*Written 10 October 2026, the day of a critical review
+(reference/product-review.md, third review) and of the owner's decision that
+followed it. Most of it was built the same day; what was not is listed.*
+
+## One sentence
+
+Caulder is the complete app for a one-person company: who you are selling to
+and how to reach them, your time, your money and what the company knows - with
+a quick line that takes any of it, and Ember for company. Nothing personal.
+
+## What the review found
+
+The plan of 14 September said five screens and nothing else. Three weeks
+later there were thirteen routes, 75 tables and about 107,000 lines, and the
+largest single thing in the code was the pet. The two things the app was for
+were the thin ones:
+
+- **Outreach was one contact at a time.** Ticking contacts offered a stage
+  move and a delete. There was no LinkedIn or Instagram on a contact, and a
+  new contact was seven rows of "Not known".
+- **The line read about half of unseen lines rightly** (48 of 90 by the
+  rules, 50 with the model), with ten kinds to choose between - most of the
+  misses one personal kind taken for another.
+- Part six had queued Market, Make and shop imports next: more breadth.
+
+## What was decided, by the owner
+
+1. **Caulder is a CRM with the calendar, tasks and notes, the quick line,
+   Ember, and the company's brain.** Everything company-related stays: money,
+   deadlines and documents, people, metrics, the data room, the Map, Ask.
+2. **The personal half goes**, with its data: the journal and its lock,
+   private lines, Looking back, Life (studies, hobbies, the shelf), goals and
+   theme days, habits, the vision board, Pulse, and levels on a screen.
+3. **Founder sharing goes for now**, to be made again later and differently.
+   Standalone only.
+4. **Contacts can be kept as a Google Sheet** in the person's own Drive.
+5. **Each part that is left is made smarter**, and the screens reworked for
+   the smaller app.
+
+## What was built - *done 10 October 2026, but for what is listed after*
+
+**Taken out.**
+- The routes `journal` and `life`, the *You* group in the sidebar, and every
+  card of the personal half on Today, the Calendar and the Brain.
+- Sixteen services and their handlers, twenty shared modules, the Life and
+  sharing stylesheets (about 2,400 lines), five end-to-end specs.
+- **Migration 49** drops eleven tables, deletes every page in the personal
+  sections and every page in the calendar's own workspace, clears the
+  settings that belonged to them - the journal's passcode among them - and
+  drops the two triggers a shared brain kept. The backup made before every
+  migration is the way back.
+- The Apps Script's shared-brain actions and its invitation door: a request
+  with an invitation instead of the key is refused like any other now.
+
+**The line, rewritten.** Six kinds - task, contact, memory, command, idea,
+note - told apart by what Caulder can check: a contact's name, a page's
+title, a when, a sum.
+- A memory is a dated line on a page of the **company's** brain: the page the
+  line names, or *Things to remember*. "Our GST number is …" is led by what
+  it is, so the newest is the answer. Said about a contact, it goes on their
+  history.
+- A sum that was not said to be spent ("swiggy 320 lunch") is offered as a
+  chip, never assumed.
+- A password is never filed: the line says so before it is kept.
+- A person is known by a first name of four letters ("Maya"), unless the name
+  is also a word ("Will").
+
+**Outreach.**
+- **LinkedIn and Instagram** are fields on a contact (migration 48), cleaned
+  to one address whatever is typed, imported from their own columns, and
+  written to from the contact's page: the message goes on the clipboard, the
+  profile opens, and "Sent it" puts it on the history as its own kind. The
+  history's kinds were still a SQL `CHECK`; migration 48 rebuilt the table
+  without it.
+- **Write to several at once**: tick contacts, *Write to them*. One message,
+  each contact's name in its place, shown as one of them will read it, with
+  who is left out and why; capped at fifty and at what Gmail has left.
+- **Reach out, on Today**: how many people were reached today and this week,
+  and the prospects nobody has reached, longest waiting first.
+- **How a template has done**: sent and answered, and a rate only from twenty
+  sends that could be watched for a reply.
+- A contact's page shows what is known, with one line for what is not.
+
+**Today, laid out again.** Two columns, a question each: what do I do, and
+who do I talk to. The people moved into the room the life half left.
+
+**Contacts as a Google Sheet** (migration 50, script version 6). A row a
+contact, read and written through the person's own script. A cell changed in
+the sheet wins over the same cell changed here; a cell changed only here
+stands; a row typed in with a name is a new contact; nothing is deleted by
+the sheet. Off until linked, a company at a time, then every ten minutes.
+
+**Ember, and everything there to amuse, taken out** - decided by the owner
+the same evening, in three steps: first the jokes and quotations, then her
+dances and the growing, then all of her.
+- Today says "Good evening, Adi." and the day in numbers. The fifty-two
+  jokes, nineteen quotations, sixty hellos and fourteen quips for a clear day
+  are gone (`shared/voice.ts` went from 368 lines to 75).
+- Ember is gone: the sprite, her moods, pastimes, tricks, dances, costumes
+  and closet, her book and door, the physics, her temper, her sounds, growing
+  on the work, and her window on the taskbar. About 14,000 lines, the flame
+  colour tokens, two end-to-end specs, and `foreground.ts`.
+- The line's mode is said by its two switches - pressed, titled - and by the
+  placeholder (`shared/linemode.ts`, which was `ember.ts`).
+
+**A pass over the screens.**
+- **The sidebar**: the company heads it, because the whole app is the
+  company's; under it one list with no labels - Today, Calendar, then
+  Contacts, Deals, Money, Brain.
+- **A contact's page**: next steps, the ways to write to them, then the
+  history - which used to sit at the foot - and only then deals and money.
+  WhatsApp is shown when there is a number, as LinkedIn and Instagram are
+  when there is a profile; what is missing is said once, under the details.
+- **Today**: nobody is named twice - somebody under Reach out is not also
+  under Going quiet. The full form sits beside the line.
+- **The Brain's home**: the questions and what was written first; context
+  for another AI last, with examples that are a company's.
+
+**Checked:** `npm run verify`. The numbers are in STATUS.md.
+
+## Not done, and next
+
+1. **A new blind set for the line.** The three measured sets were labelled in
+   the ten kinds and went with them. Until ninety new lines are written
+   without reading the rules, and the six kinds measured on them, the line's
+   accuracy is not known - only that it has fewer ways to be wrong.
+2. **The weekly plan** (was phase 29): what was done and what slipped, read
+   from what happened, and the three things that matter next week.
+3. **The whole end-to-end suite, and the package.** The specs for the
+   screens that changed were run; the suite was not, and 0.5.0's installer is
+   from before this. `smoke:packaged` lost its two checks about Ember and
+   the level and has not been run since.
+4. **The Store listing and `reference/features.md`** describe the app before
+   this. Both say so at their head; neither is rewritten.
+5. **The contact form** still carries Alt phone, Location and PIN from its
+   first customer. They are kept when given and no longer asked after.
+6. **Replies from other mail accounts.** Only Gmail through the script sees a
+   reply. Reading an inbox over IMAP would be a fourteenth dependency, so it
+   is a decision for here before it is a change.
+7. **The first run asks for a company name.** Somebody with an idea and no
+   company yet is the person part six forgot.
+
+## Decisions, part seven - *decided 10 October 2026*
+
+1. **The app is the company's.** A request for something personal is answered
+   with the feature map's "Removed on purpose", not with a screen.
+2. **The calendar holds the whole day** all the same: a class and the gym are
+   what a call is planned around, so blocks and tasks of any area stay.
+3. **The sheet never deletes**, and never wins on a cell it did not change.
+4. **Fewer kinds on the line, each checkable**, before any rule is added to
+   tell two apart by how a sentence sounds.
+5. **Nothing is there to amuse.** No mascot, no jokes, no quotations, no
+   levels. A screen says what is so and what to do, and stops.
+
+---
+
+# Part eight: the complete app for a one-person company
+
+*Written 10 October 2026, the evening of part seven. Part seven took things
+away; this is what is built on what is left. Nothing here is started. Six
+things in it are the owner's to decide, and they are listed at the end with
+what is recommended.*
+
+## One sentence
+
+Somebody who runs a company alone opens Caulder in the morning and it tells
+them who to write to, what is owed to them and what the week is for - and
+nothing in it is there for any other reason.
+
+## The test for anything proposed from here
+
+Three questions, in order. A thing that fails one is not built.
+
+1. **Does it get somebody written to, a deal moved, or money in?** Or does
+   it keep the record those three depend on?
+2. **Does it deepen something that is already here?** A new route, a new
+   table or a new kind on the line has to say why an existing one cannot
+   carry it.
+3. **Is it plain?** A sentence and a number. No character, no score, no
+   streak, nothing that congratulates.
+
+## Where it stands against the sentence
+
+| | What is there | What is missing |
+| --- | --- | --- |
+| **Who to write to** | Reach out on Today; email, WhatsApp, LinkedIn and Instagram from a contact; one message to several; a follow-up that sends itself; how a template has done | No way to list *who has not answered*. Several-at-once is email only. A reply is only seen through Gmail. |
+| **What is owed** | Quotes, invoices, part payments, unpaid invoices at the head of Today | Nothing chases an unpaid invoice: the row says it is late and stops. A retainer is typed again every month. |
+| **What the week is for** | Today, the Calendar by day and week, tasks, a morning brief | No week: nothing says what was done, what slipped, or what the next five days are for. |
+| **Nothing else** | The personal half, founder sharing, Ember and the jokes are gone | A student is still in the lists: a task's area is College, a block is a Class, the Calendar has a Timetable with terms. Twenty cards in Settings. |
+
+## Phases, continued
+
+In this order. The first two build nothing new, on purpose: half the code
+went in a day, and what is left has to be shown to stand before anything is
+put on top of it.
+
+### Phase 31 - Standing on it: 1.0.0 - *packaged 14 October 2026, not committed*
+
+*No features. About a day.*
+
+- Commit part seven. Run the whole end-to-end suite in the background, and
+  mend what it finds: about twenty-five specs have not been run since.
+- **A new blind set for the line**: ninety lines a founder would type,
+  written without reading the rules, labelled in the six kinds. Bring back
+  the measuring test that went with the old sets (`understand/lines.eval.ts`)
+  and put the number in STATUS.md. Only then tune, and only on a second set.
+- Version 0.6.0. `npm run package`, `npm run smoke:packaged`.
+- Rewrite `reference/features.md` and `reference/store-listing.md` from the
+  feature map, and take the screenshots again.
+- **Done when:** the suite passes, the smoke check passes on a package, the
+  line has a measured number, and no document describes a feature that is
+  gone.
+- **Built as 1.0.0, not 0.6.0** (the owner's word, 14 October 2026), for
+  the Store, as an unsigned .msix; `smoke:packaged` passes on it, and the
+  Store listing is rewritten; the installer is built too, and
+  `branding/` holds the Store's logos and art. Left: the commit, the
+  screenshots and `features.md`.
+
+### Phase 32 - The last of the student - *done 11 October 2026, but for its last line*
+
+*What part seven left in the lists. Small, and mostly words.*
+
+- **A task has no area.** College, Company, Personal and Health are four
+  answers to a question nobody running a company is asked. The column stays
+  (migrations are not edited); the form, the line's area guess
+  (`areaOpinion`) and the Calendar's colour by area stop using it.
+- **A block's kinds are a working day's**: Deep work, Meeting, Call, Admin,
+  Away. Class and Studying become Away for blocks that already have them,
+  by an appended migration. Each kind gets its own colour: Class, Study and
+  Admin share one grey today (STATUS.md, item 15).
+- **The Timetable becomes "A usual week"**: the same editor of repeating
+  blocks, without terms. *Owner's decision 2.*
+- **A contact's form** loses Alt phone, Location and PIN, which came from
+  the first customer's spreadsheet, and gains **Role** beside the contact
+  person. The three columns are kept and still imported.
+- The words: "or you" in the Ask placeholder, the student lines among the
+  model's examples (`understand-seeds.ts`), "Product design class" in the
+  sample, `life` in `shared/linemode.ts` if nothing can reach it.
+- **Done when:** a search of `src/` and `shared/` for class, college,
+  study, exam and term finds only the migrations.
+- **What was built**, in the order above: all five. Migration 53 for the
+  blocks and for `leads.contact_role`; nothing dropped. The owner's
+  decisions 2 and 6 were taken as recommended - *A usual week* without
+  terms, and *Away* - the owner having said to carry on; either is a small
+  thing to turn round.
+- **What the last line still finds:** no screen and no label, but comments
+  written for a student founder, the short forms and the Hindi the line
+  expands, and the task reader's list of things that happen at a time
+  ("lecture", "exam"). Left, because a parser's vocabulary is not a
+  feature, and taking words out of it only makes it read less.
+- **What it cost:** a typo of a student's word is no longer mended, and
+  about seventy unit tests of areas and taught words went with them.
+
+### Phase 33 - Who has not answered - *built 11 October 2026; its last line not yet timed*
+
+*Outreach, from one message to a campaign you can see the end of.*
+
+- **One more filter on Contacts: Reached.** Never written to; written to,
+  no answer in N days; answered. Read from the history, which already knows.
+  With the stage filter and *Write to them*, that is a second message to
+  everybody who ignored the first - without a saved view or a campaign table.
+- **Work through them**: tick contacts, and for WhatsApp, LinkedIn or
+  Instagram - which cannot be sent for you - Caulder walks the list one at a
+  time: the message on the clipboard with their name in it, their profile
+  open, *Sent it* or *Skip*, and the next. Each goes on the history as it
+  does from a contact's page (`openProfile`, `LeadMessage`).
+- **Reach out says what is waiting on them, too**: "6 written to this week,
+  2 answered, 4 waiting - the oldest nine days." One line on the card that
+  is already there.
+- **A reply from a mail account that is not Gmail** - *done 10 October
+  2026, the owner having asked for Zoho and the like to be connected to
+  outreach properly.* A switch on each account, off until turned on. On,
+  Caulder asks that inbox who has written - headers only, read-only, IMAP
+  spoken by hand over `node:tls` so the dependencies stay thirteen
+  (migration 51, `shared/replies.ts`, `services/inbox.ts`). A reply is then
+  on Today and the contact, and a follow-up goes by itself from such an
+  account, in the same thread, after looking first. **Not tried against a
+  real Zoho or Outlook inbox**: it is tested against a stand-in mail server
+  on this machine, and the first real account is the proof.
+- **Done when:** from an empty Contacts filter, somebody can write to
+  twenty prospects on Monday and, on Friday, write again to exactly the ones
+  who said nothing, in under a minute each time.
+- **What was built:** all three, and one thing the list above did not
+  foresee. An answer on WhatsApp or LinkedIn is invisible to Caulder, so
+  "answered" would have meant "answered by email" - and a founder who sells
+  on WhatsApp would have been told to write again to people who had said
+  yes. So a contact's history has one more thing to say, by hand: *They
+  answered*. `shared/reached.ts` is the one place that says what written to
+  and answered mean.
+- **Decided while building:** "no answer in N days" is three days, fixed -
+  long enough that Monday's are Friday's and short enough to be a week's
+  work; a call is reaching somebody and is not a message awaiting an answer;
+  it is the last message that counts.
+- **The last line has not been timed.** The walk and two of the filter's
+  three answers are tested end to end, and "no answer" by a unit test with a
+  clock told the day; nobody has sat down on a Monday with twenty prospects.
+
+### Phase 34 - Money that asks for itself - *built 14 October 2026*
+
+- **Send a reminder**, on an unpaid invoice's row in Money and on Today:
+  an email to the contact from a template - the number, the amount, how late
+  - with the PDF that is already filed on the contact. It goes on their
+  history. A second one is offered a week after the first, never sent by
+  itself.
+- **What is owed, by age**: one line above the invoices - not yet due, up
+  to thirty days late, over thirty - where *This month* shows only totals.
+- **A retainer.** *Owner's decision 5.*
+- **Done when:** every invoice on Today that is late can be chased from
+  the row it is on, and the chase is on the contact's history.
+- **Built** (`shared/chase.ts`, `ChaseForm.tsx`): *Send a reminder* on a
+  late invoice's row, in Money and on Today. The words are written for it -
+  the number, the amount, when it was due, how late, what has come in - and
+  read and changed before they go. It is sent the way any email to a
+  contact is, so it is on their history and a reply is seen where replies
+  are. With nothing connected to send from, it opens in the computer's own
+  mail app.
+- **Whether an invoice was chased is read, not kept**: from the emails sent
+  to its contact with its number in the subject. So a reminder written by
+  hand counts, and there is no new table. The row says when it was last
+  reminded, and offers another a week after.
+- **What is owed, by age**, as one line above the invoices.
+- **A retainer** (migration 54, `invoices.repeats`): an invoice says it
+  repeats - every month, quarter or year. When the next is due to be
+  written and this one has been sent, a draft is made from it and Today
+  says so. Nothing is drafted from a draft, so there is never more than one
+  waiting; and it is only ever a draft. Set to No on the newest one, or
+  deleting the draft, ends it.
+- **Not built: the PDF attached.** An email from Caulder carries no
+  attachments, by either way it sends; the reminder says so. Attaching
+  means changing the Google script and the other-account sender both, and
+  is its own piece of work.
+- **Not from a template** in Settings, as the plan had it: the words are
+  written by the app and changed in the box. One fewer thing to set up.
+- **The "done when" holds** for Today's rows, by test. Whether the wording
+  is how the owner would chase is theirs to say.
+
+### Phase 35 - The week - *built 14 October 2026*
+
+*Was phase 29. No new route: it is the head of the Calendar's week.*
+
+- **What happened**, read and never assumed: tasks done, people reached and
+  who answered, deals that moved, invoiced and paid, hours kept against
+  hours planned.
+- **What slipped**: what is still overdue, who went quiet, what is unpaid.
+- **Three things for next week**, chosen there, and shown at the head of
+  Today until they are done or the week ends. Three, because a list of nine
+  is the list that already exists.
+- The morning brief on a Monday says the three.
+- **Done when:** on a Friday the page is true without anything having been
+  filled in for it.
+- **Built:** `WeekReview` at the head of the Calendar's week, for whichever
+  week is shown; `WeekThree` at the head of Today; Monday's brief leads with
+  the three; `week_things` (migration 58). Hours kept are "kept unless you
+  marked it skipped", the Calendar's own rule. A deal counts as moved when
+  it closed, whether or not a stage change was written for it - the first
+  screenshot said "0 deals moved, 1 won".
+
+### Phase 36 - Fewer things to look at
+
+- **Settings from twenty cards to about twelve.** *Your words*, *Tune* and
+  *What the line has learnt* are one card about how the line reads. The
+  mail accounts and templates sit together.
+- **Campaigns** (STATUS.md, item 10): the table cannot be filled from
+  anywhere. Take the plumbing out of contacts, import and spend; `source`
+  on a contact already says where they came from.
+- **Ctrl+K finds deals and products** (item 12): an appended migration that
+  makes the search triggers again through `m020Refresh`.
+- **The Brain's first page** stops being a form to fill in once the twelve
+  questions are answered: then it is what was written lately, and Ask.
+- **The desk widget** is kept (decision 3), and made to say more - *done
+  10 October 2026.* It said the calendar and two counts. Now the pill says
+  the one thing that cannot wait (a block within ten minutes, then a reply,
+  then what is late), and the panel says the company's day under the
+  calendar's: who replied, what is late, what is unpaid, who is waiting, who
+  was reached. It lists what is left of the day rather than its first five
+  blocks. Still nothing on it to click.
+- **Done when:** nothing in Settings needs a paragraph to say what it is.
+
+### Phase 30 - Google, with a guide - *still wanted, after these*
+
+As written in part six. The contacts sheet makes it matter more: the sheet,
+the calendar and the replies all wait on the one script.
+
+## In what order, and why
+
+31 before everything, because nothing else can be trusted until it is. 32
+next, because it is a day and it is the requirement as stated. Then 33 and
+34, which are the two that bring money in; 35 after, because a week is only
+worth reading once the things it reads are being done from Caulder; 36 last,
+because tidying is best done to something that has stopped moving.
+
+## Not planned, on purpose
+
+- **Sequences, drip campaigns, sending on a timer to a list.** The feature
+  map's "Removed on purpose" has why: a sequence is a follow-up task. Phase
+  33 is as near as Caulder comes, and a person presses the button each time.
+- **Founder sharing and a team.** Later, and differently (part seven).
+- **A phone app.** The contacts sheet is the phone, for now.
+- **Market, Make, shops online.** Dropped in part seven; still dropped.
+- **Mac.** Three native pieces are Windows-only in how they are packaged.
+  Not until somebody with a Mac asks.
+
+## A second cut - *done 11 October 2026*
+
+*The owner asked for another review, deleting what was redundant.*
+
+- **People and hiring taken out**, by the owner's choice of the four whole
+  features offered (Metrics, the data room and Google Contacts import were
+  kept). A one-person company has no team. Migration 52; `people` and
+  `openings` are left in place and unread, because a task refers to them.
+  About 3,000 lines, with the person as a kind of link, a dot on the Map, a
+  search result and a source of deadlines.
+- **Asking the AI and copying context were each in two places.** Both stay
+  on the Brain's first page. Today's line lost its two switches and does one
+  thing; the ask service lost the second, smaller way of answering that the
+  line used.
+- **The campaign plumbing** (STATUS.md, item 10): nothing could set a
+  campaign since migration 18, and contacts, import and spend carried one
+  all the same.
+- **Not cut, though it was said it would be:** a task's areas (College,
+  Company, Personal, Health) and the Timetable with its terms. Both run
+  through the quick line's parser - an area is guessed from a line's words,
+  "until the end of term" is a way of ending a repeat - and that parser has
+  no measuring set at present. They stay in phase 32, after phase 31 has
+  given the line a number to hold it to.
+
+## Phase 31, so far - *11 October 2026*
+
+- **The whole end-to-end suite passes**: 34 specs, 192 tests, in four runs.
+- **The line got its first number: 53 of 96 on lines it was never tuned against.**
+  Tasks and contacts are read well (24 of 30, 17 of 18); commands and ideas
+  are not (2 of 14, 0 of 9); the model on this machine added nothing on this
+  set. STATUS.md has how it was measured and what the number is not.
+- **Three fixes came out of the first set's misses**, by class and never by
+  line: a name typed without its accents is still the name; a rule the
+  company works by ("we never start without a deposit") is a memory; money
+  said to be spent with the sum last ("bought a desk, $240") is a spend.
+- **What it changed about this plan:** the line came before phase 32.
+- **The second set's misses were read and the rules changed for their
+  classes** - ideas, how the company runs, opinions, orders, the company's
+  own word for itself, six ways of asking for something. STATUS.md lists
+  them.
+- **Measured on a third set, written by another writer and not read: 68 of
+  93 by the rules, 73%; 72 with the model, 77%.** From 55%. The two sets
+  that were read score 93 and 90 of 96, which is what fitting looks like and
+  why they are not the number.
+- **What is left wrong:** a memory is read half the time (8 of 16), and
+  mostly kept as a note; a command 7 of 12; an idea 4 of 9 by the rules and
+  7 with the model.
+- **The order from here:** the line no longer holds up the plan. Phase 32
+  (the student's lists) is next, and the line gets another turn of the same
+  loop - a fourth set, written for a different company - beside it rather
+  than before it.
+- Still to do in this phase: the commit, the screenshots and
+  `features.md`. 1.0.0 is packaged and the Store listing rewritten (14
+  October).
+
+## For the owner to decide
+
+1. **0.6.0** as the number for the first build after part seven.
+   *Decided 14 October 2026: 1.0.0, the first version in the Store.*
+2. **The Timetable and its terms.** Keep it as *A usual week* without
+   terms, or take the editor out and leave repeats to the line ("standup
+   every mon wed fri 10am"). *Recommended: keep it, without terms.* **Built
+   that way on 11 October 2026, without the owner having said - still theirs
+   to turn round.**
+3. **The desk widget.** *Decided 10 October 2026: kept, and to be made
+   better.* About 760 lines and the reason `koffi` is a dependency. It is
+   plain - now, next, late - so it passes the test.
+4. **Replies from other mail accounts.** *Decided 10 October 2026: yes -
+   the owner wants Zoho and the like connected to outreach. Built the same
+   day without a fourteenth dependency; see phase 33.*
+5. **A retainer**: an invoice that drafts itself each month for a customer,
+   to be looked at and sent - never sent by itself. *Decided 10 October
+   2026: yes, as a draft and a line on Today.*
+6. **A block for something that is not work.** Part seven decided the
+   calendar holds the whole day. Phase 32 keeps that and calls every such
+   block *Away*, without saying what it is. *Recommended: yes.* **Built
+   that way on 11 October 2026, on the same footing as 2.**
+
+## Decisions, part eight - *proposed 10 October 2026, not yet decided*
+
+1. **Three questions before anything is built** (above), in that order.
+2. **Nothing sends by itself except what already does**: the follow-up and
+   the scheduled email, each set by hand for one message.
+3. **No new route in this part.** Every phase lands on a screen that exists.
+4. **A phase is done when its last line is true**, not when its list is
+   ticked.
+
+# Part nine: a line that follows through
+
+*Written 13 October 2026, from the owner's own example.*
+
+## The example
+
+> Sumanth from RV PUC asked me to reach out to him next week. I messaged him
+> on LinkedIn.
+
+Typed into the line, that made a contact and put a note on his history - and
+left nothing on any day. Nothing in it says "remind me" or "I need to": the
+thing to do is inside what he said. That is the commonest way a thing
+somebody asked for is forgotten, and the line was built to hear only the
+other way of saying it.
+
+The owner added three more, the same day: a later line about the same person
+should change him, not make another ("Sumanth from rv, I got his number, it
+is 96..."); the app should **ask when it has doubts**; and a name spelt
+wrongly is still the name.
+
+## What was built - *13 October 2026*
+
+- **A line about somebody leaves its next step** (`shared/nextstep.ts`).
+  Three forms, and no more: *they asked* ("asked me to reach out next
+  week", "wants the invoice by the 5th"), *I promised* ("told Jonas I'd send
+  the deck by Friday"), *they promised* ("said she'll get back in a few
+  days" - which is waited for, so the task is to check in with them). Kept
+  with the line: what happened on their history, and the thing to do as
+  their task on the day said.
+- **With a reminder that morning.** The owner asked for one. It is the one
+  place a notification is made without the words "remind me" - because the
+  line was about something somebody else is waiting for.
+- **What happened is kept as what it was**: a message on LinkedIn, WhatsApp
+  or Instagram where the line says so, and "They answered" when they wrote
+  back - which is what *who has not answered* reads (phase 33).
+- **A when said loosely is a day**: early, mid and the end of next week; in
+  a few days; early, mid and late in a month; "sometime in November"; after
+  the 20th. The reading says which day before anything is kept.
+- **The line asks, one question at a time, when it is not sure:**
+  - *who* - a name that took a wrong letter to read ("sumnath - is that
+    Sumanth, RV PUC?"), or one two contacts answer to ("Which Priya?").
+    Nothing is kept until it is answered, because who it is about decides
+    where it goes.
+  - *when* - for something asked for with no day said. Tomorrow stands
+    unless another is chosen; Enter does not wait.
+- **A name one letter out is still asked about**, in names of six letters
+  or more. Looser than a slip at a word, and allowed only because it asks.
+- **Found while checking the AI with a real key** (the owner's, a free
+  Gemini one, used once and written nowhere): connecting, answering from
+  the records, a follow-up and a second model all work; the first question
+  after connecting failed because the service was busy for a moment. A busy
+  service is now asked once more before the person is told.
+- **No container has one edge coloured or thicker than the rest.** The
+  owner's rule, the same day: deal rows, the call prompter's script and
+  objections and the decision log lost theirs, and a test holds it.
+
+## What it still does not do - *proposed, in this order*
+
+1. **A next step for everybody touched.** A line that goes on a contact's
+   history and leaves nothing to do, about somebody with no open task, ends
+   the conversation with nothing planned - and *Going quiet* notices
+   fourteen days later. Ask once, there: *Next step?* Tomorrow, in three
+   days, next week, or nothing. The cheapest thing here and the most used.
+2. **A name nobody knows.** *Built 13 October, the owner's wording:* "ask me
+   where he is from". "Sumanth asked me to reach out next week", with no
+   "from RV PUC" and no contact of that name, asks *Where is Sumanth from?*
+   The answer is typed - Enter on the line goes to it - and makes him a
+   contact there, with what happened and the thing to do; an empty answer
+   is *only a task*. Asked only of a line that leaves a next step, which is
+   what keeps "mum asked me to buy milk" a task.
+3. **More said in passing.** A number and an address are set from the line.
+   A city, what the person is there, and a deal's value and stage are not:
+   "she is the new head of marketing", "they moved to Pune", "Harbour said
+   yes at 4,800". Two of the lines the measured sets still get wrong are
+   these.
+4. **Waiting on them, apart from what I owe.** A check-in is a task like
+   any other. Today could say the two apart: what I said I would do, and
+   who said they would do something for me.
+5. **The days people say.** "After Diwali", "after the holidays", "next
+   quarter", "month end". A small table of public holidays by the company's
+   country, kept in the app and dated.
+6. **A reminder that was missed.** A notification that morning is missed
+   with the lid closed. On opening, say what was to be remembered while it
+   was shut - on Today, where the late things already are.
+7. **One Undo for one line.** A line can now make a contact, a history
+   entry and a task. Undo takes back the last task only.
+
+Not proposed: reading WhatsApp or LinkedIn to see replies (neither allows
+it), and a phone app (the contacts sheet is the phone, for now).
+
+## For the owner to decide, part nine
+
+1. **A reminder without being asked.** Built as above. If a notification
+   for every such line is too much, it becomes a task on Today and nothing
+   else - one line to change.
+2. **Blocking on "who".** The line will not keep anything while it is asking
+   which Priya. *Recommended: keep it so.*
+3. **The order of the seven above.** *Recommended: as written.*
+
+# Part ten: the AI, pressed for and sent little
+
+*Written 13 October 2026, from three things the owner said that day. Built
+the same day, on the owner's "build all three"; what each phase says under
+**Built** is what there is.*
+
+## What the owner said
+
+1. **The mark at the start of the line is a switch.** Pressed, the line is
+   in AI mode; not pressed, it is the reading on this machine. Today the
+   mark is a drawing, and the switch that used to sit beside the line -
+   *Ask the AI* - was taken out on 11 October as a duplicate of the one in
+   the Brain. That was not the owner's choice, and it was the wrong call.
+2. **What is sent should be what the question needs.** To draft an email,
+   a few lines about the company and that contact's page - not the company.
+3. **Could the AI make what is kept better?** What the company does, how
+   the owner works, said well enough that the next question starts from it.
+
+## How it stood
+
+- Every question sent the whole company - four documents - until that is
+  over a size, and only then was it cut to the contacts the question was
+  about (`askBrain`, `CONTEXT_BUDGET`). On the sample company that is about
+  3,500 tokens a question; at the Gemini setting it can reach about 110,000.
+  Nothing is cached, so a follow-up sends it all again.
+- What picks the contacts when it is cut already exists: the words of the
+  question, and the model on this machine by meaning (`contactsFor`,
+  `nearestTo`). It is used as a last resort, and should be the first.
+- Nothing the AI says is ever written to the company's records.
+
+## Phases
+
+### Phase 37 - Send what the question needs - *built 13 October 2026*
+- **A company in ten lines**, always sent: what it is, what it sells, where,
+  in what currency, how it bills. Written once (phase 39 helps), kept as a
+  page, and shown before it goes.
+- **Then only what the question is about**: the contacts it names or means,
+  their history, their deals and invoices; the pages near it in meaning;
+  today's tasks when it asks about the day. The whole company only when
+  asked for - "everything", "all my contacts" - or chosen in Settings.
+- **Said before it is sent**: "Sending: the company in brief, Harbour
+  Coffee Roasters, 2 pages - about 900 tokens." It says so after, today.
+- **Done when:** the question about one contact costs under a third of what
+  it does now on the sample, and gives the same answer.
+- **Built** (`shared/relevant.ts`, `services/relevant.ts`): the brief, then
+  the contacts a question names - by company, person or first name - or
+  means; the parts of the dossier its words point at; the pages it names,
+  means, or that hold a word nobody else uses. Said under the box before it
+  is sent, and after. The AI is told it has a part and not the whole, so
+  "it was not sent" is never said as "it is not written"; *Ask again with
+  the whole company* is under every answer; "everything" in a question, or
+  the choice in Settings, sends it all.
+- **Found on the way:** what the line is told to remember ("we always
+  invoice on the 1st") was in no document the AI was ever sent - the
+  Remembered section was left out of the dossier. It is in now.
+- **The first half of "done when" is held by a test** on the sample. **The
+  second half is not checked:** whether the answers are as good with less
+  has not been measured against a real service.
+
+### Phase 38 - The mark on the line is the switch - *built 13 October 2026*
+- Pressed, the line is read by the AI: who it is about, what happened, what
+  it leaves to do and when - returned in the same shape the reading on this
+  machine has, shown the same way, and kept on Enter as now. A question is
+  answered there. Not pressed, nothing leaves the machine, as now.
+- **It stays pressed or not as it was left**, and says which service it is
+  talking to. With no AI connected it says how to connect one.
+- **For the owner:** whether AI mode reads every line while it is on, or
+  only the ones the reading here was unsure of. *Recommended: every line
+  while it is on - a switch that sometimes does nothing is not a switch.*
+- **Done when:** the Sumanth line reads the same pressed and not, and a line
+  the rules cannot read at all is read rightly pressed.
+- **Built** (`shared/ailine.ts`, `services/askline.ts`): pressed, **Enter**
+  sends the line - one request a line, never one a keystroke, because a free
+  tier allows a few a minute. What goes is the line, today's date, the
+  company in a sentence and up to twenty-four names it might mean; nobody's
+  details. What comes back is checked against what Caulder holds and put
+  into the reading the rules make. When it is what was already showing - the
+  same place, contact and days - it is kept at once; when it is not, it is
+  shown and Enter keeps it. It may ask one question in words and is read
+  again with the answer. A question, or something to write, is answered
+  under the line. Going somewhere and opening somebody are done here
+  whatever the mode, and a line that looks like a password is never sent.
+- **Decided for the owner, as recommended:** every line while it is on.
+- **Not checked:** against a real service. The stand-in in the tests says
+  what a model would; whether Gemini reads the Sumanth line the same pressed
+  and not is for a key to show.
+
+### Phase 39 - The AI proposes, the owner keeps - *built 13 October 2026*
+- **Write the company in brief** from what is already there - the profile,
+  the products, the last months of history - as a draft on the page, to be
+  edited and kept. The same for a contact: "what we know about Harbour".
+- **Tidy a page**: headings, what repeats, what contradicts - shown as a
+  comparison, kept or thrown away whole.
+- **What the history says that no page does**: "Kettle & Crumb have paid
+  late three times" - offered as a memory, with the lines it came from.
+- **Never by itself.** Nothing is written until it is kept, every draft says
+  what was sent to make it, and what the AI wrote is marked as such.
+- **Done when:** a new company's brief can be made in one press and reads
+  as true to the person whose company it is.
+- **Built** (`shared/propose.ts`, `services/propose.ts`, `Proposals.tsx`):
+  *The company in brief* on the Brain's first page, as it goes with every
+  question, with **Draft it** - from the profile, the plan, what is sold,
+  who to, what was remembered and the last forty things that happened; a
+  page's **Tidy with the AI**, which sends that page alone and shows it
+  beside the page; and **What does the history show?**, about the contacts
+  with three entries or more, each with the entries it came from.
+- **The AI has no way to write.** Each of the three hands back text. A kept
+  brief and a kept page go through the page's own save, so History has what
+  was there; a kept fact goes on the contact's *Keep in mind* through the
+  contact's own update. What was drafted or tidied says so in its last line.
+- **Not built:** "what we know about Harbour" as a draft for one contact.
+- **Not checked:** whether a real brief reads as true. That is the owner's
+  to say, with a key.
+
+## Not planned
+- The AI doing things by itself - sending, moving a deal, writing a record
+  unasked.
+- Sending the whole company by default once phase 37 is in.
+
+# Part eleven: the brain, sorted
+
+*Written 13 October 2026, from the owner's question. The owner then said to
+decide what was left open and build it, and - the same night - "I don't
+want unnecessary pages... fully functional but not over complicating it".
+Phases 40 to 43 were built on 14 October with that as the rule; what each
+says under **Built** is what there is.*
+
+## What the owner said
+
+> The brain sorting too. How can we make that whole thing more useful and
+> cleaner and functional. The company brain thing. Policies and everything.
+
+## How it stands
+
+- **Fifteen sections and twenty-nine kinds of page.** It was laid out for a
+  company with departments. A one-person company fills four or five of the
+  sections, and has to choose among fifteen each time it writes something.
+- **A policy has no home.** "Policy" is one kind of page, in Legal, and
+  means the privacy policy on a website. How the company works - "we
+  invoice on the 1st", "never discount a retainer", "no calls before ten" -
+  is said to the line and lands on one page, *Things to remember*, as a
+  dated list in the order it was said, beside the printer on the fourth
+  floor and what a supplier is like.
+- **Nothing sorts that page.** *Loose ends* offers a move when a line sounds
+  like a page there already is. It never makes a home, and it needs the
+  model on this machine.
+- **A rule that changes is said twice.** Both lines stand, and nothing says
+  which is true now.
+- **What is written is read in one place: its page.** The payment terms are
+  not beside the invoice when one is written, nor a pricing rule beside a
+  quote. The brain is somewhere to go and look, which is why it is not
+  looked at.
+- **Until 13 October the AI was never sent what the line was told to
+  remember.** That is mended (part ten); it is here because it shows how
+  far from the rest that page had drifted.
+
+## One sentence
+
+**The brain is where the company's answers are, and the answer is there
+when the question comes up.**
+
+## What else a company's brain has to be able to do
+
+Thought through on 14 October, at the owner's asking. A brain for a company
+of one has seven jobs, and this is where each stands:
+
+1. **Hold what is true now, apart from what was said when.** A rule, a
+   price, a term. *Phase 40.*
+2. **Take what it is told without being told where to put it.** The line
+   does; rules now have somewhere to go. *Phase 40.*
+3. **Sort itself when asked.** *Phase 41.*
+4. **Answer where the question comes up**, not only where the answer is
+   kept. *Phase 42, in part.*
+5. **Be asked in words.** The line answers from what is remembered, and the
+   AI from what a question needs (part ten). *Built.*
+6. **Know what it does not know, and what has gone stale.** The first is the
+   ten questions on the Brain's first page; the second is *phase 44, not
+   built.*
+7. **Be handed to somebody else** - an accountant, a buyer, whoever covers
+   a month away. The dossier, the data room and Export are that. *Built.*
+
+Two things it should do and does not, neither planned yet:
+
+- **Ask why at the moment something changes.** A price changed, a deal
+  lost, a client dropped: one line, *Why?*, kept in Decisions. The reason
+  for losing a deal is asked today; nothing else is.
+- **Say the same thing the same way every time.** The standard answers a
+  company gives - turnaround, what is included, how to pay - kept once in
+  How we work and put into a message with a press.
+
+## Phases
+
+### Phase 40 - How we work: a home for the rules - *built 14 October 2026*
+- **One section, *How we work*,** with a page a subject: *Billing and
+  payment*, *Pricing and discounts*, *Hours and replies*, *Clients*,
+  *Suppliers and tools*. A rule is one line and the day it was set. The
+  playbooks move in beside them: the rules, then the steps.
+- **The line files a rule where it belongs**, by its words - "we always",
+  "we never", "our policy is", and what it is about - and says which page
+  before Enter, as it does for any memory. A rule about nothing it knows
+  goes on *Other rules*, not on a page of everything.
+- **A rule replaced is replaced.** Said again differently, the line asks:
+  *Instead of "we invoice on the 1st"?* The new one stands; the old one is
+  in the page's history, where everything a page used to say is.
+- The privacy policy stays in Legal, called what it is: a *published
+  policy*.
+- **Done when:** ten rules said to the line over a week are on five pages,
+  each readable in ten seconds, with no page called "Things to remember".
+- **Built** (`shared/rules.ts`, `services/howwework.ts`): the section the
+  playbooks were in is *How we work*, and a rule said to the line goes on
+  its subject's page there - the line says which before Enter. **No page
+  exists until a rule does**: a subject's page is started by the first rule
+  on it, and the five subjects are only where rules go, not five empty
+  pages. A rule is a remembered line like any other, so finding, reading
+  back, rewording and letting go are what they already were.
+- **A rule replaced**: kept first, then asked - *Is it instead of "we
+  invoice on the 1st"?* - and the older one is let go only on a yes. Asked
+  after and not before, so Enter never waits on it.
+- **"We invoice on the 1st" used to be read as a task for the 1st.** What a
+  company does as a matter of course - invoice, bill, charge, quote, ship,
+  deliver, accept, require, offer - is a rule, whatever day is in it. "We
+  meet on the 5th" is still an appointment.
+- *Things to remember* is still where a fact that is not a rule goes. The
+  "done when" above asked for no such page; that was wrong - the printer on
+  the fourth floor has to go somewhere.
+
+### Decided, part eleven - *14 October 2026, by the owner's leave*
+- **It is called How we work.** A policy sounds like a document, and these
+  are a line each.
+- **Five subjects to start, and any page added to the section is one.**
+- **Nothing unnecessary** - the owner's rule. So: no page before there is
+  something to put on it; five kinds of page no longer offered (milestone,
+  competitor, fundraise, cap table, experiment). Pages a company already
+  has of those kinds are untouched and open as before. And two things
+  planned here were left out as more than they are worth: the rules on the
+  call prompter, and regrouping the rail.
+- **Tried and put back:** retiring *Products and pricing* as a section,
+  since what is sold is on Money and how it is priced is now a page of
+  rules. It is where the thinking about an offer is written, the export
+  and two of the tests rely on it, and retiring it means first deciding
+  where that thinking goes. Left for the owner.
+
+### Phase 41 - Sort what was remembered - *built 14 October 2026*
+- ***Sort this page***, on *Things to remember* and on any long page. Each
+  line is offered a home: a rule to its page in *How we work*; something
+  about a contact to that contact's *Keep in mind*; a number of the
+  company's - a tax number, a bank - to its field on the profile; a thing
+  said twice to one line; two that disagree to a question, *which stands?*
+- By the rules on this machine first. With an AI connected, the AI proposes
+  for what the rules could not place - a draft, like every other in part
+  ten: a list of moves, each kept or left, and nothing moved by itself.
+- Built on what *Loose ends* already does, which it replaces.
+- **Done when:** a page of sixty remembered lines is sorted in under five
+  minutes, and nothing was moved that was not seen.
+- **Built** (`Sorting.tsx`, `sortPlan`, `applySort`, `proposeSort`): *Sort
+  this page*, in the More menu of any page with three remembered lines or
+  more. A rule is offered its subject's page, a line that names a contact
+  that contact's *Keep in mind*, a line said twice is let go. Each is
+  ticked, and **Move** makes the ticked ones in one go; the page's history
+  has what it said before. With an AI connected, it can be asked about the
+  lines left over - only those lines go, with the subjects and the
+  contacts' names.
+- **Not built:** a number of the company's to its field on the profile,
+  and two lines that disagree asked about. *Loose ends* was left as it is
+  rather than replaced: it works by meaning, on the model here, and does a
+  different half of the job.
+- **Not timed:** the five minutes.
+
+### Phase 42 - The answer where the question is - *built in part, 14 October 2026*
+- **Billing rules beside a new invoice and a new quote; pricing rules
+  beside a quote and a product; hours on the call prompter.** A line or
+  two, in the margin, with the page one press away. A contact's *Keep in
+  mind* already works this way, and is the most read thing in the app.
+- **"What is our policy on refunds?"** is answered by the line, from *How we
+  work*, on this machine.
+- *How we work* goes to the AI with a question about how things are done,
+  and with anything it is asked to write to a client.
+- **Done when:** writing an invoice, the owner does not open the brain to
+  check the terms.
+- **Built:** the billing rules beside a new invoice, and the pricing and
+  billing rules beside a new quote (`RulesAside`) - shown only when there
+  are some. "What is our policy on refunds", "how do we handle late
+  payers" answered by the line from what is remembered. How we work goes to
+  the AI with a question about how things are done (part ten).
+- **Left out, on purpose:** the call prompter and the product form. Two
+  places is enough to find out whether it is read.
+
+### Phase 43 - Fewer shelves - *built 14 October 2026, smaller than written*
+- **The rail in four parts**, with the sections under them: *What we are*
+  (Company, Tax and compliance, Legal, Tools, Documents), *How we work*,
+  *Where we are going* (Plan, Money plan, Products, Decisions, Metrics,
+  Ideas), *What we have learned* (Customers and market, Meetings).
+- No page moves and nothing is migrated: the sections stay as they are
+  kept, and the rail groups them. Sections with nothing in them stay out of
+  the way, as now.
+- **Done when:** somebody new to the app can say where a thing goes without
+  reading the list.
+- **Built:** *All sections* lists them under the four headings. The rail
+  was left alone: it already shows only the sections that hold something,
+  which is four or five, and headings over five rows are more to read, not
+  less. Fewer kinds of page are offered, as decided above.
+
+### Phase 44 - Still true?
+- A rule with a price, a rate or a date in it that is a year old, and a
+  page nobody has touched in a year, are asked about once on the Brain's
+  first page: *Still true?* Yes, or change it.
+- **Done when:** nothing in *How we work* is older than a year without
+  having been looked at.
+
+## Not planned
+- The AI moving, merging or rewriting anything unasked. It proposes
+  (part ten).
+- More kinds of page. Twenty-nine is already more than are used.
+- Folders inside sections, tags, or a second way to group pages.
+
+## For the owner to decide, part eleven
+1. **What it is called.** *How we work*, or *Policies*. *Recommended: How
+   we work* - "policy" sounds like a document, and these are one line each.
+2. **The subjects.** The five above, fixed, or whatever pages the owner
+   makes. *Recommended: start with the five, and any page added there is a
+   subject.*
+3. **Whether the rail is regrouped** (phase 43). It changes where
+   everything is found. *Recommended: yes, after 40 to 42 have shown that
+   the four parts are the right four.*
+4. **The order.** *Recommended: 40, 41, 42, 43, 44.*
+
+# Part twelve: a line that knows you
+
+*Written 14 October 2026, from the owner's question. The owner said "continue": built the same day, in the order recommended - 45, 46, 47, 50, 48, 49 - and with both recommendations below taken. What each phase says under **Built** is what there is.*
+
+## What the owner said
+
+> Think about how you can make the quick tab feature smarter, to be able to
+> work with different ways people text and work on your timetable and
+> memories etc smart and efficiently without ai.
+
+## How it stands
+
+The line already reads a great deal without an AI: short forms and slips,
+Hinglish, half past and quarter to, "@4", ranges and lengths, "in two
+hours", repeats by weekday, two things in one line, moving and cancelling
+a task, and questions about the day, free time and a contact's number. It
+learns which kind a line is from a chip pressed (lessons) and which slips
+are slips (Tune). The model on this machine is asked only about a line the
+rules were guessing at.
+
+**Measured on 14 October**, 84 new lines typed the way people type, on a
+Monday at ten, each scored on every field it should have read - day, time,
+length, repeat, contact, amount - not only where it went. The held-out
+sets (part eight) count only the kind.
+
+| Lines | Read right |
+|---|---|
+| A time, said every way | 22 / 30 - and 3 more asked "morning or evening?" |
+| Typed as a text | 18 / 20 |
+| What happened with a contact | 7 / 8 |
+| Money | 7 / 8 |
+| Changing or asking about what is there | 5 / 8 |
+| A fact about a contact, kept as a fact | 0 / 7 - all seven on their history |
+
+What it misses, by cause:
+- **"At 11" is asked about** - morning or evening - even for "call priya",
+  and on Tuesday at 11 the person has never once been at work at 11pm.
+- **"half 3"** (half past, the British way), **"0930"**, and **"at four"**
+  in words are not read as times.
+- **"remind me tomorrow at four to call priya"** becomes a task called
+  "Four to call priya".
+- **"every other monday"** and **"the 1st of every month"** are not
+  repeats. Monthly and yearly repeats add only the next one.
+- **"call priyaa"** - a short first name one letter out - is not Priya.
+- **Facts are filed as events.** "maya prefers whatsapp", "sam's address is
+  12 King St", "jonas is on leave till the 20th" go on the contact's
+  history beside the calls, where nothing reads them again. "remember
+  priya bday 3 may" is a one-off task called *Remember priya birthday*.
+- **"called priya - no answer, try again thursday"** is a task; the call
+  that happened is lost.
+- **"got 2400 from harbour"** is a refund of 2,400, not Harbour's invoice
+  paid.
+- **Nothing ticks a task off** ("done call priya", "finished the gst
+  filing"), nothing moves by the hour ("move my 3pm to 4"), and "when did I
+  last talk to maya", "how much does harbour owe" and "next free hour
+  tomorrow" are not questions it knows.
+
+## One sentence
+
+**What the app already knows about you settles what the line would
+otherwise ask - and what you correct once is never asked again.**
+
+No AI anywhere in this part: rules, and the person's own data as the
+deciding vote. The model on this machine stays where it is.
+
+## Phases
+
+### Phase 45 - Count every field
+- The 84 lines above become a test that scores day, time, length, repeat,
+  contact and amount, beside the held-out sets that score the kind. A
+  fourth set is written blind, for a different founder, before phase 46
+  starts, and counted only at the end.
+- **Done when:** every phase below is a number moving on that test.
+- **Built:** `shared/measured/fields.test.ts`. The fourth set is `lines-2026-10-b.json`, sixty lines for a photographer, written before any rule changed and never read. Before part twelve: 59 of 84 and 39 of 60.
+
+### Phase 46 - Your day settles the time
+- **Morning or evening, from your own hours.** An unmarked 7 to 11 goes to
+  the side of the day the person's blocks have filled over the last eight
+  weeks. Asked only when both sides have been used, or neither has.
+- **The words for a part of the day mean your day:** "first thing" is when
+  the person's first block usually starts, "after lunch" when their lunch
+  block ends, "end of day" their last block's end - with today's fixed
+  times when there is no history.
+- **How long, from what it usually is.** A call, a meeting or "gym" with
+  no length takes the length that kind of thing has usually had
+  (`usualFor` already counts it for the title).
+- **Done when:** "call priya at 11" asks nothing on a working week of
+  history, and the measured time lines are 29 of 30.
+- **Built:** `yourDay`, `sideOf`, `usualLength` in `shared/habitual.ts`. Time lines 20 to 26 of 30 on this phase alone, and the held-out set 39 to 43.
+
+### Phase 47 - The words it does not know yet
+- "half 3", four-figure times ("0930", "1530"), hours in words ("at
+  four"), and "remind me *when* to *do*" with the title taken from after
+  "to".
+- Repeats every other week, on a date of the month ("the 1st of every
+  month", "every month on the 15th", "the last friday of the month"), and
+  yearly ("every year on 3 May"). This needs a real repeat on a task, not
+  only the next one: a migration, and a line in data-model.
+- A short first name one letter out, when the line starts with call, email
+  or meet - "call priyaa" - asked as *Priya Nair?* the first time.
+- **Built:** all of it, the last day of the month too. Every other week with an hour is a block series that skips the odd weeks (`block_series.every_weeks`); without one, and monthly and yearly, a task that comes back when ticked (`tasks.repeats`, migration 55). Time lines 30 of 30, 20 of 20 held out.
+
+### Phase 48 - Corrected once, known after
+- **An answer to "Which Priya?" is kept** as that word meaning that contact,
+  for that person. Typed "pk" and answered Priya Nair, "pk" is Priya Nair
+  from then on. Today the answer is used once and forgotten.
+- **A time changed before Enter is kept** for the phrase: moved
+  "evening" from 6pm to 7:30 twice, and evening is 7:30.
+- Both are listed in Settings, under Tune, each with Forget.
+- **Done when:** a question the line has had answered twice is not asked a
+  third time.
+- **Built, a little differently:** an answer to "which one?" is kept the first time, not the second (`line_names`, migration 56) - one press is the correction, so asking again is the mistake. A time changed before Enter is not stored: morning or evening is learned from the blocks already kept (`sideBefore`), which says the same thing without a second record of it.
+
+### Phase 49 - Facts are not events
+- **A fact about a contact is kept on the contact**, under *Known about
+  them* on their page, not on their history: present tense, "is", "'s ...
+  is", "prefers", "likes", "lives", with the contact as who it is about,
+  and no past-tense verb of something done. Questions read it back: "what
+  does maya prefer", "sam's address".
+- **A birthday is a birthday**: on the contact, and a reminder each year -
+  not a task titled with the word "remember".
+- **A fact that ends** - "on leave till the 20th" - keeps its date, and a
+  task for that contact before then says so.
+- **What happened, and what is next, from one line**: "called priya - no
+  answer, try again thursday" is the call on her history and a task for
+  Thursday, as "spoke to maya, follow up friday" already is.
+- **Money in from a contact** - "got 2400 from harbour", "harbour paid" -
+  marks their open invoice paid when one matches, and asks which when two
+  do.
+- **Built:** `lead_facts` (migration 57), *Known about them* on the contact's page, `factsAbout` read first by the questions, the birthday as a yearly task, the away warning under the line, `paidFrom` - which says which invoice it marked, records a part against the only one open, and refuses to guess between two. It found that "priya's daughter is *called* aarav" was being logged as a phone call.
+
+### Phase 50 - Ticked, moved and asked by the line
+- **Done:** "done call priya", "finished the gst filing", "did the
+  harbour invoice" tick the open task they match, with Undo.
+- **Moved by the hour**: "move my 3pm to 4", "push this afternoon to
+  tomorrow" - blocks as well as tasks.
+- **Asked**: when did I last speak to X, how much does X owe, what did I
+  say I would do for X, the next free hour on a day.
+- **Built:** `done` in `shared/edits.ts`, with Undo; `taskAt` for a task named by its hour (tasks, not yet blocks on their own); the four questions in `shared/questions.ts`, answered in `services/lines.ts`.
+
+## Not planned
+- A generative model, or sending a line anywhere. Part ten's AI mode stays
+  a switch, off.
+- Correcting whole sentences. A word is mended; a sentence is read.
+- Learning without being told. Every lesson comes from an answer or a
+  change the person made, and can be forgotten.
+
+## For the owner to decide, part twelve
+1. **Where a fact about a contact lives.** *Known about them* on their page,
+   or a line on their brain page. *Recommended: on their page* - it is
+   where you are when you need it.
+2. **Real monthly and yearly repeats** (phase 47) change the tasks table.
+   *Recommended: yes* - rent, retainers, GST and birthdays are monthly or
+   yearly, and they are the things a one-person company forgets.
+3. **The order.** *Recommended: 45, 46, 47, 50, 48, 49* - measure first;
+   then the cheap rules that are most often hit; then ticking off from the
+   line, used every day; then learning; then facts, which is the largest.

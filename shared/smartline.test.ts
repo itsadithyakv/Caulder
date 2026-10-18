@@ -5,7 +5,7 @@ import { followOn } from "./followon";
 import { together } from "./together";
 import { alreadyOpen, clashWith, complete, completionsFrom, readyFor, usualFor } from "./habitual";
 import { cleanPaste } from "./pasteline";
-import { namedContact, readCapture } from "./capture";
+import { readCapture } from "./capture";
 import type { LastLine, OpenTask, Timed } from "./lines";
 
 /**
@@ -166,10 +166,10 @@ describe("what was done before", () => {
     expect(clashWith({ title: "Meeting", day: "2026-09-23", time: "19:00", minutes: 30 }, busy)).toBeNull();
     expect(alreadyOpen("pay rent", "2026-09-30", open)?.id).toBe("p");
     expect(alreadyOpen("pay rent", "2026-12-30", open)).toBeNull();
-    expect(readyFor("DBMS exam", "2026-09-28", clock.today)).toEqual({ title: "Revise for DBMS exam", day: "2026-09-27" });
+    expect(readyFor("CRM demo", "2026-09-28", clock.today)).toEqual({ title: "Prepare for CRM demo", day: "2026-09-27" });
     expect(readyFor("Investor pitch", "2026-09-26", clock.today)).toEqual({ title: "Prepare for investor pitch", day: "2026-09-25" });
     // Tomorrow is too soon to offer a day to get ready.
-    expect(readyFor("DBMS exam", "2026-09-24", clock.today)).toBeNull();
+    expect(readyFor("CRM demo", "2026-09-24", clock.today)).toBeNull();
   });
 });
 
@@ -199,15 +199,6 @@ describe("something pasted", () => {
   });
 });
 
-describe("family, by what they are called", () => {
-  const contacts = [{ id: "m", name: "Mummy", person: null }];
-  it("is the contact saved under another name for them", () => {
-    expect(namedContact("call mom tonight", contacts)?.id).toBe("m");
-    expect(namedContact("call amma", contacts)?.id).toBe("m");
-    expect(namedContact("call dad", contacts)).toBeNull();
-  });
-});
-
 describe("somebody new, told about", () => {
   const known = { contacts: [{ id: "c1", name: "Orchids School", person: "Rahul" }], hobbies: [] };
   const read = (line: string) => readCapture(line, known, clock);
@@ -232,7 +223,8 @@ describe("somebody new, told about", () => {
       person: "Anil Sharma",
       role: "HR head",
       happened: "Wants a demo next week",
-      then: null,
+      // What he wants, with a day on it, is something owed: his task (shared/nextstep.ts).
+      then: { title: "Demo with Anil Sharma", daySaid: true },
     });
     expect(read("spoke to priya from GIG international, need to send her the brochure tomorrow").ask).toMatchObject({
       name: "GIG International",
@@ -274,5 +266,38 @@ describe("somebody new, told about", () => {
       expect(ask?.do === "contact" ? ask : null, line).toBeNull();
     }
     expect(read("Rahul from orchids school wants a demo")).toMatchObject({ kind: "contact", contact: { id: "c1" } });
+  });
+});
+
+describe("asked about a contact, the money and the hours left (part twelve, phase 50)", () => {
+  it("reads when you last spoke to somebody", () => {
+    expect(readQuestion("when did i last talk to maya", clock)).toEqual({ ask: "last", name: "maya" });
+    expect(readQuestion("when was i last in touch with harbour coffee?", clock)).toEqual({ ask: "last", name: "harbour coffee" });
+    expect(readQuestion("last time i spoke to jonas", clock)).toEqual({ ask: "last", name: "jonas" });
+  });
+
+  it("reads what is owed", () => {
+    expect(readQuestion("how much does harbour owe me", clock)).toEqual({ ask: "owed", name: "harbour" });
+    expect(readQuestion("who owes me money", clock)).toEqual({ ask: "owed", name: null });
+    expect(readQuestion("what's outstanding", clock)).toEqual({ ask: "owed", name: null });
+  });
+
+  it("reads the next free hour, and how long it is to be", () => {
+    expect(readQuestion("next free hour tomorrow", clock)).toMatchObject({ ask: "slot", day: "2026-09-24", minutes: 60 });
+    expect(readQuestion("when am i free", clock)).toMatchObject({ ask: "slot", day: "2026-09-23", minutes: 60 });
+    expect(readQuestion("find me half an hour on friday", clock)).toMatchObject({ ask: "slot", day: "2026-09-25", minutes: 30 });
+  });
+
+  it("reads what is open for somebody", () => {
+    expect(readQuestion("what did i promise sam", clock)).toEqual({ ask: "promised", name: "sam" });
+    expect(readQuestion("what's pending with jonas", clock)).toEqual({ ask: "promised", name: "jonas" });
+  });
+
+  it("ticks off from the line, and names a task by its hour", () => {
+    expect(readEdit("done call rahul", { ...clock, open, last: null })).toMatchObject({ do: "done", task: { id: "r" } });
+    expect(readEdit("the rahul call is done", { ...clock, open, last: null })).toMatchObject({ do: "done", task: { id: "r" } });
+    expect(readEdit("move my 6pm to 7", { ...clock, open, last: null })).toMatchObject({ do: "move", task: { id: "g" }, time: "19:00" });
+    // Nothing open is it: not an edit.
+    expect(readEdit("done the tax return", { ...clock, open, last: null })).toBeNull();
   });
 });

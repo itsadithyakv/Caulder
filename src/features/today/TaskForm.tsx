@@ -1,14 +1,15 @@
 import { useEffect, useId, useState, type FormEvent } from "react";
 import {
-  TASK_AREAS,
-  TASK_AREA_LABEL,
   TASK_KINDS,
   TASK_KIND_LABEL,
+  TASK_REPEATS,
+  TASK_REPEAT_LABEL,
   taskInput,
   type Lead,
   type Task,
   type TaskInput,
   type TaskKind,
+  type TaskRepeat,
 } from "@shared/domain";
 import { shiftDay } from "@shared/dates";
 import { useWorkspace } from "@/lib/workspace";
@@ -16,9 +17,10 @@ import { Chips, Select } from "@/components/Select";
 import { PRIORITIES, PRIORITY_LABEL } from "@shared/priority";
 import { messageOf } from "@/lib/errors";
 
-const AREA_OPTIONS = TASK_AREAS.map((value) => ({ value, label: TASK_AREA_LABEL[value] }));
 const KIND_OPTIONS = TASK_KINDS.map((value) => ({ value, label: TASK_KIND_LABEL[value] }));
 const PRIORITY_OPTIONS = PRIORITIES.map((value) => ({ value, label: PRIORITY_LABEL[value] }));
+/** Once, or a task that comes back when it is ticked off (PLAN.md, part twelve, phase 47). */
+const REPEAT_OPTIONS = [{ value: "once" as const, label: "Once" }, ...TASK_REPEATS.map((value) => ({ value, label: TASK_REPEAT_LABEL[value] }))];
 
 /**
  * Adds a task, or changes one.
@@ -26,13 +28,8 @@ const PRIORITY_OPTIONS = PRIORITIES.map((value) => ({ value, label: PRIORITY_LAB
  * Every choice here is visible without opening anything. The date is offered
  * as three buttons before it is offered as a date field, because "today",
  * "tomorrow" and "next week" cover nearly every follow-up somebody sets; the
- * area and the kind are chips for the same reason. Only the lead is a list you
- * open, because there may be two hundred of them.
- *
- * **Area and kind are different questions.** Kind is the verb - call, email,
- * follow up. Area is which part of your life it is - the degree, the company,
- * yourself, your health. "Email the professor" and "email the principal" are
- * the same kind and different areas, and only one of them is about the funnel.
+ * kind is chips for the same reason. Only the lead is a list you open,
+ * because there may be two hundred of them.
  *
  * **Changing one sends the whole task back**, because saving replaces every
  * field. So the form is filled from the task and carries its note and its
@@ -65,18 +62,13 @@ export function TaskForm({
   const ids = useId();
 
   const [title, setTitle] = useState(task?.title ?? "");
-  // Defaulted from where you are: a task written in a company workspace, or
-  // from a lead, is about the company until you say otherwise. A string
-  // rather than one of the four, because an area can be typed on the line.
-  const [area, setArea] = useState<string>(
-    task ? (task.area ?? "") : personal && !leadId ? "personal" : "company",
-  );
   const [kind, setKind] = useState<TaskKind>(task?.kind ?? (personal ? "todo" : "follow_up"));
   // The middle by default, which is also what a task nobody set reads as.
   const [priority, setPriority] = useState<(typeof PRIORITIES)[number]>(
     task?.priority === "must" || task?.priority === "spare" ? task.priority : "should",
   );
   const [dueOn, setDueOn] = useState(task?.dueOn ?? day);
+  const [repeats, setRepeats] = useState<TaskRepeat | "once">(task?.repeats ?? "once");
   const [chosenLead, setChosenLead] = useState(leadId ?? task?.leadId ?? "");
   const [notes, setNotes] = useState(task?.notes ?? "");
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -99,13 +91,13 @@ export function TaskForm({
     const parsed = taskInput.safeParse({
       title,
       kind,
-      area: area === "" ? null : area,
       // A task nobody gave a priority reads as "should" and keeps reading as
       // nobody said, unless it is changed here.
       priority: task && task.priority === null && priority === "should" ? null : priority,
       dueOn,
       leadId: chosenLead === "" ? null : chosenLead,
       notes,
+      repeats: repeats === "once" ? null : repeats,
     });
 
     if (!parsed.success) {
@@ -125,13 +117,6 @@ export function TaskForm({
     { label: "Tomorrow", value: shiftDay(day, 1) },
     { label: "Next week", value: shiftDay(day, 7) },
   ];
-
-  // An area typed on the line rather than picked is offered as itself, the
-  // way the block form keeps a length the chips do not have.
-  const areaOptions =
-    area === "" || AREA_OPTIONS.some((option) => option.value === area)
-      ? AREA_OPTIONS
-      : [...AREA_OPTIONS, { value: area, label: area }];
 
   // The task's own contact, until the list arrives - and after it, if the
   // contact is in another workspace's list rather than this one's.
@@ -176,17 +161,6 @@ export function TaskForm({
 
       <div className="taskform__grid">
         <div className="field">
-          <span className="field__label">Area</span>
-          <Chips
-            value={area}
-            options={areaOptions}
-            onChange={setArea}
-            aria-label="Area"
-            disabled={busy}
-          />
-        </div>
-
-        <div className="field">
           <span className="field__label">Kind</span>
           <Chips
             value={kind}
@@ -207,6 +181,11 @@ export function TaskForm({
           aria-label="How much it matters"
           disabled={busy}
         />
+      </div>
+
+      <div className="field">
+        <span className="field__label">Comes back</span>
+        <Chips value={repeats} options={REPEAT_OPTIONS} onChange={setRepeats} aria-label="Comes back" disabled={busy} />
       </div>
 
       <div className="taskform__grid">

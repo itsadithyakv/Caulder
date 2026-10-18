@@ -11,6 +11,8 @@ import {
 } from "@shared/domain";
 import { StageBadge } from "./StageBadge";
 import { formatValue, region, relativeDay } from "@/lib/format";
+import { useWorkspace } from "@/lib/workspace";
+import { ShowMore, useShowing } from "@/lib/showing";
 import { describeDue, today } from "@shared/dates";
 
 /**
@@ -54,8 +56,12 @@ export function LeadsTable({
   onToggleAll: () => void;
   onSelect: (lead: LeadListRow) => void;
 }) {
+  const currency = useWorkspace().activeCompany?.currency;
   const stageById = new Map(stages.map((stage) => [stage.id, stage]));
   const day = today(timezone);
+
+  // Drawn two hundred at a time; the rest as the foot is scrolled to.
+  const rows = useShowing(leads, 200);
 
   const allSelected = leads.length > 0 && leads.every((lead) => selected.has(lead.id));
   const someSelected = leads.some((lead) => selected.has(lead.id));
@@ -114,7 +120,7 @@ export function LeadsTable({
         </thead>
 
         <tbody>
-          {leads.map((lead, index) => {
+          {rows.shown.map((lead, index) => {
             const isSelected = selected.has(lead.id);
             return (
               <tr
@@ -175,7 +181,7 @@ export function LeadsTable({
                   {lead.value === null ? (
                     <span className="leadrow__missing">&mdash;</span>
                   ) : (
-                    formatValue(lead.value)
+                    formatValue(lead.value, currency)
                   )}
                 </td>
 
@@ -189,6 +195,7 @@ export function LeadsTable({
           })}
         </tbody>
       </table>
+      <ShowMore left={rows.left} step={rows.step} onMore={rows.more} auto />
     </div>
   );
 }

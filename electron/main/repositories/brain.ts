@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import type { Db } from "../db/connection";
 import {
   BRAIN_SECTIONS,
-  PERSONAL_SQL,
   maskSecret,
   type BrainPage,
   type BrainPageSummary,
@@ -257,137 +256,6 @@ export function setPageArchived(db: Db, id: string, archived: boolean, now: stri
   );
 }
 
-/* ---- Pages from somewhere else: the shared brain, or a brain file ---------- */
-
-/** A page as it travels: everything but the pin, which is each founder's own, and the secrets, which never leave. */
-export type TravellingPage = {
-  section: BrainSectionId;
-  template: string;
-  title: string;
-  body: string;
-  fields: Record<string, FieldValue>;
-  isArchived: boolean;
-};
-
-type Arrival = {
-  author: string | null;
-  editedAt: string;
-  /** Written at the same time as a version this side did not see. */
-  concurrent: boolean;
-  /** The shared log's revision, when it came from there; null from a file. */
-  syncRevision: number | null;
-};
-
-/** What a page sends: its content, secrets left out. */
-export function travellingOf(row: { section: BrainSectionId; template: string; title: string; body: string; fields: string; is_archived: number }): TravellingPage {
-  const fields: Record<string, FieldValue> = {};
-  for (const [key, value] of Object.entries(readStored(row.fields))) {
-    if (!isSealedValue(value)) fields[key] = value;
-  }
-  return { section: row.section, template: row.template, title: row.title, body: row.body, fields, isArchived: row.is_archived === 1 };
-}
-
-/** The incoming fields with this side's secrets kept: a secret never travels, so it is never overwritten. */
-function withOwnSecrets(incoming: Record<string, FieldValue>, stored: string): string {
-  const kept: StoredFields = { ...incoming };
-  for (const [key, value] of Object.entries(readStored(stored))) {
-    if (isSealedValue(value)) kept[key] = value;
-  }
-  return JSON.stringify(kept);
-}
-
-function nextRevision(
-  db: Db,
-  pageId: string,
-  revision: number,
-  content: { title: string; body: string; fields: string },
-  author: string | null,
-  editedAt: string,
-  concurrent: boolean,
-): void {
-  db.prepare(
-    `INSERT INTO brain_revisions (id, page_id, revision, title, body, fields, edited_at, edited_by, concurrent)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(randomUUID(), pageId, revision, content.title, content.body, content.fields, editedAt, author, concurrent ? 1 : 0);
-}
-
-/** A page this side has never had. */
-export function insertArrivedPage(db: Db, companyId: string, id: string, page: TravellingPage, arrival: Arrival): void {
-  const fields = JSON.stringify(page.fields);
-  db.prepare(
-    `INSERT INTO brain_pages (id, company_id, section, template, title, body, fields, is_archived, revision,
-                              created_at, updated_at, updated_by, sync_revision, sync_dirty)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)`,
-  ).run(
-    id,
-    companyId,
-    page.section,
-    page.template,
-    page.title,
-    page.body,
-    fields,
-    page.isArchived ? 1 : 0,
-    arrival.editedAt,
-    arrival.editedAt,
-    arrival.author,
-    arrival.syncRevision,
-    arrival.syncRevision === null ? 1 : 0,
-  );
-  nextRevision(db, id, 1, { title: page.title, body: page.body, fields }, arrival.author, arrival.editedAt, arrival.concurrent);
-  replaceLinks(db, companyId, id, linkTargets(page.body), arrival.editedAt);
-}
-
-/**
- * A newer version of a page arriving, which becomes the page. From the shared
- * log it moves `sync_revision` in the same statement, which is what tells the
- * trigger not to send it straight back.
- */
-export function applyArrivedEdit(db: Db, id: string, page: TravellingPage, arrival: Arrival): void {
-  const row = db.prepare(`SELECT * FROM brain_pages WHERE id = ?`).get(id) as PageRow | undefined;
-  if (!row) throw new Error("That page no longer exists.");
-  const fields = withOwnSecrets(page.fields, row.fields);
-  const revision = row.revision + 1;
-  if (arrival.syncRevision !== null) {
-    db.prepare(
-      `UPDATE brain_pages SET section = ?, template = ?, title = ?, body = ?, fields = ?, is_archived = ?, revision = ?,
-         updated_at = ?, updated_by = ?, sync_revision = ?
-       WHERE id = ?`,
-    ).run(page.section, page.template, page.title, page.body, fields, page.isArchived ? 1 : 0, revision, arrival.editedAt, arrival.author, arrival.syncRevision, id);
-  } else {
-    db.prepare(
-      `UPDATE brain_pages SET section = ?, template = ?, title = ?, body = ?, fields = ?, is_archived = ?, revision = ?,
-         updated_at = ?, updated_by = ?
-       WHERE id = ?`,
-    ).run(page.section, page.template, page.title, page.body, fields, page.isArchived ? 1 : 0, revision, arrival.editedAt, arrival.author, id);
-  }
-  nextRevision(db, id, revision, { title: page.title, body: page.body, fields }, arrival.author, arrival.editedAt, arrival.concurrent);
-  replaceLinks(db, row.company_id, id, linkTargets(page.body), arrival.editedAt);
-}
-
-/**
- * Two versions written at the same time, when this side's is the one to keep
- * showing: the other goes into the history, and this side's is written again
- * on top of it, both marked. Nothing is lost and the page does not change
- * under anyone's eyes; the History says there were two.
- */
-export function keepBothVersions(db: Db, id: string, other: TravellingPage, arrival: Arrival, now: string): void {
-  const row = db.prepare(`SELECT * FROM brain_pages WHERE id = ?`).get(id) as PageRow | undefined;
-  if (!row) throw new Error("That page no longer exists.");
-  const theirs = withOwnSecrets(other.fields, row.fields);
-  nextRevision(db, id, row.revision + 1, { title: other.title, body: other.body, fields: theirs }, arrival.author, arrival.editedAt, true);
-  nextRevision(db, id, row.revision + 2, { title: row.title, body: row.body, fields: row.fields }, row.updated_by, now, true);
-  // Only the number moves: the content is this side's still, so nothing is marked to send twice.
-  db.prepare(`UPDATE brain_pages SET revision = ? WHERE id = ?`).run(row.revision + 2, id);
-}
-
-/** Marks the latest version as written at the same time as the other founder's. */
-export function markEditedTogether(db: Db, id: string): void {
-  db.prepare(
-    `UPDATE brain_revisions SET concurrent = 1
-      WHERE page_id = ? AND revision = (SELECT MAX(revision) FROM brain_revisions WHERE page_id = ?)`,
-  ).run(id, id);
-}
-
 export function deletePage(db: Db, id: string): void {
   db.prepare(`DELETE FROM brain_pages WHERE id = ?`).run(id);
 }
@@ -455,12 +323,12 @@ export function listSection(
   ).map(toSummary);
 }
 
-/** The company's pages written last: Brain home's list, and search before anything is typed. The founder's own are not the company's. */
+/** The company's pages written last: Brain home's list, and search before anything is typed. */
 export function listRecentPages(db: Db, companyId: string, limit: number): BrainPageSummary[] {
   return (
     db
       .prepare(
-        `SELECT * FROM brain_pages WHERE company_id = ? AND is_archived = 0 AND section NOT IN (${PERSONAL_SQL})
+        `SELECT * FROM brain_pages WHERE company_id = ? AND is_archived = 0
          ORDER BY updated_at DESC LIMIT ?`,
       )
       .all(companyId, limit) as PageRow[]
@@ -471,7 +339,7 @@ export function listPinnedPages(db: Db, companyId: string): BrainPageSummary[] {
   return (
     db
       .prepare(
-        `SELECT * FROM brain_pages WHERE company_id = ? AND is_pinned = 1 AND is_archived = 0 AND section NOT IN (${PERSONAL_SQL})
+        `SELECT * FROM brain_pages WHERE company_id = ? AND is_pinned = 1 AND is_archived = 0
          ORDER BY title COLLATE NOCASE`,
       )
       .all(companyId) as PageRow[]

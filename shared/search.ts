@@ -7,11 +7,11 @@ import type { BrainSectionId } from "./brain";
  * \u0002 and \u0003, which the window turns into highlights.
  */
 export type SearchHit = {
-  kind: "page" | "contact" | "note" | "history" | "invoice" | "person";
+  kind: "page" | "contact" | "note" | "history" | "invoice";
   id: string;
   title: string;
   detail: string;
-  /** For a page: its section. For a person: People. */
+  /** For a page: its section. */
   section: BrainSectionId | null;
   /** For a contact, a history entry or an invoice: the contact it opens. */
   leadId: string | null;
@@ -27,5 +27,4 @@ export const SEARCH_KIND_LABEL: Record<SearchHit["kind"], string> = {
   note: "Note",
   history: "History",
   invoice: "Invoice",
-  person: "Person",
 };

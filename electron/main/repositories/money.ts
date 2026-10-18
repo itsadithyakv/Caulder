@@ -4,13 +4,17 @@ import { shiftDay, today as todayIn } from "@shared/dates";
 import { findDeal, mainDeal, setDealValue } from "./deals";
 import { productInCompany } from "./products";
 import {
+  INVOICE_REPEAT_MONTHS,
+  documentNumber,
   isOverdueInvoice,
+  type InvoiceRepeat,
   type Invoice,
   type InvoiceInput,
   type InvoiceStatus,
   type MoneyLine,
   type MoneyLineInput,
   type MoneyOverview,
+  type PaidFromInput,
   type Payment,
   type PaymentInput,
   type Quote,
@@ -50,6 +54,7 @@ type DocRow = {
   paid_on?: string | null;
   notes: string | null;
   created_at: string;
+  repeats?: string | null;
 };
 
 type LineRow = {
@@ -314,15 +319,43 @@ export function acceptQuote(db: Db, companyId: string, id: string, now: Date = n
 
 const INVOICE_SELECT = `
   SELECT i.id, i.company_id, i.lead_id, l.name AS lead_name, i.deal_id, d.title AS deal_title,
-         i.quote_id, i.number, i.status, i.issued_on, i.due_on, i.paid_on, i.notes, i.created_at
+         i.quote_id, i.number, i.status, i.issued_on, i.due_on, i.paid_on, i.notes, i.created_at, i.repeats
     FROM invoices i
     JOIN leads l ON l.id = i.lead_id
     LEFT JOIN deals d ON d.id = i.deal_id`;
+
+/**
+ * The reminders that went about invoices still owed: every email sent to an
+ * invoice's contact with its number in the subject. Read, never kept - so
+ * one written by hand from the contact's page counts as well as one from
+ * Money.
+ */
+function remindersFor(db: Db, rows: DocRow[]): Map<string, { at: string; times: number }> {
+  const owed = rows.filter((row) => row.status === "sent");
+  const out = new Map<string, { at: string; times: number }>();
+  if (owed.length === 0) return out;
+  const leads = [...new Set(owed.map((row) => row.lead_id))];
+  const sent = db
+    .prepare(
+      `SELECT lead_id, subject, COALESCE(sent_at, created_at) AS at FROM emails
+        WHERE status IN ('sent', 'replied') AND lead_id IN (${leads.map(() => "?").join(", ")})
+        ORDER BY at`,
+    )
+    .all(...leads) as { lead_id: string; subject: string; at: string }[];
+  for (const row of owed) {
+    const number = documentNumber("invoice", row.number);
+    const mine = sent.filter((email) => email.lead_id === row.lead_id && email.subject.includes(number));
+    const last = mine.at(-1);
+    if (last) out.set(row.id, { at: last.at, times: mine.length });
+  }
+  return out;
+}
 
 function toInvoices(db: Db, rows: DocRow[]): Invoice[] {
   const ids = rows.map((row) => row.id);
   const lines = linesFor(db, "invoice_lines", ids);
   const payments = paymentsFor(db, ids);
+  const reminded = remindersFor(db, rows);
   return rows.map((row) => {
     const own = lines.get(row.id) ?? [];
     const paid = payments.get(row.id) ?? [];
@@ -345,6 +378,8 @@ function toInvoices(db: Db, rows: DocRow[]): Invoice[] {
       lines: own,
       payments: paid,
       createdAt: row.created_at,
+      repeats: (row.repeats ?? null) as InvoiceRepeat | null,
+      reminded: reminded.get(row.id) ?? null,
     };
   });
 }
@@ -370,9 +405,9 @@ export function saveInvoice(db: Db, companyId: string, id: string | null, input:
     if (id === null) {
       const created = randomUUID();
       db.prepare(
-        `INSERT INTO invoices (id, company_id, lead_id, deal_id, number, status, issued_on, due_on, notes, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?)`,
-      ).run(created, companyId, input.leadId, dealId, nextNumber(db, "invoices", companyId), input.issuedOn, input.dueOn, input.notes ?? null, now, now);
+        `INSERT INTO invoices (id, company_id, lead_id, deal_id, number, status, issued_on, due_on, notes, repeats, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?)`,
+      ).run(created, companyId, input.leadId, dealId, nextNumber(db, "invoices", companyId), input.issuedOn, input.dueOn, input.notes ?? null, input.repeats ?? null, now, now);
       writeLines(db, "invoice_lines", companyId, created, input.lines);
       return created;
     }
@@ -382,8 +417,8 @@ export function saveInvoice(db: Db, companyId: string, id: string | null, input:
       throw new Error("A paid or void invoice cannot be edited. Make a new one.");
     }
     db.prepare(
-      `UPDATE invoices SET lead_id = ?, deal_id = ?, issued_on = ?, due_on = ?, notes = ?, updated_at = ? WHERE id = ?`,
-    ).run(input.leadId, dealId, input.issuedOn, input.dueOn, input.notes ?? null, now, id);
+      `UPDATE invoices SET lead_id = ?, deal_id = ?, issued_on = ?, due_on = ?, notes = ?, repeats = ?, updated_at = ? WHERE id = ?`,
+    ).run(input.leadId, dealId, input.issuedOn, input.dueOn, input.notes ?? null, input.repeats ?? null, now, id);
     writeLines(db, "invoice_lines", companyId, id, input.lines);
     settle(db, id);
     return id;
@@ -398,6 +433,68 @@ export function saveInvoice(db: Db, companyId: string, id: string | null, input:
  * Paid, or not, from the payments. Called after anything that changes either
  * side: a payment in, a payment removed, a line edited.
  */
+/** The same day so many months on, or the month's last day when it has no such day: the 31st, a month on, is the 30th. */
+function monthsOn(day: string, months: number): string {
+  const [year = 2000, month = 1, date = 1] = day.split("-").map(Number);
+  const first = new Date(Date.UTC(year, month - 1 + months, 1));
+  const last = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0)).getUTCDate();
+  return `${first.getUTCFullYear()}-${String(first.getUTCMonth() + 1).padStart(2, "0")}-${String(Math.min(date, last)).padStart(2, "0")}`;
+}
+
+/**
+ * Retainers, drafted (phase 34): for every invoice that repeats, has been
+ * sent, and whose next one is due to be written, a draft made from it - the
+ * same contact, deal, lines and notes, issued on the day it falls, due as
+ * long after as the last was. The saying moves to the draft, so the run goes
+ * on from there and nothing is drafted twice.
+ *
+ * One at a time: nothing is drafted from a draft, so a run never has more
+ * than one invoice waiting to be sent, however long Caulder was shut. A
+ * draft is all it ever makes - sending is the owner's - and a void invoice
+ * ends its run.
+ *
+ * Called when Today and Money are read, which is when the draft is wanted;
+ * it writes only when something is due, so reading twice changes nothing.
+ */
+export function draftRepeats(db: Db, companyId: string, day: string): number {
+  const due = (
+    db
+      .prepare(`SELECT id, issued_on, repeats FROM invoices WHERE company_id = ? AND repeats IS NOT NULL AND status IN ('sent', 'paid')`)
+      .all(companyId) as { id: string; issued_on: string; repeats: InvoiceRepeat }[]
+  ).filter((row) => monthsOn(row.issued_on, INVOICE_REPEAT_MONTHS[row.repeats]) <= day);
+  if (due.length === 0) return 0;
+  return db.transaction(() => {
+    let made = 0;
+    for (const row of due) {
+      const last = findInvoice(db, row.id);
+      if (!last) continue;
+      const issuedOn = monthsOn(row.issued_on, INVOICE_REPEAT_MONTHS[row.repeats]);
+      const term = Math.max(0, Math.round((Date.parse(`${last.dueOn}T00:00:00Z`) - Date.parse(`${last.issuedOn}T00:00:00Z`)) / 86_400_000));
+      const now = new Date().toISOString();
+      const id = randomUUID();
+      db.prepare(
+        `INSERT INTO invoices (id, company_id, lead_id, deal_id, number, status, issued_on, due_on, notes, repeats, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?)`,
+      ).run(id, companyId, last.leadId, last.dealId, nextNumber(db, "invoices", companyId), issuedOn, shiftDay(issuedOn, term), last.notes, row.repeats, now, now);
+      writeLines(
+        db,
+        "invoice_lines",
+        companyId,
+        id,
+        last.lines.map((line) => ({ description: line.description, quantity: line.quantity, unitPrice: line.unitPrice, productId: line.productId })),
+      );
+      db.prepare(`UPDATE invoices SET repeats = NULL, updated_at = ? WHERE id = ?`).run(now, row.id);
+      made += 1;
+    }
+    return made;
+  })();
+}
+
+/** Retainer invoices that were drafted and are waiting to be looked at and sent. */
+export function listDraftedRepeats(db: Db, companyId: string): Invoice[] {
+  return listInvoices(db, companyId).filter((invoice) => invoice.status === "draft" && invoice.repeats !== null);
+}
+
 function settle(db: Db, invoiceId: string): void {
   const invoice = findInvoice(db, invoiceId);
   if (!invoice || invoice.status === "void") return;
@@ -482,6 +579,38 @@ export function markPaid(db: Db, companyId: string, invoiceId: string, now: Date
   });
 }
 
+/**
+ * Money in from a contact, said to the line (PLAN.md, part twelve, phase 49):
+ * "got 2400 from harbour" marks their open invoice of 2,400 paid; a sum short
+ * of the only one open is a payment against it; "harbour paid" marks the only
+ * one open. With more than one open and none that sum, it says so rather than
+ * guess which.
+ */
+export function paidFrom(db: Db, companyId: string, input: PaidFromInput, now: Date = new Date()): { say: string } {
+  const lead = db.prepare(`SELECT name FROM leads WHERE id = ? AND company_id = ?`).get(input.leadId, companyId) as { name: string } | undefined;
+  if (!lead) throw new Error("That contact is not in this company.");
+  const open = listInvoices(db, companyId).filter((invoice) => invoice.leadId === input.leadId && invoice.status === "sent" && invoice.total - invoice.paid > 0);
+  const owed = (invoice: Invoice) => invoice.total - invoice.paid;
+  if (open.length === 0) throw new Error(`${lead.name} has no invoice waiting to be paid.`);
+  const number = (invoice: Invoice) => documentNumber("invoice", invoice.number);
+  const exact = input.amount === null ? null : (open.find((invoice) => owed(invoice) === input.amount) ?? null);
+  const only = open.length === 1 ? open[0]! : null;
+  const target = exact ?? only;
+  if (!target) {
+    throw new Error(
+      input.amount === null
+        ? `${lead.name} has ${open.length} invoices open. Say how much came in, or mark the one on Money.`
+        : `None of ${lead.name}'s ${open.length} open invoices is for that. Mark the one on Money.`,
+    );
+  }
+  if (input.amount !== null && input.amount < owed(target)) {
+    addPayment(db, companyId, target.id, { amount: input.amount, paidOn: now.toISOString().slice(0, 10), note: null });
+    return { say: `Recorded against ${number(target)}, with ${owed(target) - input.amount} still owed` };
+  }
+  markPaid(db, companyId, target.id, now);
+  return { say: `Marked ${number(target)} paid` };
+}
+
 export function deletePayment(db: Db, companyId: string, id: string): void {
   const row = db.prepare(`SELECT invoice_id FROM payments WHERE id = ? AND company_id = ?`).get(id, companyId) as
     | { invoice_id: string }
@@ -498,9 +627,8 @@ export function deletePayment(db: Db, companyId: string, id: string): void {
 function listSpend(db: Db, companyId: string): SpendEntry[] {
   const rows = db
     .prepare(
-      `SELECT s.id, s.spent_on, s.amount, s.what, s.campaign_id, c.name AS campaign_name
+      `SELECT s.id, s.spent_on, s.amount, s.what
          FROM spend s
-         LEFT JOIN campaigns c ON c.id = s.campaign_id
         WHERE s.company_id = ?
         ORDER BY s.spent_on DESC, s.created_at DESC`,
     )
@@ -509,30 +637,25 @@ function listSpend(db: Db, companyId: string): SpendEntry[] {
     spent_on: string;
     amount: number;
     what: string;
-    campaign_id: string | null;
-    campaign_name: string | null;
   }[];
   return rows.map((row) => ({
     id: row.id,
     spentOn: row.spent_on,
     amount: row.amount,
     what: row.what,
-    campaignId: row.campaign_id,
-    campaignName: row.campaign_name,
   }));
 }
 
 export function addSpend(db: Db, companyId: string, input: SpendEntryInput): void {
   db.prepare(
-    `INSERT INTO spend (id, company_id, spent_on, amount, what, campaign_id, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO spend (id, company_id, spent_on, amount, what, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
   ).run(
     randomUUID(),
     companyId,
     input.spentOn,
     input.amount,
     input.what,
-    input.campaignId ?? null,
     new Date().toISOString(),
   );
 }

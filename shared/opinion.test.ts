@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { areaOpinion, secondOpinion, type Example } from "./opinion";
+import { secondOpinion, type Example } from "./opinion";
 
 /**
  * The second opinion's rules, with the model's part stood in for: examples
@@ -20,11 +20,11 @@ const mine = (kind: Example["kind"], score: number, title?: string): Example => 
 describe("what is doubted", () => {
   it("never a reading the rules were sure of", () => {
     const sure = { kind: "note", page: null };
-    expect(secondOpinion(sure, [seed("journal", 0.9), seed("journal", 0.9)])).toEqual({ kind: null, page: null, because: null });
+    expect(secondOpinion(sure, [seed("idea", 0.9), seed("idea", 0.9)])).toEqual({ kind: null, page: null, because: null });
   });
 
   it("nothing when no example is near enough to count", () => {
-    expect(secondOpinion(guess("note"), [seed("journal", 0.2)]).kind).toBeNull();
+    expect(secondOpinion(guess("note"), [seed("idea", 0.2)]).kind).toBeNull();
   });
 });
 
@@ -35,8 +35,8 @@ describe("changing the kind", () => {
   });
 
   it("needs more to overrule a reading that was a real guess, than a note", () => {
-    const split = [seed("journal", 0.46), seed("task", 0.44), seed("journal", 0.4)];
-    expect(secondOpinion(guess("note"), split).kind).toBe("journal");
+    const split = [seed("idea", 0.46), seed("task", 0.44), seed("idea", 0.4)];
+    expect(secondOpinion(guess("note"), split).kind).toBe("idea");
     expect(secondOpinion(guess("task"), split).kind).toBeNull();
   });
 
@@ -66,19 +66,5 @@ describe("where a memory goes", () => {
   it("not when the rules already found its page", () => {
     const found = { kind: "memory", soft: true, page: { id: "p1", title: "Guitar" } };
     expect(secondOpinion(found, [mine(null, 0.9, "Red Rising")]).page).toBeNull();
-  });
-});
-
-describe("the area of a task nothing else placed", () => {
-  const task = (area: string, score: number): Example => ({ kind: "task", score, own: true, area });
-
-  it("is where the person's nearest tasks went, when they agree", () => {
-    expect(areaOpinion([task("college", 0.6), task("college", 0.5), task("company", 0.35)])).toBe("college");
-  });
-
-  it("is nothing when they do not agree, or are not near, or are only seeds", () => {
-    expect(areaOpinion([task("college", 0.5), task("company", 0.49)])).toBeNull();
-    expect(areaOpinion([task("college", 0.4)])).toBeNull();
-    expect(areaOpinion([{ kind: "task", score: 0.9, own: false, area: "college" }])).toBeNull();
   });
 });

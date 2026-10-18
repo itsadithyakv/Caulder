@@ -1,11 +1,16 @@
-import { useCallback, useEffect, useState } from "react";
-import { CalendarClock, CalendarPlus, MailCheck, Receipt, RefreshCw, Snowflake, Sunrise } from "lucide-react";
+import { useCallback, useState } from "react";
+import { AtSign, CalendarClock, CalendarPlus, Mail, MailCheck, MessagesSquare, Phone, Receipt, RefreshCw, Send, Snowflake, Sunrise, type LucideIcon } from "lucide-react";
 import { documentNumber } from "@shared/domain";
-import { dateFormatter, formatValue, region, relativeDay } from "@/lib/format";
-import type { TaskInput, Today } from "@shared/domain";
-import { describeDue } from "@shared/dates";
+import { formatLongDay, formatValue, region, relativeDay } from "@/lib/format";
+import type { Invoice, ReachWay, Task, TaskInput, Today } from "@shared/domain";
+import { describeDue, today as todayIn } from "@shared/dates";
+import { chaseOffer } from "@shared/chase";
+import { ChaseForm } from "@/features/money/ChaseForm";
 import { useResource } from "@/lib/resource";
 import { NowLine } from "./NowLine";
+import { WeekThree } from "./WeekThree";
+import { Clashes } from "@/features/day/Clashes";
+import { doubleBooked } from "@shared/day";
 import { useWorkspace } from "@/lib/workspace";
 import { Card } from "@/components/Card";
 import { EmptyState } from "@/components/EmptyState";
@@ -14,39 +19,33 @@ import { TaskRow } from "./TaskRow";
 import { TaskForm } from "./TaskForm";
 import { NotesScreen } from "@/features/notes/NotesScreen";
 import { groupDue } from "./grouping";
+import { ShowMore, useShowing } from "@/lib/showing";
+import { saySent } from "@shared/reached";
 import type { RouteId } from "@/app/routes";
 import { SetupNudge } from "@/features/onboarding/SetupNudge";
 import { SupportAsk } from "./SupportAsk";
-import { PulseCard } from "@/features/life/PulseCard";
 import { QuickAdd } from "./QuickAdd";
-import { AskLine } from "./AskLine";
-import { ContextLine } from "./ContextLine";
-import { LineModes } from "./LineModes";
-import { cueEmber } from "@/features/ember/stage";
-import { lineMode, writingMode, type LineMode } from "@shared/ember";
-import type { AskState } from "@shared/ask";
-import { Aside, ClearDay, Hello } from "./Hello";
-import { Remember } from "./Remember";
+import { Hello } from "./Hello";
 import { useStartCall } from "@/features/calls/CallProvider";
 import { describeRenewal } from "@shared/costs";
 import { describeDeadline, sectionForDeadline, type Deadline } from "@shared/deadlines";
 import type { BrainSectionId } from "@shared/brain";
-import { JournalCard } from "@/features/life/JournalCard";
-import { HabitsCard } from "@/features/life/HabitsCard";
-import { YourWeekCard } from "@/features/life/YourWeekCard";
-import { LevelStrip } from "@/features/life/LevelStrip";
-import { TodayTheme } from "@/features/life/TodayTheme";
 
 /**
  * The home screen, and the reason the app is worth opening.
  *
- * The work comes first, because it is what the screen is opened for: hello and
- * the day in two short lines, what you should be doing right now, the one line
- * that takes anything and puts it where it belongs - and then, in the order
- * they need attention, what is late, what is due today, and what is quietly
- * going nowhere. Beside it goes the life half of the day and everything that
- * is nice to see but asks nothing of you: the joke, the memory, the habits to
- * tick, how the week has been, your level.
+ * Two columns, and each answers one question. On the left, **what do I do**:
+ * hello and the day in two short lines, what you should be at right now, the
+ * one line that takes anything and puts it where it belongs, and then, in
+ * the order they need attention, what is late, what is due today and what is
+ * coming. On the right, **who do I talk to**: who to reach out to today, who
+ * has written back, and who is going quiet - with the notes kept to file
+ * later under them.
+ *
+ * The right-hand column used to be the life half of the day - habits, the
+ * journal, a pulse, a level. That half went on 10 October 2026 (PLAN.md,
+ * part seven), and the people moved into the room it left: outreach is the
+ * work a founder puts off, so it is beside the day rather than under it.
  *
  * It used to stack all of that above the work - a joke, a memory, a setup
  * card, a box for notes lower down - until on a first run the first overdue
@@ -59,6 +58,8 @@ import { TodayTheme } from "@/features/life/TodayTheme";
  * reference/features.md for whoever wants it. A home screen is read forty
  * times a week and should not explain itself forty times.
  */
+const NONE: readonly Task[] = [];
+
 export function TodayScreen({
   onOpenLead,
   onGoToDay,
@@ -66,16 +67,10 @@ export function TodayScreen({
   onGoTo,
   onOpenPage,
   onOpenSection,
-  onOpenJournal,
-  onOpenLife,
   quickNonce = 0,
 }: {
   onOpenLead: (leadId: string) => void;
   onOpenPage: (pageId: string) => void;
-  /** Today's entry, in the journal. */
-  onOpenJournal: () => void;
-  /** Life, on one of its tabs. */
-  onOpenLife: (tab?: "habits") => void;
   /** A filing opens the brain's Tax section, a document its Documents, a person their page in People. */
   onOpenSection: (section: BrainSectionId, focus?: string) => void;
   onGoToDay: () => void;
@@ -85,11 +80,8 @@ export function TodayScreen({
   /** Bumped by the A key, to put the cursor in the quick-add line. */
   quickNonce?: number;
 }) {
-  const { activeCompany, home } = useWorkspace();
+  const { activeCompany } = useWorkspace();
   const companyId = activeCompany?.id ?? null;
-  // Your own things - the journal, habits, your week, your level - come from
-  // home, whichever company is chosen; the work is both, merged by the main process.
-  const homeId = home?.id ?? companyId;
   const timezone = activeCompany?.timezone ?? "UTC";
 
   const fetchToday = useCallback(
@@ -100,36 +92,15 @@ export function TodayScreen({
     companyId ? fetchToday : null,
   );
   const [adding, setAdding] = useState(false);
+  /** The unpaid invoice a reminder is being written about. */
+  const [chasing, setChasing] = useState<Invoice | null>(null);
   /** The task whose row is open as a form, to change what the quick line cannot. */
   const [editing, setEditing] = useState<string | null>(null);
-  /**
-   * Which line is on the screen, of the three: the one Caulder reads itself,
-   * the same line asked of your AI, or a topic whose context goes on the
-   * clipboard. The flames switch them, and the choice is kept here rather
-   * than in the database because it is a preference of this screen on this
-   * machine, like a collapsed section.
-   *
-   * Which of the two writing flames is a fact about the workspace, not a
-   * fourth choice: a personal workspace has no funnel to file anything into.
-   */
-  const [mode, setMode] = useState<LineMode>(() => remembersMode());
-  const writing = writingMode(activeCompany?.kind === "personal");
-  const [ai, setAi] = useState<AskState | null>(null);
-  useEffect(() => {
-    let live = true;
-    window.caulder.ask.state().then(
-      (state) => live && setAi(state),
-      () => live && setAi(null),
-    );
-    return () => {
-      live = false;
-    };
-  }, []);
   /** Bumped when the line keeps something, so the cards it may have landed in read again. */
   const [kept, setKept] = useState(0);
-  /** Bumped by a habit ticked or taken back: nothing else on Today reads habits, but your level does. */
-  const [ticked, setTicked] = useState(0);
   const startCall = useStartCall();
+  // Ten late tasks drawn, the rest on a press: a thousand rows froze the window.
+  const overdueRows = useShowing(today?.overdue ?? NONE, 10, 50);
 
   async function addTask(input: TaskInput) {
     if (!companyId) return;
@@ -153,13 +124,13 @@ export function TodayScreen({
     today.dueToday.length === 0 &&
     !today.deadlines.some((deadline) => deadline.daysLeft <= 0);
 
-  /** Where a deadline lives: its page, or the section that holds it - with the person open, for a person. */
+  /** Where a deadline lives: its page, or the section that holds it. */
   const openDeadline = (deadline: Deadline) =>
     deadline.source === "page"
       ? onOpenPage(deadline.id)
-      : onOpenSection(sectionForDeadline(deadline.source), deadline.source === "person" ? deadline.id : undefined);
+      : onOpenSection(sectionForDeadline(deadline.source));
 
-  const rowFor = (task: Today["overdue"][number], overdue = false, hide?: { area?: boolean; kind?: boolean; due?: boolean }) =>
+  const rowFor = (task: Today["overdue"][number], overdue = false, hide?: { kind?: boolean; due?: boolean }) =>
     // The form opens where the row was, so the eye does not have to go
     // looking for it at the top of the screen.
     editing === task.id ? (
@@ -181,14 +152,7 @@ export function TodayScreen({
         overdue={overdue}
         {...(hide ? { hide } : {})}
         onOpenLead={onOpenLead}
-        onComplete={() =>
-          void act(async () => {
-            await window.caulder.tasks.complete(task.id);
-            // Ember was watching. The last overdue thing gone gets the whole
-            // routine; anything else, a cheer.
-            cueEmber(overdue && today.overdue.length === 1 ? "cleared" : "done");
-          })
-        }
+        onComplete={() => void act(() => window.caulder.tasks.complete(task.id))}
         onReschedule={(dueOn) => void act(() => window.caulder.tasks.reschedule(task.id, dueOn))}
         onDelete={() => void act(() => window.caulder.tasks.remove(task.id))}
         onEdit={() => setEditing(task.id)}
@@ -207,25 +171,27 @@ export function TodayScreen({
   const deadlinesSoon = today.deadlines.some((deadline) => deadline.daysLeft <= 3);
   const late = today.overdue.length + today.unpaid.length + today.deadlines.filter((deadline) => deadline.daysLeft < 0).length;
   const due = today.dueToday.length;
+  // Somebody named under Reach out is not named again under Going quiet: one
+  // person is one row on the screen, in the list that says what to do. A
+  // prospect nobody has written to has not gone quiet; they are still waiting.
+  const waiting = new Set(today.reach.next.map((each) => each.id));
+  const quiet = today.cold.filter((lead) => !waiting.has(lead.id));
 
   return (
     <div className="today anim-stagger">
+      {/* The day in one line: hello, which day, and how much of it is waiting. */}
       <header className="today__head">
-        <Hello day={today.day} timezone={timezone} due={due} late={late} />
-
-        {/* The day in one line: which day, and how much of it is waiting. */}
         <p className="today__day">
-          <span className="today__date">{longDay(today.day)}</span>
-          <TodayTheme companyId={homeId} day={today.day} />
-          {due + late > 0 ? (
-            <span className="today__summary">{summaryOf(due, late)}</span>
-          ) : (
-            <ClearDay day={today.day} timezone={timezone} />
-          )}
+          <Hello timezone={timezone} />
+          <span className="today__date">{formatLongDay(today.day)}</span>
+          <span className="today__summary">{due + late > 0 ? summaryOf(due, late) : "Nothing due today."}</span>
         </p>
       </header>
 
       <NowLine blocks={today.blocks} timezone={timezone} onOpenDay={onGoToDay} />
+      <WeekThree companyId={companyId} />
+      {/* Two things at once today: said here, where the day is looked at first. */}
+      <Clashes clashes={doubleBooked(today.blocks)} onOpen={onGoToDay} />
 
       <ErrorLine>{error}</ErrorLine>
 
@@ -242,32 +208,11 @@ export function TodayScreen({
         // The line first, the form a click away. Most tasks are one sentence,
         // and the form is for the ones that need a lead attached or a note.
         <section className="card today__quick">
-          {mode === "copy" ? (
-            <ContextLine
-              companyId={companyId}
-              writing={writing}
-              focusNonce={quickNonce}
-              onMode={(next) => rememberMode(setMode, next)}
-            />
-          ) : mode === "ask" && ai?.connected ? (
-            <AskLine
-              companyId={companyId}
-              focusNonce={quickNonce}
-              model={whoAnswers(ai)}
-              writing={writing}
-              onMode={(next) => rememberMode(setMode, next)}
-              onOpenPage={onOpenPage}
-              onOpenContact={onOpenLead}
-            />
-          ) : (
-            <>
           <QuickAdd
             companyId={companyId}
             timezone={timezone}
-            personal={activeCompany?.kind === "personal"}
             focusNonce={quickNonce}
             smart
-            homeId={homeId ?? undefined}
             onGo={onGoTo}
             onOpenContact={(leadId, how) => {
               // A call starts the prompter, with their number and the script; anything
@@ -280,22 +225,11 @@ export function TodayScreen({
               reload();
               setKept((n) => n + 1);
             }}
-            modes={
-              <LineModes
-                mode={writing}
-                writing={writing}
-                mood="resting"
-                canAsk={ai?.connected === true}
-                onMode={(next) => rememberMode(setMode, next)}
-              />
-            }
           />
           <button type="button" className="btn btn--sm btn--ghost today__form" onClick={() => setAdding(true)}>
             <CalendarPlus size={15} aria-hidden />
             Full form
           </button>
-            </>
-          )}
         </section>
       )}
 
@@ -306,6 +240,40 @@ export function TodayScreen({
 
       <div className="today__grid">
         <div className="today__work anim-stagger">
+          {chasing && (
+            <ChaseForm
+              invoice={chasing}
+              company={activeCompany?.name ?? ""}
+              currency={activeCompany?.currency ?? ""}
+              day={todayIn(timezone)}
+              onClose={() => setChasing(null)}
+              onSent={() => {
+                setChasing(null);
+                reload();
+              }}
+            />
+          )}
+          {/* A retainer's invoice, drafted and waiting: looked at and sent from Money, never by itself. */}
+          {today.drafted.length > 0 && (
+            <Card
+              icon={<Receipt size={15} aria-hidden />}
+              title={`${today.drafted.length} retainer ${today.drafted.length === 1 ? "invoice is" : "invoices are"} drafted, to look at and send`}
+            >
+              <ul className="cold">
+                {today.drafted.map((invoice) => (
+                  <li key={invoice.id}>
+                    <button type="button" className="coldrow" onClick={onGoToMoney}>
+                      <span className="coldrow__name">
+                        {documentNumber("invoice", invoice.number)} · {invoice.leadName}
+                      </span>
+                      <span className="coldrow__meta">{formatValue(invoice.total, activeCompany?.currency)}</span>
+                      <span className="coldrow__days">for {relativeDay(invoice.issuedOn)}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
           {/* Money that is late is later than a call that is late. */}
           {today.unpaid.length > 0 && (
             <Card
@@ -317,7 +285,7 @@ export function TodayScreen({
             >
               <ul className="cold">
                 {today.unpaid.map((invoice) => (
-                  <li key={invoice.id}>
+                  <li key={invoice.id} className="renewrow">
                     <button type="button" className="coldrow" onClick={onGoToMoney}>
                       <span className="coldrow__name">
                         {documentNumber("invoice", invoice.number)} · {invoice.leadName}
@@ -325,8 +293,20 @@ export function TodayScreen({
                       <span className="coldrow__meta">
                         {formatValue(invoice.total - invoice.paid, activeCompany?.currency)}
                       </span>
-                      <span className="coldrow__days">due {relativeDay(invoice.dueOn)}</span>
+                      <span className="coldrow__days">
+                        due {relativeDay(invoice.dueOn)}
+                        {invoice.reminded ? ` · reminded ${relativeDay(invoice.reminded.at)}` : ""}
+                      </span>
                     </button>
+                    {/* Chased from the row it is on: a first reminder, and another a week after the last. */}
+                    {(() => {
+                      const offer = chaseOffer(invoice, todayIn(timezone));
+                      return offer === "first" || offer === "again" ? (
+                        <button type="button" className="btn btn--sm" onClick={() => setChasing(invoice)}>
+                          {offer === "again" ? "Remind again" : "Send a reminder"}
+                        </button>
+                      ) : null;
+                    })()}
                   </li>
                 ))}
               </ul>
@@ -339,7 +319,8 @@ export function TodayScreen({
                 today.overdue.length === 1 ? "thing is" : "things are"
               } overdue`}
             >
-              <ul className="tasks">{today.overdue.map((task) => rowFor(task, true))}</ul>
+              <ul className="tasks">{overdueRows.shown.map((task) => rowFor(task, true))}</ul>
+              <ShowMore left={overdueRows.left} step={overdueRows.step} onMore={overdueRows.more} />
             </Card>
           )}
 
@@ -391,7 +372,7 @@ export function TodayScreen({
                     {group.title} <span className="today__count">{group.tasks.length}</span>
                   </h3>
                   <ul className="tasks">
-                    {group.tasks.map((task) => rowFor(task, false, { due: true, [group.by]: true }))}
+                    {group.tasks.map((task) => rowFor(task, false, { due: true, kind: true }))}
                   </ul>
                 </div>
               ))}
@@ -455,60 +436,6 @@ export function TodayScreen({
               </ul>
             </Card>
           )}
-          {today.replies.length > 0 && (
-            <Card
-              icon={<MailCheck size={15} aria-hidden />}
-              title="Replies"
-              hint="To email sent from Caulder, in the last seven days."
-            >
-              <ul className="cold">
-                {today.replies.map((reply) => (
-                  <li key={reply.emailId}>
-                    <button
-                      type="button"
-                      className="coldrow"
-                      onClick={() => onOpenLead(reply.leadId)}
-                    >
-                      <span className="coldrow__name">{reply.leadName}</span>
-                      <span className="coldrow__meta">Re: {reply.subject}</span>
-                      <span className="coldrow__days">{relativeDay(reply.repliedAt)}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </Card>
-          )}
-          {today.cold.length > 0 && (
-            <Card
-              icon={<Snowflake size={15} aria-hidden />}
-              title="Going quiet"
-              hint={`Still open, nothing planned, and quiet for ${today.coldAfterDays} days or more.`}
-            >
-              <ul className="cold">
-                {today.cold.slice(0, 12).map((lead) => (
-                  <li key={lead.id}>
-                    <button
-                      type="button"
-                      className="coldrow"
-                      onClick={() => onOpenLead(lead.id)}
-                    >
-                      <span className="coldrow__name">{lead.name}</span>
-                      <span className="coldrow__meta">
-                        {lead.stageName ?? "No stage"}
-                        {lead.city ? ` · ${lead.city}` : ""}
-                      </span>
-                      <span className="coldrow__days">{lead.daysQuiet} days</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              {today.cold.length > 12 && (
-                <p className="card__hint">
-                  And {today.cold.length - 12} more. The quietest are shown first.
-                </p>
-              )}
-            </Card>
-          )}
           {today.deadlines.length > 0 && !deadlinesSoon && (
             <Card
               tone={today.deadlines.some((deadline) => deadline.daysLeft < 0) ? "alert" : undefined}
@@ -553,28 +480,115 @@ export function TodayScreen({
             </Card>
           )}
 
-          {/* Notes at the foot of the work: what the quick line or the capture
-              key kept to file later. No box to write in - the line is that -
-              and no card at all when there is nothing to file. */}
-          <NotesScreen key={`notes-${kept}`} onTasksChanged={reload} onOpenPage={onOpenPage} />
         </div>
 
-        {/* The life half of the day: the half no other screen puts in front of
-            you, beside the work rather than above it. What asks something of
-            you today - a habit to tick, a line in the journal - comes before
-            what is only there to be seen. */}
+        {/* Who to talk to, beside what to do: outreach is the work that gets
+            put off, so it is not left for the foot of the page. */}
         <div className="today__side anim-stagger">
-          {/* A joke and a memory: nice to have, never in the way of the work. */}
-          <div className="today__ambient">
-            <Aside day={today.day} timezone={timezone} />
-            <Remember day={today.day} onOpenPage={onOpenPage} />
-          </div>
-          <HabitsCard companyId={homeId ?? companyId} onManage={() => onOpenLife("habits")} onChanged={() => setTicked((n) => n + 1)} />
-          <JournalCard key={`journal-${kept}`} companyId={homeId ?? companyId} onOpenJournal={onOpenJournal} />
-          <YourWeekCard companyId={homeId ?? companyId} version={kept} onOpenPage={onOpenPage} onOpenLife={() => onOpenLife()} />
-          {/* How the weeks have been, from your own history - and what yesterday was, if it was quiet. */}
-          <PulseCard companyId={homeId ?? companyId} version={kept + ticked} />
-          <LevelStrip companyId={homeId ?? companyId} version={kept + ticked} watch={today} onOpen={() => onOpenLife()} />
+          {/* First on this side: the people nobody has written to yet. It is
+              the work a founder puts off, so it is said in numbers - who was
+              reached today, who is waiting - and each name is one press from
+              their page, where every way of writing to them is. */}
+          {(today.reach.next.length > 0 || today.reach.today > 0 || today.reach.sent.people > 0) && (
+            <Card
+              icon={<Send size={15} aria-hidden />}
+              title="Reach out"
+              hint={[`${reachedSaid(today.reach.today)} today, ${today.reach.week} in the last seven days.`, saySent(today.reach.sent)]
+                .filter(Boolean)
+                .join(" ")}
+            >
+              {today.reach.next.length > 0 ? (
+                <>
+                  <ul className="cold" aria-label="Waiting for a first message">
+                    {today.reach.next.map((lead) => (
+                      <li key={lead.id}>
+                        <button type="button" className="coldrow" onClick={() => onOpenLead(lead.id)}>
+                          <span className="coldrow__name">{lead.name}</span>
+                          <span className="coldrow__meta">
+                            {[lead.person, lead.city].filter(Boolean).join(" · ") || lead.stageName || "No stage"}
+                          </span>
+                          <span className="coldrow__days reach__ways">
+                            {lead.ways.length > 0 ? (
+                              lead.ways.map((way) => {
+                                const Icon = WAY_ICON[way];
+                                return <Icon key={way} size={14} aria-label={WAY_SAID[way]} />;
+                              })
+                            ) : (
+                              <span>no way to reach them yet</span>
+                            )}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  {today.reach.waiting > today.reach.next.length && (
+                    <p className="card__hint">
+                      And {today.reach.waiting - today.reach.next.length} more waiting.
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="card__hint">Everybody you are selling to has heard from you at least once.</p>
+              )}
+            </Card>
+          )}
+          {today.replies.length > 0 && (
+            <Card
+              icon={<MailCheck size={15} aria-hidden />}
+              title="Replies"
+              hint="To email sent from Caulder, in the last seven days."
+            >
+              <ul className="cold">
+                {today.replies.map((reply) => (
+                  <li key={reply.emailId}>
+                    <button
+                      type="button"
+                      className="coldrow"
+                      onClick={() => onOpenLead(reply.leadId)}
+                    >
+                      <span className="coldrow__name">{reply.leadName}</span>
+                      <span className="coldrow__meta">Re: {reply.subject}</span>
+                      <span className="coldrow__days">{relativeDay(reply.repliedAt)}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
+          {quiet.length > 0 && (
+            <Card
+              icon={<Snowflake size={15} aria-hidden />}
+              title="Going quiet"
+              hint={`Still open, nothing planned, and quiet for ${today.coldAfterDays} days or more.`}
+            >
+              <ul className="cold">
+                {quiet.slice(0, 12).map((lead) => (
+                  <li key={lead.id}>
+                    <button
+                      type="button"
+                      className="coldrow"
+                      onClick={() => onOpenLead(lead.id)}
+                    >
+                      <span className="coldrow__name">{lead.name}</span>
+                      <span className="coldrow__meta">
+                        {lead.stageName ?? "No stage"}
+                        {lead.city ? ` · ${lead.city}` : ""}
+                      </span>
+                      <span className="coldrow__days">{lead.daysQuiet} days</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {quiet.length > 12 && (
+                <p className="card__hint">
+                  And {quiet.length - 12} more.
+                </p>
+              )}
+            </Card>
+          )}
+          {/* What the line or the capture key kept to file later. No box to
+              write in - the line is that - and no card when there is nothing. */}
+          <NotesScreen key={`notes-${kept}`} onTasksChanged={reload} onOpenPage={onOpenPage} />
         </div>
       </div>
 
@@ -585,43 +599,14 @@ export function TodayScreen({
   );
 }
 
-/** Who is answering, by the name the service gave its model. */
-function whoAnswers(state: AskState): string {
-  return state.models.find((option) => option.id === state.model)?.label ?? state.model ?? "The AI";
+const WAY_ICON: Record<ReachWay, LucideIcon> = { email: Mail, phone: Phone, linkedin: MessagesSquare, instagram: AtSign };
+const WAY_SAID: Record<ReachWay, string> = { email: "Email", phone: "Phone", linkedin: "LinkedIn", instagram: "Instagram" };
+
+/** "Nobody reached", "1 person reached", "4 people reached". */
+function reachedSaid(count: number): string {
+  return count === 0 ? "Nobody reached" : count === 1 ? "1 person reached" : `${count} people reached`;
 }
 
-/* Which line was last on the screen. Browser storage can throw - a locked
- * profile, a wiped machine - and a line that does not draw is worse than a
- * line in the wrong mode, so both ways are caught. */
-const ASKING = "caulder.today.ask";
-
-function remembersMode(): LineMode {
-  try {
-    // "on" is what the two-way version of this wrote, and somebody upgrading
-    // has one in their browser storage. It meant the AI line, and still does.
-    const saved = localStorage.getItem(ASKING);
-    return lineMode(saved === "on" ? "ask" : saved);
-  } catch {
-    return "work";
-  }
-}
-
-function rememberMode(set: (mode: LineMode) => void, mode: LineMode): void {
-  set(mode);
-  try {
-    localStorage.setItem(ASKING, mode);
-  } catch {
-    // Not worth a word on the screen: the line still switched.
-  }
-}
-
-/** "Saturday, 19 September": the day as it is said, built from its parts so it is never the day before. */
-function longDay(day: string): string {
-  const [year, month, date] = day.split("-").map(Number);
-  return dateFormatter({ weekday: "long", day: "numeric", month: "long" }).format(
-    new Date(year ?? 1970, (month ?? 1) - 1, date ?? 1),
-  );
-}
 
 /** How much of the day is waiting, in words - late things named first, because they are. */
 function summaryOf(due: number, late: number): string {

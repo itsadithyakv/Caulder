@@ -5,9 +5,9 @@ import { join } from "node:path";
 import { goTo, passSetup } from "./nav";
 
 /**
- * Today as the first screen for all of it (PLAN.md, part four): one line that
- * puts anything where it belongs, habits ticked with their run of days, and
- * the week's life beside the company's work.
+ * Today as the first screen: one line that puts anything said about the
+ * company where it belongs - a contact's history, a task, a memory on a brain
+ * page, money, an idea, a note - and says where before it does.
  *
  * Set CAULDER_SHOTS to a folder to keep a screenshot of each screen.
  */
@@ -41,14 +41,10 @@ test.beforeAll(async () => {
   await passSetup(page);
   await expect(page.getByRole("button", { name: /Company: Unifloe/ })).toBeVisible();
 
-  // A contact and a hobby for the line to know by name.
+  // A contact for the line to know by name.
   await page.evaluate(async () => {
-    const { activeCompanyId, homeCompanyId } = await window.caulder.companies.list();
-    const company = activeCompanyId as string;
-    await window.caulder.leads.create(company, { name: "Oakridge International School" } as never);
-    // A hobby is yours, kept in your home whichever company is chosen.
-    const hobby = await window.caulder.brain.create((homeCompanyId ?? company) as string, "hobbies", "hobby");
-    await window.caulder.brain.save(hobby.id, { title: "Guitar", body: "", fields: { hoursWanted: 3 }, secrets: {}, baseRevision: hobby.revision });
+    const { activeCompanyId } = await window.caulder.companies.list();
+    await window.caulder.leads.create(activeCompanyId as string, { name: "Oakridge International School" } as never);
   });
   await goTo(page, "Contacts");
   await goTo(page, "Today");
@@ -60,30 +56,21 @@ test.afterAll(async () => {
 });
 
 test("the line says where each thing goes, and puts it there", async () => {
-  // How the day went: the journal.
-  await line().fill("Rough morning but shipped the pricing page");
-  await expect(goesTo().getByRole("button", { name: "Journal" })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByText("into today's journal")).toBeVisible();
-  await shot("journal");
-  await line().press("Enter");
-  await expect(page.getByText("Added: In today's journal")).toBeVisible();
-  const journal = page.locator(".card", { has: page.getByRole("heading", { name: "Journal" }) });
-  await expect(journal.getByText(/shipped the pricing page/)).toBeVisible();
-
   // A call just made: the contact's history, as a call.
   await line().fill("Called Oakridge, they want a demo next week");
   await expect(goesTo().getByRole("button", { name: "Oakridge International School" })).toHaveAttribute("aria-pressed", "true");
+  await shot("history");
   await line().press("Enter");
   await expect(page.getByText("Added: On Oakridge International School's history, as a call")).toBeVisible();
 
-  // Time on a hobby, with a length.
-  await line().fill("guitar 40 min");
-  await expect(page.getByText("40m of Guitar, kept on the Calendar")).toBeVisible();
+  // Something to remember about the company: a dated line on a brain page.
+  await line().fill("our gst number is 29ABCDE1234F1Z5");
+  await expect(goesTo().getByRole("button", { name: "Remember" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByText("a dated line on Things to remember, in the brain")).toBeVisible();
   await line().press("Enter");
-  await expect(page.getByText("Added: 40m of Guitar, kept")).toBeVisible();
+  await expect(page.getByText("Added: Remembered, on Things to remember in the brain")).toBeVisible();
 
-  // Something unsure is a note - and a chip makes it an idea instead. ("A
-  // parent app for attendance" is read as an idea by itself since 29 September.)
+  // Something unsure is a note - and a chip makes it an idea instead.
   await line().fill("attendance through the parents' phones");
   await expect(goesTo().getByRole("button", { name: "Note" })).toHaveAttribute("aria-pressed", "true");
   await goesTo().getByRole("button", { name: "Idea" }).click();
@@ -104,30 +91,32 @@ test("the line says where each thing goes, and puts it there", async () => {
   await expect(page.getByRole("button", { name: /attendance through the parents/i })).toBeVisible();
 });
 
-test("habits are ticked on Today, with their run of days", async () => {
+test("a sum that was not said to be spent is offered, and logged only when chosen", async () => {
   await goTo(page, "Today");
-  const habits = page.locator(".card", { has: page.getByRole("heading", { name: "Habits" }) });
-  await habits.getByRole("button", { name: "Add a habit" }).click();
-  await habits.getByLabel("The habit").fill("Read 20 pages");
-  await habits.getByLabel("The habit").press("Enter");
-  const tick = habits.getByRole("checkbox", { name: "Read 20 pages" });
-  await expect(tick).not.toBeChecked();
-  await tick.click();
-  await expect(tick).toBeChecked();
-  await expect(habits.getByText("1 of 1 today")).toBeVisible();
-  await expect(habits.getByText(/1 day in a row/)).toBeAttached();
-  await shot("today");
+  await line().fill("swiggy 320 lunch");
+  // Read as a note, with the money one press away - never assumed.
+  await expect(goesTo().getByRole("button", { name: "Note" })).toHaveAttribute("aria-pressed", "true");
+  await goesTo().getByRole("button", { name: "Log 320 spent: Swiggy lunch" }).click();
+  await shot("spend");
+  await line().press("Enter");
+  await expect(page.getByText("Added: Log 320 spent: Swiggy lunch, in Money")).toBeVisible();
 
-  await habits.getByRole("button", { name: "Their weeks, on Life" }).click();
-  await expect(page.getByRole("tab", { name: "Habits" })).toHaveAttribute("aria-selected", "true");
-  await expect(page.getByRole("img", { name: /Read 20 pages: kept on 1 of its 1 days/ })).toBeVisible();
+  const spent = await page.evaluate(async () => {
+    const { activeCompanyId } = await window.caulder.companies.list();
+    const money = await window.caulder.money.get(activeCompanyId as string);
+    return money.spend.map((entry) => [entry.what, entry.amount]);
+  });
+  expect(spent).toContainEqual(["Swiggy lunch", 320]);
 });
 
-test("the week's life sits beside the work: the hobby and its time", async () => {
-  await goTo(page, "Today");
-  const week = page.locator(".card", { has: page.getByRole("heading", { name: "Your week" }) });
-  await expect(week.getByText("Guitar")).toBeVisible();
-  await week.getByText("Guitar").click();
-  await expect(page.getByRole("heading", { name: "Life", level: 1 })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Guitar", level: 2 })).toBeVisible();
+test("what was remembered is read back from the brain, and nothing personal is on the sidebar", async () => {
+  const nav = page.getByLabel("Main");
+  for (const gone of ["Journal", "Life"]) {
+    await expect(nav.getByRole("button", { name: gone, exact: true })).toHaveCount(0);
+  }
+  await goTo(page, "Brain");
+  await page.getByRole("navigation", { name: "Brain sections" }).getByRole("button", { name: "Memories" }).click();
+  await expect(page.getByRole("heading", { name: "Memories", level: 1 })).toBeVisible();
+  await expect(page.getByText("our gst number is 29ABCDE1234F1Z5")).toBeVisible();
+  await shot("memories");
 });

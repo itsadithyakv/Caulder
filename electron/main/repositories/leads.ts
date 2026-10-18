@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Db } from "../db/connection";
 import { MAIN_DEAL } from "./main-deal";
 import { createDeal, findDeal, mainDeal, setDealStage, updateDeal } from "./deals";
+import { ANSWER_KINDS, REPLY_WAIT_DAYS, WRITTEN_KINDS } from "@shared/reached";
 import {
   countsAsContact,
   LEAD_SORT_DEFAULT_DIRECTION,
@@ -29,6 +30,7 @@ type LeadRow = {
   stage_id: string | null;
   name: string;
   contact_person: string | null;
+  contact_role: string | null;
   email: string | null;
   phone: string | null;
   alt_phone: string | null;
@@ -37,12 +39,13 @@ type LeadRow = {
   pin: string | null;
   source: string | null;
   website: string | null;
+  linkedin: string | null;
+  instagram: string | null;
   value: number | null;
   tags: string | null;
   notes: string | null;
   last_contacted_at: string | null;
   loss_reason: string | null;
-  campaign_id: string | null;
   do_not_contact: number;
   relationship: Relationship;
   created_at: string;
@@ -81,6 +84,7 @@ function toLead(row: LeadRow): Lead {
     stageId: row.md_stage_id,
     name: row.name,
     contactPerson: row.contact_person,
+    contactRole: row.contact_role,
     email: row.email,
     phone: row.phone,
     altPhone: row.alt_phone,
@@ -89,12 +93,13 @@ function toLead(row: LeadRow): Lead {
     pin: row.pin,
     source: row.source,
     website: row.website,
+    linkedin: row.linkedin,
+    instagram: row.instagram,
     value: row.md_value,
     tags: parseTags(row.tags),
     notes: row.notes,
     lastContactedAt: row.last_contacted_at,
     lossReason: row.md_loss_reason,
-    campaignId: row.campaign_id,
     doNotContact: row.do_not_contact === 1,
     relationship: row.relationship,
     dealCount: row.deal_count,
@@ -177,7 +182,14 @@ const NEXT_TASK = `
     WHERE t.lead_id = l.id AND t.status = 'open'
     ORDER BY t.due_on ASC LIMIT 1) AS next_title`;
 
-export function listLeads(db: Db, query: LeadQuery): LeadListRow[] {
+const quoted = (kinds: readonly string[]) => kinds.map((kind) => `'${kind}'`).join(", ");
+/** When a contact was last written to, as a subquery on `l`. The kinds are this file's own constants, never a caller's. */
+const LAST_WRITTEN = `(SELECT MAX(w.occurred_at) FROM activities w WHERE w.lead_id = l.id AND w.kind IN (${quoted(WRITTEN_KINDS)}))`;
+/** Whether anything that counts as an answer has come since. */
+const ANSWERED_SINCE = `EXISTS (SELECT 1 FROM activities r
+                         WHERE r.lead_id = l.id AND r.kind IN (${quoted(ANSWER_KINDS)}) AND r.occurred_at >= ${LAST_WRITTEN})`;
+
+export function listLeads(db: Db, query: LeadQuery, now: Date = new Date()): LeadListRow[] {
   const where: string[] = ["l.company_id = @companyId"];
   const params: Record<string, unknown> = { companyId: query.companyId };
 
@@ -207,6 +219,17 @@ export function listLeads(db: Db, query: LeadQuery): LeadListRow[] {
   } else if (typeof query.stageId === "string") {
     where.push("md.stage_id = @stageId");
     params["stageId"] = query.stageId;
+  }
+
+  // Read from the history (shared/reached.ts): never written to; written to
+  // and silent for long enough; answered since the last message.
+  if (query.reached === "never") {
+    where.push(`${LAST_WRITTEN} IS NULL`);
+  } else if (query.reached === "answered") {
+    where.push(`${LAST_WRITTEN} IS NOT NULL AND ${ANSWERED_SINCE}`);
+  } else if (query.reached === "waiting") {
+    where.push(`${LAST_WRITTEN} <= @silentSince AND NOT ${ANSWERED_SINCE}`);
+    params["silentSince"] = new Date(now.getTime() - REPLY_WAIT_DAYS * 24 * 60 * 60 * 1000).toISOString();
   }
 
   // Both halves come from a fixed table rather than from the caller, so no
@@ -272,13 +295,13 @@ export function createLead(db: Db, companyId: string, input: LeadInput): Lead {
   const run = db.transaction(() => {
     db.prepare(
       `INSERT INTO leads (
-         id, company_id, stage_id, name, contact_person, email, phone, alt_phone,
-         location, city, pin, source, website, value, tags, notes,
-         campaign_id, do_not_contact, relationship, last_contacted_at, created_at, updated_at
+         id, company_id, stage_id, name, contact_person, contact_role, email, phone, alt_phone,
+         location, city, pin, source, website, linkedin, instagram, value, tags, notes,
+         do_not_contact, relationship, last_contacted_at, created_at, updated_at
        ) VALUES (
-         @id, @companyId, NULL, @name, @contactPerson, @email, @phone, @altPhone,
-         @location, @city, @pin, @source, @website, NULL, '[]', @notes,
-         @campaignId, @doNotContact, @relationship, NULL, @now, @now
+         @id, @companyId, NULL, @name, @contactPerson, @contactRole, @email, @phone, @altPhone,
+         @location, @city, @pin, @source, @website, @linkedin, @instagram, NULL, '[]', @notes,
+         @doNotContact, @relationship, NULL, @now, @now
        )`,
     ).run({
       ...input,
@@ -332,11 +355,11 @@ export function updateLead(db: Db, id: string, input: LeadInput): Lead {
   const run = db.transaction(() => {
     db.prepare(
       `UPDATE leads SET
-         name = @name, contact_person = @contactPerson,
+         name = @name, contact_person = @contactPerson, contact_role = @contactRole,
          email = @email, phone = @phone, alt_phone = @altPhone,
          location = @location, city = @city, pin = @pin, source = @source,
-         website = @website, notes = @notes,
-         campaign_id = @campaignId, do_not_contact = @doNotContact,
+         website = @website, linkedin = @linkedin, instagram = @instagram, notes = @notes,
+         do_not_contact = @doNotContact,
          relationship = @relationship, updated_at = @now
        WHERE id = @id`,
     ).run({ ...input, id, now, doNotContact: input.doNotContact ? 1 : 0 });
@@ -375,6 +398,7 @@ export function updateLead(db: Db, id: string, input: LeadInput): Lead {
 const TRACKED: { key: keyof LeadInput; label: string }[] = [
   { key: "name", label: "name" },
   { key: "contactPerson", label: "contact" },
+  { key: "contactRole", label: "role" },
   { key: "email", label: "email" },
   { key: "phone", label: "phone" },
   { key: "altPhone", label: "alt phone" },
@@ -383,10 +407,11 @@ const TRACKED: { key: keyof LeadInput; label: string }[] = [
   { key: "pin", label: "PIN" },
   { key: "source", label: "source" },
   { key: "website", label: "website" },
+  { key: "linkedin", label: "LinkedIn" },
+  { key: "instagram", label: "Instagram" },
   { key: "value", label: "value" },
   { key: "notes", label: "notes" },
   { key: "stageId", label: "stage" },
-  { key: "campaignId", label: "campaign" },
   { key: "doNotContact", label: "do not contact" },
   { key: "relationship", label: "relationship" },
 ];

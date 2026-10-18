@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import type { LaidOutBlock, WeekPlan } from "@shared/domain";
-import { themeOn, type DayTheme } from "@shared/goals";
 import { minutesOf, timeOf } from "@shared/dates";
 import { dateFormatter, formatDuration, formatTime } from "@/lib/format";
 import { HOUR_PX, PER_MINUTE, hourWindow, snapTo } from "./grid";
@@ -41,7 +40,6 @@ type Drag = {
 export function WeekGrid({
   week,
   today,
-  themes,
   onOpenDay,
   onAdd,
   onEdit,
@@ -49,8 +47,6 @@ export function WeekGrid({
 }: {
   week: WeekPlan;
   today: string;
-  /** Your week's theme days, to head each day with what it is for. */
-  themes?: readonly DayTheme[];
   onOpenDay: (day: string) => void;
   onAdd: (day: string, startsAt: string) => void;
   onEdit: (block: LaidOutBlock) => void;
@@ -138,9 +134,6 @@ export function WeekGrid({
             <span className="week__planned">
               {entry.planned === 0 ? "nothing" : formatDuration(entry.planned)}
             </span>
-            {themes && themeOn(themes, entry.day) && (
-              <span className="week__theme">{themeOn(themes, entry.day)?.label}</span>
-            )}
             {/* Filings and notice dates on the heading, not in the lane: they
                 have a day but no hour. */}
             {entry.deadlines.length > 0 && (

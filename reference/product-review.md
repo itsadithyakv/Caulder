@@ -323,3 +323,72 @@ stands between it and other founders is not features: it is an installer
 Windows trusts, an update path, a log to read when something breaks, two
 handlers that trust a path they should not, and a contact model that cannot
 hold a second deal. Fix those and the brain has a sound place to live.
+
+---
+
+## Third review, 10 October 2026
+
+*Written against the goal as it was put that morning - a tool for a student
+founder, for outreach and for planning a life - and overtaken by the owner's
+decisions the same day. Both are here: what was found, and what was done
+about it. The detail is in PLAN.md, part seven.*
+
+### What was found
+
+1. **The scope had run away from the plan.** Five screens were promised on
+   14 September; three weeks later there were thirteen routes, 75 tables and
+   about 107,000 lines. The largest single thing in the code was the pet.
+2. **The two things the app was for were the thin ones.** Outreach was one
+   contact at a time: ticking contacts offered a stage move and a delete, a
+   contact had nowhere to keep a LinkedIn or an Instagram, and a new contact
+   was seven rows of "Not known". Planning a life had a calendar and a great
+   many trackers, and no week.
+3. **The line read about half of unseen lines rightly** - 48 of 90 by the
+   rules, 50 with the model - while choosing between ten kinds. Most misses
+   were one personal kind taken for another.
+4. **The plan's next three phases were more breadth**: Market, Make, money
+   from shops online.
+5. Smaller, and still true: the typeface needs a licence before a build is
+   handed out; it is Windows only; two of the reference documents described
+   an older app.
+
+### What was decided
+
+The owner cut rather than fixed, three times in one day, each cut going
+further than the last:
+
+- **The company's, and nothing else's.** The personal half went, with its
+  data. Founder sharing went, to be made again later.
+- **Plain.** The jokes and quotations went; then Ember's dances and her
+  growing on the work; then Ember.
+- **What is left does more.** The line has six kinds, each told by something
+  that can be checked. Outreach has LinkedIn, Instagram, writing to several
+  at once, a card on Today for who is still waiting, and the contacts as a
+  sheet on a phone.
+
+### What that leaves, honestly
+
+- **It is a smaller claim, and a truer one.** "The app a one-person company
+  is run from" is something the screens now bear out. "Plan out someone's
+  life" is no longer claimed, and the weekly plan that would have served it
+  is still not built - it is the next thing, for the company's week.
+- **The line is unmeasured.** Fewer kinds should read better; nobody knows
+  that it does until a new blind set says so.
+- **Nothing here has met a user.** Every judgement in three reviews is the
+  author's and a reviewer's. The Reach out card, the order of a contact's
+  page and the sheet are guesses about what a founder does on a Tuesday, and
+  the cheapest way to find out is to hand a build to three of them.
+- **The cut was fast.** About half the code went in a day. `verify` passes
+  and the changed screens were run end to end, but the whole suite and the
+  packaged build were not; the first is an hour and should come before
+  anything else is built on top.
+
+### Verdict
+
+The first review said the product was half the code; the second, most of it.
+After today it is nearly all of it, because the rest was taken away. That is
+the right direction and it was the owner's call, not the review's - the
+review asked for outreach to be deepened, not for the journal to go. What it
+needs now is not another feature: it is the suite run, a build made, and
+somebody who is not its author using it for a week.
+

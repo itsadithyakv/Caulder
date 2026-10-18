@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { comingUp, groupMemories, matches, memoriesOf, onThisDay, recall, resurface, sayComing, type Memory, fuseRecall } from "./memories";
+import { groupMemories, matches, memoriesOf, recall, type Memory, fuseRecall } from "./memories";
 
 /**
  * Memories read back: the newer answer to the same thing, what comes round,
@@ -26,33 +26,6 @@ describe("the newer answer", () => {
       ["Parked: level 3, spot B12", true],
     ]);
     expect(where[0]?.key).toBe("parked");
-  });
-});
-
-describe("what comes round", () => {
-  it("is the birthdays and anniversaries in the next month, soonest first, into next year when this one has gone", () => {
-    expect(comingUp(all, "2026-09-25")).toEqual([{ pageId: "p", pageTitle: "Priya", what: "Birthday", day: "2026-09-27", inDays: 2 }]);
-    expect(comingUp(all, "2027-03-10")).toMatchObject([{ pageTitle: "Mummy", day: "2027-03-15", inDays: 5 }]);
-    expect(sayComing({ pageId: "p", pageTitle: "Priya", what: "Birthday", day: "2026-09-27", inDays: 2 })).toBe("Priya's birthday is in 2 days");
-    expect(sayComing({ pageId: "a", pageTitle: "About me", what: "Anniversary", day: "2026-09-25", inDays: 0 })).toBe("Your anniversary is today");
-  });
-});
-
-describe("brought back", () => {
-  it("is what was kept on this day in an earlier year", () => {
-    expect(onThisDay(all, "2026-09-25").map((memory) => memory.fact)).toEqual(["Likes: filter coffee"]);
-  });
-
-  it("is a birthday this week first, then the same memory all day", () => {
-    expect(resurface(all, "2026-09-25").coming?.pageTitle).toBe("Priya");
-    const later = resurface(all, "2026-11-04");
-    expect(later.coming).toBeNull();
-    expect(later.memory).not.toBeNull();
-    expect(resurface(all, "2026-11-04").memory?.raw).toBe(later.memory?.raw);
-  });
-
-  it("is nothing for a brain with nothing old enough", () => {
-    expect(resurface(page("n", "New", ["- just said _(2026-09-24)_"]), "2026-09-25")).toEqual({ memory: null, coming: null });
   });
 });
 

@@ -21,7 +21,7 @@ here in the same commit. What is in flight and what is broken is in
 ## Before you build anything
 
 1. **Search this file for the noun.** Contact, memory, reminder, page, note,
-   task, habit, link - most of what a new request asks for is an extension of
+   task, link - most of what a new request asks for is an extension of
    something below.
 2. **Read "The spine".** If what you need is on the left of that table, use
    what is on the right. Every row there exists because a second version of it
@@ -43,27 +43,36 @@ The systems everything else plugs into.
 
 | When you need to... | Use | Never |
 | --- | --- | --- |
-| Take a line of text from the person | The quick line: `readCapture` (`shared/capture.ts`) and `parseQuick` (`shared/quickadd.ts`). A new kind follows the recipe under "Adding a kind to the line". | A second parser, a second input box, a reader called from `QuickAdd.tsx` beside `readCapture`. |
+| Take a line of text from the person | The quick line: `readCapture` (`shared/capture.ts`) and `parseQuick` (`shared/quickadd.ts`). Six kinds: task, contact, memory, command, idea, note. A new kind follows the recipe under "Adding a kind to the line". | A second parser, a second input box, a reader called from `QuickAdd.tsx` beside `readCapture`. A personal kind: the journal, private lines, hobbies and habits were taken out on purpose. |
 | Find things by their words | The FTS5 index `brain_search` + `search_map`, queried by `searchEverything` (`repositories/search.ts`). Kept by triggers, so writers never touch it. | `LIKE` scans in a service. Editing migration 20's trigger SQL (frozen) - a new source is a new migration that drops and recreates the triggers. |
-| Find things by what they mean | `nearestTo` or, for the line, `examplesFor` + `shared/opinion.ts` (`services/understand.ts`) over the vectors the queue keeps (`repositories/vectors.ts`, migration 46). Arithmetic is `shared/understand.ts`; the model is asked only through `understand/host.ts`. | A second model, a second vector store, or calling onnxruntime anywhere but `understand/embed.ts`. Reading the journal or private lines. |
-| Record that something happened with a contact | `writeActivity` (`repositories/leads.ts`) - the append-only history. | A new log table. Editing a history entry (a correction is a new entry). |
-| Link two things | A `[[Label|kind:id]]` token in page text (`shared/links.ts`). `brain_links` is rebuilt from the text on every save. Kinds: `page`, `contact`, `product`, `person`, `document`. | Writing `brain_links` directly. |
+| Find things by what they mean | `nearestTo` or, for the line, `examplesFor` + `shared/opinion.ts` (`services/understand.ts`) over the vectors the queue keeps (`repositories/vectors.ts`, migration 46). Arithmetic is `shared/understand.ts`; the model is asked only through `understand/host.ts`. | A second model, a second vector store, or calling onnxruntime anywhere but `understand/embed.ts`. |
+| Work out what a line about a contact leaves to be done | `nextStepIn` (`shared/nextstep.ts`), carried as `then` on the reading. | A second place that reads "asked me to" or "she'll get back". A reminder table of its own: it is a task with `remind`. |
+| Know who has been written to, and who answered | `shared/reached.ts`: `WRITTEN_KINDS`, `ANSWER_KINDS`, `REPLY_WAIT_DAYS`. Read from the history every time - by the *Reached* filter (`listLeads`) and by Today (`reachOf`). | A column or a table that says so: it would disagree with the history the day somebody logs an answer by hand. A second definition of "answered". |
+| Record that something happened with a contact | `writeActivity` (`repositories/leads.ts`) - the append-only history. Its kinds are `ACTIVITY_KINDS` in `shared/domain.ts`; the table no longer checks them (migration 48). | A new log table. Editing a history entry (a correction is a new entry). |
+| Link two things | A `[[Label|kind:id]]` token in page text (`shared/links.ts`). `brain_links` is rebuilt from the text on every save. Kinds: `page`, `contact`, `product`, `document`. | Writing `brain_links` directly. |
 | Put a page under another | A first line `Part of [[Parent|page:id]]` (`services/remember.ts`), walked by `underOf` / `trailsOf` (`shared/memories.ts`). | A parent column. |
-| Remember a fact | `remember()` (`services/remember.ts`): a dated line `- **fact** · said _(YYYY-MM-DD)_` on a page. **Memories are not a table**; they are read back out of page text by `shared/memories.ts`. A fact about a contact's life goes on a People page that links to the contact (`about` on the remember input); what a contact *likes* stays on their history. | A `memories` table beside the pages. |
-| Keep personal things apart from the company | The home workspace (`companies.kind = 'personal'`, `services/yourhome.ts`, `homeCompanyId`). Personal sections: `PERSONAL_SQL` / `isPersonalSection` in `shared/brain.ts`. | A mode toggle, a second "personal" flag, a personal workspace in the switcher. |
-| Send context to an AI | Company: `buildDossier` (`services/dossier.ts`). Personal, only with `aiPersonal` on: `services/yours.ts`. Both go through `services/ask.ts`. For the clipboard: the topic brief (`services/topic.ts`). The journal, only for Looking back and only as it says: `services/lookback.ts`. | Assembling documents for a model anywhere else. |
+| Remember a fact | `remember()` (`services/remember.ts`): a dated line `- **fact** · said _(YYYY-MM-DD)_` on a page of the **company's** brain - the page named, or *Things to remember* (`REMEMBER_PAGE`). **Memories are not a table**; they are read back out of page text by `shared/memories.ts`. Something said about a contact goes on that contact's history instead. | A `memories` table beside the pages. A chain of pages worked out from what a thing is (that was `shared/branches.ts`, gone). |
+| Keep the calendar's own things apart from a company | The calendar's workspace (`companies.kind = 'personal'`, `services/yourhome.ts`, `homeCompanyId`): what is on the calendar and is not a company's lives there, and Today and the Calendar read it beside the company (`withHome`). It holds no pages. | Anything personal. The journal, Life, habits, goals, the vision board and levels were taken out on 10 October 2026 (PLAN.md, part seven); see "Removed on purpose". |
+| Send context to an AI | `relevantTo` (`services/relevant.ts`), which cuts `buildDossier` (`services/dossier.ts`) to the brief and what the question is about; `complete` and `asking` (`services/ask.ts`) for the request itself. For the clipboard: the topic brief (`services/topic.ts`). | Assembling documents for a model anywhere else, a second way to talk to a service, or sending the whole company where a part will do. |
+| Chase money that is owed | `reminderFor`, `chaseOffer` (`shared/chase.ts`), sent through `mail:send`. Whether it was chased is read from `emails`. | A table of reminders, a second way to send, or anything that sends by itself. |
+| Keep a rule the company holds to | A remembered line on its subject's page in How we work: `isRule`, `ruleSubject` (`shared/rules.ts`), written by `remember` (`services/remember.ts`). | A table of rules, a "policy" kind of record, or a second place rules are read from. A rule is a memory. |
+| Move a remembered line somewhere better | `sortPlan` and `applySort` (`services/howwework.ts`), which move through `moveMemories` and `forgetMemory`. | Editing a page's body to take a line out. |
+| Keep something the AI wrote | It is a draft in the window until kept: a page through `brain:save`, a line on a contact through `leads:update` (`Proposals.tsx`). | A handler that lets a service's answer write a row. `services/propose.ts` and `services/askline.ts` return text and nothing else. |
 | Say who a contact is at a glance | `MAIN_DEAL(lead)` (`repositories/main-deal.ts`), worked out in the query. Stage moves only through `repositories/deals.ts`. | A stored copy of the stage on the contact. |
 | Turn text in a page into tasks | `shared/steps.ts` + `services/steps.ts` (`- [ ]` lines with `@owner`, `(day N)`, `(by date)`). | A separate checklist feature. |
-| Talk to Google | `callScript` in `services/gsync.ts` - the person's own Apps Script (`resources/appsscript/Caulder.gs`). | OAuth from the app. |
-| Keep a secret | Connections and keys: `services/credentials.ts` (safeStorage, refused rather than kept readable). Page fields: `services/secrets.ts`. Private lines and sealed journal days: `services/journal-lock.ts`. | A plain setting. |
+| Talk to Google | `callScript` in `services/gsync.ts` - the person's own Apps Script (`resources/appsscript/Caulder.gs`, version 6). A new thing the script does is a new `case` in its `handle`, a bump of `SCRIPT_VERSION` in both files, and a test in `services/script.test.ts`, which runs the real script. | OAuth from the app. |
+| Keep a secret | Connections and keys: `services/credentials.ts` (safeStorage, refused rather than kept readable). Page fields: `services/secrets.ts`. The line never keeps one: `shared/secretline.ts` warns before it is filed. | A plain setting. |
 | Notify the person | `services/nudges.ts` (`addReminder`) for anything asked for; `notify.ts` (daily digest) and `remind.ts` (before a block). All off until switched on. | A fourth timer. |
-| Run something in the background | `services/scheduler.ts`, or a tick in the owning service started from `electron/main/index.ts` and stopped on `before-quit`. | `setInterval` in a screen. |
+| Run something in the background | `services/scheduler.ts`, or a tick in the owning service started from `electron/main/index.ts` and stopped on `before-quit`. A tick that awaits must not reschedule itself once stopped (`generation` in `services/understand.ts`). | `setInterval` in a screen. A child process started on the way out (`closeModel`). |
 | Store a preference | `repositories/settings.ts` (one key per setting). | A new table for one value. |
-| Handle a date | `shared/dates.ts`. A due date is a `YYYY-MM-DD` day in the company's timezone; a time is `HH:MM`. | `Date` arithmetic in local time; a date library. |
+| Handle a date | `shared/dates.ts`. A due date is a `YYYY-MM-DD` day in the company's timezone; a time is `HH:MM`. `today`, `dayOf` and `timeNow` keep one formatter per timezone. | `Date` arithmetic in local time; a date library. `new Intl.DateTimeFormat` in a loop: making one costs a thousand formats with it, and Today made six thousand. |
+| Draw a list that can be long | `useShowing` and `ShowMore` (`src/lib/showing.tsx`): the first part drawn, the rest on a press or as it scrolls into view. Contacts and Today's overdue use it; the board caps its own columns in `buildBoard`. | Drawing every row: three thousand contacts froze the window for a second and a half. |
+| Count something for a badge | A `COUNT(*)` of its own (`countOverdue`, `today:overdue`). | Building a whole screen's data for one number on every change of screen. |
 | Fail | Throw an `Error` whose message is the sentence the person reads; Zod schemas state their own sentences. `handle()` (`ipc/handle.ts`) cleans it on the way out. | `ipcMain.handle` directly. |
 | Add an IPC call | Constant and type in `shared/ipc.ts`, handler through `handle()` with Zod validation, method in `electron/preload/index.ts`. | Node in the window. |
-| Change the schema | Append a step to `electron/main/db/migrations.ts` (latest: 46). Never edit or renumber one. Enums are checked in TypeScript, not SQL `CHECK`s. | A down-migration. |
+| Change the schema | Append a step to `electron/main/db/migrations.ts` (latest: 58). Never edit or renumber one. Enums are checked in TypeScript, not SQL `CHECK`s. `reference/data-model.md` is held to the schema by `db/schema-doc.test.ts`. | A down-migration. |
 | Draw a colour | A token in `src/styles/tokens.css` (a test enforces it). | A literal colour in a component. |
+| Open a web address | Build it in main from the row, never from the window: `openWhatsApp`, `openProfile` (`services/outreach.ts`, with `shared/profiles.ts`), `sheet:open` (checked by `isSheetUrl`). | Handing `shell.openExternal` a string the window sent. |
 
 ---
 
@@ -71,23 +80,25 @@ The systems everything else plugs into.
 
 No router: `RouteId` is a union in `src/app/routes.ts`, held in `useState` in
 `App.tsx`. Separate windows (`src/main.tsx` reads the hash): the quick window
-(`Capture`), the desk widget (`Widget`) and Ember's walk (`Pet`).
+(`Capture`) and the desk widget (`Widget`).
 
 | Route | Label | Sidebar group | Key |
 | --- | --- | --- | --- |
-| `today` | Today | Plan | T |
-| `day` | Calendar | Plan | D |
-| `journal` | Journal | You | J |
-| `life` | Life | You | Y |
-| `memories` | Memories | You | R |
-| `leads` | Contacts | Company (switcher is the heading) | L |
+| `today` | Today | your time | T |
+| `day` | Calendar | your time | D |
+| `leads` | Contacts | the company's | L |
 | `import` | Import | under Contacts | I |
-| `pipeline` | Deals | Company | P |
-| `money` | Money | Company | M |
-| `brain` | Brain | Company | B |
+| `pipeline` | Deals | the company's | P |
+| `money` | Money | the company's | M |
+| `brain` | Brain | the company's | B |
 | `map` | Map | under Brain | - |
-| `settings` | Settings | App | S |
+| `memories` | Memories | under Brain | R |
+| `settings` | Settings | at the foot | S |
 | `setup` | Setting up | under Settings | - |
+
+The company and its switcher head the sidebar (`Sidebar.tsx`); under it the
+rows are one list with no labels, your time first. There is no *You* group:
+`journal` and `life` were routes until 10 October 2026.
 
 Other keys: `A` add a task, `Ctrl+K` search everything, `/` search contacts,
 `N` add a contact, `?` the list. Global quick window: `Ctrl+Win+A`
@@ -119,7 +130,31 @@ contact's page is the one home for everything about it.
 - Logic: `shared/domain.ts`, `shared/newperson.ts` · Main: `repositories/leads.ts` (`writeActivity`), `repositories/tasks.ts`, `repositories/main-deal.ts`
 - Tables: `leads`, `activities`, `tasks` · IPC: `leads:`, `activities:`, `tasks:`
 - Tests: `repositories/leads.test.ts`, `tasks.test.ts`, `electron/main/edges.test.ts`; e2e `leads.spec.ts`, `leadtable.spec.ts`
-- Touches: made by Import, the quick line and the sample. Hosts deals, money, email, WhatsApp, save to phone, custom fields, files, backlinks, the call button. Feeds Today (going quiet), search, the dossier, export.
+- Touches: made by Import, the quick line, the sample and the contacts sheet. Hosts deals, money, email, the message panel, save to phone, custom fields, files, backlinks, the call button. Feeds Today (reach out, going quiet), search, the dossier, export.
+- The page reads in the order it is used (`LeadDetail.tsx`): next steps, the ways to write - email always, WhatsApp, LinkedIn and Instagram each only when there is a number or a profile - then the history, then deals and money.
+- The facts on a contact's page are what is known, with one line for what is not and *Add a detail* (`LeadDetail.tsx`): a new contact is not a column of "Not known".
+
+### Profiles: LinkedIn and Instagram
+Two fields on a contact, each kept as one address in full whatever was typed. Imported from a *LinkedIn* or *Instagram* column, and a LinkedIn address in a *Website* column is moved across.
+- Logic: `shared/profiles.ts` (`cleanProfile`, `profileLink`, `messageLink`, `profileShown`), used by `leadInput` in `shared/domain.ts` · Main: `repositories/leads.ts`, `services/import.ts`, `services/export.ts`, `services/dossier.ts`
+- Tables: `leads.linkedin`, `leads.instagram` (migration 48) · Tests: `shared/profiles.test.ts`
+
+### Write to several at once
+Tick contacts in the list, *Write to them*: one message with each contact's own name in it, shown as one of them will read it, with who is left out and why. Capped at `BATCH_MOST` (50) and by what Gmail has left today. Optional follow-up if nobody answers.
+- UI: `src/features/leads/SendMany.tsx`, `BulkBar` in `LeadsScreen.tsx` · Main: nothing new - it loops the same `mail:send` a contact's page uses, so do-not-contact, a missing address and the day's quota are refused in the same place.
+- Not a campaign tool: no queue, no schedule across days, no tracking beyond what one email has.
+
+### Who has been written to, and who answered
+A third filter on Contacts, beside stage and relationship: **Not written to**, **No answer in 3 days**, **Answered**. Read from each contact's history, and nothing else is kept. With a stage and *Write to them* it is a second message to everybody who said nothing to the first.
+- **Written to** is an email sent or a WhatsApp, LinkedIn or Instagram message said to have gone - not a call. **An answer** is a reply the mail saw, a meeting, or **They answered**, a kind of history entry put on by hand (`replied`), which is the only way Caulder knows about a reply somewhere it cannot read. It is the **last** message that counts: somebody who answered in March and not since Monday's is waiting again. Written to under three days ago is in none of the three.
+- Logic: `shared/reached.ts` · Main: `listLeads` in `repositories/leads.ts` (`LAST_WRITTEN`, `ANSWERED_SINCE`; takes the clock, for tests) · UI: `Toolbar` in `LeadsScreen.tsx`, `useLeads.ts`, the *They answered* tab in `Timeline.tsx`
+- Tests: `shared/reached.test.ts`, `repositories/leads.test.ts`; e2e `reached.spec.ts`
+
+### Work through them
+Tick contacts, *Work through them*: one message for all of them where Caulder cannot send it - WhatsApp, LinkedIn, Instagram - walked one contact at a time. Their own copy of the message (on the clipboard, or carried into WhatsApp), their profile opened, then *Sent it* or *Skip*. Who cannot be written to there is said before it starts, and why.
+- **Sending is said, never assumed**, as on a contact's page: each goes on the history only on *Sent it*. It can be stopped at any contact; what was sent stays sent.
+- UI: `src/features/leads/WorkThrough.tsx`, `BulkBar` in `LeadsScreen.tsx` · Logic: `queueFor`, `cannotReach` in `shared/reached.ts` · Main: nothing new - the same `outreach:whatsapp`, `outreach:profile` and `activities:log` a contact's page uses.
+- **Under test nothing is opened outside the app**: `openOutside` in `services/outreach.ts` does not hand an address to Windows when `CAULDER_BACKGROUND` is set, so an end-to-end run can write to somebody.
 
 ### Deals and the main deal
 A contact has deals; the main deal (open and touched last) sums it up in lists.
@@ -143,11 +178,11 @@ A deal moved into an open stage with nothing planned gets a follow-up task N day
 ### Import
 Four steps (choose or paste, map, preview with duplicates, commit); each import is one batch that can be undone. Google Contacts comes in the same way.
 - UI: `src/features/import/` · Logic: `shared/import.ts`, `normalise.ts`, `paste.ts`, `gcontacts.ts`
-- Main: `services/import.ts` (exceljs), `services/gcontacts.ts` · Tables: `import_batches`, `leads`, `deals`, `activities`, `campaigns` (a label; nothing in the UI makes one now)
+- Main: `services/import.ts` (exceljs), `services/gcontacts.ts` · Tables: `import_batches`, `leads`, `deals`, `activities`
 - IPC: `import:` · Tests: `shared/normalise.test.ts`, `paste.test.ts`, `gcontacts.test.ts`, `services/import.test.ts`; e2e `import.spec.ts`, `paste.spec.ts`, `google.spec.ts`
 
 ### Calls
-A prompter reading a script (a Playbooks page) with the contact's context, a dialler handed an id, and a wrap-up that logs the outcome.
+A prompter reading a script (a page in How we work) with the contact's context, a dialler handed an id, and a wrap-up that logs the outcome.
 - UI: `src/features/calls/` · Logic: `shared/calls.ts` · Main: `services/calls.ts`, `repositories/calls.ts`, `services/outreach.ts` (`openDialler`), `ipc/calls.ts`
 - Tables: `calls`, `activities`, `tasks`, `deals` · IPC: `calls:` · Tests: `shared/calls.test.ts`, `repositories/calls.test.ts`; e2e `calls.spec.ts`
 - Touches: history, last contacted, tasks, deal stage; feeds metrics and the dossier.
@@ -176,16 +211,19 @@ Per-company email and WhatsApp templates, filled by one renderer. Without the sc
 - UI: `src/features/settings/TemplatesCard.tsx`, `TemplateList.tsx`, `src/features/leads/LeadEmail.tsx`
 - Logic: `shared/email.ts`, `shared/render.ts` · Main: `repositories/email.ts`, `services/outreach.ts`
 - Tables: `email_templates` · IPC: `templates:`, `outreach:email`, `outreach:email-sent` · Tests: `services/outreach.test.ts`; e2e `mail.spec.ts`
+- How a template has done: a message remembers the template it started from (`emails.template_id`, migration 48), and the list says "12 sent, 3 answered" - a rate only from `RATE_FROM` (20) watched sends. `templateStats` in `repositories/mail.ts`, `sayStats` in `shared/mail.ts`, `templates:stats`; tests `repositories/mail.test.ts`.
 
 ### Mail through Gmail, and other accounts
-Sends through the person's Apps Script (now or scheduled, one follow-up, replies and bounces noticed, cancel). Other accounts (SMTP via nodemailer) only send.
+Sends through the person's Apps Script (now or scheduled, one follow-up, replies and bounces noticed, cancel), or from another account - Zoho, Outlook, a domain of your own - over SMTP (nodemailer).
+- **Replies from another account** (migration 51): a switch on each account, off until turned on (`setReplyReading`, tried before it is kept). On, `checkReplies` (`services/mailaccounts.ts`) asks the inbox every ten minutes through `services/inbox.ts` - IMAP by hand over `node:tls`, read-only (`EXAMINE`), seven named headers and never a message - and `repliesAmong` (`shared/replies.ts`) matches them to what was sent: by the Message-ID Caulder sent with (`emails.message_id`), then by the address written to. Each answer goes through the same `applyReport` the script's do, so it is on Today and the contact. An out-of-office or a bounce is not an answer.
+- **A follow-up from such an account** is sent by Caulder (`sendDueFollowUps` in `services/mail.ts`): the inbox is looked at first every time, it goes in the same thread, and it waits when the inbox cannot be read. An account that does not see replies refuses one in a sentence.
 - UI: `LeadEmail.tsx`, `src/features/settings/MailAccountsCard.tsx`, `GoogleCard.tsx`, replies on Today
-- Logic: `shared/mail.ts`, `mailaccounts.ts`, `script.ts` · Main: `services/mail.ts`, `services/mailaccounts.ts`, `repositories/mail.ts`, `services/scheduler.ts`
-- Tables: `emails`, `mail_accounts` · IPC: `mail:`, `mail-accounts:`, `google:script` · Tests: `shared/mail.test.ts`, `services/mail.test.ts`, `mailaccounts.test.ts`, `script.test.ts` (runs the real `Caulder.gs`); e2e `mail.spec.ts`
+- Logic: `shared/mail.ts`, `mailaccounts.ts` (`inboxFor`), `replies.ts`, `script.ts` · Main: `services/mail.ts`, `services/mailaccounts.ts`, `services/inbox.ts`, `repositories/mail.ts`, `services/scheduler.ts`
+- Tables: `emails`, `mail_accounts` · IPC: `mail:`, `mail-accounts:`, `google:script` · Tests: `shared/mail.test.ts`, `shared/replies.test.ts`, `services/mail.test.ts`, `mailaccounts.test.ts`, `inbox.test.ts` (a stand-in mail server on this machine), `script.test.ts` (runs the real `Caulder.gs`); e2e `mail.spec.ts`
 
-### WhatsApp
-Main builds the `wa.me` link from a contact id; it is logged only on "it went".
-- UI: `src/features/leads/LeadWhatsApp.tsx` · Main: `services/outreach.ts` · IPC: `outreach:whatsapp` · Tests: `services/outreach.test.ts` (no e2e)
+### Messages: WhatsApp, LinkedIn and Instagram
+One panel for the three (`LeadMessage.tsx`, `channel` prop): write it, open the place it is sent from, and say afterwards whether it went. WhatsApp takes the message with it; LinkedIn and Instagram take nothing from outside, so theirs is put on the clipboard. Logged only on "Sent it", as its own kind on the history, and counts as contact. LinkedIn and Instagram are shown only on a contact that has that profile.
+- UI: `src/features/leads/LeadMessage.tsx` · Main: `services/outreach.ts` (`openWhatsApp`, `openProfile`) · IPC: `outreach:whatsapp`, `outreach:profile` · Tests: `services/outreach.test.ts`, `shared/profiles.test.ts`; e2e through `reached.spec.ts` (WhatsApp, from a ticked list)
 
 ### Do not contact
 One flag on a contact, refused in main by email, mail-app and WhatsApp; setting it stops mail already scheduled.
@@ -196,6 +234,14 @@ One script in the person's own account: blocks and tasks both ways, Contacts int
 - UI: `src/features/settings/GoogleCard.tsx`, `src/features/onboarding/SetupScreen.tsx`, `src/features/leads/SaveToPhone.tsx`, `DataSafety.tsx`
 - Logic: `shared/gsync.ts` (every sync decision, no network), `gcontacts.ts`, `script.ts` · Main: `services/gsync.ts`, `gcontacts.ts`, `gmore.ts`, `scheduler.ts`, `credentials.ts`, `repositories/google.ts`
 - Tables: `google_sync`, `google_tombstones` · IPC: `google:`, `import:google` · Tests: `shared/gsync.test.ts`, `services/gmore.test.ts`, `script.test.ts`; e2e `google.spec.ts`
+
+### Contacts as a Google Sheet
+A company's contacts kept as a spreadsheet in the person's own Drive, a row a contact, to read and change on a phone. Off until linked, a company at a time. Each pass reads the sheet, takes in what was changed there, and writes the whole list back.
+- Which side is right is one pure rule, a cell at a time (`planSheet` in `shared/sheet.ts`): a cell that differs from what Caulder last wrote was edited in the sheet and wins; one that matches was not, and Caulder's stands. A row typed in with a name is a new contact. Nothing is deleted by the sheet.
+- What the sheet changed goes through `leadInput` and `updateLead`, like an edit on the contact's page; what it says that cannot be kept is listed on the card.
+- UI: `src/features/settings/ContactsSheetCard.tsx` · Logic: `shared/sheet.ts` · Main: `services/sheetsync.ts`, `scheduler.ts` (`startSheetSync`, every ten minutes), handlers in `ipc/me.ts` · Script: `sheetRead`, `sheetWrite` (version 6)
+- Tables: `sheet_links`, `sheet_rows` (migration 50) · IPC: `sheet:` · Tests: `shared/sheet.test.ts`, `services/sheetsync.test.ts`, `services/script.test.ts`
+- Touches: `docs/privacy.md` says what goes. The script's old shared-brain actions and its invitation door were removed with founder sharing.
 
 ### Deadlines and documents
 A filing calendar of obligations (country presets, done per occurrence) and the company's documents with expiry. Files on a contact are documents too (25 MB each).
@@ -208,11 +254,6 @@ Company numbers, derived monthly (paid, invoiced, spent, won, calls, cash) or ty
 - UI: `src/features/metrics/` · Logic: `shared/metrics.ts` · Main: `services/metrics.ts`, `repositories/metrics.ts`
 - Tables: `metrics`, `metric_values` · IPC: `metrics:` · Tests: `shared/metrics.test.ts`, `services/metrics.test.ts`; e2e `running.spec.ts`
 
-### People and hiring
-The team (founders with vesting), openings, candidates, hiring, onboarding as tasks.
-- UI: `src/features/people/` · Logic: `shared/people.ts` (staff, **not** name matching) · Main: `services/people.ts`, `repositories/people.ts`
-- Tables: `people`, `openings` · IPC: `people:`, `openings:` · Tests: `shared/people.test.ts`, `services/people.test.ts`; e2e `people.spec.ts`
-
 ### Custom fields
 Per-company fields on every contact.
 - UI: `Workbench.tsx`, `src/features/leads/LeadExtras.tsx` · Main: `repositories/workbench.ts` · Tables: `custom_fields`, `custom_values` · IPC: `fields:` · Tests: e2e `workbench.spec.ts` only
@@ -224,7 +265,7 @@ Per-company fields on every contact.
 ### Pages, sections, templates and fields
 Markdown pages in sections, each from a template with typed fields; steps and a decision log.
 - UI: `src/features/brain/` (`BrainScreen`, `BrainHome`, `SectionsIndex`, `SectionView`, `PageView`, `PageFields`, `Markdown`, `LinkedEditor`, `editor/`, `PageTasks`, `DecisionLog`)
-- Logic: `shared/brain.ts` (sections, templates, fields, `PERSONAL_SQL`), `shared/markdown.ts` (no Markdown library, no HTML strings), `shared/steps.ts`
+- Logic: `shared/brain.ts` (sections, templates, fields), `shared/markdown.ts` (no Markdown library, no HTML strings), `shared/steps.ts`
 - Main: `services/brain.ts`, `repositories/brain.ts`, `services/steps.ts`, `ipc/brain.ts`
 - Tables: `brain_pages`, `brain_revisions` · IPC: `brain:` · Tests: `shared/brain.test.ts`, `markdown.test.ts`, `services/brain.test.ts`; e2e `brain.spec.ts`, `writing.spec.ts`
 - Touches: every save rebuilds links, refreshes search (triggers), keeps a revision, marks the page for sync.
@@ -236,73 +277,133 @@ Every save is a revision; History shows a line diff and restores. Saves within f
 ### Links and the `[[` picker
 - UI: `editor/completions.ts`, `LinkedEditor.tsx`, `BrainLinks.tsx` · Logic: `shared/links.ts` · Main: `repositories/links.ts`
 - Tables: `brain_links` · IPC: `brain:link-targets`, `brain:backlinks` · Tests: `shared/links.test.ts`, `electron/main/links.test.ts`; e2e `maplink.spec.ts`
-- Note: some Map edges are worked out, never stored (person to contact, document to contact or page, product to invoiced contact) in `buildGraph`.
-- Reach (`reachFrom` in `repositories/links.ts`): a company's page links within its company only, because a company's brain can be shared. A page in your home (the journal, memories) reaches every company as well. The picker and the names of links both go through it.
+- Note: some Map edges are worked out, never stored (document to contact or page, product to invoiced contact) in `buildGraph`.
+- Reach (`reachFrom` in `repositories/links.ts`): a company's page links within its company only, because a company's brain can be shared. (The calendar's own workspace would reach every company, but holds no pages now.) The picker and the names of links both go through it.
 
 ### The Map
-A force-directed canvas of pages, contacts, products, people and documents; positions kept; drag a dot onto another to write a link.
+A force-directed canvas of pages, contacts, products and documents; positions kept; drag a dot onto another to write a link.
 - UI: `MapView.tsx`, `MapCanvas.tsx` (canvas, frame outside React), `MapOf.tsx` · Logic: `shared/map.ts` · Main: `services/map.ts`, `repositories/links.ts`
 - Tables: `brain_links`, `map_positions` · IPC: `brain:map`, `brain:local-map`, `brain:connect`, `brain:disconnect`, `brain:keep-positions`, `brain:let-go` · Tests: `shared/map.test.ts`, `services/map.test.ts`
 
 ### Understanding, on this machine
-A small model (all-MiniLM-L6-v2, int8, 23 MB) that reads pages, memories, contacts, tasks and notes for what they mean, so later phases can find the nearest in meaning (PLAN.md, part five). On by default; it reads, never sends, and only offers.
+A small model (all-MiniLM-L6-v2, int8, 23 MB) that reads pages, memories, contacts, tasks and notes for what they mean (PLAN.md, part five). On by default; it reads, never sends, and only offers.
 - Logic: `shared/understand.ts` (WordPiece tokens, pooling, int8, nearness) · Main: `electron/main/understand/embed.ts` (the model, plain Node), `worker.ts` (its utility process, built to `out/main/understand.js`), `host.ts` (starts, restarts, times out), `services/understand.ts` (the queue job, `nearestTo`), `repositories/vectors.ts`
 - UI: `src/features/settings/UnderstandCard.tsx` (This computer) · Tables: `vectors`, `embed_queue` (migration 46) · IPC: `understand:` (state, set, again) · Setting: `understandOff`
 - The model is fetched, not committed: `npm run fetch-model` into `resources/model`; the installer carries it beside the executable. Without it everything else works and its tests are skipped.
 - Tests: `shared/understand.test.ts`, `repositories/vectors.test.ts`, `services/understand.test.ts`, `understand/embed.test.ts` (the real model); packaged: `smoke:packaged`
-- Second opinion (phase 20): `examplesFor` in `services/understand.ts` turns the nearest vectors into votes - seeds (`shared/understand-seeds.ts`), your tasks with their areas, memories, notes, idea pages, and your own pages as homes for a memory; never contacts or a company's pages. The decision is `shared/opinion.ts`. The measuring stick is `understand/eval.test.ts` over `understand/lines.eval.ts` (`MEASURE=all` prints every line).
+- Second opinion (phase 20): `examplesFor` in `services/understand.ts` turns the nearest vectors into votes - seeds (`shared/understand-seeds.ts`), your tasks, memories, notes, idea pages, and any page of the brain as a home for a memory; never contacts. The decision is `shared/opinion.ts`. The three measured sets of lines went with the kinds they were labelled in (10 October 2026); a new blind set for the six kinds has not been written yet.
 - Memories (phase 21): `saidAgain` and `belongsOn` in `shared/understand.ts` hold the measured bars; `markRepeats` runs as the queue reads a page; `relatedTo` feeds *Near in meaning* in `BrainLinks.tsx` (`understand:related`).
-- Touches: the quick line (kind, where a memory goes, a task's area), Memories (said again, loose ends, recall), brain pages (near in meaning). Phase 22 chooses what goes to an AI.
+- Touches: the quick line (kind, where a memory goes), Memories (said again, loose ends, recall), brain pages (near in meaning). Phase 22 chooses what goes to an AI.
 
 ### Search everything (Ctrl+K)
-One FTS5 index over pages, contacts, notes, history, invoices and people; words quoted and made prefixes; bm25 with the title weighted 8 and notes and history pushed down.
+One FTS5 index over pages, contacts, notes, history and invoices; words quoted and made prefixes; bm25 with the title weighted 8 and notes and history pushed down.
 - UI: `src/features/search/SearchPalette.tsx` · Main: `repositories/search.ts`, `services/brain.ts` (`search` adds the home workspace)
 - Tables: `search_map`, `brain_search` · IPC: `brain:search`
 - Touches: Ask (`about`, `contactsFor`), the topic brief, line answers.
 
 ### Memories
-Dated lines on pages, written by the quick line, listed by topic or by time on their own screen, one brought back on Today. The newest line with the same key (text before the colon) is the current answer.
-- Arranged by the model (phase 21): *said again* marks in `said_again` (migration 47), applied in `allMemories` as `earlierBy: "model"`, taken back by `understand:not-the-same`; loose ends offered on the screen (`LooseEnds.tsx`, `looseEnds` / `moveMemories` / `leaveLoose`, setting `looseLeft`); recall fused with meaning (`fuseRecall`, `memoriesByMeaning`). Never a new page from a cluster - measured, and this model cannot tell topics apart that way.
-- UI: `src/features/brain/Memories.tsx` (route `memories`), `src/features/today/Remember.tsx`
-- Logic: `shared/memories.ts` (`memoriesOf`, `recall`, `underOf`, `trailsOf`, `groupMemories`), `shared/branches.ts`
-- Main: `services/remember.ts` (writes), `services/memories.ts` (reads, edits, forgets through `savePage`), `services/nudges.ts` (birthdays)
-- Tables: `brain_pages` (no table of its own) · IPC: `brain:memories`, `brain:edit-memory`, `brain:forget-memory`, `brain:remember`
-- Tests: `shared/memories.test.ts`, `branches.test.ts`, `services/memories.test.ts`, `remember.test.ts`
+Dated lines on pages of the company's brain, written by the quick line and listed by what they are about or by time. The newest line with the same key (text before the colon) is the current answer. Reached from the Brain's rail; `R`.
+- Arranged by the model (phase 21): *said again* marks in `said_again` (migration 47), applied in `allMemories` as `earlierBy: "model"`, taken back by `understand:not-the-same`; loose ends on *Things to remember* offered to the page they belong on (`LooseEnds.tsx`, `looseEnds` / `moveMemories` / `leaveLoose`, setting `looseLeft`); recall fused with meaning (`fuseRecall`, `memoriesByMeaning`).
+- UI: `src/features/brain/Memories.tsx` (route `memories`)
+- Logic: `shared/memories.ts` (`memoriesOf`, `recall`, `underOf`, `trailsOf`, `groupMemories`, `RememberInput`)
+- Main: `services/remember.ts` (writes), `services/memories.ts` (reads, edits, forgets through `savePage`; `pageTitles` for the line)
+- Tables: `brain_pages` (no table of its own) · IPC: `brain:memories`, `brain:titles`, `brain:edit-memory`, `brain:forget-memory`, `brain:remember` - all take the company
+- Tests: `shared/memories.test.ts`, `services/memories.test.ts`, `remember.test.ts`
 
 ### Where a memory is placed
-Rules in the quick line decide the section and the chain of pages above a memory:
-- Life facts ("my X is Y", people, where things are, lent) go to `remembered` (`shared/lifefacts.ts`). List items go to Watchlist, Gift ideas and the like (`shared/lists.ts`); trivia to Random knowledge (`shared/facts.ts`).
-- Subjects (book, film, song, game, recipe, exercise, course) hang off a hobby or studies through `BRANCHES` in `shared/capture.ts` and `trailOf` / `prongsOf` in `shared/branches.ts` (genre, series, artist, body part). Anything else goes to `ideas` under `Me`.
-- Existing pages are matched by exact title only.
-- Tests: `shared/capture.subjects.test.ts`, `lifefacts.test.ts`, `branches.test.ts`, `facts.test.ts`, `subjects.test.ts`
+- On the page the line names by its whole title (`namedPage` in `shared/capture.ts`), or the page the model says it is near.
+- Otherwise on *Things to remember*, in the section `remembered`, started the first time.
+- "Our GST number is …" leads the line with what it is about (`OURS`), so the newest is the answer.
+- Something said to be remembered about a contact goes on the contact's history, not a page.
 
 ### Topic brief (Copy context for another AI)
 Search hits for a topic, every page under them, and the matching hours, logged numbers, tasks and contacts, as one Markdown block on the clipboard.
-- UI: `src/features/brain/ContextCard.tsx`, `src/features/today/ContextLine.tsx` · Logic: `shared/topic.ts` · Main: `services/topic.ts`
+- UI: `src/features/brain/ContextCard.tsx`, on the Brain's first page and nowhere else · Logic: `shared/topic.ts` · Main: `services/topic.ts`
 - IPC: `brain:topic` · Tests: `shared/topic.test.ts`, `services/topic.test.ts`; e2e `context.spec.ts`
-- By meaning too (phase 22): with understanding on, the handler adds the pages nearest the topic (`nearestTo`) to what its words found, before the pages under them are gathered; never a journal day.
+- By meaning too (phase 22): with understanding on, the handler adds the pages nearest the topic (`nearestTo`) to what its words found, before the pages under them are gathered.
 
 ### Ask the brain
-Your own AI (Gemini, Anthropic, OpenAI, OpenRouter, Groq, Ollama, any OpenAI-style address) answers from the dossier (Brain home) or from today plus search hits (Today's Ask line), within a chosen size. Three request shapes; model names are read from the service, never hard-coded. No tools: it cannot change anything.
-- UI: `src/features/brain/AskBox.tsx`, `src/features/today/AskLine.tsx`, `src/features/settings/AiCard.tsx` · Logic: `shared/ask.ts` (services, budgets, `linkAnswer`)
-- Main: `services/ask.ts` (`contactsFor`, `about`, `fit`), `services/yours.ts`, `services/credentials.ts`; handlers in `ipc/costs.ts`
-- Tables: `settings` (`aiConnection` sealed, `aiModel`, `aiPersonal`, size) · IPC: `ask:` · Tests: `shared/ask.test.ts`, `services/ask.test.ts`; e2e `ask.spec.ts`, `askline.spec.ts`
-- By meaning too (phase 22): `askBrain` takes the model when understanding is on (`ipc/costs.ts`) and adds the contacts (`contactsFor`), pages (`about`, still through `mayGoToAi`) and memories (`buildYours`) nearest the question to what its words found.
+Your own AI (Gemini, Anthropic, OpenAI, OpenRouter, Groq, Ollama, any OpenAI-style address) answers from the company's records, on the Brain's first page. Three request shapes; model names are read from the service, never hard-coded. No tools: it cannot change anything.
+- UI: `src/features/brain/AskBox.tsx`, `src/features/settings/AiCard.tsx` · Logic: `shared/ask.ts` (services, budgets, scopes, `linkAnswer`)
+- Main: `services/ask.ts` (`askBrain`, `previewAsk`, `complete`, `asking`), `services/relevant.ts`, `services/credentials.ts`; handlers in `ipc/costs.ts`
+- Tables: `settings` (`aiConnection` sealed, `aiModel`, `aiContext`, `aiScope`, `aiLine`) · IPC: `ask:` · Tests: `shared/ask.test.ts`, `services/ask.test.ts`, `services/relevant.test.ts`; e2e `ask.spec.ts`
+
+### What goes with a question
+The company in brief, always, and then only what the question is about (PLAN.md, part ten, phase 37). The whole company when the question says "everything" or "all my contacts", when *Ask again with the whole company* is pressed, or when Settings says every time.
+- **The brief** (`briefOf`): the page titled "Company in brief" when there is one, else a few lines from the profile and the catalogue; with *At a glance* under it.
+- **Who**: the contacts the question names - company, person or first name (`named`) - or, naming nobody, the ones nearest in meaning. A question about deals brings the contacts with one open; one about "who" or "contacts", the fifteen last spoken to.
+- **What**: the dossier's parts and the brain's sections its words point at (`needsOf` in `shared/relevant.ts`); the pages it names, means, or that hold a word of it nobody else uses (`rareWords`, through the search index). A question about nothing in particular gets what is open. A follow-up that names nothing is read with the question before it.
+- **Said before and after**: `ask:preview` works it out on this machine as the question is typed ("Sending: the company in brief, Oakridge, Money now - about 900 tokens"); the answer says what went. The AI is told when it has a part and not the whole.
+- The size in Settings is now the most that is ever sent at once; a whole company over it is still cut to the contacts the question bears on (`wholeOf`).
+- Logic: `shared/relevant.ts` · Main: `services/relevant.ts` (`relevantTo`, `briefOf`, `partsOf`) · Tests: `services/relevant.test.ts`
+
+### AI mode on the line
+The mark at the start of the quick line is a switch (phase 38). Not pressed, a line is read by the rules on this machine and nothing leaves it. Pressed, Enter sends the line to the AI that is connected, and what it says the line is becomes the reading - shown the same way, moved by the same chips, kept by the same Enter.
+- **What goes**: the line, today's date, the brief cut to 600 characters, up to 24 names it might mean ("company | person") and page titles. Never a contact's details or history. A line that looks like a password is refused before anything is sent.
+- **What comes back** (`aiLine`, `readingFromAi` in `shared/ailine.ts`) is checked against what Caulder holds: a contact it names that is not one is nobody; somebody "new" who is a contact already is that contact. A task brings its own title and day (`CaptureReading.task`).
+- **One Enter or two**: when the AI's reading is what the rules had - the same place, contact and days (`sameReading`) - it is kept at once. When it differs, or asks something, it is shown first.
+- **It may ask** one question in words ("Where is Anil from?"), answered in the row the line's questions use, and is read again with the answer. A person from nowhere is asked about whether or not the model thought to.
+- **A question, or something to write** (`isForAi`), is answered under the line through `askBrain`, with what the question needs.
+- **Done here whatever the mode**: going somewhere, opening somebody, a change to what is there, and the questions the line answers from the records.
+- UI: `QuickAdd.tsx` (`readWithAi`, `toggleAi`, `enter`) · Main: `services/askline.ts` · IPC: `ask:line`, `ask:set-line` · Tests: `services/ask.test.ts`; e2e `ask.spec.ts`
+
+### Two things at once
+Overlapping blocks are said, never refused (`layOut` draws them side by side). `doubleBooked` (`shared/day.ts`) names each pair and when they meet; `Clashes` (`src/features/day/Clashes.tsx`) says it on Today, at the head of the Calendar's day and per day in the week. `clashingWith` says in the block form what a time being chosen would overlap. The grid's own marking of which block gives way is `clashesIn` in `shared/priority.ts`, a different thing.
+- Tests: `shared/day.test.ts`; e2e `week.spec.ts`
+
+### Chasing an unpaid invoice, and what is owed
+A late invoice is chased from the row it is on - in Money and on Today (PLAN.md, part eight, phase 34).
+- **The reminder** (`reminderFor` in `shared/chase.ts`, `src/features/money/ChaseForm.tsx`): the number, the amount, when it was due and how late, what has come in; a *second reminder* the second time. Read and changed in the box, then sent through `mail:send` like any email to a contact - so history, replies and do-not-contact are what they already are. With no sender, `outreach:email` opens the computer's mail app. No attachment.
+- **Whether it was chased** is `Invoice.reminded`, read by `remindersFor` (`repositories/money.ts`) from emails sent to the contact with the invoice's number in the subject. Nothing stored. `chaseOffer` offers the first once it is late, and another seven days after the last.
+- **What is owed, by age** (`owedByAge`, the `Owed` line in `MoneyScreen.tsx`): not yet due, up to thirty days late, over thirty.
+- Tests: `repositories/chase.test.ts`; e2e `money.spec.ts`
+
+### A retainer
+An invoice that repeats: `invoices.repeats` (migration 54), chosen on the invoice form.
+- `draftRepeats` (`repositories/money.ts`), called when Today and Money are read, makes the next one as a **draft** once the last has been sent and the month, quarter or year has come round - the same contact, deal, lines and notes - and moves `repeats` on to the draft. Nothing is drafted from a draft: one waiting at a time.
+- Today lists drafts that repeat as *retainer invoices to look at and send* (`Today.drafted`). Nothing is ever sent by it.
+- Ends when the newest is set to No, deleted or made void.
+- Tests: `repositories/chase.test.ts`; e2e `money.spec.ts`
+
+### How we work: the rules a company keeps
+The section the playbooks are in, renamed (PLAN.md, part eleven). A rule - "we never discount retainers", "we invoice on the 1st", "no calls before 10" - is a remembered line on its subject's page: *Billing and payment*, *Pricing and discounts*, *Hours and replies*, *Clients*, *Suppliers and tools*, or *Other rules*.
+- **No page until there is a rule for it.** `remember` starts a subject's page (template `rules`, section `playbooks`) the first time one is said. Any page added to the section by hand is a subject too.
+- **The line** reads a rule as a memory and names its page before Enter (`remembered` in `shared/capture.ts`); a page the line names, or a fact about the company ("our GST number is…"), goes where it always did. What the company does as a matter of course is a rule whatever day is in it.
+- **Replaced on a yes**: when a rule on the page is about the same thing (`alike` - the words, with the numbers left out), `remember` hands it back as `like`, and the line asks *Is it instead of …?* The older one is let go through `brain:forget-memory`, and is in the page's history.
+- **Read where it is used**: `RulesAside` (`src/components/`) beside a new invoice and a new quote, from `brain:rules-on`. Says nothing when there are no rules on the subject.
+- **Asked in words**: "what is our policy on refunds", "how do we handle late payers" are `recall` questions (`shared/questions.ts`).
+- Logic: `shared/rules.ts` · Main: `services/howwework.ts`, `services/remember.ts` · IPC: `brain:rules-on` · Tests: `services/howwework.test.ts`; e2e `quickadd.spec.ts`
+- **Not the same file** as `services/rules.ts`, which is the follow-up made when a deal moves.
+
+### Sort this page
+In a page's More menu when it holds three remembered lines or more. Each line that would be better kept elsewhere is offered a home, ticked, and moved by one press.
+- By what this machine can check (`sortLines`): said as a rule → its subject's page; names a contact → that contact's *Keep in mind*, with its day; on the page twice → let go.
+- With an AI connected, *Ask it about the others* (`proposeSort`): only the unplaced lines go, with the subjects and the contacts' names. A subject or a contact it makes up places nothing.
+- Never to a page outside How we work by its title; one transaction for all the moves.
+- UI: `src/features/brain/Sorting.tsx`, `PageView.tsx` · IPC: `brain:sort-plan`, `brain:sort-apply`, `ask:propose-sort` · Tests: `services/howwework.test.ts`, `services/ask.test.ts`; e2e `quickadd.spec.ts`
+- *Loose ends* (on Memories) is the other half: it moves by meaning, with the model on this machine, to pages there already are.
+
+### The brain's sections, and what is no longer offered
+Fifteen sections in four groups (`BRAIN_GROUPS`, `group` on each section in `shared/brain.ts`): what we are, how we work, where we are going, what we have learned. *All sections* lists them so; the rail still shows only the ones that hold something.
+- **Kinds of page no longer offered**: milestone, competitor, fundraise, cap table, experiment. They are still kinds - `templateOf` and `templateFits` know them - so a page a company has opens as before; a section's `templates` list is only what is offered.
+- The *Policy* kind in Legal is called *Published policy*: the one on a website.
+
+### What the AI proposes
+Three drafts, and nothing written by the AI (phase 39): the company in brief, a page tidied, and what the contacts' history shows.
+- **The brief card** on the Brain's first page shows what goes with every question. *Draft it* sends the brief as it stands, *At a glance*, what is sold, the Company, Plan, Products, Customers, How we work and Remembered sections and the last 40 history entries - no contact's details - and the draft is edited before it is kept as the page "Company in brief".
+- **Tidy with the AI**, in a page's More menu, sends that page alone and shows it beside the page as it is (`Tidied`, the History's own comparison). Kept, it is a version like any other.
+- **What does the history show?** reads the contacts with three history entries or more, up to 25, and offers each fact with the entries it came from; kept, it is a line under the contact's *Keep in mind*. A fact about a name that was not sent is dropped.
+- What is drafted or tidied ends with a line saying so (`draftedBy`).
+- UI: `src/features/brain/Proposals.tsx`, `PageView.tsx` · Logic: `shared/propose.ts` · Main: `services/propose.ts` · IPC: `ask:brief`, `ask:propose-brief`, `ask:propose-tidy`, `ask:propose-noticed` · Tests: `services/ask.test.ts`; e2e `ask.spec.ts`
 
 ### The dossier and Export for an AI
-The company as four Markdown documents (read me, the company, customers and sales, people and running), numbers masked. Written to a folder, sent to Ask, or included in Export everything.
+The company as four Markdown documents (read me, the company, customers and sales, running the company), numbers masked. Written to a folder, cut to what a question needs for Ask (`services/relevant.ts`), or included in Export everything. `pages` and `contacts` cut it to the ones named; the Remembered section - what the line was told to keep - is in the fourth document.
 - UI: `src/features/brain/BrainShare.tsx` · Main: `services/dossier.ts`, `services/names.ts` · IPC: `brain:dossier`, `data:export-all` · Tests: `services/dossier.test.ts`
-- Phase 22: *Add yourself* writes `04 you.md` beside it (`buildYouExport` in `services/yours.ts`: by topic, each fact once and current, dated, an index first, never the journal or private lines); *What is it for?* leads the read-me and, with understanding on, lists what to read first (`readFirstFor`) and puts the nearest facts first in *04 you*.
+- Phase 22: *What is it for?* leads the read-me and, with understanding on, lists what to read first (`readFirstFor`).
 
-### The "You" document
-The personal half sent to Ask only with `aiPersonal` on: goals, habits, hobbies, studies, pages in hobbies, studies, goals, ideas and remembered with up to 60 memories (the nearest the question first, when understanding is on), 90 days of unsealed journal. Never private lines or sealed days.
-- Main: `services/yours.ts` · Tests: `services/yours.test.ts`
-
-### Brain export, brain file and sharing between two founders
-A Markdown folder of pages; a JSON brain file; or a live share through the owner's script every three minutes, with the author on each revision and both versions kept on a clash. Personal sections, pins and secrets never travel.
-- UI: `BrainShare.tsx`, `src/features/sharing/SharingCard.tsx`, `ThisIsMeCard.tsx` · Logic: `shared/share.ts`
-- Main: `services/brain-export.ts`, `brainfile.ts`, `brainsync.ts`, `repositories/me.ts`, `ipc/share.ts`
-- Tables: `brain_tombstones`, `companies.brain_*`, `brain_pages.sync_*` · IPC: `brain:export`, `share:`, `me:` · Tests: `services/brainsync.test.ts`; e2e `sharing.spec.ts`
+### Brain export
+A Markdown folder of pages (`brain:export`). The brain file and live sharing between two founders were taken out on 10 October 2026, to be made again later and differently; see "Removed on purpose".
+- UI: `BrainShare.tsx` · Main: `services/brain-export.ts` · `repositories/me.ts` and `ThisIsMeCard.tsx` keep the name Today greets (`me:`).
 
 ### Secrets in pages
 PAN, TAN and account numbers sealed by the OS inside the fields JSON; the window only ever gets the last four.
@@ -320,46 +421,84 @@ Chosen sections, documents and tables as zipped HTML with an index, or a printed
 
 Classification is done **in the window**, by pure functions in `shared/`.
 Main never classifies; it supplies context and carries out what the window
-decided. There is no model and no numeric confidence: each decision is a rule
-plus a `because` sentence, and chips let the person change it.
+decided. Each decision is a rule plus a `because` sentence, and chips let the
+person change it.
+
+It was rewritten on 10 October 2026 for a company's line: **six kinds, not
+ten**. The journal, private lines, time on a hobby and a report on the day
+went with the personal half, and with them most of what the line used to get
+wrong - one personal kind taken for another.
 
 ### The smart line on Today
-Reads any line, shows what it will do and where it goes, and on Enter writes it. The same card has two other modes: Ask (your AI) and Copy context (the topic brief).
-- Asking your AI is only the Ask switch in `LineModes.tsx` ("Ask the AI"), drawn when an AI is connected; `QuickAdd` has no switch of its own.
-- A second opinion from the model on this machine (phase 20): a reading marked `soft` (the fallbacks at the end of `readCapture`), or a task with no area, is sent through `understand:read` after a 250 ms pause; `shared/opinion.ts` (`secondOpinion`, `areaOpinion`) decides. Order: the chip pressed, a lesson, the model, the rules. Says why in `[data-opinion]`. e2e `quickadd.spec.ts` (skipped without the model).
-- UI: `src/features/today/QuickAdd.tsx` (`keep()` switches on the kind), `LineModes.tsx`, `LinePanels.tsx`, `AskLine.tsx`, `ContextLine.tsx`, `Remember.tsx`
-- Order inside `QuickAdd.tsx`: context loaded on focus, `cleanPaste`, `followOn`, `parseQuick`, `readCapture`, then `readQuestion` and `readEdit` (which win), then `voteKind` from lessons, then the chip the person pressed.
-- Writes: tasks, blocks, reminders, contact history, new contacts, brain pages (memories, ideas, costs), journal, private lines, habit ticks, hobby time, measures, the shelf, spend, navigation.
-- Tests: e2e `quickadd.spec.ts` (29 tests), `today.spec.ts`, `askline.spec.ts`, `context.spec.ts`
+Reads any line, shows what it will do and where it goes, and on Enter writes it. That is all the card does: asking your AI and copying context each live in the Brain, and only there.
+- A second opinion from the model on this machine (phase 20): a reading marked `soft` (the fallbacks at the end of `readCapture`) is sent through `understand:read` after a 250 ms pause; `shared/opinion.ts` (`secondOpinion`) decides. Order: the chip pressed, a lesson, the model, the rules. Says why in `[data-opinion]`, and `[data-learnt]` when a lesson is why.
+- UI: `src/features/today/QuickAdd.tsx` (`keep()` switches on the kind), `LinePanels.tsx`
+- Order inside `QuickAdd.tsx`: context loaded on focus (contacts, and the brain's page titles through `brain:titles`), `cleanPaste`, `followOn`, `parseQuick`, `readCapture`, then `readQuestion` and `readEdit` (which win), then `voteKind` from lessons, then the chip the person pressed.
+- Writes: tasks, blocks, reminders, contact history, new contacts, a contact's details, memories and ideas on brain pages, running costs, spend, notes, navigation.
+- Tests: `shared/capture.test.ts`; e2e `hub.spec.ts`, `quickadd.spec.ts`, `today.spec.ts`
 
 ### The task parser
-One line to a task: title, day, time, length, repeat, priority, area, kind (call, email, follow-up, meeting, todo), note, follow-up task; asks one question only where a guess is a coin toss.
-- Logic: `shared/quickadd.ts` (`parseQuick`, `kindOf`, area order around line 1304), `shared/slips.ts` (typos), `shared/slang.ts` (`expand`), `shared/rephrase.ts`, `shared/hinglish.ts` (only through `rephrase`)
+One line to a task: title, day, time, length, repeat, priority, kind (call, email, follow-up, meeting, todo), note, follow-up task; asks one question only where a guess is a coin toss.
+- Logic: `shared/quickadd.ts` (`parseQuick`, `kindOf`; `VOCABULARY` is only the words a slip is mended towards), `shared/slips.ts` (typos), `shared/slang.ts` (`expand`), `shared/rephrase.ts`, `shared/hinglish.ts` (only through `rephrase`)
 - Main: `services/quickadd.ts` (task, block and follow-up in one transaction) · IPC: `tasks:quick`
 - Tests: `shared/quickadd.test.ts`, `quickadd.texted.test.ts`, `quickadd.sentences.test.ts`, `slips.test.ts`, `slang.test.ts`, `hinglish.test.ts`
 
 ### What kind a line is
-`readCapture` (`shared/capture.ts`) returns one of `task`, `journal`, `private`, `contact`, `hobby`, `done`, `memory`, `command`, `idea`, `note`, checking rules in a fixed order (around lines 802-902): prefixes, private, secrets, life facts, commands and contact details, list items, a feeling, a named contact, a day report, a hobby, trivia, ideas, looking back, instructions, a date ahead, a named page, a new topic, feelings, and finally `note`.
-- Readers: `shared/private.ts`, `lifefacts.ts`, `lists.ts`, `facts.ts`, `thoughts.ts`, `subjects.ts`, `branches.ts`, `books.ts`, `newperson.ts`, `commands.ts`
-- Contacts are found by `namedContact` (whole words, family aliases like "mom", then one-contact typo match). `shared/people.ts` is **not** involved.
-- Tests: all seven `shared/capture*.test.ts` files, and a test per reader
+`readCapture` (`shared/capture.ts`) returns one of `task`, `contact`, `memory`, `command`, `idea`, `note`, checking in a fixed order: a prefix (`task:`, `note:`, `idea:`, `remember:`); something to keep safe (a note, with a warning); something asked for; a contact named (unless the line is an idea said outright, which is one whoever it names); said to be remembered, or something of the company's and what it is; an idea; an instruction; then the guesses - a rule the company keeps, an opinion (a note), how the company runs (how often, at what rate, in what hours), a when ahead that is not looked back on, a page named, a fact said plainly, and finally `note`.
+- **A word that is a thing as well as an order** ("quote", "email", "test") is read by the word after it: `ordered()` and `NOT_AN_ORDER`. An order given about something ("get the nda signed") is a task whatever else the line holds: `ORDERED`.
+- **A day gone by, or a line that looks back** ("took", "doubled", "was incorporated in 2022"), is never a task by its day alone: `gone` in `whenIn`, `LOOKED_BACK`, `WAS`.
+- A command is `readCommand` (`shared/commands.ts`: go somewhere, money said to be spent, add a contact - asked for outright, after the telling, or by an address - a running cost), a contact's detail set (a phone or an email, and nothing else yet), somebody new told about (`shared/newperson.ts`), or a contact opened to reach now.
+- **A sum that was not said to be spent** ("swiggy 320 lunch") is offered as a chip, never assumed: `spendIn` in `shared/commands.ts`, carried on the reading as `spend`.
+- **A password or a card number** is never filed as a memory: `shared/secretline.ts`, said under the line before anything is kept.
+- Contacts are found by `namedContact`: whole words of the name, a person's first name from three letters unless it is also a word (`NAME_IS_A_WORD`), then a one-contact typo match. One word of a company's name said as a thing ("the studio", for Studio Palma) is not the contact: `saidAsAThing`. `shared/people.ts` is **not** involved.
+- Tests: `shared/capture.test.ts`
 
-### The rules' shapes, measured
-`readCapture` reads more shapes since 27 September 2026, each measured on the three sets in `electron/main/understand/` (`lines.eval.ts`, `lines.fresh.eval.ts`, `lines.blind.eval.ts`): ideas asked of yourself, somebody who could, a thing named or pitched (`PITCH`, `COULD`); a day summed up or said to have been (`SUMMED_UP`, `WAS_HOW`, read on the line as typed, since `expand()` rewrites Hinglish); how a thing goes, with its time, as a sure note (`HOW_IT_GOES`); a plain fact as a soft memory (`STATES_A_FACT`, not `A_COMPLAINT`); errands said alone (`CHORE`); spends of two things (`SPENT_ON`, `shared/commands.ts`). Feeling words are never a person (`NOT_A_PERSON`, `shared/lifefacts.ts`).
-- Tests: `shared/capture.everyday.test.ts`, "the rules' gaps"; the measuring stick in `eval.test.ts`.
+### What a line about somebody leaves to do
+A line that goes on a contact's history, or makes a new contact, can leave a next step: kept with it as their task, on the day it says, with a notification that morning.
+- Three forms only (`nextStepIn` in `shared/nextstep.ts`): **they asked** ("asked me to reach out next week", "wants the invoice by the 5th"), **I promised** ("told Jonas I'd send the deck by friday"), **they promised** ("said she'll get back in a few days" - a check-in with them, in three days when no day was said). A fact with a date in it owes nothing.
+- **What happened is kept as what it was** (`loggedAs`): a call, a meeting, a message on LinkedIn, WhatsApp or Instagram where the line names the place, or "They answered" when they wrote back. `shared/reached.ts` reads those kinds.
+- Carried on the reading as `then` (a known contact) or on the `contact` command (somebody new, `shared/newperson.ts`); written by `keep()` in `QuickAdd.tsx` through the same `activities:log` and `tasks:quick` everything else uses. No new table, no new channel.
+- Tests: `shared/nextstep.test.ts`; e2e `quickadd.spec.ts`
+
+### When the line is not sure, it asks
+One question at a time, in the row the task line's questions use (`doubt` in `QuickAdd.tsx`).
+- **Where somebody is from** (`readStranger` in `shared/newperson.ts`): a line that names somebody Caulder does not know, and leaves a next step for them - "Sumanth asked me to reach out next week" - asks *Where is Sumanth from?* The answer is typed into the question's row (Enter on the line goes to it) and read back as `settled.from`: a place makes them a contact there, with what happened and their task; an empty answer, or *Only a task*, keeps the task alone, titled the way a task is (`CaptureReading.task`). Never asked of "mum", "the client" or a role, or of a line that owes nothing.
+- **Who** (`findContact`, `doubtAbout` in `shared/capture.ts`): a contact found only by a slip at their name, or a name two contacts answer to. Blocks: nothing is kept until it is answered, and `readCapture` is run again with the answer (`settled.contact`, a contact's id or null for nobody).
+- **A name one letter out** is asked about only in names of six letters or more (`nearName`) - looser than `shared/slips.ts`, which refuses a wrong letter, and allowed only because it asks and never assumes. A short first name with a letter added or dropped is asked about too, straight after a word for reaching somebody - "call priyaa" (part twelve, phase 47).
+- **An answer is kept** (part twelve, phase 48): the word the doubt was about (`Doubt.word`) and the contact chosen go to `line_names` once the line is kept, and `findContact` reads them before anything else - "which Priya?" is not asked twice. Listed in Settings › Tune with Forget. `repositories/linenames.ts`; IPC `tune:names`, `tune:name-keep`, `tune:name-forget`.
+- **When**, for a next step with no day said: tomorrow, today, in three days, next week. Does not block; the day shown stands.
+- **A when said loosely** is a day (`shared/quickadd.ts`): early, mid and the end of this or next week; "in a few days"; early, mid, late and the end of a month; "sometime in november"; "after the 20th".
+
+### How well the line reads, measured
+`electron/main/understand/lines.eval.test.ts` reads three sets of 96 lines, each written by somebody who was not shown the rules, and fails if the line reads fewer right than the day it was measured. `blind-2026-10-a.json` and `-b.json` have been looked at; `blind-2026-10-c.json` is held out. `CAULDER_EVAL=1 npx vitest run electron/main/understand/lines.eval.test.ts` prints the totals by kind, and the misses of the sets that have been looked at - a held-out set's misses are counted by kind and never printed.
+- **A set is never edited to make a line pass, and the rules are never tuned against a held-out set.** Once its misses are read it has been looked at: mark it `heldOut: false`, and have a new one written before the next number is believed. The numbers are in STATUS.md.
+- **A rule is changed for a class of line, with a test of its own lines** - ones written for the test, and the near ones the rule must leave alone - in `shared/capture.test.ts` or `shared/commands.test.ts`. A set's own lines are not copied into those tests.
+- A held-out set is measured only on lines no looked-at set already has (the third repeats three of the first, so it is counted on 93).
+- **Every field, not only the kind** (part twelve, phase 45): `shared/measured/fields.test.ts` reads `lines-2026-10-a.json` (84 lines, looked at) and `lines-2026-10-b.json` (60, held out, for another founder) with the contacts, open tasks and eight weeks of blocks the app would have, in the order the line runs its readers, and scores day, time, length, repeat, contact, amount, what an edit touches and what a question asks. Same two rules; `CAULDER_EVAL=1` prints the totals.
+
+### Your day settles the time
+Part twelve, phase 46. `yourDay` (`shared/habitual.ts`) reads the shape of the person's working day from their own blocks over eight weeks - when it starts, ends and lunch is over - and goes into `parseQuick` as `context.day`, with the blocks themselves as `context.past`. An hour said bare from 7 to 11 is settled before it is asked: by what this very thing has been before (`sideBefore`: "call mum at 8" has been at 8pm), else by which side falls inside the day (`sideOf`), and the line says so. "First thing" is when the day starts, "after lunch" when lunch is over. A call or meeting with no length takes the length its kind has usually had (`usualLength`, through `usualOf`). Nothing is stored for any of it: it is counted from the blocks.
+- Tests: `shared/yourday.test.ts`
+
+### A task that comes back
+Part twelve, phase 47. "Pay rent on the 1st of every month", "renew the domain every year on 3 may", "review metrics every other monday": `every` on the parsed task, `tasks.repeats` (`fortnightly`, `monthly`, `yearly`). Ticking one makes the next (`comeBack` in `repositories/tasks.ts`, the day from `nextDue` in `shared/repeat.ts`), at the same hour when it had one, and never a second open one. Shown on the row and changed in the task form (*Comes back*). Every other week **with** an hour is a block series instead, `every: 2` on the repeat (`block_series.every_weeks`).
+- Tests: `shared/repeat.test.ts`, `repositories/tasks.test.ts`, `shared/quickadd.test.ts`
+
+### What stays true about a contact
+Part twelve, phase 49. A line that starts with a contact and goes on with what stays true - "Maya prefers WhatsApp", "Sam's address is…", "Harbour GST no…", "Jonas is on leave till the 20th", "Kemi's birthday is 9 March" - is `logged: "fact"` (`factAbout` in `shared/capture.ts`), kept on the contact in `lead_facts` and shown on their page as *Known about them* (`src/features/leads/KnownAbout.tsx`), not on their history. A fact that ends keeps its day, and a task planned for them before it is warned about under the line. A birthday is a fact and a task that comes back every year. The line's questions read facts first (`factsAbout`). A line opened by something done - "called priya - no answer, try again thursday" - is the call and its next step (`OPENS_DONE`, and the try-again in `nextStepIn`). Money in from a contact - "got 2400 from harbour", "harbour paid" - marks their open invoice paid, or records a part (`paidFrom` in `repositories/money.ts`).
+- Main: `repositories/facts.ts`, `money.ts` · IPC: `facts:`, `money:paid-from` · Tests: `shared/capture.test.ts`, `repositories/facts.test.ts`
 
 ### Questions, edits and the rest
-Answer a question from what is stored (the day, free hours, a contact, money, memories, "did I..."); move, cancel or rename a task; carry "him" or "also" over from the last line; split one line into several; suggest the usual hour; tidy a paste.
+Answer a question from what is stored (the day, free hours, a contact, money, memories, "did I...", and - part twelve, phase 50 - when you last spoke to somebody, what somebody owes, the next free hour, what is open for somebody); move, cancel, rename or tick off a task, a task named by its hour as well as its words ("move my 3pm to 4", "done call priya"); carry "him" or "also" over from the last line; split one line into several; suggest the usual hour; tidy a paste.
 - Logic: `shared/questions.ts`, `edits.ts`, `followon.ts`, `together.ts`, `habitual.ts`, `pasteline.ts`, `lines.ts` (there is **no** `shared/smartline.ts`; `smartline.test.ts` tests these)
-- Main: `services/lines.ts` (`lineContext`, `answerQuestion`, `moveTask`, `cancelTask`, `restoreTask`, `renameTask`). Answers never leave the machine; memories are answered by `recall`.
+- Main: `services/lines.ts` (`lineContext`, `answerQuestion`, `moveTask`, `cancelTask`, `restoreTask`, `renameTask`). Answers never leave the machine; memories are answered by `recall`, from the company's.
 - IPC: `lines:` · Tests: `shared/smartline.test.ts`, `services/lines.test.ts`
 
 ### How the line learns
-- **Lessons**: a chip pressed before Enter stores the line's words with that choice; `voteKind` and `voteArea` read later lines the same way (soft kinds only: `LESSON_KINDS`).
-- **Tune**: typo fixes and unknown names asked about in Settings, one at a time.
-- **Your words**: terms taught outright, each pointing at an area.
-- Logic: `shared/lessons.ts`, `shared/tune.ts` · Main: `repositories/lessons.ts`, `tune.ts`, `words.ts` · UI: `LessonsCard.tsx`, `TuneCard.tsx`, `WordsCard.tsx`
-- Tables: `line_lessons`, `line_guesses`, `area_words` · IPC: `lessons:`, `tune:`, `words:`
+- **Lessons**: a chip pressed before Enter stores the line's words with that choice; `voteKind` reads later lines the same way (soft kinds only: `LESSON_KINDS` - task, idea, note, memory), and the line says which line it learnt from (`learntFrom`).
+- **Tune**: typo fixes asked about in Settings, one at a time.
+- Logic: `shared/lessons.ts`, `shared/tune.ts` · Main: `repositories/lessons.ts`, `tune.ts` · UI: `LessonsCard.tsx`, `TuneCard.tsx`
+- Tables: `line_lessons`, `line_guesses` · IPC: `lessons:`, `tune:`
 
 ### The quick window from anywhere
 An always-on-top window from the tray or `Ctrl+Win+A`. It is `QuickAdd` without `smart`: tasks and notes only.
@@ -367,115 +506,84 @@ An always-on-top window from the tray or `Ctrl+Win+A`. It is `QuickAdd` without 
 
 ### Adding a kind to the line
 Keep one parser. In this order:
-1. A pure reader `shared/<name>.ts` with its test, taking the line as `expand()` returns it and returning a result or null (pattern: `readFact`, `readListItem`, `readLifeFact`). It does not call `parseQuick` or `namedContact`; `readCapture` passes in what it found.
-2. `shared/capture.ts`: add to `CaptureKind`, add fields to `CaptureReading`, call the reader beside the others, add it to `options`, and place its `return reading(...)` at the right point in the order - after prefix, private, secret and life facts, before the instruction, date-ahead and note fallbacks.
-3. Tests: lines it must claim, and lines it must leave to kinds before it. Run all of `shared/capture*.test.ts`.
-4. `shared/lessons.ts`: add to `LESSON_KINDS` only if it is a guess a correction may teach; never for kinds that are found (private, contact, done, command).
-5. Only if it writes somewhere new: migration, repository or service, `shared/ipc.ts`, handler, preload. Reuse `brain:remember`, `life:jot`, `notes:create` and the like when they fit.
+0. First ask whether it is a kind at all. Six were chosen so that each is told apart by something Caulder can check; a seventh that is told apart by how a sentence sounds will cost the other six.
+1. A pure reader `shared/<name>.ts` with its test, taking the line as `expand()` returns it and returning a result or null (pattern: `readCommand`, `readNewPerson`, `spendIn`). It does not call `parseQuick` or `namedContact`; `readCapture` passes in what it found.
+2. `shared/capture.ts`: add to `CaptureKind`, add fields to `CaptureReading`, call the reader beside the others, add it to `options`, and place its `return reading(...)` at the right point in the order - after the prefix, the warning and what was asked for, before the instruction and the guesses.
+3. Tests: lines it must claim, and lines it must leave to kinds before it, in `shared/capture.test.ts`.
+4. `shared/lessons.ts`: add to `LESSON_KINDS` only if it is a guess a correction may teach; never for kinds that are found (contact, command).
+5. Only if it writes somewhere new: migration, repository or service, `shared/ipc.ts`, handler, preload. Reuse `brain:remember`, `activities:log`, `notes:create` and the like when they fit.
 6. `src/features/today/QuickAdd.tsx`: a label in `GOES_TO` (the compiler insists), a branch in `keep()`, a preview line, a gate in `ready` if it needs more input.
 7. `LinePanels.tsx` only if it needs a panel of its own.
-8. `e2e/quickadd.spec.ts`: type it, check the chip and preview, press Enter, check where it landed.
+8. `e2e/hub.spec.ts`: type it, check the chip and preview, press Enter, check where it landed.
 
 A new *task* kind (call, email, meeting) is not a new capture kind: it belongs in `kindOf` in `shared/quickadd.ts`.
 
 ---
 
-## You
+## Your time
 
-### Your home workspace
-`services/yourhome.ts` makes the one personal workspace (at start-up and when a company is made) and moves your own things into it: pages, blocks, tasks, `journal_private`, `habits`, `hobby_logs`, `shelf_books`, `vision_tiles`, `day_checkins`, `day_themes`, `terms`. Never in the switcher, never the active workspace.
-- Tests: `services/yourhome.test.ts`, `home.test.ts`; e2e `life.spec.ts`
+### The calendar's own workspace
+`services/yourhome.ts` makes one workspace of the personal kind (at start-up and when a company is made) for what the calendar holds that is not a company's. Never in the switcher, never the active workspace. It holds no pages since migration 49.
+- Tests: `services/yourhome.test.ts`
 
 ### Today
-The home screen: the line, then what is late and due, unpaid money, renewals, deadlines, going quiet, replies; habits, journal, pulse, theme, your week, level, notes at the foot, the setup nudge. Rebuilt on every change, never patched.
+The home screen, in two columns that each answer one question. **What do I do**: the line, then what is late and due, unpaid money, renewals, deadlines and what is coming. **Who do I talk to**: *Reach out*, replies, going quiet, then notes. Rebuilt on every change, never patched.
+- **Reach out** (`reachOf` in `services/today.ts`, `Today.reach`): how many people were reached today and in the last seven days - people, not messages, from the history - and the prospects nobody has reached at all, oldest first, five named and the rest counted, each with the ways there are to reach them. Out of it: anybody reached, with a task, with a message scheduled, closed, not a prospect, or marked do not contact. And one sentence on what is waiting on them (`Reach.sent`, `saySent`): "6 written to this week: 2 answered, 4 waiting - the oldest 5 days."
 - Going quiet after N days (3-90, default 14), set in Settings > Reminders: `coldAfterDaysInput`, `readColdAfterDays`, `setColdAfterDays` in `services/today.ts`; IPC `today:cold-after-days`, `today:set-cold-after-days`; e2e `workbench.spec.ts`.
-- UI: `src/features/today/` (`TodayScreen`, `NowLine`, `TaskRow`, `TaskForm`, `grouping.ts`, `Hello`, `said.ts`) plus cards from `src/features/life/` · Main: `services/today.ts`
+- **Nobody is named twice**: somebody under *Reach out* is left out of *Going quiet* (`quiet` in `TodayScreen.tsx`). A prospect nobody has written to has not gone quiet; they are still waiting.
+- UI: `src/features/today/` (`TodayScreen`, `NowLine`, `TaskRow`, `TaskForm`, `grouping.ts`, `Hello`, `said.ts`) · Main: `services/today.ts`
 - IPC: `today:` · Tests: `services/today.test.ts`, `src/features/today/grouping.test.ts`; e2e `today.spec.ts`, `hub.spec.ts`
 
 ### Calendar (the day)
-A day timetable and a week grid of blocks: repeating series, outcomes, a block tied to a habit, reminders before a block, semesters, moods.
+A day and a week grid of blocks: repeating series, outcomes, reminders before a block. A block's kind is one of Deep work, Meeting, Call, Admin, Away (`BLOCK_KINDS`), each with its own colour, or whatever was typed.
 - A repeating block's form offers *Save every one from here* (`blocks:updateSeries`): name, time, length and kind from that day on; past ones untouched, other fields only for the one opened.
-- Terms are listed and removed in the Timetable dialog (`terms:delete`), in your home workspace; removing one takes its name and dates, never its classes.
-- UI: `src/features/day/` · Logic: `shared/day.ts`, `repeat.ts`, `priority.ts`, `remind.ts` · Main: `services/day.ts`, `repositories/blocks.ts`, `repositories/terms.ts`
-- Tables: `blocks`, `block_series`, `terms` · IPC: `day:`, `week:`, `blocks:`, `terms:` · Tests: `services/day.test.ts`, `shared/day.test.ts`, `repeat.test.ts`, `priority.test.ts`; e2e `week.spec.ts`
+- **A usual week** (`UsualWeek.tsx`, the button on the Calendar): the hours that are the same every week, entered as rows and put on the calendar as one repeat each, until a day. It was the Timetable; there are no terms.
+- UI: `src/features/day/` · Logic: `shared/day.ts`, `repeat.ts`, `priority.ts`, `remind.ts` · Main: `services/day.ts`, `repositories/blocks.ts`
+- Tables: `blocks`, `block_series` · IPC: `day:`, `week:`, `blocks:` · Tests: `services/day.test.ts`, `shared/day.test.ts`, `repeat.test.ts`, `priority.test.ts`; e2e `week.spec.ts`
+
+### The week
+At the head of the Calendar's week (phase 35): what happened in the week shown - tasks done, people reached and who answered, deals moved (a deal that closed counts) and won or lost, money invoiced and paid, hours planned and kept unless marked skipped - what has slipped as of today (this week only: overdue, going quiet, unpaid and late), and **three things for the week after**, typed there. Read from what is kept; nothing is filled in for it. The three are at the head of Today until each is ticked or the week ends, and in Monday's morning brief. A week still to come shows only its own three.
+- UI: `src/features/day/WeekReview.tsx`, `src/features/today/WeekThree.tsx` · Logic: `shared/week.ts` · Main: `services/week.ts` (`weekReview`, `setWeekThings`, `markWeekThing`, `thisWeeksThings`), `sayBrief` in `shared/nudges.ts`
+- Tables: `week_things` · IPC: `week:review`, `week:things`, `week:things-set`, `week:thing-done` · Tests: `services/week.test.ts`, `shared/nudges.test.ts`; e2e `week.spec.ts`
 
 ### Tasks
-One list per workspace: day, time, priority, contact, area; completed, snoozed, reopened.
+One list per workspace: day, time, priority, contact; completed, snoozed, reopened. *Due today* is headed by kind (`groupDue`), never by area: a task has none.
 - Edited from the pencil on a row, on Today and on a contact's next steps: `TaskForm` given a `task` opens in the row's place and saves the whole task through `tasks:update`.
-- Main: `repositories/tasks.ts` · Tables: `tasks` · IPC: `tasks:` · Touches: Today, contacts, pages (steps), progress, Google Tasks.
+- Main: `repositories/tasks.ts` · Tables: `tasks` · IPC: `tasks:` · Touches: Today, contacts, pages (steps), Google Tasks.
 
 ### Notes
-Quick notes at the foot of Today, also from the quick window. There is no Notes screen.
+Quick notes on Today, beside the work, also from the quick window. There is no Notes screen.
 - UI: `src/features/notes/NotesScreen.tsx` (inside Today), `Capture.tsx` · Main: `repositories/notes.ts` · Tables: `notes` · IPC: `notes:`, `capture:`
 
-### Journal, private lines and the lock
-Journal days are pages in a personal section (three prompts, a mood, what the day held). Private lines live in their own table. A passcode seals finished days - and today as it is written, when asked - and relocks after 15 idle minutes, when the computer locks or sleeps. A recovery key, shown once, can replace a forgotten passcode. New passcodes are held to `passcodeStrength`. Words added to a sealed entry are sealed as parts, without the passcode. The journal has its own search, which reads locked days in memory while it is open. With a passcode the window is kept out of screen capture.
-- UI: `src/features/life/JournalScreen.tsx`, `JournalCalendar.tsx`, `JournalCard.tsx`, `JournalLock.tsx`, `JournalSearch.tsx`, `PrivateLines.tsx`, `DayRecordCard.tsx`
-- Logic: `shared/life.ts`, `entry.ts`, `private.ts`, `passcode.ts` · Main: `services/life.ts`, `private.ts`, `journal-lock.ts`, `journalread.ts`, `leave.ts` (locks on leaving), `ipc/life.ts`
-- Tables: `journal_private`, `journal_sealed` · Settings: `journalLock`, `journalLockToday` · IPC: `life:` · Tests: `services/life.test.ts`, `journal-lock.test.ts`, `private.test.ts`; e2e `journal-lock.spec.ts`
-- Never read by Ask, the "You" document or the topic brief when private or sealed.
-
-### Looking back
-A reading of the journal over a month, a season, a year or everything, by a model, beside the numbers for each month (days written, words, mood, tasks done, calls, habits kept, contacts added). Ollama on this computer by default (`isOnThisComputer` holds it to a local address); the connected AI only after a warning and the passcode typed again, or SEND without one. Long journals are read a part at a time and the notes brought together. Nothing is kept; private lines never go.
-- UI: `src/features/life/LookBack.tsx` (opened from the journal) · Logic: `shared/lookback.ts` · Main: `services/lookback.ts` (Ollama's `/api/chat` directly; the connected AI through `completeAway` in `services/ask.ts`)
-- Setting: `lookBackLocal` · IPC: `life:lookback-*` · Tests: `shared/lookback.test.ts`, `services/lookback.test.ts`; e2e `journal-lock.spec.ts`
-
-### Life, studies, hobbies and the shelf
-The You overview. Studies (courses, grades, exams, time), hobbies (measures, a heat grid, time), terms, a reading shelf with optional Open Library covers, your year.
-- UI: `src/features/life/` (`LifeScreen`, `StudiesPanel`, `HobbiesPanel`, `HobbyBoards`, `ReadingShelf`, `YourYear`, `TimeCard`) · Logic: `shared/life.ts`, `tracker.ts`, `hobbies.ts`, `books.ts`, `covers.ts`, `subjects.ts`
-- Main: `services/life.ts`, `tracker.ts`, `covers.ts` · Tables: `hobby_logs`, `shelf_books`, `terms` · IPC: `life:`, `terms:`
-
-### Goals and theme days
-Goals with check-ins and charts; weekday theme days; a company goal.
-- UI: `GoalsPanel.tsx`, `GoalCard.tsx`, `CompanyGoals.tsx`, `ThemeDays.tsx`, `TodayTheme.tsx` · Logic: `shared/goals.ts` · Main: `services/goals.ts`
-- Tables: `goal_checkins`, `day_themes` · Tests: `services/goals.test.ts`; e2e `goals.spec.ts`
-
-### Habits
-Daily habits ticked on Today with their run of days; a habit can be tied to a block.
-- UI: `HabitsCard.tsx`, `HabitsPanel.tsx` · Logic: `shared/habits.ts` · Main: `services/habits.ts` · Tables: `habits`, `habit_checks` · IPC: `habits:`
-
-### Vision board
-- UI: `VisionBoard.tsx`, `src/lib/picture.ts` · Main: `services/vision.ts` · Tables: `vision_tiles` · IPC: `vision:` · e2e `vision.spec.ts`
-
-### Pulse
-How you have been, read from what was already logged; quiet days.
-- UI: `PulseCard.tsx` · Logic: `shared/pulse.ts` · Main: `services/pulse.ts` · Tables: `day_checkins`
-
-### Levels and progress
-A level, XP and achievements worked out from what was done, never from opening the app. Hidden by a setting.
-- UI: `src/features/life/levels.ts`, `LevelStrip.tsx`, `ProgressCards.tsx` · Logic: `shared/progress.ts` · Main: `services/progress.ts` · IPC: `progress:`
-
-### Ember
-A flame on the quick line with physics, a wardrobe, a book of what she knows, growth fed by habits and levels; she can walk the taskbar in her own window.
-- UI: `src/components/Ember.tsx`, `src/features/ember/`, `src/features/pet/Pet.tsx`, `PetCard.tsx`, `src/lib/chirp.ts`, `src/lib/emberPrefs.ts`
-- Logic: `shared/ember.ts`, `growth.ts`, `ascent.ts`, `body.ts`, `closet.ts`, `wardrobe.ts`, `pet.ts` · Main: `services/embergrowth.ts`, `electron/main/pet.ts`, `electron/main/foreground.ts` (koffi, full-screen check)
-- IPC: `ember:`, `pet:` · Tests: `shared/ember.test.ts` and siblings; e2e `ember.spec.ts`, `pet.spec.ts`
-- On the taskbar she is a dot, walking, or hidden (`petForm` in `shared/pet.ts`, setting `petOpen`; never set is a dot). The dot is `.pet__dot` in `Pet.tsx`: only it takes the pointer, and hovering brings her out for as long as it is on her plus a moment (`LINGER_MS`). Main keeps a dot still at the clock end (`electron/main/pet.ts`) and tells the page its form (`pet:form`).
-- Her closet is 28 pieces (`shared/closet.ts`, sprites in `WEAR` / `WEAR_BACK`, shoes as colours in `ember.css`), unlocked by level in `growth.ts`; her own daily pick varies what is at her neck and on her feet as well as one extra.
-- What she hits reacts through `element.animate()` (`thump`, `quake` in `EmberStage.tsx`), never a class: a class replaced a card's own entrance animation and started it again, so the card vanished and faded back.
-
-### Hello and the line under the day
-Greeting by the name in "This is me", with a joke, pun or tip under it.
-- UI: `src/features/today/Hello.tsx`, `said.ts` · Logic: `shared/voice.ts` · Note: `hello` in `services/gsync.ts` is the script handshake, not this.
+### Hello
+One plain line by the hour - "Good evening, Adi." - from the name in "This is me", and under it the day in numbers ("2 things to do today, and 1 late", or "Nothing due today.").
+- UI: `src/features/today/Hello.tsx` · Logic: `greet` in `shared/voice.ts` · Note: `hello` in `services/gsync.ts` is the script handshake, not this.
+- `shared/voice.ts` also holds the examples the quick window shows in its empty line (`taskExample`, remembered by `said.ts`); `voice.test.ts` reads every one through `parseQuick`.
 
 ---
 
 ## Shell and the machine
 
 ### Settings
-Four groups: **Workspace** (This is me, companies, your own fields, stages, templates), **Planning** (your words, Tune, what the line has learnt, reminders), **Connections** (Google, other mail accounts, AI), **This computer** (appearance, updates, quick add from anywhere, desk widget, Ember, your data).
+Four groups: **Workspace** (This is me, companies, your own fields, stages, templates), **Planning** (Tune, what the line has learnt, reminders), **Connections** (Google, contacts in a Google Sheet, other mail accounts, AI), **This computer** (appearance, updates, quick add from anywhere, desk widget, understanding, your data).
 - UI: `src/features/settings/` · Main: `repositories/settings.ts` plus each card's own service
 
 ### Notifications
-Three services, all off until switched on: `notify.ts` (daily digest, never before 9), `remind.ts` (before a block), `nudges.ts` (reminders asked for, the journal hour, a morning brief). A click sends `nav:go`.
+Three services, all off until switched on: `notify.ts` (daily digest, never before 9), `remind.ts` (before a block), `nudges.ts` (reminders asked for, a morning brief). A click sends `nav:go`.
 - Tables: `reminders` · IPC: `notify:`, `nudges:` · Tests: `shared/nudges.test.ts`, `remind.test.ts`, `services/nudges.test.ts`
 
 ### Tray
 Tray icon, a quick window beside it, right-click menu, keep in tray on close.
 - Main: `electron/main/tray.ts`, `popup.ts`, `capture.ts`, `identity.ts` · e2e `tray.spec.ts`
 
+### Opening when Windows starts
+On from the first launch of an installed copy (the owner's decision, 15 October 2026; `startupSet` remembers it was decided), and a checkbox beside *Keep Caulder in the tray*. The installer's copy registers a login item with `--at-login` and, kept in the tray, opens there with no window; a notification or the tray makes the window. A Store copy cannot register itself: the package declares a startup task (`resources/appx-startup.xml`, through `customExtensionsPath`), it opens with its window, and Settings sends you to Windows' Startup apps to change it.
+- Main: `electron/main/startup.ts` · IPC: `app:startup`, `app:set-startup`, `app:startup-apps` · UI: `SettingsScreen.tsx`
+
 ### Desk widget
-A pill on the desktop: now, next, late. Three levels, one pinned behind the wallpaper with koffi.
+A pill on the desktop naming the one thing worth a glance, with the mark, and a panel when the pointer rests on it for half a second (not when it passes). Three levels, one pinned behind the wallpaper with koffi.
+- **What it says** is decided in `shared/widget.ts` and worded in `Widget.tsx`. The pill (`deskGlance`) names the thing, soonest first: a block starting within ten minutes, a reply, the first late task, what is on, what is next, the first task due - and "+2" for the rest. The panel: the day's date, what is left of the day with what is on now marked (`deskHours`), the late and due tasks by name with a tick each (`deskTasks`, four at most), then who replied, invoices unpaid and late, prospects waiting, people reached (`deskFacts`).
+- **Clicked and dragged** (17 October 2026): a press on the pill or the panel's head opens Caulder on Today; a press that moves drags it, main following the cursor (`dragWidget`), so there is no drag region swallowing clicks. A task is ticked off from its row. At the desktop level Windows takes the clicks, so the ticks are not drawn there.
 - UI: `src/features/widget/Widget.tsx`, `DeskCard.tsx` · Logic: `shared/widget.ts` · Main: `electron/main/widget.ts`, `desk.ts`, `wallpaper.ts` · IPC: `widget:` · Tests: `desk.test.ts`, `shared/widget.test.ts`; e2e `widget.spec.ts`
 
 ### Backups, restore and export
@@ -486,7 +594,8 @@ A backup on every launch (ten kept), on demand, a mirror folder, a Drive copy; r
 
 ### Updates and the Microsoft Store
 electron-updater from GitHub Releases; a Store copy never looks. What goes into Partner Center beside the package is `reference/store-listing.md`.
-- UI: `UpdatesCard.tsx` · Main: `electron/main/updates.ts`, `store-home.ts` · Packaging: `electron-builder.yml` (NSIS and appx), `scripts/package-store.mjs`, `scripts/smoke-packaged.mjs`
+- UI: `UpdatesCard.tsx` · Main: `electron/main/updates.ts`, `store-home.ts` · Packaging: `electron-builder.yml` (NSIS, and the Store's .msix through the appx target), `scripts/package-store.mjs`, `scripts/smoke-packaged.mjs`
+- Branding: `branding/` (the mark, icons, lockup, the Store's logos and art, link previews), written by `scripts/branding.py` from `assets/caulderLogo.png`; the app's own copies are `scripts/logo.py`'s
 
 ### Free, and who made it (part six)
 About Caulder in Settings (the ways to help, Privacy, Licences), and the ask for support at the foot of Today: a month after first open, again three months after *Not now*, never after supporting or *Don't ask again*, and not while an invoice is overdue.
@@ -514,14 +623,13 @@ Light, dark or system before first paint; an accent per company; colour only in 
 | Google Calendar and Tasks | `services/scheduler.ts` | Every 10 min when switched on; 25 s after a local change; backs off on failure |
 | Gmail watch | `scheduler.ts` | Every 10 min while mail is in play |
 | Other accounts' scheduled mail | `scheduler.ts` | Every minute |
-| Shared brain | `scheduler.ts` | Every 3 min for a shared company |
+| Contacts as a Google Sheet | `scheduler.ts` | 40 s after start, then every 10 min, for each company linked to one |
 | Daily digest | `services/notify.ts` | 5 min tick |
 | Before a block | `services/remind.ts` | 30 s tick |
 | Nudges | `services/nudges.ts` | 30 s tick |
 | Updates | `electron/main/updates.ts` | 30 s after start, then every 6 h; never in a Store copy |
 | Backup | `electron/main/db/backup.ts` | Once at launch |
 | Widget hover | `electron/main/widget.ts` | 180 ms |
-| Ember's walk | `electron/main/pet.ts` | 250 ms |
 | Understanding | `services/understand.ts` | 20 s after start; then every 1.5 s while the queue has rows, every 30 s when it has none; only when on and the model is here |
 
 ---
@@ -532,7 +640,7 @@ Do not rebuild these without a new decision in PLAN.md.
 
 | Feature | Why it went |
 | --- | --- |
-| Focus (site blocker, foreground poll) | A blocker inside a CRM, Windows-only, walkable. `foreground.ts` now exists only for Ember's full-screen check. |
+| Focus (site blocker, foreground poll) | A blocker inside a CRM, Windows-only, walkable. `foreground.ts` went with Ember on 10 October 2026. |
 | Review | A habit tracker inside a CRM. (Habits came back later as one card, not a review.) |
 | Forecast screen | Two closed deals cannot carry a curve. Deals shows one line of totals. |
 | Rule builder | One rule everyone wants: the built-in follow-up. |
@@ -542,6 +650,20 @@ Do not rebuild these without a new decision in PLAN.md.
 | A `team` workspace kind | Needs sync, accounts and conflict resolution. |
 | A Notes screen | Notes sit at the foot of Today. |
 | Marketing verdicts | Spend is a ledger with an optional label; a return is a sum, not a judgement. |
+| **The personal half** (10 October 2026): the journal with its passcode, private lines and Looking back; Life - studies, hobbies, the reading shelf, your year; goals and theme days; habits; the vision board; Pulse; your level, XP and achievements; personal memories and the *You* document for an AI | The owner's decision: Caulder is the complete app for a one-person company, and nothing else's. A third of the code was a second product. Migration 49 dropped its tables and deleted its pages. |
+| The line's personal kinds: journal, private, hobby, done | With the personal half. Ten kinds read about half of unseen lines rightly; most misses were one personal kind taken for another. |
+| Founder sharing: the shared brain, the brain file, invitations | To be made again later and differently. The script's invitation door went with it. |
+| **Ember** (10 October 2026): the flame on the quick line and everything she did - moods, pastimes, tricks, dances, costumes and her closet, her book, her door, being picked up and thrown, her temper and the fire, her sounds and catchphrases, growing on the work (levels, warmth, marshmallows, presents), and her window on the taskbar, walking or as a dot | The owner's decision: professional and minimal. About 14,000 lines. The line's mode is said by its switches' pressed state, their titles and the placeholder (`shared/linemode.ts`). |
+| Jokes, puns and quotations on Today, sixty ways of saying hello, and quips on a clear day | With Ember. Today says good morning and the day in numbers. |
+| The flame colours of the line's modes (`--flame-*`) | With Ember. |
+| **People and hiring** (11 October 2026): the team with pay, equity and vesting, roles being hired for, candidates and their stages, onboarding as tasks; a person as a kind of link, a dot on the Map, a search result and a source of deadlines; "People and equity" in the data room | The owner's decision: a one-person company has no team. To come back, if it does, as collaborators. `people` and `openings` are left in place and unread (migration 52), because `tasks.person_id` refers to them; Export everything still writes them out. An item `@`-named in a page's steps keeps the name in the task's words. |
+| Asking the AI and copying context from Today's line (11 October 2026) | Each was in two places. Both stay on the Brain's first page; the line files what is typed and does nothing else. The line's own questions - "what is on tomorrow" - are answered as before, from what is stored. |
+| The campaign a contact or a spend came from (11 October 2026) | Nothing could set one since migration 18. The columns stay; `source` on a contact says where they came from. |
+| **A task's area** - College, Company, Personal, Health (11 October 2026, phase 32): the chip on the line's reading and `#tags`, the Area field on a task, *Due today* headed by area, **Your words** in Settings, the names Tune asked about, lessons about an area, the model's opinion of one | Four answers to a question nobody running a company is asked. `tasks.area`, `area_words`, `line_lessons.area` and the `name` rows of `line_guesses` are left in place and unread. To tell work apart, a task has a kind and a contact. |
+| **The Timetable and its terms** (phase 32): a named term built from a week of classes, "until the end of term" on the line | It is *A usual week* on the Calendar: the same editor of repeating blocks, until a day, with nothing to name. `terms` is left in place and unread. |
+| **Class, Studying, Break and Personal** as kinds of block (phase 32) | A working day's are Deep work, Meeting, Call, Admin and Away; migration 53 made Away of the four. Away is anything that is not work, without saying what. |
+| **Alt phone, Location and PIN** on a contact's form (phase 32) | They came from the first customer's spreadsheet. Kept, imported and shown where a contact has them; the form has Role beside the contact person instead. |
+| Market, Make, and money from shops online (part six, phases 26 to 28) | Never built. More breadth, when outreach and the week were the thin parts. |
 
 Came back after being removed: the **desk widget** and its wallpaper level
 (0.4.5, asked for by name) and a one-time **Today tour** (`src/components/Tour.tsx`).

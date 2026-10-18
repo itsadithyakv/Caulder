@@ -261,7 +261,7 @@ function ProductView({
 
       <Card
         title="The price book"
-        hint="What you ask, and when you asked it. A price that changed is a new row, so what was charged before still makes sense."
+        hint="A price change is a new row."
         actions={
           pricing === null && (
             <button type="button" className="btn btn--sm btn--primary" onClick={() => setPricing("new")}>

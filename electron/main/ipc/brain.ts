@@ -1,6 +1,5 @@
 import { clipboard, dialog } from "electron";
 import { CHANNELS } from "@shared/ipc";
-import { resealIfPast } from "../services/journal-lock";
 import { getDatabase } from "../db/connection";
 import { assertId, handle } from "./handle";
 import {
@@ -19,23 +18,21 @@ import {
   sectionPages,
 } from "../services/brain";
 import { exportBrain } from "../services/brain-export";
-import { homeCompanyId } from "../repositories/companies";
 import { exportDossier } from "../services/dossier";
 import { nearestTo, readFirstFor, understandingOn } from "../services/understand";
 import { modelHere, readLines } from "../understand/host";
-import { buildYouExport } from "../services/yours";
 import { z } from "zod";
 
-/** What goes with Export for an AI besides the company (phase 22). */
+/** What Export for an AI is told besides which company (phase 22). */
 const dossierOptions = z.object({
-  you: z.boolean().optional(),
   purpose: z.string().max(200, "Say what it is for in under 200 characters.").optional(),
 });
 import { buildTopicBrief } from "../services/topic";
 import { backlinks, connect, disconnect, keepPositions, letGo, linkTargetsFor, localMap, wholeMap } from "../services/map";
 import { makeTasks, pageTasks } from "../services/steps";
-import { allMemories, editMemory, forgetMemory } from "../services/memories";
+import { allMemories, editMemory, forgetMemory, pageTitles } from "../services/memories";
 import { remember } from "../services/remember";
+import { applySort, rulesOn, sortPlan } from "../services/howwework";
 import { decisionLog } from "../services/brain";
 
 /** A copied number is wiped from the clipboard after this, if nothing replaced it. */
@@ -60,11 +57,7 @@ export function registerBrainHandlers(): void {
   );
 
   handle(CHANNELS.brainSave, (_event, id: unknown, input: unknown) => {
-    const page = savePage(getDatabase(), pageOf(id), input, new Date());
-    // A journal entry for a day that is over goes back under its seal; the
-    // window keeps the words it just saved.
-    resealIfPast(getDatabase(), page.id);
-    return page;
+    return savePage(getDatabase(), pageOf(id), input, new Date());
   });
 
   handle(CHANNELS.brainPin, (_event, id: unknown, pinned: unknown) =>
@@ -137,15 +130,8 @@ export function registerBrainHandlers(): void {
     const db = getDatabase();
     const purpose = options.purpose?.trim() || null;
     const reading = understandingOn(db) && modelHere() ? readLines : null;
-    const home = homeCompanyId(db);
     const first = purpose && reading ? await readFirstFor(db, reading, id, purpose).catch(() => []) : [];
-    const facts =
-      purpose && reading && options.you && home
-        ? (await nearestTo(db, reading, [home], purpose, { kinds: ["memory"], most: 30, floor: 0.3 }).catch(() => [])).map((hit) => hit.ref)
-        : [];
-    const you = options.you ? buildYouExport(db, new Date(), { purpose: purpose ?? undefined, first: facts }) : null;
     return exportDossier(db, id, company.name, picked.filePaths[0], { secrets: secrets === true }, new Date(), {
-      you,
       purpose: purpose ? { said: purpose, first } : null,
     });
   });
@@ -155,7 +141,7 @@ export function registerBrainHandlers(): void {
   );
 
   // The brief goes on the clipboard from here rather than being handed to
-  // the window to copy: it is the journal and the contacts written out in
+  // the window to copy: it is the pages and the contacts written out in
   // full, and the screen has no use for the words. It is also not wiped
   // after thirty seconds the way a revealed number is - the whole point is
   // to paste it into something else, which may be minutes away.
@@ -180,10 +166,16 @@ export function registerBrainHandlers(): void {
 
   handle(CHANNELS.brainBacklinks, (_event, kind: unknown, id: unknown) => backlinks(getDatabase(), kind, id));
 
-  handle(CHANNELS.brainMemories, () => allMemories(getDatabase()));
+  handle(CHANNELS.brainTitles, (_event, companyId: unknown) => pageTitles(getDatabase(), companyOf(companyId)));
+  handle(CHANNELS.brainMemories, (_event, companyId: unknown) => allMemories(getDatabase(), companyOf(companyId)));
   handle(CHANNELS.brainEditMemory, (_event, input: unknown) => editMemory(getDatabase(), input, new Date()));
   handle(CHANNELS.brainForgetMemory, (_event, input: unknown) => forgetMemory(getDatabase(), input, new Date()));
   handle(CHANNELS.brainRemember, (_event, input: unknown) => remember(getDatabase(), input, new Date()));
+  handle(CHANNELS.brainRulesOn, (_event, companyId: unknown, subject: unknown) => rulesOn(getDatabase(), companyOf(companyId), subject));
+  handle(CHANNELS.brainSortPlan, (_event, companyId: unknown, pageId: unknown) =>
+    sortPlan(getDatabase(), companyOf(companyId), assertId(pageId, "page id")),
+  );
+  handle(CHANNELS.brainSortApply, (_event, companyId: unknown, input: unknown) => applySort(getDatabase(), companyOf(companyId), input));
 
   handle(CHANNELS.brainMap, (_event, companyId: unknown, allContacts: unknown) =>
     wholeMap(getDatabase(), companyOf(companyId), allContacts),
@@ -201,17 +193,12 @@ export function registerBrainHandlers(): void {
     letGo(getDatabase(), companyOf(companyId));
   });
 
-  // Linking on the Map writes into a page, so a journal day goes back under its seal after, as with a save.
-  handle(CHANNELS.brainConnect, (_event, companyId: unknown, from: unknown, to: unknown) => {
-    const outcome = connect(getDatabase(), companyOf(companyId), from, to, new Date());
-    if (!outcome.already) resealIfPast(getDatabase(), outcome.pageId);
-    return outcome;
-  });
+  handle(CHANNELS.brainConnect, (_event, companyId: unknown, from: unknown, to: unknown) =>
+    connect(getDatabase(), companyOf(companyId), from, to, new Date()),
+  );
 
   handle(CHANNELS.brainDisconnect, (_event, companyId: unknown, one: unknown, other: unknown) => {
-    for (const pageId of disconnect(getDatabase(), companyOf(companyId), one, other, new Date())) {
-      resealIfPast(getDatabase(), pageId);
-    }
+    disconnect(getDatabase(), companyOf(companyId), one, other, new Date());
   });
 
   handle(CHANNELS.brainSteps, (_event, id: unknown) => pageTasks(getDatabase(), pageOf(id)));

@@ -1,9 +1,7 @@
 import type { Db } from "../db/connection";
 import { z } from "zod";
 import { MODEL, belongsOn, fromBytes, nearest, saidAgain, similarity, textHash, type LooseEnds, type Related, type UnderstandState } from "@shared/understand";
-import { TRIVIA_PAGE } from "@shared/facts";
-import { ROOT } from "@shared/branches";
-import { homeCompanyId, isHomeWorkspace } from "../repositories/companies";
+import { REMEMBER_PAGE } from "@shared/capture";
 import { memoriesOf, type Memory } from "@shared/memories";
 import { allMemories } from "./memories";
 import type { BrainSectionId } from "@shared/brain";
@@ -165,15 +163,11 @@ export function forgetSeeds(): void {
   seedVectors = null;
 }
 
-/** Pages a memory can be kept on: yours, not the company's. */
-const MEMORY_HOMES = new Set(["hobbies", "studies", "ideas", "goals", "remembered"]);
-
 /**
  * What the line's neighbours in meaning were filed as, for shared/opinion.ts
- * to weigh: the seeds, and the person's own tasks, memories, notes, ideas and
- * pages in these workspaces. A contact votes for nothing - who a line is
- * about is found by name - and neither does a company's page, which is never
- * where a memory goes.
+ * to weigh: the seeds, and the tasks, memories, notes, ideas and pages in
+ * these workspaces. A contact votes for nothing - who a line is about is
+ * found by name. Any page of the brain is somewhere a memory can go.
  */
 export async function examplesFor(db: Db, read: Read, companyIds: readonly string[], text: string): Promise<Example[]> {
   const [query] = await read([text]);
@@ -189,12 +183,10 @@ export async function examplesFor(db: Db, read: Read, companyIds: readonly strin
     .slice(0, OPINION.most * 2);
 
   const pageOf = db.prepare(`SELECT id, title, section, template FROM brain_pages WHERE id = ?`);
-  const areaOf = db.prepare(`SELECT area FROM tasks WHERE id = ?`);
   const examples: Example[] = [];
   for (const { row, score } of own) {
     if (row.kind === "task") {
-      const task = areaOf.get(row.sourceId) as { area: string | null } | undefined;
-      examples.push({ kind: "task", score, own: true, area: task?.area ?? null });
+      examples.push({ kind: "task", score, own: true });
       continue;
     }
     if (row.kind === "note") {
@@ -204,9 +196,7 @@ export async function examplesFor(db: Db, read: Read, companyIds: readonly strin
     const page = pageOf.get(row.sourceId) as { id: string; title: string; section: string; template: string } | undefined;
     if (!page) continue;
     if (row.kind === "page" && page.template === "idea") examples.push({ kind: "idea", score, own: true });
-    else if (MEMORY_HOMES.has(page.section)) {
-      examples.push({ kind: row.kind === "memory" ? "memory" : null, score, own: true, page: { id: page.id, title: page.title } });
-    }
+    else examples.push({ kind: row.kind === "memory" ? "memory" : null, score, own: true, page: { id: page.id, title: page.title } });
   }
   return [...examples, ...seeds];
 }
@@ -216,9 +206,8 @@ export async function examplesFor(db: Db, read: Read, companyIds: readonly strin
  * the line to fuse with what the words found: "which beans do i like" finds
  * "ethiopian coffee is fruity", which shares no word with it.
  */
-export async function memoriesByMeaning(db: Db, read: Read, about: string): Promise<Memory[]> {
-  const { companyId, memories } = allMemories(db);
-  if (!companyId) return [];
+export async function memoriesByMeaning(db: Db, read: Read, companyId: string, about: string): Promise<Memory[]> {
+  const { memories } = allMemories(db, companyId);
   const byRef = new Map(memories.map((memory) => [`${memory.pageId}#${textHash(memory.raw)}`, memory]));
   const near = await nearestTo(db, read, [companyId], about, { kinds: ["memory"], most: 8, floor: 0.35 });
   return near.map((hit) => byRef.get(hit.ref)).filter((memory): memory is Memory => memory !== undefined);
@@ -227,17 +216,13 @@ export async function memoriesByMeaning(db: Db, read: Read, about: string): Prom
 /**
  * What is near a page in meaning and not linked to it (phase 21): pages -
  * a memory counting for the page it is on - and contacts, most alike first.
- * Read from what is already kept; nothing is asked of the model. A company's
- * page looks only in its company, the way it links (repositories/links.ts);
- * a page of yours looks everywhere.
+ * Read from what is already kept; nothing is asked of the model. A page
+ * looks only in its own company, the way it links (repositories/links.ts).
  */
 export function relatedTo(db: Db, pageId: string, most = 5, floor = 0.4): Related[] {
   const page = db.prepare(`SELECT company_id FROM brain_pages WHERE id = ?`).get(pageId) as { company_id: string } | undefined;
   if (!page) return [];
-  const reach = isHomeWorkspace(db, page.company_id)
-    ? (db.prepare(`SELECT id FROM companies WHERE is_archived = 0`).all() as { id: string }[]).map((row) => row.id)
-    : [page.company_id];
-  const all = vectorsIn(db, reach, MODEL);
+  const all = vectorsIn(db, [page.company_id], MODEL);
   const own = all.find((row) => row.kind === "page" && row.ref === pageId);
   if (!own) return [];
   const mine = fromBytes(own.vector);
@@ -253,7 +238,7 @@ export function relatedTo(db: Db, pageId: string, most = 5, floor = 0.4): Relate
     const had = best.get(row.sourceId);
     if (!had || had.score < score) best.set(row.sourceId, { kind: row.kind === "contact" ? "contact" : "page", score, ref: row.ref, rowKind: row.kind });
   }
-  const titleOf = db.prepare(`SELECT title, body FROM brain_pages WHERE id = ? AND is_archived = 0 AND section <> 'journal'`);
+  const titleOf = db.prepare(`SELECT title, body FROM brain_pages WHERE id = ? AND is_archived = 0`);
   const nameOf = db.prepare(`SELECT name FROM leads WHERE id = ?`);
   return [...best.entries()]
     .sort((a, b) => b[1].score - a[1].score)
@@ -270,8 +255,8 @@ export function relatedTo(db: Db, pageId: string, most = 5, floor = 0.4): Relate
     .slice(0, most);
 }
 
-/** The pages loose memories pile up on when the line knows nowhere better. */
-const CATCH_ALL = [TRIVIA_PAGE, ROOT.title];
+/** The page loose memories pile up on when the line knows nowhere better. */
+const CATCH_ALL = [REMEMBER_PAGE];
 
 function leftAlone(db: Db): Set<string> {
   try {
@@ -288,14 +273,12 @@ function leftAlone(db: Db): Set<string> {
  * is read without the page it is on, against the titles of the pages it could
  * go to, and goes only where belongsOn (shared/understand.ts) is sure.
  */
-export async function looseEnds(db: Db, read: Read): Promise<LooseEnds> {
-  const companyId = homeCompanyId(db);
-  if (!companyId) return [];
+export async function looseEnds(db: Db, read: Read, companyId: string): Promise<LooseEnds> {
   const pages = db
-    .prepare(`SELECT id, title, section, body FROM brain_pages WHERE company_id = ? AND is_archived = 0 AND section <> 'journal'`)
+    .prepare(`SELECT id, title, section, body FROM brain_pages WHERE company_id = ? AND is_archived = 0`)
     .all(companyId) as { id: string; title: string; section: BrainSectionId; body: string }[];
   const catchAll = pages.filter((page) => CATCH_ALL.includes(page.title));
-  const homes = pages.filter((page) => !CATCH_ALL.includes(page.title) && MEMORY_HOMES.has(page.section));
+  const homes = pages.filter((page) => !CATCH_ALL.includes(page.title));
   const left = leftAlone(db);
   const loose = catchAll.flatMap((page) =>
     memoriesOf(page)
@@ -357,6 +340,13 @@ const IDLE_MS = 30_000;
 
 let timer: NodeJS.Timeout | null = null;
 let lastProblem: string | null = null;
+/**
+ * Which run of the loop is the live one. A pass still reading when the loop is
+ * stopped - on the way out, the model killed under it - must not schedule
+ * another: it did, and the next pass started a fresh model while the app was
+ * quitting, and the process never went.
+ */
+let generation = 0;
 
 /**
  * Works through the queue while understanding is on and the model is here.
@@ -365,6 +355,7 @@ let lastProblem: string | null = null;
  */
 export function startUnderstanding(db: () => Db, read: Read, here: () => boolean): void {
   stopUnderstanding();
+  const mine = ++generation;
   const tick = async () => {
     let busy = false;
     try {
@@ -378,7 +369,7 @@ export function startUnderstanding(db: () => Db, read: Read, here: () => boolean
       if (message !== lastProblem && isFault(error)) logProblem("understanding", error);
       lastProblem = message;
     } finally {
-      timer = setTimeout(() => void tick(), busy ? BUSY_MS : IDLE_MS);
+      if (generation === mine) timer = setTimeout(() => void tick(), busy ? BUSY_MS : IDLE_MS);
     }
   };
   // Not at once: the window has just opened, and it comes first.
@@ -386,6 +377,7 @@ export function startUnderstanding(db: () => Db, read: Read, here: () => boolean
 }
 
 export function stopUnderstanding(): void {
+  generation += 1;
   if (timer) clearTimeout(timer);
   timer = null;
 }

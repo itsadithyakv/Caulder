@@ -295,6 +295,8 @@ function Column({
             stageId={column.stageId}
             stages={stages}
             busy={busy}
+            money={money}
+            closed={depth === "won" || depth === "lost"}
             onOpen={() => onOpenLead(card.leadId)}
             onMove={(stageId) => onMove(card.id, stageId)}
             onDragStart={() => onDragStart(card.id)}
@@ -347,17 +349,13 @@ function LossReason({
   return (
     <div className="scrim anim-in" onClick={onClose} role="presentation">
       <div
-        className="card lossask anim-modal"
+        className="card card--float lossask anim-modal"
         role="dialog"
         aria-modal="true"
         aria-label={`Why was ${name} lost?`}
         onClick={(event) => event.stopPropagation()}
       >
         <h2 className="card__title">Why was {name} lost?</h2>
-        <p className="card__hint">
-          The forecast can already tell you how often you lose. This is the only
-          thing that can tell you why.
-        </p>
 
         <div className="lossask__options">
           {LOSS_REASONS.filter((reason) => reason !== "other").map((reason) => (

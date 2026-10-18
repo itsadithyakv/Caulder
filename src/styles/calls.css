@@ -224,10 +224,13 @@ button.prompter__deal {
 
 button.prompter__deal:hover { border-color: var(--border-input); }
 
+/* The one chosen: the same edge all round in the accent, and its tint behind.
+ * Never a bar down one side - an edge heavier on one side than the others
+ * reads as decoration, and says nothing the tint does not. */
 .prompter__deal--on,
 button.prompter__deal--on:hover {
   border-color: var(--accent);
-  box-shadow: inset 3px 0 0 var(--accent);
+  background: var(--accent-soft);
 }
 
 .prompter__deal:focus-visible {
@@ -385,7 +388,7 @@ button.prompter__deal--on:hover {
 /* What gets said first reads first. */
 .script__part--opening {
   border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
-  box-shadow: inset 3px 0 0 var(--accent);
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
 }
 
 .script__label {
@@ -474,7 +477,7 @@ button.prompter__deal--on:hover {
 .objection {
   padding: var(--space-3) var(--space-4);
   background: var(--accent-soft);
-  border-left: 3px solid var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border));
   border-radius: var(--radius-sm);
 }
 

@@ -1,6 +1,4 @@
 import type { BrainSectionId } from "./brain";
-import { monthDayOf } from "./lifefacts";
-import { daysBetween } from "./dates";
 
 /**
  * What the line has been told to remember, read back out of the brain.
@@ -83,70 +81,44 @@ export function valueOf(memory: Pick<Memory, "fact">): string | null {
   return memory.fact && colon > 0 ? memory.fact.slice(colon + 1).trim() : null;
 }
 
-/* ---- Coming round ---------------------------------------------------------- */
+/* ---- Kept ----------------------------------------------------------------- */
 
-type Coming = { pageId: string; pageTitle: string; what: string; day: string; inDays: number };
+/** What the window hands main to keep: the line, and the page it is about or the one to start for it. */
+export type RememberInput = {
+  companyId: string;
+  pageId: string | null;
+  topic: string | null;
+  said: string;
+  /** What leads the line - "GST number: 29ABCDE1234F1Z5" - so the newest about a thing is the current answer. */
+  fact: string | null;
+  day: string;
+};
 
-/** The next time a day of the year comes round, from today: this year's, or next year's once it has gone. */
-function nextOf(date: { month: number; day: number }, today: string): string {
-  const year = Number(today.slice(0, 4));
-  const on = (y: number) => {
-    // The 29th of February comes round on the 28th in a year without one.
-    const last = new Date(Date.UTC(y, date.month, 0)).getUTCDate();
-    return `${y}-${String(date.month).padStart(2, "0")}-${String(Math.min(date.day, last)).padStart(2, "0")}`;
-  };
-  return on(year) >= today ? on(year) : on(year + 1);
-}
-
-/** Birthdays and anniversaries coming round in the next `within` days, soonest first. */
-export function comingUp(memories: readonly Memory[], today: string, within = 30): Coming[] {
-  return memories
-    .filter((memory) => memory.current && memory.key && /^(?:birthday|anniversary|wedding anniversary)$/.test(memory.key))
-    .flatMap((memory) => {
-      const date = monthDayOf(valueOf(memory) ?? "");
-      if (!date) return [];
-      const day = nextOf(date, today);
-      const inDays = daysBetween(today, day);
-      if (inDays > within) return [];
-      const what = memory.key === "birthday" ? "Birthday" : "Anniversary";
-      return [{ pageId: memory.pageId, pageTitle: memory.pageTitle, what, day, inDays }];
-    })
-    .sort((a, b) => a.inDays - b.inDays || a.pageTitle.localeCompare(b.pageTitle));
-}
-
-/** "Mummy's birthday is today", "Priya's birthday is in 3 days", "Your anniversary is tomorrow". */
-export function sayComing(coming: Coming): string {
-  const whose = coming.pageTitle === "About me" ? "Your" : `${coming.pageTitle}'s`;
-  const when = coming.inDays === 0 ? "today" : coming.inDays === 1 ? "tomorrow" : `in ${coming.inDays} days`;
-  return `${whose} ${coming.what.toLowerCase()} is ${when}`;
-}
-
-/* ---- Brought back ---------------------------------------------------------- */
-
-/** Kept on this day in an earlier year - or, failing that, an earlier month. */
-export function onThisDay(memories: readonly Memory[], today: string): Memory[] {
-  const monthDay = today.slice(5);
-  const years = memories.filter((memory) => memory.day < today && memory.day.slice(5) === monthDay);
-  if (years.length > 0) return years;
-  return memories.filter((memory) => memory.day < today.slice(0, 7) && memory.day.slice(8) === today.slice(8));
-}
+const plainWords = (text: string) => text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 
 /**
- * One memory to bring back today, the same one all day: a birthday coming
- * round first, then one kept on this day before, then one from a while ago
- * that has not been looked at since. Null for a brain with nothing old enough.
+ * Whether a memory's lead says only what its words say again: "Payment
+ * terms: half up front" before "our payment terms are half up front". Then
+ * the words are shown, once, and not the lead and the words both.
  */
-export function resurface(memories: readonly Memory[], today: string): { memory: Memory | null; coming: Coming | null } {
-  const coming = comingUp(memories, today, 7)[0] ?? null;
-  if (coming) return { memory: null, coming };
-  const current = memories.filter((memory) => memory.current);
-  const again = onThisDay(current, today);
-  const pool = again.length > 0 ? again : current.filter((memory) => daysBetween(memory.day, today) >= 14);
-  if (pool.length === 0) return { memory: null, coming: null };
-  // The day picks it, so it stays the same until tomorrow.
-  const seed = [...today].reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) % 100003, 7);
-  return { memory: pool[seed % pool.length] ?? null, coming: null };
+export function leadRepeats(memory: Pick<Memory, "fact" | "says">): boolean {
+  if (!memory.fact) return false;
+  const value = memory.fact.includes(":") ? memory.fact.slice(memory.fact.indexOf(":") + 1) : memory.fact;
+  const said = plainWords(value);
+  return said.length > 0 && plainWords(memory.says).includes(said);
 }
+
+/** What was kept, and the page that had to be started to keep it there. */
+export type Remembered = {
+  pageId: string;
+  title: string;
+  started: string[];
+  /**
+   * A rule already on that page that this one may be meant instead of
+   * (shared/rules.ts): offered once it is kept, and let go only on a yes.
+   */
+  like?: { raw: string; says: string } | null;
+};
 
 /* ---- Found by what it says -------------------------------------------------- */
 

@@ -63,7 +63,7 @@
   margin-bottom: 0;
   list-style: none;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: 0;
   margin-top: var(--space-3);
 }
 
@@ -73,9 +73,7 @@
   gap: var(--space-3);
   min-height: var(--row-h);
   padding: var(--space-2) var(--space-3);
-  background: var(--surface);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
+  border-bottom: 1px solid var(--soft-line);
 }
 
 .money__main {
@@ -113,6 +111,30 @@
   flex: none;
   color: var(--ink-3);
   font-size: var(--text-sm);
+}
+
+/* A reminder that went, said under when it was due. */
+.money__reminded {
+  display: block;
+  color: var(--ink-3);
+}
+
+/* What is owed, by age: one line above the invoices. */
+.money__owed {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0 0 var(--space-3);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.money__owedPart strong {
+  color: var(--ink);
+}
+
+.money__owedPart--late strong {
+  color: var(--danger);
 }
 
 .money__amount {

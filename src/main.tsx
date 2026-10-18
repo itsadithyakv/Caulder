@@ -41,13 +41,6 @@ const WINDOWS: Record<string, { attribute: string; load: () => Promise<ReactNode
       return <Widget />;
     },
   },
-  "#pet": {
-    attribute: "pet",
-    load: async () => {
-      const { Pet } = await import("./features/pet/Pet");
-      return <Pet />;
-    },
-  },
 };
 
 const kind = WINDOWS[window.location.hash];

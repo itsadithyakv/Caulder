@@ -71,12 +71,6 @@ export function dueOfStep(step: Pick<PageStep, "day" | "by">, start: string, tod
   return due < today ? today : due;
 }
 
-/** A person's name matched by what was written after the @: their first name, or all of it run together. */
-export function matchesOwner(name: string, written: string): boolean {
-  const wanted = written.toLowerCase();
-  const full = name.toLowerCase();
-  return full.split(/\s+/)[0] === wanted || full.replace(/\s+/g, "") === wanted;
-}
 
 /** What a meeting's action items or a playbook's steps are, as tasks. */
 export type StepTask = {

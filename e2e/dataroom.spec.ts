@@ -72,7 +72,7 @@ test("a data room is chosen by ticking, and saved as a zip", async () => {
   // Ticked from what a data room is for, and only where there is something.
   await expect(form.getByRole("checkbox", { name: /^Company/ })).toBeChecked();
   await expect(form.getByRole("checkbox", { name: /^Plan/ })).toBeChecked();
-  await expect(form.getByRole("checkbox", { name: /^Playbooks/ })).not.toBeChecked();
+  await expect(form.getByRole("checkbox", { name: /^How we work/ })).not.toBeChecked();
   await expect(form.getByRole("checkbox", { name: /^Legal and contracts/ })).toBeDisabled();
   await shot("choose");
 
@@ -91,7 +91,7 @@ test("a data room is chosen by ticking, and saved as a zip", async () => {
 test("the handbook prints the ticked sections to a PDF", async () => {
   await page.getByRole("button", { name: "Print the handbook" }).click();
   const form = page.getByRole("form", { name: "What goes in the handbook" });
-  await expect(form.getByRole("checkbox", { name: /^Playbooks/ })).toBeChecked();
+  await expect(form.getByRole("checkbox", { name: /^How we work/ })).toBeChecked();
   // A handbook carries no documents.
   await expect(form.getByRole("group", { name: "Documents" })).toHaveCount(0);
   await expect(form.getByRole("group", { name: "Pages" })).toBeVisible();

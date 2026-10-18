@@ -89,8 +89,7 @@ export function SetupScreen({
         </h2>
         <Card title="Bring the list you already have">
           <p className="card__hint">
-            A spreadsheet is matched column by column, with a preview and an undo. A list pasted from
-            anywhere reads the same way.
+            From a spreadsheet or a pasted list.
           </p>
           <div className="actions">
             <button type="button" className="btn" onClick={() => onGoTo("import")}>
@@ -112,9 +111,7 @@ export function SetupScreen({
         </h2>
         <Card title="Write down the things you keep looking up">
           <p className="card__hint">
-            Twelve things worth writing down first &mdash; your one-liner, your registration numbers,
-            this quarter&rsquo;s goals &mdash; ticked off as you write them. What you pay for every
-            month goes here too, which is what makes renewals turn up on Today and the runway add up.
+            Twelve things worth writing down first, and what you pay for each month.
           </p>
           <div className="actions">
             <button type="button" className="btn" onClick={() => onGoTo("brain")}>

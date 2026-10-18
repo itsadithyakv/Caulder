@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { FileText, Plus, Trash2 } from "lucide-react";
+import { BellRing, FileText, Plus, Trash2 } from "lucide-react";
+import { chaseOffer, owedByAge } from "@shared/chase";
+import { ChaseForm } from "./ChaseForm";
 import {
+  INVOICE_REPEAT_LABEL,
   INVOICE_STATUS_LABEL,
   QUOTE_STATUS_LABEL,
   documentNumber,
@@ -97,6 +100,8 @@ export function MoneyScreen({
   const [addingSpend, setAddingSpend] = useState(false);
   /** The invoice whose payments are open. Its id, so the dialog reads the fresh copy after a change. */
   const [paying, setPaying] = useState<string | null>(null);
+  /** The invoice a reminder is being written about. */
+  const [chasing, setChasing] = useState<Invoice | null>(null);
   const [settingTarget, setSettingTarget] = useState(false);
 
   if (!companyId) return null;
@@ -146,7 +151,8 @@ export function MoneyScreen({
           <Figure label="Quoted" value={money(data.quoted)} />
           <Figure label="Invoiced" value={money(data.invoiced)} />
           <Figure label="Paid" value={money(data.paid)} tone="ok" />
-          <Figure label="Spent" value={money(data.spent)} tone="warn" />
+          {/* Nothing spent is not a warning. */}
+          <Figure label="Spent" value={money(data.spent)} tone={data.spent > 0 ? "warn" : undefined} />
         </div>
         {runway?.cash != null && (
           <p className="money__target money__runway">
@@ -183,6 +189,7 @@ export function MoneyScreen({
                 busy={busy}
                 onEdit={() => setEditing({ kind: "invoice", invoice })}
                 onPayments={() => setPaying(invoice.id)}
+                onChase={() => setChasing(invoice)}
                 onAct={act}
                 companyId={companyId}
               />
@@ -220,6 +227,7 @@ export function MoneyScreen({
             </button>
           }
         >
+          <Owed invoices={data.invoices} day={day} money={money} />
           {data.invoices.length === 0 ? (
             <EmptyState
               title="No invoices yet"
@@ -236,6 +244,7 @@ export function MoneyScreen({
                   busy={busy}
                   onEdit={() => setEditing({ kind: "invoice", invoice })}
                   onPayments={() => setPaying(invoice.id)}
+                  onChase={() => setChasing(invoice)}
                   onAct={act}
                   companyId={companyId}
                 />
@@ -372,6 +381,20 @@ export function MoneyScreen({
         />
       )}
 
+      {chasing && (
+        <ChaseForm
+          invoice={chasing}
+          company={activeCompany?.name ?? ""}
+          currency={data.currency}
+          day={day}
+          onClose={() => setChasing(null)}
+          onSent={() => {
+            setChasing(null);
+            reload();
+          }}
+        />
+      )}
+
       {payingInvoice && (
         <PaymentsForm
           companyId={companyId}
@@ -426,6 +449,7 @@ function InvoiceRow({
   companyId,
   onEdit,
   onPayments,
+  onChase,
   onAct,
 }: {
   invoice: Invoice;
@@ -435,9 +459,12 @@ function InvoiceRow({
   companyId: string;
   onEdit: () => void;
   onPayments: () => void;
+  /** Write a reminder about it: offered once it is late, and again a week after the last. */
+  onChase: () => void;
   onAct: (run: () => Promise<unknown>) => Promise<void>;
 }) {
   const overdue = isOverdueInvoice(invoice, day);
+  const chase = chaseOffer(invoice, day);
   const tone =
     invoice.status === "paid" ? "ok" : overdue ? "danger" : invoice.status === "void" ? "neutral" : "info";
   const api = window.caulder.money;
@@ -449,6 +476,11 @@ function InvoiceRow({
         <span className="money__who">{whoFor(invoice)}</span>
         <span className="money__when">
           {overdue ? `Due ${relativeDay(invoice.dueOn)}` : `Due ${formatDay(invoice.dueOn)}`}
+          {overdue && invoice.reminded && (
+            <span className="money__reminded">
+              {invoice.reminded.times === 1 ? "Reminded" : `Reminded ${invoice.reminded.times} times, last`} {relativeDay(invoice.reminded.at)}
+            </span>
+          )}
         </span>
       </button>
       <span className="money__amount">
@@ -462,7 +494,14 @@ function InvoiceRow({
       <span className={`badge badge--${tone}`}>
         {overdue ? "Overdue" : INVOICE_STATUS_LABEL[invoice.status]}
       </span>
+      {invoice.repeats && <span className="badge">{INVOICE_REPEAT_LABEL[invoice.repeats]}</span>}
       <span className="money__actions">
+        {(chase === "first" || chase === "again") && (
+          <button type="button" className="btn btn--sm" disabled={busy} onClick={onChase}>
+            <BellRing size={14} aria-hidden />
+            {chase === "again" ? "Remind again" : "Send a reminder"}
+          </button>
+        )}
         {invoice.status === "draft" && (
           <button
             type="button"
@@ -487,7 +526,7 @@ function InvoiceRow({
         {invoice.status === "sent" && (
           <button
             type="button"
-            className="btn btn--sm btn--primary"
+            className="btn btn--sm"
             disabled={busy}
             onClick={() => void onAct(() => api.markPaid(companyId, invoice.id))}
           >
@@ -623,7 +662,6 @@ function SpendRow({
         <span className="money__who">{entry.what}</span>
         <span className="money__when">
           {formatDay(entry.spentOn)}
-          {entry.campaignName ? ` · ${entry.campaignName}` : ""}
         </span>
       </span>
       <span className="money__amount">{money(entry.amount)}</span>
@@ -639,5 +677,46 @@ function SpendRow({
         </button>
       </span>
     </li>
+  );
+}
+
+/**
+ * What is owed, by how late it is: one line above the invoices, where This
+ * month says only totals. Says nothing when nothing is owed.
+ */
+function Owed({ invoices, day, money }: { invoices: readonly Invoice[]; day: string; money: (value: number) => string }) {
+  const owed = owedByAge(invoices, day);
+  if (owed.total === 0) return null;
+  const buckets = [
+    { bucket: owed.notDue, label: "not yet due", late: false },
+    { bucket: owed.late, label: "up to 30 days late", late: true },
+    { bucket: owed.veryLate, label: "over 30 days late", late: true },
+  ].filter((each) => each.bucket.count > 0);
+  // All of it one age: said once, not as a total and then the same again.
+  const only = buckets.length === 1 ? buckets[0] : null;
+  if (only) {
+    return (
+      <p className="money__owed" aria-label="What is owed, by age">
+        <span className={`money__owedPart${only.late ? " money__owedPart--late" : ""}`}>
+          Owed <strong>{money(owed.total)}</strong>, {only.label}
+        </span>
+      </p>
+    );
+  }
+  const part = (bucket: { count: number; amount: number }, label: string, late = false) =>
+    bucket.count > 0 ? (
+      <span className={`money__owedPart${late ? " money__owedPart--late" : ""}`}>
+        <strong>{money(bucket.amount)}</strong> {label}
+      </span>
+    ) : null;
+  return (
+    <p className="money__owed" aria-label="What is owed, by age">
+      <span className="money__owedPart">
+        Owed <strong>{money(owed.total)}</strong>
+      </span>
+      {part(owed.notDue, "not yet due")}
+      {part(owed.late, "up to 30 days late", true)}
+      {part(owed.veryLate, "over 30 days late", true)}
+    </p>
   );
 }

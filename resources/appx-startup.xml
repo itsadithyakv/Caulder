@@ -1,0 +1,3 @@
+        <desktop:Extension Category="windows.startupTask" Executable="app\Caulder.exe" EntryPoint="Windows.FullTrustApplication">
+          <desktop:StartupTask TaskId="CaulderStartup" Enabled="true" DisplayName="Caulder" />
+        </desktop:Extension>

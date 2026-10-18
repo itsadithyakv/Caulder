@@ -47,7 +47,7 @@ test("a first run gets a short tour, and the line's step says the key for any ap
 
   const tour = page.getByRole("dialog", { name: "Your day, in one place" });
   await expect(tour).toBeVisible();
-  await expect(tour).toContainText("1 of 5");
+  await expect(tour).toContainText("1 of 4");
   const shots = process.env["CAULDER_SHOTS"];
   if (shots) mkdirSync(shots, { recursive: true });
   const shot = async (name: string) => {
@@ -64,11 +64,9 @@ test("a first run gets a short tour, and the line's step says the key for any ap
 
   // The arrow keys move through it too.
   await page.keyboard.press("ArrowRight");
-  await expect(page.getByRole("dialog", { name: "Yours, not the company's" })).toBeVisible();
-  await page.keyboard.press("ArrowRight");
   await expect(page.getByRole("dialog", { name: "Your company" })).toBeVisible();
   await page.waitForTimeout(400);
-  await shot("4");
+  await shot("3");
   await page.getByRole("button", { name: "Next" }).click();
   await page.getByRole("button", { name: "Done" }).click();
   await expect(page.locator(".tour")).toHaveCount(0);

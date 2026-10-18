@@ -51,7 +51,7 @@ export function UnderstandCard() {
   const label = "Read what I write for what it means";
 
   return (
-    <Card title="Understanding" hint="A small model on this computer that reads your pages, memories, contacts, tasks and notes for what they mean.">
+    <Card title="Understanding" hint="A small model on this computer that reads for meaning.">
       <ErrorLine>{problem}</ErrorLine>
 
       <div className="checkline">
@@ -67,15 +67,11 @@ export function UnderstandCard() {
           <span className="toggle__thumb" />
         </button>
         <span className="checkline__title">{label}</span>
-      </div>
-      <p className="card__hint">
-        Nothing it reads leaves this computer, and it never files, moves or links anything by itself: it only offers.
-        The journal and private lines are never read.
-      </p>
+      </div>
 
       {state && !state.here && (
         <p className="card__hint" role="status">
-          The model is not on this computer, so nothing is being read. Caulder works the same without it.
+          The model is not on this computer. Everything else works.
         </p>
       )}
       {state?.here && state.on && (

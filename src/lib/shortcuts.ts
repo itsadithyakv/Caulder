@@ -20,9 +20,7 @@ export const SHORTCUTS: { group: string; items: Shortcut[] }[] = [
     items: [
       { keys: "T", describes: "Today" },
       { keys: "D", describes: "The calendar" },
-      { keys: "J", describes: "The journal, on today" },
-      { keys: "Y", describes: "Your life: studies, hobbies, goals" },
-      { keys: "R", describes: "What you remembered" },
+      { keys: "R", describes: "What the company remembers" },
       { keys: "L", describes: "Contacts" },
       { keys: "P", describes: "Deals" },
       { keys: "M", describes: "Money" },
@@ -59,8 +57,6 @@ export const QUICK_WINDOW_SHORTCUTS: { group: string; items: Shortcut[] } = {
 const ROUTE_KEYS: Record<string, RouteId> = {
   t: "today",
   d: "day",
-  j: "journal",
-  y: "life",
   r: "memories",
   l: "leads",
   p: "pipeline",

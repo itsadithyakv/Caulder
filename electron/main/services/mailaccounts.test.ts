@@ -29,10 +29,28 @@ vi.mock("./gsync", () => ({
 }));
 vi.mock("./credentials", () => ({ isConnected: () => false }));
 
+/** The inbox, as a stand-in: what is in it, whether it opens, and what it was asked. */
+type Heard = { from: string | null; date: string | null; answers: string[]; auto: boolean };
+let inbox: Heard[] = [];
+let inboxRefuses: string | null = null;
+const inboxAsked: { how: "try" | "read"; host: string; port: number; username: string; password: string; since?: string }[] = [];
+vi.mock("./inbox", () => ({
+  tryInbox: async (login: { host: string; port: number; username: string; password: string }) => {
+    inboxAsked.push({ how: "try", ...login });
+    if (inboxRefuses) throw new Error(inboxRefuses);
+  },
+  readInbox: async (login: { host: string; port: number; username: string; password: string }, since: string) => {
+    inboxAsked.push({ how: "read", ...login, since });
+    if (inboxRefuses) throw new Error(inboxRefuses);
+    return inbox;
+  },
+}));
+
 const { migrate } = await import("../db/migrations");
 const { createCompany } = await import("../repositories/companies");
 const { createLead } = await import("../repositories/leads");
-const { listEmailsForLead } = await import("../repositories/mail");
+const { listEmailsForLead, listRecentReplies } = await import("../repositories/mail");
+const { createTemplate } = await import("../repositories/email");
 const { leadInput } = await import("@shared/domain");
 const accounts = await import("./mailaccounts");
 const mail = await import("./mail");
@@ -59,6 +77,9 @@ beforeEach(() => {
   refuse = null;
   sent.length = 0;
   scriptCalls.length = 0;
+  inbox = [];
+  inboxRefuses = null;
+  inboxAsked.length = 0;
   accounts.useTransportForTests((account) => ({
     verify: async () => {
       if (refuse) throw new Error(refuse);
@@ -123,7 +144,14 @@ describe("sending from one", () => {
       {
         host: "smtp.zoho.com",
         password: "app-password-1",
-        message: { from: { name: "Zoho work", address: "me@unifloe.com" }, to: "rahul@orchids.edu", subject: "Timetables", text: "Hello Rahul" },
+        message: {
+          from: { name: "Zoho work", address: "me@unifloe.com" },
+          to: "rahul@orchids.edu",
+          subject: "Timetables",
+          text: "Hello Rahul",
+          // Its own id, at the account's own domain, so a reply can be known by it.
+          messageId: expect.stringMatching(/^<[0-9a-f-]{36}@unifloe\.com>$/),
+        },
       },
     ]);
     expect(emails[0]).toMatchObject({ status: "sent", to: "rahul@orchids.edu" });
@@ -143,11 +171,11 @@ describe("sending from one", () => {
     expect(listEmailsForLead(db, leadId)).toEqual([]);
   });
 
-  it("refuses a follow-up, which needs the script to see a reply", async () => {
+  it("refuses a follow-up from an account that does not see replies, and says how to get one", async () => {
     const [zoho] = await accounts.addMailAccount(db, ZOHO, NOW);
     await expect(
       mail.sendEmail(db, { leadId, accountId: zoho?.id, subject: "Hi", body: "Hi", sendAt: null, followUp: { days: 3, templateId: "t" } }, NOW),
-    ).rejects.toThrow(/Google script/);
+    ).rejects.toThrow(/Switch on See replies/);
     expect(sent).toEqual([]);
   });
 
@@ -206,5 +234,158 @@ describe("sending from one", () => {
     await mail.sendEmail(db, { leadId, accountId: zoho?.id, subject: "Later", body: "Later", sendAt: later, followUp: null }, NOW);
     accounts.removeMailAccount(db, zoho?.id ?? "");
     expect(listEmailsForLead(db, leadId)[0]).toMatchObject({ status: "failed", error: "The account it was to go from was removed." });
+  });
+});
+
+describe("seeing replies", () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const later = (days: number, minutes = 0) => new Date(NOW.getTime() + days * DAY + minutes * 60_000);
+
+  /** A Zoho account that reads its inbox, a template to follow up with, and one message sent with a follow-up after three days. */
+  async function written(): Promise<{ accountId: string; emailId: string; messageId: string }> {
+    const [zoho] = await accounts.addMailAccount(db, ZOHO, NOW);
+    const accountId = zoho?.id ?? "";
+    await accounts.setReplyReading(db, accountId, true);
+    const companyId = (db.prepare(`SELECT company_id FROM leads WHERE id = ?`).get(leadId) as { company_id: string }).company_id;
+    const templateId =
+      createTemplate(db, companyId, { name: "Nudge", subject: "Nudge", body: "Just checking this reached you.", channel: "email" }).find(
+        (each) => each.name === "Nudge",
+      )?.id ?? "";
+    const [email] = await mail.sendEmail(
+      db,
+      { leadId, accountId, subject: "Timetables", body: "Hello Rahul", sendAt: null, followUp: { days: 3, templateId } },
+      NOW,
+    );
+    // Sending stamps the real clock; the tests keep their own, so the message is put at NOW.
+    db.prepare(`UPDATE emails SET sent_at = ? WHERE id = ?`).run(NOW.toISOString(), email?.id);
+    const row = db.prepare(`SELECT message_id FROM emails WHERE id = ?`).get(email?.id) as { message_id: string };
+    return { accountId, emailId: email?.id ?? "", messageId: row.message_id };
+  }
+
+  const reply = (at: Date, over: Partial<Heard> = {}): Heard => ({ from: "rahul@orchids.edu", date: at.toISOString(), answers: [], auto: false, ...over });
+
+  it("is off until switched on, and tries the inbox before it is kept", async () => {
+    const [zoho] = await accounts.addMailAccount(db, ZOHO, NOW);
+    expect(zoho).toMatchObject({ readsReplies: false, inboxError: null });
+    expect(accounts.mailSenders(db, { ready: false, address: null })[0]?.seesReplies).toBe(false);
+
+    inboxRefuses = "The inbox turned down that username and password.";
+    await expect(accounts.setReplyReading(db, zoho?.id ?? "", true)).rejects.toThrow(/turned down/);
+    expect(accounts.listMailAccounts(db)[0]?.readsReplies).toBe(false);
+
+    inboxRefuses = null;
+    const [on] = await accounts.setReplyReading(db, zoho?.id ?? "", true);
+    expect(on?.readsReplies).toBe(true);
+    // Zoho's inbox, found from the server it sends through, with the same sealed password.
+    expect(inboxAsked.at(-1)).toMatchObject({ how: "try", host: "imap.zoho.com", port: 993, username: "me@unifloe.com", password: "app-password-1" });
+    expect(accounts.mailSenders(db, { ready: false, address: null })[0]?.seesReplies).toBe(true);
+
+    const [off] = await accounts.setReplyReading(db, zoho?.id ?? "", false);
+    expect(off?.readsReplies).toBe(false);
+  });
+
+  it("does not open an inbox when nothing is being listened for", async () => {
+    const [zoho] = await accounts.addMailAccount(db, ZOHO, NOW);
+    await accounts.setReplyReading(db, zoho?.id ?? "", true);
+    inboxAsked.length = 0;
+    expect(await accounts.checkReplies(db, NOW)).toBe(0);
+    expect(inboxAsked).toEqual([]);
+  });
+
+  it("finds a reply, puts it on the contact and on Today, and the follow-up does not go", async () => {
+    const { emailId, messageId } = await written();
+    inbox = [reply(later(1), { from: "office@orchids.edu", answers: [messageId] })];
+    expect(await accounts.checkReplies(db, later(1, 10))).toBe(1);
+    // Asked from the day before it was sent, so no time zone cuts a reply off.
+    expect(inboxAsked.at(-1)).toMatchObject({ how: "read", since: "22-Sep-2026" });
+
+    const [email] = listEmailsForLead(db, leadId);
+    expect(email).toMatchObject({ id: emailId, status: "replied", repliedAt: later(1).toISOString() });
+    expect(email?.followUp?.status).toBe("skipped");
+    const kinds = (db.prepare(`SELECT kind FROM activities WHERE lead_id = ?`).all(leadId) as { kind: string }[]).map((row) => row.kind);
+    expect(kinds).toContain("email_replied");
+    const companyId = (db.prepare(`SELECT company_id FROM leads WHERE id = ?`).get(leadId) as { company_id: string }).company_id;
+    expect(listRecentReplies(db, companyId, NOW.toISOString()).map((each) => each.emailId)).toEqual([emailId]);
+
+    // And three days on, nothing more is sent to somebody who answered.
+    sent.length = 0;
+    await mail.sendDueAccountMail(db, later(4));
+    expect(sent).toEqual([]);
+    expect(accounts.listMailAccounts(db)[0]?.inboxError).toBeNull();
+  });
+
+  it("follows up by itself when the days are up and nobody answered - in the same thread, after looking first", async () => {
+    const { messageId } = await written();
+    sent.length = 0;
+    inboxAsked.length = 0;
+
+    // Not before its day.
+    expect(await mail.sendDueAccountMail(db, later(2))).toBe(0);
+    expect(sent).toEqual([]);
+
+    expect(await mail.sendDueAccountMail(db, later(3, 5))).toBe(1);
+    expect(inboxAsked.map((each) => each.how)).toEqual(["read"]);
+    expect(sent[0]?.message).toMatchObject({
+      to: "rahul@orchids.edu",
+      subject: "Re: Timetables",
+      text: "Just checking this reached you.",
+      inReplyTo: messageId,
+      references: messageId,
+    });
+    expect(listEmailsForLead(db, leadId)[0]?.followUp).toMatchObject({ status: "sent" });
+
+    // Once, and only once.
+    expect(await mail.sendDueAccountMail(db, later(3, 6))).toBe(0);
+    expect(sent).toHaveLength(1);
+  });
+
+  it("does not follow up somebody who answered a minute ago", async () => {
+    await written();
+    sent.length = 0;
+    inbox = [reply(later(3, 4))];
+    expect(await mail.sendDueAccountMail(db, later(3, 5))).toBe(0);
+    expect(sent).toEqual([]);
+    expect(listEmailsForLead(db, leadId)[0]).toMatchObject({ status: "replied" });
+  });
+
+  it("does not count an out-of-office as an answer", async () => {
+    const { messageId } = await written();
+    sent.length = 0;
+    inbox = [reply(later(1), { auto: true, answers: [messageId] })];
+    expect(await mail.sendDueAccountMail(db, later(3, 5))).toBe(1);
+  });
+
+  it("waits, rather than follow up blind, when the inbox cannot be read - and says why on the account", async () => {
+    await written();
+    sent.length = 0;
+    inboxRefuses = "imap.zoho.com did not answer, so the inbox could not be read just now.";
+    expect(await mail.sendDueAccountMail(db, later(3, 5))).toBe(0);
+    expect(sent).toEqual([]);
+    expect(accounts.listMailAccounts(db)[0]?.inboxError).toMatch(/did not answer/);
+    expect(listEmailsForLead(db, leadId)[0]?.followUp?.status).toBe("waiting");
+
+    // It goes on the next pass that can see.
+    inboxRefuses = null;
+    expect(await mail.sendDueAccountMail(db, later(3, 6))).toBe(1);
+    expect(accounts.listMailAccounts(db)[0]?.inboxError).toBeNull();
+  });
+
+  it("stops a waiting follow-up without unsending the message", async () => {
+    const { emailId } = await written();
+    const after = await mail.cancelEmail(db, emailId);
+    expect(after[0]).toMatchObject({ status: "sent" });
+    expect(after[0]?.followUp?.status).toBe("cancelled");
+    sent.length = 0;
+    await mail.sendDueAccountMail(db, later(4));
+    expect(sent).toEqual([]);
+  });
+
+  it("does not follow up somebody since marked do not contact", async () => {
+    await written();
+    db.prepare(`UPDATE leads SET do_not_contact = 1 WHERE id = ?`).run(leadId);
+    sent.length = 0;
+    await mail.sendDueAccountMail(db, later(4));
+    expect(sent).toEqual([]);
+    expect(listEmailsForLead(db, leadId)[0]?.followUp?.status).toBe("cancelled");
   });
 });

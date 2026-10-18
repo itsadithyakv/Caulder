@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { Check, Pencil, Phone, Trash2 } from "lucide-react";
-import { TASK_AREA_LABEL, TASK_KIND_LABEL, type Task, type TaskArea } from "@shared/domain";
+import { TASK_KIND_LABEL, TASK_REPEAT_LABEL, type Task } from "@shared/domain";
 import { describeDue, shiftDay } from "@shared/dates";
 import { useOpenRef } from "@/lib/navigate";
 import { region } from "@/lib/format";
@@ -20,11 +20,11 @@ const LEAVE_MS = 180;
  * "done that". Snoozing is next to it, because the second most common answer
  * to a follow-up is "not today".
  *
- * A row under "Due today", in a group headed "Company", does not also say
- * "Today" and "Company" - that is what `hide` is for, and the list says which.
+ * A row under "Due today", in a group headed "Calls to make", does not also
+ * say "Today" and "Call" - that is what `hide` is for, and the list says which.
  * "To do" is never said: it is what a task is unless it is something more.
  * It was a boxed card of three lines per task - an icon and a chip that both
- * said the kind, a dot and a word for the area, the day - and most of that
+ * said the kind, the day - and most of that
  * was the heading above it, again.
  */
 export function TaskRow({
@@ -44,8 +44,8 @@ export function TaskRow({
   day: string;
   busy: boolean;
   overdue?: boolean;
-  /** What the list already says, so the row does not: its area, its kind, its day. */
-  hide?: { area?: boolean; kind?: boolean; due?: boolean };
+  /** What the list already says, so the row does not: its kind, its day. */
+  hide?: { kind?: boolean; due?: boolean };
   onOpenLead: (leadId: string) => void;
   onComplete: () => void;
   onReschedule: (dueOn: string) => void;
@@ -104,7 +104,6 @@ export function TaskRow({
       </button>,
     );
   }
-  if (!hide.area && task.area) meta.push(<span key="area">{areaLabel(task.area)}</span>);
   if (!hide.due) {
     meta.push(
       <span key="due" className={overdue ? "taskrow__due taskrow__due--late" : "taskrow__due"}>
@@ -112,6 +111,8 @@ export function TaskRow({
       </span>,
     );
   }
+  // It comes back when ticked: said, so ticking it is not a surprise.
+  if (task.repeats) meta.push(<span key="repeats">{TASK_REPEAT_LABEL[task.repeats]}</span>);
 
   return (
     <li
@@ -142,7 +143,7 @@ export function TaskRow({
         {onCall && (
           <button
             type="button"
-            className="btn btn--sm btn--primary taskrow__call"
+            className="btn btn--sm taskrow__call"
             onClick={onCall}
             disabled={busy || leaving}
             aria-label={`Call for "${task.title}"`}
@@ -199,7 +200,3 @@ export function TaskRow({
   );
 }
 
-/** The label for a known area, or the typed text for one that is not. */
-function areaLabel(area: string): string {
-  return area in TASK_AREA_LABEL ? TASK_AREA_LABEL[area as TaskArea] : area;
-}

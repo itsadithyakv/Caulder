@@ -81,7 +81,7 @@ export function ConnectionsCard({ onOpenSetup }: { onOpenSetup: () => void }) {
         <button type="button" className="btn btn--sm" onClick={onOpenSetup}>
           Open the setup guide
         </button>
-        <span className="card__hint">The same cards, in order, with what each is for.</span>
+        
       </div>
     </Card>
   );

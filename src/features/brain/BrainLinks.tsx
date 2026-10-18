@@ -107,7 +107,8 @@ export function BrainLinks({
           </ul>
         </>
       )}
-      {local && (local.nodes.length > 1 || depth > 1) && (
+      {/* Only when something is linked: a reach to choose over nothing is a control that does nothing. */}
+      {local && local.nodes.length > 1 && (
         <div className="brainlinks__depth" role="group" aria-label="How far out">
           <span className="card__hint">How far out</span>
           {[1, 2, 3].map((reach) => (

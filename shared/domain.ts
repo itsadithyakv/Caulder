@@ -1,7 +1,9 @@
 import { z } from "zod";
+import type { Reached, Sent } from "./reached";
 import type { EmailReply } from "./mail";
 import type { Renewal } from "./costs";
 import type { Deadline } from "./deadlines";
+import { cleanProfile, type ProfileKind } from "./profiles";
 
 /**
  * The domain types and their validators, imported by BOTH the renderer and the
@@ -29,7 +31,8 @@ export const ACCENT_LABEL: Record<AccentId, string> = {
   coffee: "Coffee",
 };
 
-export const DEFAULT_ACCENT: AccentId = "blue";
+/** Coffee, the app's own colour: a new company looks like the rest of Caulder until somebody picks another. */
+export const DEFAULT_ACCENT: AccentId = "coffee";
 
 /* ---- Company ------------------------------------------------------------ */
 
@@ -272,6 +275,27 @@ const optionalText = (max: number) =>
     .default(null);
 
 /**
+ * A LinkedIn or Instagram profile: whatever was typed, kept as one address in
+ * full, and refused in a sentence when it is not a profile on that site
+ * (`shared/profiles.ts`).
+ */
+const profileField = (kind: ProfileKind) =>
+  z
+    .string()
+    .trim()
+    .max(300, "That is too long to be a profile's address.")
+    .transform((value, context) => {
+      try {
+        return cleanProfile(kind, value);
+      } catch (cause) {
+        context.addIssue({ code: "custom", message: cause instanceof Error ? cause.message : "That is not a profile." });
+        return z.NEVER;
+      }
+    })
+    .nullable()
+    .default(null);
+
+/**
  * Who a contact is to the company. Deals and Going quiet show prospects and
  * customers; an accountant or a vendor is somebody you know, not a sale.
  */
@@ -305,6 +329,8 @@ export const leadInput = z.object({
     .min(1, "Give the lead a name.")
     .max(160, "Keep the name under 160 characters."),
   contactPerson: optionalText(120),
+  /** What the contact person is there: "Owner", "Head of marketing". */
+  contactRole: optionalText(80),
   email: optionalText(200),
   phone: optionalText(60),
   altPhone: optionalText(60),
@@ -313,6 +339,8 @@ export const leadInput = z.object({
   pin: optionalText(20),
   source: optionalText(160),
   website: optionalText(300),
+  linkedin: profileField("linkedin"),
+  instagram: profileField("instagram"),
   // The messages matter: this one is reachable by typing "12.5" into the
   // value box, and Zod's own text for it is "Invalid input: expected int,
   // received number", which tells a user nothing they can act on.
@@ -329,8 +357,6 @@ export const leadInput = z.object({
    * contact with several has them edited as deals.
    */
   stageId: z.string().nullable().default(null),
-  /** Which campaign this lead came from. Single-touch, and often nothing. */
-  campaignId: z.string().nullable().default(null),
   /**
    * Do not reach out to this one, ever.
    *
@@ -350,14 +376,19 @@ export type Lead = {
   stageId: string | null;
   name: string;
   contactPerson: string | null;
+  contactRole: string | null;
   email: string | null;
   phone: string | null;
+  /** Kept and imported, and no longer on the form: they came from the first customer's spreadsheet. */
   altPhone: string | null;
   location: string | null;
   city: string | null;
   pin: string | null;
   source: string | null;
   website: string | null;
+  /** Their profiles, each as an address in full (`shared/profiles.ts`). */
+  linkedin: string | null;
+  instagram: string | null;
   value: number | null;
   tags: string[];
   notes: string | null;
@@ -366,8 +397,6 @@ export type Lead = {
   updatedAt: string;
   /** Why it was lost, when it was. Free text so an unlisted reason is sayable. */
   lossReason: string | null;
-  /** The campaign it came from, or null. Attribution is single-touch. */
-  campaignId: string | null;
   doNotContact: boolean;
   relationship: Relationship;
   /**
@@ -421,6 +450,8 @@ export type LeadQuery = {
   search?: string;
   stageId?: string | null;
   relationship?: Relationship;
+  /** Whether they have been written to, and whether they answered (shared/reached.ts). */
+  reached?: Reached;
   sort?: LeadSort;
   direction?: SortDirection;
 };
@@ -480,6 +511,8 @@ export const ACTIVITY_KINDS = [
   "call",
   "meeting",
   "whatsapp",
+  "linkedin",
+  "instagram",
   "stage_change",
   "field_change",
   "email_queued",
@@ -491,12 +524,14 @@ export const ACTIVITY_KINDS = [
   "task_done",
   "imported",
   "import_undone",
+  /** They answered somewhere Caulder cannot read - WhatsApp, LinkedIn, the phone - said by hand. */
+  "replied",
 ] as const;
 
 export type ActivityKind = (typeof ACTIVITY_KINDS)[number];
 
 /** The kinds a person can add by hand. The rest are written by the app. */
-export const LOGGABLE_KINDS = ["note", "call", "meeting", "whatsapp"] as const;
+export const LOGGABLE_KINDS = ["note", "call", "meeting", "whatsapp", "linkedin", "instagram", "replied"] as const;
 export type LoggableKind = (typeof LOGGABLE_KINDS)[number];
 
 export const ACTIVITY_LABEL: Record<ActivityKind, string> = {
@@ -505,6 +540,8 @@ export const ACTIVITY_LABEL: Record<ActivityKind, string> = {
   call: "Call",
   meeting: "Meeting",
   whatsapp: "WhatsApp",
+  linkedin: "LinkedIn",
+  instagram: "Instagram",
   stage_change: "Stage changed",
   field_change: "Details edited",
   email_queued: "Email queued",
@@ -516,6 +553,7 @@ export const ACTIVITY_LABEL: Record<ActivityKind, string> = {
   task_done: "Task done",
   imported: "Imported",
   import_undone: "Import undone",
+  replied: "They answered",
 };
 
 export type Activity = {
@@ -542,8 +580,8 @@ export type ActivityInput = z.infer<typeof activityInput>;
 export function countsAsContact(kind: LoggableKind): boolean {
   // A WhatsApp message is contact for the same reason a call is and a note is
   // not: somebody heard from you. The going-quiet list depends on this staying
-  // honest in both directions.
-  return kind === "call" || kind === "meeting" || kind === "whatsapp";
+  // honest in both directions. A message on LinkedIn or Instagram is the same.
+  return kind !== "note";
 }
 
 /* ---- Currency ------------------------------------------------------------
@@ -633,29 +671,39 @@ export const TASK_KIND_GROUP: Record<TaskKind, string> = {
   todo: "Other",
 };
 
-/**
- * Which part of your life a task belongs to.
- *
- * Separate from `kind`, which is the verb - call, email, follow up. A student
- * founder's to-do list is three lists pretending to be one: the degree, the
- * company, and everything else. Being able to say which is which is what
- * makes "what should I do tonight" answerable, and what lets Review count the
- * degree against the company from the tasks themselves rather than guessing.
- *
- * Free text underneath, like a block's kind, so a fifth area never has to be
- * forced into one of these four.
- */
-export const TASK_AREAS = ["college", "company", "personal", "health"] as const;
-export type TaskArea = (typeof TASK_AREAS)[number];
-
-export const TASK_AREA_LABEL: Record<TaskArea, string> = {
-  college: "College",
-  company: "Company",
-  personal: "Personal",
-  health: "Health",
-};
-
 export type TaskStatus = "open" | "done";
+
+/** What stays true about a contact, said to the line (PLAN.md, part twelve, phase 49). */
+export type Fact = { id: string; leadId: string; text: string; until: string | null; createdAt: string };
+
+export const factInput = z.object({
+  leadId: z.string().min(1).max(80),
+  text: z.string().trim().min(1, "Say what is true about them.").max(500, "Keep it under 500 characters."),
+  until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().default(null),
+  /** A birthday's next day: kept with a reminder every year. */
+  birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().default(null),
+});
+export type FactInput = z.infer<typeof factInput>;
+
+/** "Got 2400 from harbour": their open invoice paid (PLAN.md, part twelve, phase 49). */
+export const paidFromInput = z.object({
+  leadId: z.string().min(1).max(80),
+  amount: z.number().int().positive().nullable().default(null),
+});
+export type PaidFromInput = z.infer<typeof paidFromInput>;
+
+/**
+ * A task that comes back when it is ticked off (PLAN.md, part twelve, phase
+ * 47): rent on the 1st, a birthday. A week's days are a block series instead.
+ */
+export const TASK_REPEATS = ["fortnightly", "monthly", "yearly"] as const;
+export type TaskRepeat = (typeof TASK_REPEATS)[number];
+
+export const TASK_REPEAT_LABEL: Record<TaskRepeat, string> = {
+  fortnightly: "Every two weeks",
+  monthly: "Every month",
+  yearly: "Every year",
+};
 
 export type Task = {
   id: string;
@@ -670,8 +718,6 @@ export type Task = {
   pageTitle: string | null;
   title: string;
   kind: TaskKind;
-  /** College, company, personal, health - or whatever was typed. */
-  area: string | null;
   /**
    * 'must' | 'should' | 'spare', the same three levels a block has. Null reads
    * as "should", the middle. Caulder's alone: Google Tasks has no such field,
@@ -681,6 +727,8 @@ export type Task = {
   status: TaskStatus;
   dueOn: string;
   notes: string | null;
+  /** It comes back when ticked off: a fortnight, a month or a year on. */
+  repeats: TaskRepeat | null;
   completedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -696,7 +744,6 @@ export const taskInput = z.object({
     .min(1, "Say what needs doing.")
     .max(200, "Keep the title under 200 characters."),
   kind: z.enum(TASK_KINDS).default("follow_up"),
-  area: z.string().trim().max(40).nullable().default(null),
   dueOn: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date."),
@@ -707,6 +754,7 @@ export const taskInput = z.object({
     .transform((value) => (value.length === 0 ? null : value))
     .nullable()
     .default(null),
+  repeats: z.enum(TASK_REPEATS).nullable().optional(),
 });
 
 export type TaskInput = z.infer<typeof taskInput>;
@@ -738,7 +786,6 @@ export const quickInput = z.object({
     .nullable()
     .default(null),
   kind: z.enum(TASK_KINDS).default("todo"),
-  area: z.string().trim().max(40).nullable().default(null),
   priority: z.enum(["must", "should", "spare"]).nullable().default(null),
   /** The contact it is for, when the line named one: "call Oakridge tmrw". */
   leadId: z.string().nullable().default(null),
@@ -766,6 +813,8 @@ export const quickInput = z.object({
     .default(null),
   /** The line said "remind me": a notification at its time, or at the start of its day. */
   remind: z.boolean().default(false),
+  /** "Pay rent on the 1st of every month": a task that comes back when it is ticked off. */
+  every: z.enum(TASK_REPEATS).nullable().default(null),
   /**
    * "Gym every Mon, Wed, Fri" - hours set aside on those days until the last
    * one, rather than a task. A task is done once; a repeat is a habit.
@@ -774,6 +823,8 @@ export const quickInput = z.object({
     .object({
       weekdays: z.array(z.number().int().min(1).max(7)).min(1).max(7),
       until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "That is not a day."),
+      /** Every week, or every other week (PLAN.md, part twelve, phase 47). */
+      every: z.union([z.literal(1), z.literal(2)]).optional(),
     })
     .nullable()
     .default(null),
@@ -783,24 +834,6 @@ export const quickInput = z.object({
 });
 
 export type QuickInput = z.input<typeof quickInput>;
-
-/**
- * A word the quick-add line has been taught: "Datascience" is College.
- *
- * One list for the whole app rather than one per workspace - a course name
- * means the same thing whichever workspace it is typed into.
- */
-export type AreaWord = { id: string; word: string; area: string };
-
-export const areaWordInput = z.object({
-  word: z
-    .string()
-    .trim()
-    .min(1, "Type the word or phrase first.")
-    .max(40, "Keep it under 40 characters - a course name, not a sentence.")
-    .regex(/[\p{L}\p{N}]/u, "A word needs at least one letter or number in it."),
-  area: z.enum(TASK_AREAS),
-});
 
 /* ---- Today --------------------------------------------------------------
  * The home screen answers one question: what do I do this morning.
@@ -815,6 +848,36 @@ export type ColdLead = {
   /** The last time anything meaningful happened, as a calendar day. */
   lastTouchedOn: string;
   daysQuiet: number;
+};
+
+/** How somebody can be written to or rung, from what is on their page. */
+export type ReachWay = "email" | "phone" | "linkedin" | "instagram";
+
+/** A prospect nobody has reached out to yet. */
+export type ReachLead = {
+  id: string;
+  name: string;
+  /** Who to ask for there, when that is known. */
+  person: string | null;
+  stageName: string | null;
+  city: string | null;
+  /** The day they were added, so the list can say how long they have waited. */
+  addedOn: string;
+  ways: ReachWay[];
+};
+
+/**
+ * Outreach, as Today shows it: how many people were reached today and in the
+ * last seven days, and who is still waiting for a first message - the oldest
+ * first, a handful of them, with how many there are in all.
+ */
+export type Reach = {
+  today: number;
+  week: number;
+  next: ReachLead[];
+  waiting: number;
+  /** Who was written to in the last seven days, and what came back. */
+  sent: Sent;
 };
 
 export type Today = {
@@ -838,13 +901,16 @@ export type Today = {
   coldAfterDays: number;
   /** Sent invoices past their due date. Above overdue tasks: late money is later than a late call. */
   unpaid: Invoice[];
+  /** Retainer invoices Caulder drafted, waiting to be looked at and sent. */
+  drafted: Invoice[];
   /** Replies to email sent from Caulder, from the last seven days. */
   replies: EmailReply[];
   /** Running costs renewing soon, or overdue for it. */
   renewals: Renewal[];
   /** Filings, notice dates and expiries that are late or coming up. */
   deadlines: Deadline[];
-
+  /** Who was reached, and who is still waiting to be. */
+  reach: Reach;
 };
 
 /* ---- Settings -----------------------------------------------------------
@@ -907,33 +973,10 @@ export const SETTING_KEYS = [
   "aiModel",
   /** How much of the company goes with a question: small, medium, large or whole. */
   "aiContext",
-  /**
-   * "on" when your own pages - journal, goals, hobbies, studies, the lines
-   * you asked to be remembered - may go with a question. Anything else is
-   * off, which is where it starts. A locked or private journal day never
-   * goes, whatever this says. See services/yours.ts.
-   */
-  "aiPersonal",
+  "aiScope",
+  "aiLine",
   /** "1" once the first-run tour has been finished or skipped. */
   "tourDone",
-  /**
-   * The journal's passcode, as a key pair: the public half, and the private
-   * half encrypted with a key made from the passcode. JSON; empty when none
-   * is set. See services/journal-lock.ts.
-   */
-  "journalLock",
-  "journalLockToday",
-  "lookBackLocal",
-  /** "on" when book covers may be looked up at Open Library; anything else is off. */
-  "shelfCovers",
-  /** "off" when how somebody has been is not to be watched; anything else, it is. */
-  "pulseOff",
-  /**
-   * "1" when your level, its XP and the achievements are put away - on Life's
-   * overview and on Today. Empty or never set shows them, which is where
-   * everybody who had them already stays.
-   */
-  "levelsHidden",
   /**
    * Whether the desk widget comes back on launch. Never set means no: it is
    * the one part of Caulder that puts something on screen you did not open,
@@ -944,22 +987,12 @@ export const SETTING_KEYS = [
   "widgetLevel",
   /** Where the resting pill was left, as {"x":n,"y":n}. Clamped onto a real screen on every launch. */
   "widgetSpot",
-  /**
-   * How Ember is on the taskbar when Caulder is not in front: "walk", "dot"
-   * or "off" (shared/pet.ts, petForm). Never set is a dot; the old "1" and
-   * "0" still mean walking and off.
-   */
-  "petOpen",
-  /** The hour of the journal nudge, "HH:MM"; empty or never set is off. */
-  "journalNudgeAt",
-  /** The day the journal nudge was last sent, so it is sent once. */
-  "journalNudged",
+  // Set once the first launch of an installed copy has turned on opening at sign-in.
+  "startupSet",
   /** The hour of the morning brief, "HH:MM"; empty or never set is off. */
   "briefAt",
   /** The day the morning brief was last sent. */
   "briefed",
-  /** The day a birthday or an anniversary coming round was last said. */
-  "datesTold",
   /** "on" when understanding on this machine is switched off; on by default (PLAN.md, part five). */
   "understandOff",
   /** Loose memories not to offer moving again, as "pageId#hash" (JSON): *Not these*, phase 21. */
@@ -1050,26 +1083,21 @@ export type CustomFieldInput = z.infer<typeof customFieldInput>;
  * The list makes a day countable - "you planned four hours of deep work and
  * did one" is only sayable if the app knows which was which. The freedom
  * underneath means an unlisted kind never has to be forced into the wrong box.
+ *
+ * A working day's, since phase 32: Class, Studying, Break and Personal were
+ * a student's, and blocks that had them are Away (migration 53). Away is
+ * anything that is not work, without saying what - the calendar holds the
+ * whole day, and what the hour is for is nobody's business but its owner's.
  */
-export const BLOCK_KINDS = [
-  "class",
-  "study",
-  "focus",
-  "meeting",
-  "admin",
-  "break",
-  "personal",
-] as const;
+export const BLOCK_KINDS = ["focus", "meeting", "call", "admin", "away"] as const;
 export type BlockKind = (typeof BLOCK_KINDS)[number];
 
 export const BLOCK_KIND_LABEL: Record<BlockKind, string> = {
-  class: "Class",
-  study: "Studying",
   focus: "Deep work",
   meeting: "Meeting",
+  call: "Call",
   admin: "Admin",
-  break: "Break",
-  personal: "Personal",
+  away: "Away",
 };
 
 /** Who owns the block, and therefore who wins when both sides changed it. */
@@ -1157,6 +1185,8 @@ export const blockInput = z.object({
     .object({
       weekdays: z.array(z.number().int().min(1).max(7)).min(1).max(7),
       until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "That is not a day."),
+      /** Every week, or every other week (PLAN.md, part twelve, phase 47). */
+      every: z.union([z.literal(1), z.literal(2)]).optional(),
     })
     .nullable()
     .default(null),
@@ -1210,19 +1240,6 @@ export type DayPlan = {
   planned: number;
   elapsed: number;
   /** The session running right now, if one is. */
-};
-
-/* ---- Terms ----------------------------------------------------------------
- * The span a timetable belongs to: a semester's worth of classes is one thing
- * that starts and ends, not forty-five unrelated blocks.
- * ------------------------------------------------------------------------- */
-
-export type Term = {
-  id: string;
-  companyId: string;
-  name: string;
-  fromDay: string;
-  untilDay: string;
 };
 
 /* ---- Notes --------------------------------------------------------------
@@ -1361,8 +1378,21 @@ export const quoteInput = z.object({
 });
 export type QuoteInput = z.infer<typeof quoteInput>;
 
+/** How often an invoice is written again for the same contact: a retainer. */
+export const INVOICE_REPEATS = ["monthly", "quarterly", "yearly"] as const;
+export type InvoiceRepeat = (typeof INVOICE_REPEATS)[number];
+
+export const INVOICE_REPEAT_LABEL: Record<InvoiceRepeat, string> = {
+  monthly: "Every month",
+  quarterly: "Every quarter",
+  yearly: "Every year",
+};
+
+/** How many months on the next one is. */
+export const INVOICE_REPEAT_MONTHS: Record<InvoiceRepeat, number> = { monthly: 1, quarterly: 3, yearly: 12 };
+
 export const invoiceInput = quoteInput
-  .extend({ dueOn: dayString })
+  .extend({ dueOn: dayString, repeats: z.enum(INVOICE_REPEATS).nullable().optional() })
   .refine((input) => input.dueOn >= input.issuedOn, {
     message: "An invoice cannot be due before it was issued.",
     path: ["dueOn"],
@@ -1378,13 +1408,12 @@ export type PaymentInput = z.infer<typeof paymentInput>;
 
 export const spendEntryInput = z.object({
   spentOn: dayString,
-  /** Never zero, for the same reason campaign spend is not; negative is a refund. */
+  /** Never zero; negative is a refund. */
   amount: z
     .number()
     .int("Whole units of the currency.")
     .refine((value) => value !== 0, "An amount of nothing is not a spend."),
   what: z.string().trim().min(1, "Say what it was for.").max(200, "Keep it under 200 characters."),
-  campaignId: z.string().nullable().optional(),
 });
 export type SpendEntryInput = z.infer<typeof spendEntryInput>;
 
@@ -1442,6 +1471,17 @@ export type Invoice = {
   lines: MoneyLine[];
   payments: Payment[];
   createdAt: string;
+  /**
+   * A retainer: how often it is written again. On the newest invoice of the
+   * run only - when the next is drafted, the saying moves to the draft.
+   */
+  repeats: InvoiceRepeat | null;
+  /**
+   * The reminders that have gone about it (shared/chase.ts): read from the
+   * emails sent to its contact with its number in the subject, so nothing is
+   * kept to say so. Null when none has, and for an invoice that is not owed.
+   */
+  reminded: { at: string; times: number } | null;
 };
 
 export type SpendEntry = {
@@ -1449,8 +1489,6 @@ export type SpendEntry = {
   spentOn: string;
   amount: number;
   what: string;
-  campaignId: string | null;
-  campaignName: string | null;
 };
 
 /** The Money screen: this month's four numbers, and the three lists. */

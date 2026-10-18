@@ -115,6 +115,8 @@ export type Hello = {
   email: string;
   calendars: { id: string; name: string }[];
   taskLists: { id: string; name: string }[];
+  /** Whether the script can see Google Tasks: false when the Tasks API is not under its Services (version 7 on). */
+  tasks?: boolean;
   /** Absent from the first version of the script, which could not send email. */
   version?: number;
   mail?: { address: string; remaining: number } | null;
@@ -185,6 +187,8 @@ export async function syncNow(db: Db, companyId: string, now = new Date()): Prom
   let pushed = 0;
   let pulled = 0;
   let conflicts = 0;
+  /** What Google would not take, said after the sync rather than lost in it. */
+  let problem: string | null = null;
 
   try {
     if (company.google_calendar_id) {
@@ -199,6 +203,11 @@ export async function syncNow(db: Db, companyId: string, now = new Date()): Prom
       pushed += counts.pushed;
       pulled += counts.pulled;
       conflicts += counts.conflicts;
+      if (counts.failed > 0) {
+        problem = `${counts.failed === 1 ? "One task" : `${counts.failed} tasks`} did not reach Google Tasks${
+          counts.firstError ? ` (${counts.firstError.replace(/^Error:\s*/, "")})` : ""
+        }. Caulder will try again at the next sync.`;
+      }
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -213,7 +222,7 @@ export async function syncNow(db: Db, companyId: string, now = new Date()): Prom
     pushed,
     pulled,
     conflicts,
-    lastError: null,
+    lastError: problem,
   };
   writeSync(db, companyId, state);
 
@@ -384,8 +393,10 @@ async function syncTasks(db: Db, companyId: string, taskListId: string) {
       );
     }
 
+    // Only what Google took: a task that failed stays marked, to go again next time.
+    const failed = new Set(result.failures.map((failure) => failure.taskId));
     for (const task of plan.update) {
-      db.prepare(`UPDATE tasks SET is_dirty = 0 WHERE id = ?`).run(task.id);
+      if (!failed.has(task.id)) db.prepare(`UPDATE tasks SET is_dirty = 0 WHERE id = ?`).run(task.id);
     }
 
     for (const entry of plan.adopt) {
@@ -434,10 +445,13 @@ async function syncTasks(db: Db, companyId: string, taskListId: string) {
   });
   apply();
 
+  const failedUpdates = plan.update.filter((task) => result.failures.some((failure) => failure.taskId === task.id)).length;
   return {
-    pushed: result.created.length + plan.update.length + plan.remove.length,
+    pushed: result.created.length + plan.update.length - failedUpdates + plan.remove.length,
     pulled: plan.adopt.length + plan.refresh.length + plan.drop.length,
     conflicts: plan.conflicts,
+    failed: result.failures.length,
+    firstError: result.failures[0]?.error ?? null,
   };
 }
 

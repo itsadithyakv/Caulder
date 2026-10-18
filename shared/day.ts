@@ -122,3 +122,45 @@ export function elapsedMinutes(blocks: readonly Block[], cursor: number): number
   }
   return total;
 }
+
+/* ---- Clashes ---------------------------------------------------------------- */
+
+type Timed = Pick<Block, "id" | "title" | "startsAt" | "minutes">;
+
+/** Two things in the calendar at once: when they meet, and what they are. */
+export type DoubleBooking = { at: string; titles: [string, string] };
+
+const span = (block: Timed) => [minutesOf(block.startsAt), minutesOf(block.startsAt) + block.minutes] as const;
+
+/**
+ * Every pair of blocks in a day that overlap - the warning for a calendar
+ * that has two things at once. A clash is never refused (see `layOut`):
+ * it is said, so it can be sorted out while there is time to.
+ * Back to back is not a clash. The earliest first.
+ */
+export function doubleBooked(blocks: readonly Timed[]): DoubleBooking[] {
+  const sorted = [...blocks].sort((a, b) => minutesOf(a.startsAt) - minutesOf(b.startsAt) || a.id.localeCompare(b.id));
+  const out: DoubleBooking[] = [];
+  for (let i = 0; i < sorted.length; i += 1) {
+    const one = sorted[i] as Timed;
+    const [, oneEnd] = span(one);
+    for (let j = i + 1; j < sorted.length; j += 1) {
+      const other = sorted[j] as Timed;
+      const [otherStart] = span(other);
+      if (otherStart >= oneEnd) break;
+      out.push({ at: other.startsAt, titles: [one.title, other.title] });
+    }
+  }
+  return out;
+}
+
+/** The blocks a block at this time would overlap, leaving out the one being changed. */
+export function clashingWith(candidate: { id?: string | null; startsAt: string; minutes: number }, blocks: readonly Timed[]): Timed[] {
+  const start = minutesOf(candidate.startsAt);
+  const end = start + candidate.minutes;
+  return blocks.filter((block) => {
+    if (candidate.id && block.id === candidate.id) return false;
+    const [from, to] = span(block);
+    return from < end && start < to;
+  });
+}

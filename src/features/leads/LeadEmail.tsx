@@ -154,6 +154,7 @@ export function LeadEmail({
       const next = await window.caulder.mail.send({
         leadId: lead.id,
         accountId: sender?.id ?? null,
+        templateId: picked || null,
         subject: render(subject, context),
         body: render(body, context),
         sendAt: when,
@@ -238,7 +239,8 @@ export function LeadEmail({
         <p className="card__hint">{blocked}</p>
       ) : mail && !mail.ready ? (
         <p className="card__hint">
-          {mail.reason} Until then, Write one opens your own mail app.
+          {/* Not connected is offered on Today; a connection that is not working is worth saying here. */}
+          {mail.reason && !mail.reason.startsWith("Connect Google") ? `${mail.reason} ` : ""}Write one opens your own mail app.
         </p>
       ) : ready && emails.length === 0 && !composing ? (
         <p className="card__hint">
@@ -374,10 +376,10 @@ export function LeadEmail({
                   <span className="checkline__title">Follow up if they do not reply</span>
                   <span className="card__hint">
                     {!seesReplies
-                      ? "Only Gmail through the script can do this: it is the one that sees whether they answered."
+                      ? "Needs Gmail through the script."
                       : templates.length === 0
-                        ? "Write a template in Settings first: the follow-up is sent from one."
-                        : "Sent in the same thread, and dropped the moment they answer."}
+                        ? "Needs a template in Settings."
+                        : "Same thread. Dropped if they answer."}
                   </span>
                 </span>
               </label>
@@ -420,8 +422,7 @@ export function LeadEmail({
           {asking ? (
             <div className="leadform__actions">
               <p className="card__hint">
-                Caulder cannot see whether that went. Say so and it goes on the
-                history, and counts as having been in touch.
+                Did it go?
               </p>
               <button
                 type="button"

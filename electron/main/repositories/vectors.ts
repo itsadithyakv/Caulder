@@ -47,7 +47,7 @@ export function dequeue(db: Db, kind: QueuedKind, refId: string): void {
 /**
  * What a queued row is read as. A page is its title and opening words, and
  * each memory on it is read on its own, with the page's title for what it is
- * about. A journal page, an archived one, or a row that is gone gives null:
+ * about. An archived page, or a row that is gone, gives null:
  * whatever was made of it before is then taken away.
  */
 export function sourceOf(db: Db, kind: QueuedKind, id: string): Source | null {
@@ -57,7 +57,7 @@ export function sourceOf(db: Db, kind: QueuedKind, id: string): Source | null {
       const page = db.prepare(`SELECT company_id, section, title, body, is_archived FROM brain_pages WHERE id = ?`).get(id) as
         | { company_id: string; section: BrainSectionId; title: string; body: string; is_archived: number }
         | undefined;
-      if (!page || page.section === "journal" || page.is_archived === 1) return null;
+      if (!page || page.is_archived === 1) return null;
       const memories = memoriesOf({ id, title: page.title, section: page.section, body: page.body });
       const kept = new Set(memories.map((memory) => memory.raw));
       const rest = page.body
@@ -167,7 +167,7 @@ export function vectorCount(db: Db, model: string): number {
 export function queueEverything(db: Db, now: string): void {
   db.transaction(() => {
     const at = now;
-    db.prepare(`INSERT OR REPLACE INTO embed_queue (kind, ref_id, queued_at) SELECT 'page', id, ? FROM brain_pages WHERE section <> 'journal' AND is_archived = 0`).run(at);
+    db.prepare(`INSERT OR REPLACE INTO embed_queue (kind, ref_id, queued_at) SELECT 'page', id, ? FROM brain_pages WHERE is_archived = 0`).run(at);
     db.prepare(`INSERT OR REPLACE INTO embed_queue (kind, ref_id, queued_at) SELECT 'contact', id, ? FROM leads`).run(at);
     db.prepare(`INSERT OR REPLACE INTO embed_queue (kind, ref_id, queued_at) SELECT 'task', id, ? FROM tasks`).run(at);
     db.prepare(`INSERT OR REPLACE INTO embed_queue (kind, ref_id, queued_at) SELECT 'note', id, ? FROM notes`).run(at);

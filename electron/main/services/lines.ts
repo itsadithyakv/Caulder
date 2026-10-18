@@ -7,7 +7,10 @@ import { askedStems, fuseRecall, recall, type Memory } from "@shared/memories";
 import { addReminder } from "./nudges";
 import { blockKindFor } from "@shared/quickadd";
 import { blockInput, taskInput, type Task, type TaskKind } from "@shared/domain";
-import { shiftDay, today as todayIn } from "@shared/dates";
+import { daysBetween, shiftDay, timeNow, today as todayIn } from "@shared/dates";
+import { yourDay } from "@shared/habitual";
+import { listInvoices } from "../repositories/money";
+import { factsAbout } from "../repositories/facts";
 import { localeFor } from "@shared/countries";
 import { withHome } from "../repositories/companies";
 import {
@@ -163,7 +166,7 @@ export function moveTask(db: Db, id: unknown, raw: unknown): { task: Task; time:
           startsAt: to.time,
           minutes: to.minutes ?? 60,
           title: task.title,
-          kind: blockKindFor({ kind: task.kind, area: task.area }),
+          kind: blockKindFor({ kind: task.kind }),
           notes: null,
           taskId: task.id,
           priority: task.priority,
@@ -191,7 +194,6 @@ export function cancelTask(db: Db, id: unknown): TaskSnapshot {
     const snapshot = taskSnapshot.parse({
       title: task.title,
       kind: task.kind,
-      area: task.area,
       priority: task.priority,
       dueOn: task.dueOn,
       leadId: task.leadId,
@@ -219,7 +221,6 @@ export function restoreTask(db: Db, companyId: string, raw: unknown): Task {
       taskInput.parse({
         title: was.title,
         kind: was.kind as TaskKind,
-        area: was.area,
         priority: was.priority,
         dueOn: was.dueOn,
         leadId: was.leadId,
@@ -235,7 +236,7 @@ export function restoreTask(db: Db, companyId: string, raw: unknown): Task {
           startsAt: was.block.startsAt,
           minutes: was.block.minutes,
           title: was.title,
-          kind: blockKindFor({ kind: was.kind as TaskKind, area: was.area }),
+          kind: blockKindFor({ kind: was.kind as TaskKind }),
           notes: null,
           taskId: task.id,
           priority: was.priority,
@@ -260,7 +261,6 @@ export function renameTask(db: Db, id: unknown, title: unknown): Task {
       taskInput.parse({
         title: title.trim(),
         kind: task.kind,
-        area: task.area,
         priority: task.priority,
         dueOn: task.dueOn,
         leadId: task.leadId,
@@ -309,6 +309,14 @@ export function answerQuestion(
 ): Answer {
   const asked = question.parse(raw);
   switch (asked.ask) {
+    case "last":
+      return lastSpoken(db, companyId, asked.name);
+    case "owed":
+      return owedBy(db, companyId, asked.name);
+    case "slot":
+      return freeSlot(db, companyId, asked);
+    case "promised":
+      return promisedTo(db, companyId, asked.name);
     case "day": {
       const tasks = db
         .prepare(
@@ -370,13 +378,16 @@ export function answerQuestion(
       };
     }
     case "recall": {
-      const found = fuseRecall(recall(allMemories(db).memories, asked.about), meant).slice(0, 5);
+      // What is true about a contact comes first: "what does maya prefer", "sam's address" (part twelve, phase 49).
+      const known = factsAbout(db, companyId, asked.about);
+      const found = fuseRecall(recall(allMemories(db, companyId).memories, asked.about), meant).slice(0, 5);
+      if (known[0]) return { say: known[0].label, items: [...known, ...found.map(memoryItem)].slice(0, 6) };
       if (found.length === 0) return { say: `Nothing remembered about ${asked.label} yet.`, items: [] };
       return { say: sayMemory(found[0]!), items: found.map(memoryItem) };
     }
     case "when": {
-      // What you told it about them comes first: "when's mummy's birthday" is on Mummy's page.
-      const remembered = recall(allMemories(db).memories, asked.about).filter((memory) => memory.current && memory.fact);
+      // What you told it comes first: "when does the domain renew" is on its page.
+      const remembered = recall(allMemories(db, companyId).memories, asked.about).filter((memory) => memory.current && memory.fact);
       if (remembered[0]) return { say: sayMemory(remembered[0]), items: remembered.slice(0, 5).map(memoryItem) };
       const like = `%${asked.about.replace(/[%_]/g, "")}%`;
       const due = db
@@ -440,11 +451,156 @@ export function answerQuestion(
   }
 }
 
+/* ---- Part twelve, phase 50: a contact, the money, the hours left ---------- */
+
+type Named = { id: string; name: string; contact_person: string | null };
+
+/** The contact a name means: the company's name or the person's, the exact one first. */
+function contactNamed(db: Db, companyId: string, name: string): Named | null {
+  const like = `%${name.replace(/^(?:the|my|our)\s+/i, "").replace(/[%_]/g, "")}%`;
+  return (
+    (db
+      .prepare(
+        `SELECT id, name, contact_person FROM leads
+         WHERE company_id = ? AND (name LIKE ? OR contact_person LIKE ?)
+         ORDER BY (lower(name) = lower(?) OR lower(contact_person) = lower(?)) DESC, name LIMIT 1`,
+      )
+      .get(companyId, like, like, name, name) as Named | undefined) ?? null
+  );
+}
+
+const whoIs = (lead: Named) => (lead.contact_person ? `${lead.contact_person.split(/\s+/)[0]} (${lead.name})` : lead.name);
+
+function placeOf(db: Db, companyId: string): { zone: string; money: (amount: number) => string } {
+  const place = db.prepare(`SELECT timezone, currency, country FROM companies WHERE id = ?`).get(companyId) as
+    | { timezone: string; currency: string; country: string | null }
+    | undefined;
+  const currency = place?.currency ?? "INR";
+  const locale = localeFor(place?.country) ?? (currency === "INR" ? "en-IN" : undefined);
+  return {
+    zone: place?.timezone ?? "UTC",
+    money: (amount) => new Intl.NumberFormat(locale, { style: "currency", currency, maximumFractionDigits: 0 }).format(amount),
+  };
+}
+
+/** The kinds of history entry that were a conversation, and how each is said. */
+const SPOKEN: Record<string, string> = {
+  call: "a call",
+  meeting: "a meeting",
+  whatsapp: "a WhatsApp",
+  linkedin: "a LinkedIn message",
+  instagram: "an Instagram message",
+  email_sent: "an email from you",
+  email_replied: "their reply",
+  replied: "their reply",
+};
+
+function agoSaid(days: number): string {
+  return days <= 0 ? "today" : days === 1 ? "yesterday" : `${days} days ago`;
+}
+
+function lastSpoken(db: Db, companyId: string, name: string): Answer {
+  const lead = contactNamed(db, companyId, name);
+  if (!lead) return { say: `No contact called ${name}.`, items: [] };
+  const kinds = Object.keys(SPOKEN);
+  const rows = db
+    .prepare(
+      `SELECT kind, body, occurred_at FROM activities WHERE lead_id = ? AND kind IN (${kinds.map(() => "?").join(", ")})
+       ORDER BY occurred_at DESC LIMIT 3`,
+    )
+    .all(lead.id, ...kinds) as { kind: string; body: string | null; occurred_at: string }[];
+  if (!rows[0]) return { say: `Not spoken to ${whoIs(lead)} yet.`, items: [] };
+  const { zone } = placeOf(db, companyId);
+  const today = todayIn(zone);
+  const dayOf = (iso: string) => todayIn(zone, new Date(iso));
+  const first = rows[0];
+  return {
+    say: `${whoIs(lead)}: ${SPOKEN[first.kind] ?? "a conversation"} ${agoSaid(daysBetween(dayOf(first.occurred_at), today))}.`,
+    items: rows.map((row) => ({
+      label: (SPOKEN[row.kind] ?? row.kind).replace(/^an?\s+/, "").replace(/^./, (c) => c.toUpperCase()),
+      detail: [dayOf(row.occurred_at), row.body?.slice(0, 80)].filter(Boolean).join(" · "),
+    })),
+  };
+}
+
+function owedBy(db: Db, companyId: string, name: string | null): Answer {
+  const lead = name ? contactNamed(db, companyId, name) : null;
+  if (name && !lead) return { say: `No contact called ${name}.`, items: [] };
+  const { money } = placeOf(db, companyId);
+  const unpaid = listInvoices(db, companyId)
+    .filter((invoice) => invoice.status === "sent" && invoice.total - invoice.paid > 0)
+    .filter((invoice) => !lead || invoice.leadId === lead.id);
+  const total = unpaid.reduce((sum, invoice) => sum + (invoice.total - invoice.paid), 0);
+  const who = new Set(unpaid.map((invoice) => invoice.leadId)).size;
+  return {
+    say: lead
+      ? total > 0
+        ? `${whoIs(lead)} owes ${money(total)}, on ${unpaid.length === 1 ? "one invoice" : `${unpaid.length} invoices`}.`
+        : `${whoIs(lead)} owes nothing.`
+      : total > 0
+        ? `${money(total)} owed, by ${who === 1 ? "one contact" : `${who} contacts`}.`
+        : "Nobody owes you anything.",
+    items: unpaid.slice(0, 6).map((invoice) => ({
+      label: invoice.leadName,
+      detail: `${money(invoice.total - invoice.paid)} · due ${invoice.dueOn}`,
+    })),
+  };
+}
+
+function freeSlot(db: Db, companyId: string, asked: Extract<Question, { ask: "slot" }>): Answer {
+  const { zone } = placeOf(db, companyId);
+  const today = todayIn(zone);
+  const timed = (
+    db
+      .prepare(`SELECT title, starts_at, minutes, day FROM blocks WHERE company_id = ? AND day BETWEEN ? AND ?`)
+      .all(companyId, shiftDay(today, -56), today) as { title: string; starts_at: string; minutes: number; day: string }[]
+  ).map((row): Timed => ({ title: row.title, startsAt: row.starts_at, minutes: row.minutes, day: row.day }));
+  const usual = yourDay(timed, today);
+  const opens = usual.starts ?? 9 * 60;
+  const closes = usual.ends ?? 18 * 60;
+  // Not a slot that has already gone: from now, rounded up to the quarter, today.
+  const now = asked.day === today ? Math.ceil(minutesOf(timeNow(zone)) / 15) * 15 : 0;
+  const from = Math.max(opens, now);
+  const taken = (
+    db.prepare(`SELECT starts_at, minutes FROM blocks WHERE company_id = ? AND day = ? ORDER BY starts_at`).all(companyId, asked.day) as {
+      starts_at: string;
+      minutes: number;
+    }[]
+  ).map((block) => ({ start: minutesOf(block.starts_at), end: minutesOf(block.starts_at) + block.minutes }));
+  const gaps: { start: number; end: number }[] = [];
+  let at = from;
+  for (const block of taken) {
+    if (block.start > at) gaps.push({ start: at, end: Math.min(block.start, closes) });
+    at = Math.max(at, block.end);
+  }
+  if (at < closes) gaps.push({ start: at, end: closes });
+  const fits = gaps.filter((gap) => gap.end - gap.start >= asked.minutes);
+  const length = asked.minutes === 60 ? "an hour" : asked.minutes === 30 ? "half an hour" : `${asked.minutes / 60} hours`;
+  const window = `${said(hhmm(opens))} and ${said(hhmm(closes))}`;
+  return {
+    say: fits[0]
+      ? `${asked.label}: free from ${said(hhmm(fits[0].start))} to ${said(hhmm(fits[0].end))}.`
+      : `No ${length} free ${asked.label.toLowerCase()} between ${window}.`,
+    items: fits.slice(0, 4).map((gap) => ({ label: `${said(hhmm(gap.start))} – ${said(hhmm(gap.end))}`, detail: null })),
+  };
+}
+
+function promisedTo(db: Db, companyId: string, name: string): Answer {
+  const lead = contactNamed(db, companyId, name);
+  if (!lead) return { say: `No contact called ${name}.`, items: [] };
+  const open = db
+    .prepare(`SELECT title, due_on FROM tasks WHERE company_id = ? AND lead_id = ? AND status = 'open' ORDER BY due_on`)
+    .all(companyId, lead.id) as { title: string; due_on: string }[];
+  return {
+    say: open.length === 0 ? `Nothing open for ${whoIs(lead)}.` : `${open.length === 1 ? "One thing" : `${open.length} things`} open for ${whoIs(lead)}.`,
+    items: open.slice(0, 6).map((task) => ({ label: task.title, detail: task.due_on })),
+  };
+}
+
 /**
- * "Did i go to gym this week": looked for in everything that says a thing was
- * done - a habit ticked, an hour on the calendar, time on a hobby, a task
- * finished - in your home and the company both, since the gym is yours and
- * the call to Rahul the company's. Something counts when it shares a word
+ * "Did i call rahul this week": looked for in everything that says a thing
+ * was done - an hour on the calendar, a task finished - in your own calendar
+ * and the company's both, since the gym is yours and the call the company's. Something counts when it shares a word
  * that means something with the question. Nothing is ticked by asking.
  */
 function whatWasDone(db: Db, companyId: string, asked: Extract<Question, { ask: "did" }>): Answer {
@@ -457,16 +613,7 @@ function whatWasDone(db: Db, companyId: string, asked: Extract<Question, { ask: 
 
   const done: { label: string; day: string }[] = [
     ...(db
-      .prepare(
-        `SELECT h.name AS label, c.day FROM habit_checks c JOIN habits h ON h.id = c.habit_id
-          WHERE h.company_id IN (${list}) AND c.day BETWEEN ? AND ?`,
-      )
-      .all(...ids, asked.from, asked.to) as { label: string; day: string }[]),
-    ...(db
       .prepare(`SELECT title AS label, day FROM blocks WHERE company_id IN (${list}) AND day BETWEEN ? AND ?`)
-      .all(...ids, asked.from, asked.to) as { label: string; day: string }[]),
-    ...(db
-      .prepare(`SELECT topic AS label, day FROM hobby_logs WHERE company_id IN (${list}) AND day BETWEEN ? AND ?`)
       .all(...ids, asked.from, asked.to) as { label: string; day: string }[]),
     // Finished is an instant; the day it fell on is the day in your timezone.
     ...(db

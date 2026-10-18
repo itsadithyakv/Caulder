@@ -2,34 +2,30 @@ import { z } from "zod";
 import type { Db } from "../db/connection";
 import type { BrainPage, BrainSectionId } from "@shared/brain";
 import { memoriesOf, trailsOf, type Memory } from "@shared/memories";
-import { homeCompanyId } from "../repositories/companies";
 import { notTheSame, saidAgainIn } from "../repositories/vectors";
 import { textHash } from "@shared/understand";
 import { getPage, savePage } from "./brain";
 
 /**
- * Everything the line has been told to remember, and whose brain it is in.
+ * Everything the line has been told to remember about a company, read back
+ * off the pages of its brain.
  *
- * Memories are yours rather than a company's - the line keeps them in your own
- * workspace whichever company is open - so they are read from there, and the
- * window is told which workspace that is so it can open the page in it.
- *
- * The journal is never read for them. Its pages can be sealed, a sealed body
- * is not text, and what is written there is not the line's to list anyway.
+ * A memory is a dated line on a page, never a row of its own
+ * (`shared/memories.ts`), so listing them is reading the pages that hold one.
+ * They are the company's: the personal half, and the home workspace memories
+ * used to be kept in, went on 10 October 2026 (PLAN.md, part seven).
  */
-export function allMemories(db: Db): { companyId: string | null; memories: Memory[]; trails: Record<string, string[]> } {
-  const companyId = homeCompanyId(db);
-  if (!companyId) return { companyId: null, memories: [], trails: {} };
+export function allMemories(db: Db, companyId: string): { companyId: string; memories: Memory[]; trails: Record<string, string[]> } {
   const pages = db
     .prepare(
       `SELECT id, title, section, body FROM brain_pages
-        WHERE company_id = ? AND is_archived = 0 AND section <> 'journal' AND body LIKE '%\\_(____-__-__)\\_%' ESCAPE '\\'
+        WHERE company_id = ? AND is_archived = 0 AND body LIKE '%\\_(____-__-__)\\_%' ESCAPE '\\'
         ORDER BY updated_at DESC`,
     )
     .all(companyId) as { id: string; title: string; section: BrainSectionId; body: string }[];
   // Where each of those pages hangs, which needs every page above them - not only the ones with memories on.
   const every = db
-    .prepare(`SELECT id, title, body FROM brain_pages WHERE company_id = ? AND is_archived = 0 AND section <> 'journal'`)
+    .prepare(`SELECT id, title, body FROM brain_pages WHERE company_id = ? AND is_archived = 0`)
     .all(companyId) as { id: string; title: string; body: string }[];
   const trails = trailsOf(every);
   // A line the model found said again is earlier too (phase 21), unless taken back.
@@ -42,9 +38,7 @@ export function allMemories(db: Db): { companyId: string | null; memories: Memor
 
 /** One memory's line, found on its page exactly as it was read, or refused: a page edited since is read again. */
 function lineOn(db: Db, pageId: string, raw: string): { page: BrainPage; at: number; lines: string[] } {
-  const companyId = homeCompanyId(db);
   const page = getPage(db, pageId);
-  if (page.companyId !== companyId || page.section === "journal") throw new Error("That is not one of your memories.");
   const lines = page.body.split(/\r?\n/);
   const at = lines.findIndex((line) => line === raw);
   if (at === -1) throw new Error("That memory has changed on its page since. Open the page to see it as it is now.");
@@ -107,15 +101,14 @@ const moveInput = z.object({
  */
 export function moveMemories(db: Db, raw: unknown, now: Date): void {
   const input = moveInput.parse(raw);
-  const companyId = homeCompanyId(db);
   db.transaction(() => {
     const target = getPage(db, input.to);
-    if (target.companyId !== companyId || target.section === "journal") throw new Error("That page is not one of yours.");
     const moving: string[] = [];
     const bySource = new Map<string, string[]>();
     for (const line of input.lines) {
       if (line.pageId === target.id) continue;
-      lineOn(db, line.pageId, line.raw);
+      // Never across companies: one company's memory is not another's to hold.
+      if (lineOn(db, line.pageId, line.raw).page.companyId !== target.companyId) throw new Error("That memory belongs to another company.");
       bySource.set(line.pageId, [...(bySource.get(line.pageId) ?? []), line.raw]);
       moving.push(line.raw.trim());
     }
@@ -134,4 +127,11 @@ export function moveMemories(db: Db, raw: unknown, now: Date): void {
       now,
     );
   })();
+}
+
+/** Every page of a company's brain by its title: what the line listens for (`shared/capture.ts`). */
+export function pageTitles(db: Db, companyId: string): { id: string; title: string; section: string }[] {
+  return db
+    .prepare(`SELECT id, title, section FROM brain_pages WHERE company_id = ? AND is_archived = 0 ORDER BY updated_at DESC LIMIT 2000`)
+    .all(companyId) as { id: string; title: string; section: string }[];
 }

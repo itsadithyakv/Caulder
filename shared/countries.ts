@@ -59,6 +59,18 @@ export function countryName(code: string, locale?: string): string {
   }
 }
 
+/** Old names some systems still give a zone, by the name the place has now. */
+const RENAMED: Record<string, string> = { Calcutta: "Kolkata", Saigon: "Ho Chi Minh City", Kiev: "Kyiv", Rangoon: "Yangon", Katmandu: "Kathmandu" };
+
+/**
+ * A timezone as a person says it: "Asia/Calcutta" is Kolkata,
+ * "America/New_York" is New York. Never the raw name a computer keeps.
+ */
+export function timezoneCity(zone: string): string {
+  const last = zone.split("/").at(-1) ?? zone;
+  return (RENAMED[last] ?? last).replace(/_/g, " ");
+}
+
 /** Any currency Intl knows by its ISO code - which is every one in use. */
 export function isCurrency(value: unknown): value is string {
   if (typeof value !== "string" || !/^[A-Z]{3}$/.test(value)) return false;

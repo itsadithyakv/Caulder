@@ -117,6 +117,15 @@ export function formatDay(day: string): string {
   return dateFormatter(DATE).format(new Date(year ?? 1970, (month ?? 1) - 1, date ?? 1));
 }
 
+/**
+ * A calendar day in full: "Thursday, 15 October". A stored day is midnight
+ * UTC, so it is written in UTC: in the Americas the local clock would make it
+ * the evening before (phase 24).
+ */
+export function formatLongDay(day: string): string {
+  return dateFormatter({ weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(`${day}T00:00:00Z`));
+}
+
 /** A calendar day's month and year: "July 2027". Built from parts, like formatDay. */
 export function formatMonth(day: string): string {
   const [year, month] = day.split("-").map(Number);
@@ -139,6 +148,15 @@ function daysBetween(from: Date, to: Date): number {
  * "Today", "Yesterday", "5 days ago", then a date once that stops being the
  * useful way to say it.
  */
+/**
+ * A day as it is said inside a sentence: "today", "tomorrow" and
+ * "yesterday" in lower case, and anything else - a weekday, a date - as it
+ * is written, because "on wed, 21 oct" is not English.
+ */
+export function inSentence(day: string): string {
+  return day.replace(/^(?:Today|Tomorrow|Yesterday)\b/, (word) => word.toLowerCase());
+}
+
 export function relativeDay(iso: string, now: Date = new Date()): string {
   const then = new Date(iso);
   const days = daysBetween(then, now);

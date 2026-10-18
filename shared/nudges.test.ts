@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nudgeDue, reminderDue, REMIND_ME, sayBrief, sayJournal, sayReminder } from "./nudges";
+import { nudgeDue, reminderDue, REMIND_ME, sayBrief, sayReminder } from "./nudges";
 
 describe("a reminder asked for in the line", () => {
   it("is heard in the ways people ask", () => {
@@ -34,12 +34,12 @@ describe("a reminder asked for in the line", () => {
 
 describe("the daily nudges", () => {
   it("are sent once a day, from their hour, and not so late they stop being useful", () => {
-    expect(nudgeDue("journal", "21:00", 20 * 60 + 59, null, "2026-09-23")).toBe(false);
-    expect(nudgeDue("journal", "21:00", 21 * 60, null, "2026-09-23")).toBe(true);
-    expect(nudgeDue("journal", "21:00", 21 * 60 + 30, "2026-09-23", "2026-09-23")).toBe(false);
-    expect(nudgeDue("brief", "09:00", 12 * 60, "2026-09-22", "2026-09-23")).toBe(true);
-    expect(nudgeDue("brief", "09:00", 16 * 60, null, "2026-09-23")).toBe(false);
-    expect(nudgeDue("journal", null, 21 * 60, null, "2026-09-23")).toBe(false);
+    expect(nudgeDue("09:00", 8 * 60 + 59, null, "2026-09-23")).toBe(false);
+    expect(nudgeDue("09:00", 9 * 60, null, "2026-09-23")).toBe(true);
+    expect(nudgeDue("09:00", 9 * 60 + 30, "2026-09-23", "2026-09-23")).toBe(false);
+    expect(nudgeDue("09:00", 12 * 60, "2026-09-22", "2026-09-23")).toBe(true);
+    expect(nudgeDue("09:00", 16 * 60, null, "2026-09-23")).toBe(false);
+    expect(nudgeDue(null, 9 * 60, null, "2026-09-23")).toBe(false);
   });
 
   it("names the must-dos in the brief, and says nothing on a day with nothing", () => {
@@ -58,8 +58,18 @@ describe("the daily nudges", () => {
     expect(sayBrief([{ title: "Buy milk", must: false }], 0)).toEqual({ title: "Today: 1 to do", body: "Buy milk" });
     expect(sayBrief([], 3)).toEqual({ title: "3 late", body: "3 late from before" });
   });
+});
 
-  it("asks about the journal a different way from one day to the next", () => {
-    expect(sayJournal("2026-09-23").body).not.toBe(sayJournal("2026-09-24").body);
+describe("Monday's brief, with the week's three (part eight, phase 35)", () => {
+  it("says the three first, then the day", () => {
+    expect(sayBrief([{ title: "Call Priya", must: false }], 0, ["Close Harbour", "Ship the site"])).toEqual({
+      title: "Today: 1 to do",
+      body: "This week: Close Harbour · Ship the site. Call Priya",
+    });
+  });
+
+  it("says the three alone on a Monday with nothing due", () => {
+    expect(sayBrief([], 0, ["Close Harbour"])).toEqual({ title: "This week", body: "Close Harbour" });
+    expect(sayBrief([], 0, [])).toBeNull();
   });
 });

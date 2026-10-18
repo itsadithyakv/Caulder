@@ -20,7 +20,9 @@ import type { LastLine, OpenTask } from "./lines";
 export type Edit =
   | { do: "move"; task: OpenTask; day: string; time: string | null; minutes: number | null }
   | { do: "cancel"; task: OpenTask }
-  | { do: "rename"; task: OpenTask; title: string };
+  | { do: "rename"; task: OpenTask; title: string }
+  /** Ticked off from the line: "done call priya", "the deck is done" (PLAN.md, part twelve, phase 50). */
+  | { do: "done"; task: OpenTask };
 
 type Clock = { today: string; now: number };
 type Around = Clock & { open: readonly OpenTask[]; last: LastLine | null };
@@ -38,6 +40,10 @@ const CANCEL = /^(?:please\s+)?(cancel|delete|remove|drop|scrap|scratch|ditch|fo
 const CANCELLED = /^(.+?)\s+(?:is|got|has\s+been|was)\s+(?:cancel+ed|called\s+off|off|scrapped)$|^(.+?)\s+cancel+ed$/i;
 const THAT_GOES = /^(?:undo|cancel\s+that|delete\s+that|remove\s+that|scratch\s+that|forget\s+that|never\s*mind|nvm)$/i;
 const RENAME = /^(?:please\s+)?(?:rename|retitle)\s+(.+?)\s+(?:to|as)\s+(.+)$/i;
+/** "done call priya", "finished the deck", "✅ gym", "mark the invoice done", "the deck is done". */
+const DONE = /^(?:(?:i\s+)?(?:just\s+|have\s+|'ve\s+|ve\s+)?(?:done|finished|completed|complete|ticked\s+off)|✓|✔️?|✅|☑️?)\s*[:-]?\s*(.+)$/iu;
+const MARK_DONE = /^mark\s+(.+?)\s+(?:as\s+)?(?:done|complete|completed|finished)$/i;
+const IS_DONE = /^(.+?)\s+(?:is\s+|are\s+|was\s+)?(?:done|finished|completed|sorted|ticked\s+off|✓|✔️?|✅)$/iu;
 const RENAME_THAT = /^(?:call\s+(?:it|that)|rename\s+(?:it|that)\s+(?:to|as))\s+(.+)$/i;
 
 /** Words that would be cancelling something else if they started a task's title. */
@@ -50,10 +56,27 @@ function lastTask(around: Around): OpenTask | null {
   return id ? (around.open.find((task) => task.id === id) ?? null) : null;
 }
 
+/**
+ * The open task an hour names: "my 3pm", "the 11 o'clock", "tomorrow's 9am" -
+ * the one at that hour on that day, today when no day is said, else the
+ * soonest still to come at that hour. Only when the phrase is nothing but
+ * the when (PLAN.md, part twelve, phase 50).
+ */
+function taskAt(phrase: string, around: Around): OpenTask | null {
+  const said = phrase.trim().replace(/^(?:the|my|our|that|this)\s+/i, "").replace(/'s\b/g, "");
+  const when = readWhen(said, around, "it", null, true);
+  if (!when?.time) return null;
+  const timed = around.open.filter((task) => task.time === when.time);
+  if (when.day) return timed.find((task) => task.dueOn === when.day) ?? null;
+  return timed.find((task) => task.dueOn === around.today) ?? timed.filter((task) => task.dueOn > around.today).sort((a, b) => a.dueOn.localeCompare(b.dueOn))[0] ?? null;
+}
+
 /** The open task a phrase names: "it" for the last one, else the best match, the soonest due first. */
 function taskNamed(phrase: string, around: Around): OpenTask | null {
   const said = phrase.trim().replace(/^(?:the|my|our|that|this)\s+/i, "");
   if (THAT.test(said) || THAT.test(phrase.trim())) return lastTask(around);
+  const byHour = taskAt(phrase, around);
+  if (byHour) return byHour;
   const named = coreOf(said);
   if (named.length === 0) return null;
   const candidates = around.open
@@ -142,6 +165,13 @@ export function readEdit(line: string, around: Around): Edit | null {
   if (cancelled) {
     const task = taskNamed(cancelled[1] ?? cancelled[2] ?? "", around);
     return task ? { do: "cancel", task } : null;
+  }
+
+  // Ticked off from the line - only a task that is open and that every word names.
+  const done = MARK_DONE.exec(said) ?? DONE.exec(said) ?? IS_DONE.exec(said);
+  if (done?.[1]) {
+    const task = taskNamed(done[1], around);
+    if (task) return { do: "done", task };
   }
   return null;
 }

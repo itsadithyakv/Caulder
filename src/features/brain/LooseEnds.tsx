@@ -12,7 +12,7 @@ import type { LooseEnds as Loose } from "@shared/understand";
  * opens, not as anything is typed; nothing shows when understanding is off or
  * has nothing to offer.
  */
-export function LooseEnds({ version, onMoved }: { version: number; onMoved: () => void }) {
+export function LooseEnds({ companyId, version, onMoved }: { companyId: string; version: number; onMoved: () => void }) {
   const [loose, setLoose] = useState<Loose>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,14 +20,14 @@ export function LooseEnds({ version, onMoved }: { version: number; onMoved: () =
 
   useEffect(() => {
     let live = true;
-    window.caulder.understand.loose().then(
+    window.caulder.understand.loose(companyId).then(
       (found) => live && setLoose(found),
       () => undefined,
     );
     return () => {
       live = false;
     };
-  }, [version, asked]);
+  }, [companyId, version, asked]);
 
   async function act(work: () => Promise<void>, moved: boolean) {
     setBusy(true);
@@ -46,7 +46,7 @@ export function LooseEnds({ version, onMoved }: { version: number; onMoved: () =
   if (loose.length === 0) return null;
 
   return (
-    <Card title="Loose ends" hint="Lines kept where the line knew nowhere better, that sound like one of your pages. Nothing moves until you say.">
+    <Card title="Loose ends" hint="Memories that may belong on one of your pages.">
       <ErrorLine>{error}</ErrorLine>
       {loose.map((group) => {
         const lines = group.lines.map(({ pageId, raw }) => ({ pageId, raw }));

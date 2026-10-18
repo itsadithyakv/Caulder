@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Copy, ExternalLink, FileCode2, Link2, RefreshCw, Unlink } from "lucide-react";
 import type { GoogleState } from "@shared/domain";
-import { CONTACTS_SINCE_VERSION, MAIL_SINCE_VERSION } from "@shared/script";
+import { CONTACTS_SINCE_VERSION, MAIL_SINCE_VERSION, SHEET_SINCE_VERSION } from "@shared/script";
 import { useWorkspace } from "@/lib/workspace";
 import { messageOf } from "@/lib/errors";
-import { relativeDay } from "@/lib/format";
+import { inSentence, relativeDay } from "@/lib/format";
 import { Select } from "@/components/Select";
 import { Explain } from "@/components/Explain";
 import { Shot, type ShotName } from "./Shot";
@@ -96,10 +96,7 @@ export function GoogleCard({ startOpen = false }: { startOpen?: boolean }) {
       ) : !state.connected ? (
         <>
           <p className="card__hint">
-            Your day, your tasks and your email, both ways &mdash; through a small
-            script that runs inside your own Google account. Caulder never signs in to
-            Google. Five steps, about five minutes, each with a picture of the screen
-            it happens on.
+            Calendar, tasks and email, through a script in your own Google account. About five minutes.
           </p>
 
           <div className="actions">
@@ -190,8 +187,7 @@ export function GoogleCard({ startOpen = false }: { startOpen?: boolean }) {
       ) : (
         <>
           <p className="card__hint">
-            Connected{state.account ? ` as ${state.account}` : ""}. Caulder only ever
-            touches the calendar and list you pick here.
+            Connected{state.account ? ` as ${state.account}` : ""}. 
           </p>
 
           <ScriptStatus
@@ -243,6 +239,13 @@ export function GoogleCard({ startOpen = false }: { startOpen?: boolean }) {
                   ...state.taskLists.map((list) => ({ value: list.id, label: list.name })),
                 ]}
               />
+              {/* Google always has one list: none at all means the script cannot see Tasks. */}
+              {state.taskLists.length === 0 && (
+                <span className="card__hint card__hint--warn">
+                  No task lists came back from Google. Open your Caulder script, add Tasks API under Services, run setUp once
+                  more, then press Check again here.
+                </span>
+              )}
             </label>
           </div>
 
@@ -264,11 +267,7 @@ export function GoogleCard({ startOpen = false }: { startOpen?: boolean }) {
             <span className="checkline__text">
               <span className="checkline__title">Keep this in step automatically</span>
               <span className="card__hint">
-                Every ten minutes, and about half a minute after you change
-                something here &mdash; so a task written in Caulder is on your phone
-                before you have put the phone down. If it starts failing it slows
-                down rather than hammering Google, and stops after a couple of
-                hours with the reason left on this card.
+                Every ten minutes, and soon after a change.
               </span>
             </span>
           </div>
@@ -324,15 +323,14 @@ function Summary({ state }: { state: GoogleState }) {
 
   return (
     <p className="card__hint">
-      Last synced {relativeDay(sync.lastSyncedAt).toLowerCase()} &mdash; {sync.pushed} sent,{" "}
+      Last synced {inSentence(relativeDay(sync.lastSyncedAt))} &mdash; {sync.pushed} sent,{" "}
       {sync.pulled} brought back
       {sync.conflicts > 0
         ? `, and ${sync.conflicts} ${
             sync.conflicts === 1 ? "thing had" : "things had"
           } been changed in both places, where whoever created it won`
         : ""}
-      . Days from {sync.syncedFrom} to {sync.syncedTo} were looked at; anything
-      outside that was left alone.
+      . 
     </p>
   );
 }
@@ -362,10 +360,12 @@ function ScriptStatus({
         <p className="card__hint card__hint--warn">
           Your script is version {script.version}.{" "}
           {script.version < MAIL_SINCE_VERSION
-            ? `Version ${script.latest} sends email from Caulder, notices replies and sends follow-ups, and shares the brain with a co-founder.`
+            ? `Version ${script.latest} sends email from Caulder, notices replies and sends follow-ups.`
             : script.version < CONTACTS_SINCE_VERSION
               ? `Version ${script.latest} saves a contact to your phone through Google Contacts and keeps a backup in your Drive; your calendar, tasks and email go on working meanwhile.`
-              : `Version ${script.latest} is the newest; what you have goes on working meanwhile.`}{" "}
+              : script.version < SHEET_SINCE_VERSION
+                ? `Version ${script.latest} can keep your contacts as a Google Sheet, to read and change on your phone; what you have goes on working meanwhile.`
+                : `Version ${script.latest} mends Google Tasks: every task list is offered, not only the first twenty, and a missing Tasks API is said plainly instead of stopping the connection.`}{" "}
           To update it, keeping the same URL:
         </p>
         <UpdateSteps />
@@ -400,8 +400,7 @@ function ScriptStatus({
   return (
     <p className="card__hint">
       Email goes out from {script.address ?? "your Gmail"}
-      {script.remaining != null ? `, with ${script.remaining} sends left today` : ""}. Scheduled
-      email and follow-ups go out every fifteen minutes, even with Caulder closed.
+      {script.remaining != null ? `, with ${script.remaining} sends left today` : ""}. 
     </p>
   );
 }

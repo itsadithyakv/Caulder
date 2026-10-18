@@ -79,7 +79,7 @@ copy is handed to anybody:
 npm run package:store
 ```
 
-Builds `release/Caulder-<version>-x64.appx` for Partner Center, with the
+Builds `release/Caulder-<version>-x64.msix` for Partner Center, with the
 identity Partner Center reserved (`appx` in `electron-builder.yml`: name
 `AdithyaKV.Caulder`, publisher `CN=30ED0224-8255-4781-8ACD-EE3EF146115F`,
 PaperKite). It is **unsigned on purpose**: the Store signs a package itself
@@ -90,7 +90,7 @@ Windows SDK installed (the SDK is free). The tiles come from
 `scripts/logo.py`, like every other copy of the logo.
 
 To submit: Partner Center → the app → a new submission → Packages → upload
-the .appx. Each submission needs a higher version than the last, so bump
+the .msix. Each submission needs a higher version than the last, so bump
 `package.json` first.
 
 To try the package on this computer before submitting it, it has to be
@@ -98,7 +98,7 @@ installed, and Windows installs only a signed package - or, with Developer
 Mode on (Settings → System → For developers), an unpacked one:
 
 ```powershell
-& "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\makeappx.exe" unpack /p release\Caulder-0.5.0-x64.appx /d $env:TEMP\caulder-appx /o
+& "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\makeappx.exe" unpack /p release\Caulder-1.0.0-x64.msix /d $env:TEMP\caulder-appx /o
 Add-AppxPackage -Register $env:TEMP\caulder-appx\AppxManifest.xml
 # and to take it off again:
 Get-AppxPackage AdithyaKV.Caulder | Remove-AppxPackage

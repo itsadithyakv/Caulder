@@ -1,4 +1,4 @@
-import { isPersonalSection, type BrainSectionId } from "./brain";
+import type { BrainSectionId } from "./brain";
 import type { LinkKind } from "./links";
 
 /**
@@ -14,12 +14,9 @@ import type { LinkKind } from "./links";
 
 /**
  * What a dot is, for its colour and the legend. A page's kind comes from its
- * section: a decision is its own, and the founder's own pages - studies,
- * hobbies, goals, the journal - are one gray kind, the way Obsidian draws a
- * note, because a seventh hue could not be told from the six (every pair has
- * to stay apart, and a gray is the one that does).
+ * section: a decision is its own, and every other page is a page.
  */
-export const MAP_KINDS = ["page", "decision", "contact", "product", "person", "document", "own"] as const;
+export const MAP_KINDS = ["page", "decision", "contact", "product", "document"] as const;
 export type MapKind = (typeof MAP_KINDS)[number];
 
 export const MAP_KIND_LABEL: Record<MapKind, string> = {
@@ -27,15 +24,12 @@ export const MAP_KIND_LABEL: Record<MapKind, string> = {
   decision: "Decisions",
   contact: "Contacts",
   product: "Products",
-  person: "People",
   document: "Documents",
-  own: "Your own",
 };
 
 export function mapKindOf(ref: LinkKind, section: BrainSectionId | null): MapKind {
   if (ref !== "page") return ref;
   if (section === "decisions") return "decision";
-  if (section && isPersonalSection(section)) return "own";
   return "page";
 }
 
@@ -169,25 +163,6 @@ export function withKinds(graph: MapGraph, kinds: ReadonlySet<MapKind>): MapGrap
   return keeping(graph, (node) => kinds.has(node.kind));
 }
 
-/**
- * A day of the journal. The journal holds nothing but its entries (its one
- * template is ENTRY_TEMPLATE), so the section is enough to know one.
- */
-export function isJournalDay(node: MapNode): boolean {
-  return node.ref === "page" && node.section === "journal";
-}
-
-/**
- * The graph without the journal's days, unless they are asked for. A dot a
- * day is mostly dates - dozens of them crowding the hobbies, books and people
- * the map is for - so they are off until Display turns them on. A day that
- * links to something is still in that thing's Linked here; this is only the
- * drawing.
- */
-export function withoutJournalDays(graph: MapGraph): MapGraph {
-  return keeping(graph, (node) => !isJournalDay(node));
-}
-
 /* ---- Labels ----------------------------------------------------------------- */
 
 /** How wide a label may be before it is cut short, in ems of its own font. */
@@ -292,8 +267,6 @@ export type MapLook = {
   arrows: boolean;
   /** Dots with no line at all. */
   orphans: boolean;
-  /** The journal's days, a dot each - off unless asked for (see `withoutJournalDays`). */
-  journal: boolean;
 };
 
 export const MAP_LOOK: MapLook = {
@@ -305,7 +278,6 @@ export const MAP_LOOK: MapLook = {
   labelsAt: 1.1,
   arrows: false,
   orphans: true,
-  journal: false,
 };
 
 /** A stored look, checked value by value: anything missing or out of range takes its default. */
@@ -324,6 +296,5 @@ export function lookFrom(raw: unknown): MapLook {
     labelsAt: num("labelsAt", 0.3, 3),
     arrows: value["arrows"] === true,
     orphans: value["orphans"] !== false,
-    journal: value["journal"] === true,
   };
 }

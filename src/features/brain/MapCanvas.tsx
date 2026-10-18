@@ -63,10 +63,8 @@ const KIND_TOKEN: Record<MapKind, string> = {
   page: "--map-page",
   contact: "--map-contact",
   product: "--map-product",
-  person: "--map-person",
   document: "--map-document",
   decision: "--map-decision",
-  own: "--map-own",
 };
 
 /** Kept across rebuilds, so a replay step or a filter does not throw the layout away. */

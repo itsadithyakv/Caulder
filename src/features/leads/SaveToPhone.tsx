@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Smartphone } from "lucide-react";
 import type { Lead } from "@shared/domain";
 import { messageOf } from "@/lib/errors";
@@ -7,10 +7,10 @@ import { messageOf } from "@/lib/errors";
  * A contact into Google Contacts, which is what a phone's address book syncs
  * with - so the client who rings has a name on the screen.
  *
- * Offered on every contact that has a way to be reached, connected to Google
- * or not: a button that is missing until something is set up is a feature
- * nobody finds. Without the script it says what to connect, in a sentence,
- * rather than being greyed out with no reason given.
+ * Offered once Google is connected, on a contact that has a way to be
+ * reached. Before then it was a button that could only say what to connect;
+ * that offer is made once, in Finish setting up on Today, not on every
+ * contact's page.
  *
  * Pressing it again after an edit updates the same contact instead of making
  * a second: Caulder remembers which one it made.
@@ -18,8 +18,17 @@ import { messageOf } from "@/lib/errors";
 export function SaveToPhone({ lead }: { lead: Lead }) {
   const [busy, setBusy] = useState(false);
   const [said, setSaid] = useState<{ text: string; failed: boolean } | null>(null);
+  const [connected, setConnected] = useState(false);
 
-  if (!lead.phone && !lead.email) return null;
+  useEffect(() => {
+    let live = true;
+    window.caulder.google.state(lead.companyId).then((state) => live && setConnected(state.connected), () => undefined);
+    return () => {
+      live = false;
+    };
+  }, [lead.companyId]);
+
+  if (!connected || (!lead.phone && !lead.email)) return null;
 
   async function save() {
     setBusy(true);

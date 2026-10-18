@@ -17,7 +17,6 @@ describe("the phrasings it was asked for", () => {
       title: "Datascience Assignment",
       day: "2026-09-10",
       time: "16:00",
-      area: "college",
       kind: "todo",
     });
     expect(questions).toEqual([]);
@@ -82,7 +81,7 @@ describe("what it asks, and only then", () => {
 
   it("asks what time for a length with no time", () => {
     const { task, questions } = parse("study for 2h tomorrow");
-    expect(task).toMatchObject({ minutes: 120, day: "2026-09-11", area: "college" });
+    expect(task).toMatchObject({ minutes: 120, day: "2026-09-11" });
     expect(questions.map((q) => q.id)).toEqual(["time"]);
   });
 
@@ -151,7 +150,6 @@ describe("times and lengths", () => {
       time: "06:00",
       minutes: 60,
       day: "2026-09-11",
-      area: "health",
     });
   });
 
@@ -192,45 +190,30 @@ describe("the title", () => {
   });
 });
 
-describe("kind, area and priority", () => {
-  it("reads an email to a professor as college, and urgent as has-to-happen", () => {
+describe("kind and priority", () => {
+  it("reads an email to a professor as an email, and urgent as has-to-happen", () => {
     expect(parse("email professor tomorrow urgent").task).toMatchObject({
       title: "Email professor",
       kind: "email",
-      area: "college",
       priority: "must",
     });
   });
 
-  it("lets a tag decide the area outright", () => {
-    expect(parse("draft linkedin post #company maybe friday").task).toMatchObject({
+  it("reads 'maybe' as if-there-is-time", () => {
+    expect(parse("draft linkedin post maybe friday").task).toMatchObject({
       title: "Draft linkedin post",
-      area: "company",
       priority: "spare",
     });
-  });
-
-  it("reads a school word in company work as company", () => {
-    // The company sells to schools: a demo for Class 10 is not homework.
-    expect(parse("demo for class 10 friday 3pm").task.area).toBe("company");
-  });
-
-  it("leaves the area to the caller when nothing points anywhere", () => {
-    expect(parse("sort out the thing tomorrow").task.area).toBeNull();
-  });
-
-  it("does not read 'run the numbers' as exercise", () => {
-    expect(parse("run the numbers tomorrow").task.area).toBeNull();
   });
 });
 
 describe("the block a timed task sets aside", () => {
   it.each([
-    [{ kind: "call", area: "company" }, "meeting"],
-    [{ kind: "todo", area: "college" }, "study"],
-    [{ kind: "todo", area: "company" }, "focus"],
-    [{ kind: "todo", area: "health" }, "personal"],
-    [{ kind: "todo", area: null }, "personal"],
+    [{ kind: "meeting" }, "meeting"],
+    [{ kind: "call" }, "call"],
+    [{ kind: "todo" }, "focus"],
+    [{ kind: "email" }, "focus"],
+    [{ kind: "follow_up" }, "focus"],
   ] as const)("%j is a %s block", (task, kind) => {
     expect(blockKindFor(task)).toBe(kind);
   });
@@ -466,32 +449,6 @@ describe("what kind of thing it is", () => {
   });
 });
 
-describe("which part of life it is", () => {
-  it.each([
-    ["hw due friday", "college"],
-    ["prepare for midsem monday", "college"],
-    ["viva friday", "college"],
-    ["pset 3 friday", "college"],
-    ["badminton friday 7pm", "health"],
-    ["blood test friday 9am", "health"],
-    ["standup 10am tomorrow", "company"],
-    ["fundraising call friday 3pm", "company"],
-    ["buy groceries saturday", "personal"],
-    ["mom's birthday oct 3", "personal"],
-  ])("'%s' is %s", (text, area) => {
-    expect(parse(text).task.area).toBe(area);
-  });
-
-  it("reads the area only from words that were not the when", () => {
-    // "Semester" is a college word, but here it says how long the gym runs.
-    expect(parseQuick("gym every mon 6am for the semester", { ...NOW, termEnd: "2026-12-04" }).task.area).toBe("health");
-  });
-
-  it("lets a pick on the reading overrule the words", () => {
-    expect(parse("hw due friday", { area: "company" }).task.area).toBe("company");
-  });
-});
-
 describe("the words around the task", () => {
   it.each([
     ["don't forget to submit report tomorrow"],
@@ -538,8 +495,7 @@ describe("numbers that are neither times nor dates", () => {
 });
 
 describe("repeats", () => {
-  const TERM = { ...NOW, termEnd: "2026-12-04" };
-  const repeat = (text: string, answers = {}) => parseQuick(text, TERM, answers);
+  const repeat = (text: string, answers = {}) => parseQuick(text, NOW, answers);
 
   it.each([
     ["gym every monday 6am", [1]],
@@ -565,11 +521,10 @@ describe("repeats", () => {
     expect(repeat("meds daily 9pm").task.day).toBe("2026-09-10");
   });
 
-  it("asks until when, offering the end of term first", () => {
+  it("asks until when", () => {
     const question = repeat("gym every monday 6am").questions[0];
     expect(question?.id).toBe("until");
     expect(question?.id === "until" && question.options.map((o) => o.label)).toEqual([
-      "End of term",
       "4 weeks",
       "12 weeks",
       "End of the year",
@@ -579,8 +534,6 @@ describe("repeats", () => {
   it.each([
     ["gym weekdays 6am until dec 20", "2026-12-20"],
     ["gym every mon 6am until 20/12", "2026-12-20"],
-    ["lecture every tue and thu 9am until end of term", "2026-12-04"],
-    ["gym every mon 6am for the semester", "2026-12-04"],
     ["standup every weekday 10am for 4 weeks", "2026-10-08"],
     ["gym every mon 6am for 2 months", "2026-11-13"],
   ])("'%s' runs until %s", (text, until) => {
@@ -609,14 +562,23 @@ describe("repeats", () => {
     ]);
   });
 
-  it("says plainly what it cannot repeat, and adds the next one instead", () => {
-    const monthly = parse("pay rent every month on the 1st");
-    expect(monthly.task).toMatchObject({ title: "Pay rent", day: "2026-10-01", repeat: null });
-    expect(monthly.notes[0]).toMatch(/days of the week/);
+  it("reads a month's day, a year's and every other week (part twelve, phase 47)", () => {
+    // A task that comes back when it is ticked off.
+    expect(parse("pay rent every month on the 1st").task).toMatchObject({ title: "Pay rent", day: "2026-10-01", repeat: null, every: "monthly" });
+    expect(parse("pay rent on the 1st of every month").task).toMatchObject({ title: "Pay rent", day: "2026-10-01", every: "monthly" });
+    expect(parse("renew the domain every year on 3 may").task).toMatchObject({ title: "Renew the domain", day: "2027-05-03", every: "yearly" });
+    expect(parse("review metrics every other monday").task).toMatchObject({ title: "Review metrics", day: "2026-09-14", repeat: null, every: "fortnightly" });
 
+    // With an hour, every other week is hours set aside, every other week.
     const other = parse("team sync every other friday 4pm");
-    expect(other.task).toMatchObject({ title: "Team sync", day: "2026-09-11", repeat: null });
-    expect(other.notes[0]).toMatch(/Every other week/);
+    expect(other.task).toMatchObject({ title: "Team sync", day: "2026-09-11", time: "16:00", every: null });
+    expect(other.task.repeat).toMatchObject({ weekdays: [5], every: 2 });
+  });
+
+  it("says plainly what it still cannot repeat, and adds the next one instead", () => {
+    const read = parse("water the plants every 3 days");
+    expect(read.task).toMatchObject({ repeat: null, every: null });
+    expect(read.notes[0]).toMatch(/Every few days or weeks/);
   });
 
   it("refuses a last day before the first, and asks again", () => {
@@ -624,65 +586,5 @@ describe("repeats", () => {
     expect(task.repeat?.until).toBeNull();
     expect(questions[0]?.id).toBe("until");
     expect(notes[0]).toMatch(/before the first/);
-  });
-});
-
-describe("your own words", () => {
-  const words = [
-    { word: "Datascience", area: "college" },
-    { word: "CS301", area: "college" },
-    { word: "machine learning", area: "college" },
-    { word: "Oakridge", area: "company" },
-    { word: "lab", area: "health" },
-    { word: "machine learning lab", area: "company" },
-    { word: "c++", area: "college" },
-  ];
-  const mine = (text: string) => parseQuick(text, { ...NOW, words }).task;
-
-  it("puts a course name in College without a college word beside it", () => {
-    // The gap this exists for: "assignment" found College, "reading" does not.
-    expect(mine("Datascience reading tomorrow").area).toBe("college");
-  });
-
-  it("keeps the word in the title - it decides the area, nothing else", () => {
-    expect(mine("Datascience reading tomorrow").title).toBe("Datascience reading");
-  });
-
-  it("ignores case, and matches a phrase across the space in it", () => {
-    expect(mine("revise MACHINE   LEARNING friday").area).toBe("college");
-  });
-
-  it("matches a course code as itself", () => {
-    expect(mine("cs301 problem set friday").area).toBe("college");
-  });
-
-  it("does not match inside another word", () => {
-    // "lab" is a health word here only to prove it; "collaborate" must not
-    // wake it.
-    expect(mine("collaborate with Rhea friday").area).toBeNull();
-  });
-
-  it("finds a word that ends in a symbol", () => {
-    expect(mine("c++ practice friday").area).toBe("college");
-  });
-
-  it("beats the built-in list", () => {
-    // "demo" is a built-in company word; the person has said Oakridge is the
-    // company too, and nothing here disagrees. But a word of theirs that
-    // points elsewhere must win over the general list.
-    const taught = [{ word: "demo", area: "college" }];
-    expect(parseQuick("demo friday", { ...NOW, words: taught }).task.area).toBe("college");
-  });
-
-  it("lets the longer phrase win when two of yours match", () => {
-    expect(mine("machine learning lab report friday").area).toBe("company");
-  });
-
-  it("still loses to a tag, which is the most direct thing a person can say", () => {
-    expect(mine("Datascience reading #health friday").area).toBe("health");
-  });
-
-  it("is harmless when there are none", () => {
-    expect(parseQuick("Datascience reading friday", { ...NOW, words: [] }).task.area).toBeNull();
   });
 });

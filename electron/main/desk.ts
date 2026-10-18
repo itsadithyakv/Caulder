@@ -15,8 +15,8 @@
 type Rect = { x: number; y: number; width: number; height: number };
 type Size = { width: number; height: number };
 
-/** Resting: wide enough for "3 due - 2 today" and no wider. */
-export const DESK_PILL: Size = { width: 184, height: 44 };
+/** Resting: the mark and one line naming the thing - a task's title, not a count of them. */
+export const DESK_PILL: Size = { width: 260, height: 44 };
 /**
  * Open: as tall as what is in it, never taller than this.
  *

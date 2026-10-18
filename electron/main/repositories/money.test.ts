@@ -202,8 +202,8 @@ describe("the month", () => {
     setInvoiceStatus(db, company.id, lastMonth.id, "sent");
     // Paid this month for last month's invoice still counts as paid this month.
     addPayment(db, company.id, lastMonth.id, { amount: 32500, paidOn: "2026-09-05", note: null });
-    addSpend(db, company.id, { spentOn: "2026-09-03", amount: 1200, what: "Domain", campaignId: null });
-    addSpend(db, company.id, { spentOn: "2026-08-03", amount: 5000, what: "Ads", campaignId: null });
+    addSpend(db, company.id, { spentOn: "2026-09-03", amount: 1200, what: "Domain" });
+    addSpend(db, company.id, { spentOn: "2026-08-03", amount: 5000, what: "Ads" });
 
     const money = buildMoney(db, company.id, NOW);
     expect(money.month).toBe("2026-09");
@@ -229,7 +229,8 @@ describe("the month", () => {
     migrate(old);
     const money = buildMoney(old, c.id, NOW);
     expect(money.spend).toEqual([
-      { id: "sp", spentOn: "2026-08-02", amount: 4000, what: "Fair", campaignId: "camp", campaignName: "Fair" },
+      // What it was for is the campaign's name, which is all that is kept of it.
+      { id: "sp", spentOn: "2026-08-02", amount: 4000, what: "Fair" },
     ]);
   });
 });

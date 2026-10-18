@@ -56,6 +56,32 @@ export type MailState = {
   senders: MailSender[];
 };
 
+/**
+ * How a template has done: how many messages started from it went, how many
+ * of those went through Gmail - the only ones a reply can be seen on - and
+ * how many of those were answered.
+ */
+export type TemplateStats = { templateId: string; sent: number; watched: number; replied: number };
+
+/** A rate is only said past this many watched sends: three replies to four emails is not seventy-five per cent of anything. */
+export const RATE_FROM = 20;
+
+/** "12 sent, 3 answered" - and the rate, once there are enough to mean one. */
+export function sayStats(stats: TemplateStats | undefined): string | null {
+  if (!stats || stats.sent === 0) return null;
+  const sent = `${stats.sent} sent`;
+  if (stats.watched === 0) return `${sent}, from an account that cannot see replies`;
+  const answered = `${stats.replied} answered`;
+  const rate = stats.watched >= RATE_FROM ? ` (${Math.round((stats.replied / stats.watched) * 100)}% of ${stats.watched})` : "";
+  return `${sent}, ${answered}${rate}`;
+}
+
+/**
+ * The most contacts one message is written to in one go. Past this it is no
+ * longer writing to people, and a personal Gmail account is watched for it.
+ */
+export const BATCH_MOST = 50;
+
 /** Longest a follow-up may wait, in days. The script holds the same limit. */
 export const FOLLOW_UP_MAX_DAYS = 60;
 
@@ -63,12 +89,14 @@ export const FOLLOW_UP_MAX_DAYS = 60;
 export const SCHEDULE_MAX_DAYS = 60;
 
 /** How long after sending a thread is watched for a reply, in days. */
-const WATCH_DAYS = 30;
+export const WATCH_DAYS = 30;
 
 export const sendEmailInput = z.object({
   leadId: z.string().min(1, "Missing contact."),
   /** Which account it goes from; null or left out is the Google script. */
   accountId: z.string().min(1).nullable().default(null),
+  /** The template it was started from, so the template can say how it has done; null when written from scratch. */
+  templateId: z.string().min(1).nullable().default(null),
   subject: z
     .string()
     .trim()

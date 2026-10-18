@@ -114,7 +114,8 @@ test("a deadline due today is on Today, done from there, and on the Calendar", a
   await goTo(page, "Today");
   const deadlines = page.getByRole("list", { name: "Deadlines" });
   await expect(deadlines.getByText("Professional tax")).toBeVisible();
-  await expect(deadlines.getByText("due today")).toBeVisible();
+  // Its own row: on the 11th of a month a GST filing is due today as well (found on 11 October 2026).
+  await expect(deadlines.getByRole("listitem").filter({ hasText: "Professional tax" }).getByText("due today")).toBeVisible();
   await shot(page, "today");
   await deadlines.getByRole("button", { name: "Professional tax is done" }).click();
   await expect(deadlines.getByText("Professional tax")).toHaveCount(0);

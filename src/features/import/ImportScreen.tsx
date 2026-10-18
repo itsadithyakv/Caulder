@@ -170,15 +170,11 @@ export function ImportScreen({ onGoToLeads }: { onGoToLeads: () => void }) {
     }
   }
 
-  async function commit(
-    jobId: string,
-    resolutions: Record<number, Resolution>,
-    campaignId: string | null,
-  ) {
+  async function commit(jobId: string, resolutions: Record<number, Resolution>) {
     setError(null);
     setBusy(true);
     try {
-      const summary = await window.caulder.imports.commit(jobId, resolutions, campaignId);
+      const summary = await window.caulder.imports.commit(jobId, resolutions);
       setStep({ kind: "done", summary });
       loadBatches();
       // The sidebar shows a lead count, which this has just changed.
@@ -222,8 +218,7 @@ export function ImportScreen({ onGoToLeads }: { onGoToLeads: () => void }) {
           <section className="card">
             <h2 className="card__title">Bring in a spreadsheet</h2>
             <p className="card__hint">
-              Excel or CSV. Caulder reads the headers and shows you what it made of
-              every row before anything is saved.
+              Excel or CSV, with a preview before anything is saved.
             </p>
 
             <div className="import__start">
@@ -252,10 +247,7 @@ export function ImportScreen({ onGoToLeads }: { onGoToLeads: () => void }) {
             <section className="card">
               <h2 className="card__title">Or bring in your Google Contacts</h2>
               <p className="card__hint">
-                Read once, now, through the script Caulder already talks to. Everybody
-                comes into the same preview as a spreadsheet does, so you see what
-                Caulder made of them - and who you already have - before anything is
-                saved.
+                Read once, with a preview before anything is saved.
               </p>
 
               <div className="import__start">
@@ -269,12 +261,7 @@ export function ImportScreen({ onGoToLeads }: { onGoToLeads: () => void }) {
                   {busy ? "Reading your contacts" : "Read my Google Contacts"}
                 </button>
               </div>
-
-              <p className="card__hint">
-                A person with a company on them arrives as that company, with their
-                name as the contact on it. Nothing is sent to Google, and nothing is
-                read again until you press this.
-              </p>
+
             </section>
           )}
 
@@ -284,8 +271,7 @@ export function ImportScreen({ onGoToLeads }: { onGoToLeads: () => void }) {
           <section className="card">
             <h2 className="card__title">Or paste a list</h2>
             <p className="card__hint">
-              A table from an AI, or rows copied out of a spreadsheet. Anything around
-              the table is ignored.
+              A table from an AI, or rows from a spreadsheet.
             </p>
 
             <textarea
@@ -313,11 +299,7 @@ export function ImportScreen({ onGoToLeads }: { onGoToLeads: () => void }) {
                 {copied ? "Prompt copied" : "Copy the prompt for an AI"}
               </button>
             </div>
-
-            <p className="card__hint">
-              The prompt names the exact columns Caulder expects, so the reply maps
-              itself.
-            </p>
+
           </section>
         </>
       )}
@@ -348,9 +330,7 @@ export function ImportScreen({ onGoToLeads }: { onGoToLeads: () => void }) {
           onBack={() =>
             setStep({ kind: "mapping", file: step.file, mapping: step.preview.mapping })
           }
-          onCommit={(resolutions, campaignId) =>
-            void commit(step.preview.jobId, resolutions, campaignId)
-          }
+          onCommit={(resolutions) => void commit(step.preview.jobId, resolutions)}
         />
       )}
 
@@ -383,8 +363,7 @@ export function ImportScreen({ onGoToLeads }: { onGoToLeads: () => void }) {
         <section className="card">
           <h2 className="card__title">Earlier imports</h2>
           <p className="card__hint">
-            Undo removes the contacts an import added and puts back anything it
-            merged over.
+            Undo takes an import back.
           </p>
           <ul className="batches">
             {batches.map((batch) => (

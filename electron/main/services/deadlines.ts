@@ -13,7 +13,7 @@ import {
   type PresetOffer,
   type PresetSetId,
 } from "@shared/deadlines";
-import { addMonths, shiftDay, today as todayIn } from "@shared/dates";
+import { shiftDay, today as todayIn } from "@shared/dates";
 import {
   addPresets,
   addedPresets,
@@ -135,57 +135,6 @@ function documentDates(db: Db, companyId: string, from: string, through: string,
   }));
 }
 
-/**
- * A person's dates: the day a freelancer's contract, an internship or a job
- * ends, and a vesting cliff - the day equity first arrives, which is also the
- * last day to part ways before it does.
- */
-function personDates(db: Db, companyId: string, from: string, through: string, today: string): Deadline[] {
-  const rows = db
-    .prepare(
-      `SELECT id, name, kind, starts_on, ends_on, equity, cliff_months FROM people
-        WHERE company_id = ? AND kind != 'candidate'`,
-    )
-    .all(companyId) as {
-    id: string;
-    name: string;
-    kind: string;
-    starts_on: string | null;
-    ends_on: string | null;
-    equity: number | null;
-    cliff_months: number | null;
-  }[];
-
-  const out: Deadline[] = [];
-  const add = (row: (typeof rows)[number], part: string, what: string, dueOn: string | null) => {
-    if (!dueOn || dueOn < from || dueOn > through) return;
-    out.push({
-      key: `person:${row.id}:${part}`,
-      source: "person",
-      id: row.id,
-      title: row.name,
-      what,
-      dueOn,
-      daysLeft: daysLeftOf(dueOn, today),
-      period: null,
-      amount: null,
-      doneOn: null,
-    });
-  };
-  for (const row of rows) {
-    add(
-      row,
-      "ends",
-      row.kind === "freelancer" ? "Contract ends" : row.kind === "intern" ? "Internship ends" : "Last day",
-      row.ends_on,
-    );
-    if (row.starts_on && (row.equity ?? 0) > 0 && (row.cliff_months ?? 0) > 0) {
-      add(row, "cliff", "Vesting cliff", addMonths(row.starts_on, row.cliff_months ?? 0));
-    }
-  }
-  return out;
-}
-
 function sorted(deadlines: Deadline[]): Deadline[] {
   return deadlines.sort((a, b) => a.dueOn.localeCompare(b.dueOn) || a.title.localeCompare(b.title));
 }
@@ -220,10 +169,8 @@ export function dueSoon(db: Db, companyId: string, today: string): Deadline[] {
   out.push(
     ...pageDates(db, companyId, from, through, today),
     ...documentDates(db, companyId, from, through, today),
-    ...personDates(db, companyId, from, through, today),
   );
-  // An exam that has happened is not late: it goes from Today the day after.
-  return sorted(out.filter((deadline) => !(deadline.key.endsWith(":exam") && deadline.daysLeft < 0)));
+  return sorted(out);
 }
 
 /** Every deadline falling in a span, done or not, for the Calendar. */
@@ -253,7 +200,6 @@ export function deadlinesBetween(db: Db, companyId: string, from: string, throug
   out.push(
     ...pageDates(db, companyId, from, through, today),
     ...documentDates(db, companyId, from, through, today),
-    ...personDates(db, companyId, from, through, today),
   );
   return sorted(out);
 }

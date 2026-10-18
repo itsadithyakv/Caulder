@@ -2,7 +2,11 @@ import { randomUUID } from "node:crypto";
 import { safeStorage } from "electron";
 import nodemailer from "nodemailer";
 import type { Db } from "../db/connection";
-import { mailAccountInput, type MailAccount, type MailSender } from "@shared/mailaccounts";
+import { inboxFor, INBOX_PORT, mailAccountInput, type MailAccount, type MailSender } from "@shared/mailaccounts";
+import { WATCH_DAYS } from "@shared/mail";
+import { repliesAmong, sinceDay } from "@shared/replies";
+import { applyReport, watchedAccountEmails } from "../repositories/mail";
+import { readInbox, tryInbox } from "./inbox";
 
 /**
  * Mail accounts that are not the Google script (shared/mailaccounts.ts).
@@ -15,6 +19,12 @@ import { mailAccountInput, type MailAccount, type MailSender } from "@shared/mai
  * An account is tried before it is saved: a wrong password found when the
  * account is added costs a second, found when a message will not go it costs
  * the message.
+ *
+ * **Reading replies** is switched on for one account at a time
+ * (`setReplyReading`), tried before it is kept, and done by `checkReplies`:
+ * the inbox's headers since the oldest message still listened for, matched
+ * by shared/replies.ts, and each answer reported through the same
+ * `applyReport` a reply seen by the Google script goes through.
  */
 
 type Row = {
@@ -27,6 +37,10 @@ type Row = {
   username: string;
   secret: string;
   is_default: number;
+  imap_host: string | null;
+  imap_port: number | null;
+  imap_checked_at: string | null;
+  imap_error: string | null;
   created_at: string;
 };
 
@@ -39,6 +53,9 @@ const toAccount = (row: Row): MailAccount => ({
   secure: row.secure === 1,
   username: row.username,
   isDefault: row.is_default === 1,
+  readsReplies: row.imap_host !== null,
+  inboxCheckedAt: row.imap_checked_at,
+  inboxError: row.imap_error,
   createdAt: row.created_at,
 });
 
@@ -55,7 +72,7 @@ export function listMailAccounts(db: Db): MailAccount[] {
 }
 
 /** How an account connects, for nodemailer: a separate function so a test can hand in its own transport. */
-type Transport = { verify: () => Promise<unknown>; sendMail: (message: Record<string, unknown>) => Promise<{ messageId?: string }> };
+type Transport = { verify: () => Promise<unknown>; sendMail: (message: Record<string, unknown>) => Promise<unknown> };
 let makeTransport = (account: { host: string; port: number; secure: boolean; username: string; password: string }): Transport =>
   nodemailer.createTransport({
     host: account.host,
@@ -147,31 +164,132 @@ export function mailSenders(db: Db, script: { ready: boolean; address: string | 
     : [];
   return [
     ...first,
-    ...listMailAccounts(db).map((account) => ({ id: account.id, label: account.label, address: account.address, seesReplies: false })),
+    ...listMailAccounts(db).map((account) => ({
+      id: account.id,
+      label: account.label,
+      address: account.address,
+      seesReplies: account.readsReplies,
+    })),
   ];
 }
 
-/** Sends one message from an account, now. Throws in words a person can act on. */
-export async function sendFromAccount(
-  db: Db,
-  accountId: string,
-  message: { to: string; subject: string; body: string },
-): Promise<void> {
-  const row = db.prepare(`SELECT * FROM mail_accounts WHERE id = ?`).get(accountId) as Row | undefined;
-  if (!row) throw new Error("That account is not connected any more.");
-  if (!encryptionAvailable()) throw new Error("Windows will not decrypt the password on this machine right now, so nothing was sent.");
-  let password: string;
+/** Whether a reply to a message from this account would be seen. */
+export function accountReadsReplies(db: Db, accountId: string): boolean {
+  const row = db.prepare(`SELECT imap_host FROM mail_accounts WHERE id = ?`).get(accountId) as { imap_host: string | null } | undefined;
+  return row !== undefined && row.imap_host !== null;
+}
+
+/** The account's password, decrypted for the moment it is needed. Throws a sentence when it cannot be read. */
+function passwordOf(row: Row, doing: string): string {
+  if (!encryptionAvailable()) throw new Error(`Windows will not decrypt the password on this machine right now, so ${doing}.`);
   try {
-    password = safeStorage.decryptString(Buffer.from(row.secret, "base64"));
+    return safeStorage.decryptString(Buffer.from(row.secret, "base64"));
   } catch {
     throw new Error(`The password for ${row.address} can no longer be read on this machine. Remove the account and add it again.`);
   }
+}
+
+/** The Message-ID a message goes out with: Caulder's own, so a reply can be known by it. */
+export function newMessageId(db: Db, accountId: string): string {
+  const row = db.prepare(`SELECT address FROM mail_accounts WHERE id = ?`).get(accountId) as { address: string } | undefined;
+  const domain = row?.address.split("@")[1] ?? "caulder.invalid";
+  return `<${randomUUID()}@${domain}>`;
+}
+
+/**
+ * Turns reading replies on or off for one account. On, the inbox is opened
+ * once before anything is kept: an account whose provider has reading by
+ * other apps switched off says so here, not silently every ten minutes.
+ */
+export async function setReplyReading(db: Db, id: string, on: boolean): Promise<MailAccount[]> {
+  const row = db.prepare(`SELECT * FROM mail_accounts WHERE id = ?`).get(id) as Row | undefined;
+  if (!row) throw new Error("That account is not connected any more.");
+  if (!on) {
+    db.prepare(`UPDATE mail_accounts SET imap_host = NULL, imap_port = NULL, imap_checked_at = NULL, imap_error = NULL WHERE id = ?`).run(id);
+    return listMailAccounts(db);
+  }
+  const host = inboxFor(row.host);
+  await tryInbox({ host, port: INBOX_PORT, username: row.username, password: passwordOf(row, "the inbox was not opened") });
+  db.prepare(`UPDATE mail_accounts SET imap_host = ?, imap_port = ?, imap_checked_at = NULL, imap_error = NULL WHERE id = ?`).run(host, INBOX_PORT, id);
+  return listMailAccounts(db);
+}
+
+/**
+ * Looks in the inbox of every account that reads replies and has something
+ * still listened for, and reports each answer found. An inbox that cannot be
+ * read is said on its account and does not stop the others. Returns how many
+ * messages were found answered.
+ */
+export async function checkReplies(db: Db, now: Date = new Date()): Promise<number> {
+  const since = new Date(now.getTime() - WATCH_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const rows = db.prepare(`SELECT * FROM mail_accounts WHERE imap_host IS NOT NULL ORDER BY created_at`).all() as Row[];
+  let answered = 0;
+  for (const row of rows) {
+    const watched = watchedAccountEmails(db, row.id, since);
+    if (watched.length === 0) continue;
+    const say = db.prepare(`UPDATE mail_accounts SET imap_checked_at = ?, imap_error = ? WHERE id = ?`);
+    try {
+      const inbox = await readInbox(
+        { host: row.imap_host as string, port: row.imap_port ?? INBOX_PORT, username: row.username, password: passwordOf(row, "the inbox was not read") },
+        sinceDay(watched[0]?.sentAt ?? since),
+      );
+      const replies = repliesAmong(watched, inbox);
+      db.transaction(() => {
+        for (const [id, repliedAt] of replies) {
+          const was = watched.find((each) => each.id === id);
+          applyReport(
+            db,
+            {
+              id,
+              status: "replied",
+              sentAt: null,
+              repliedAt,
+              error: null,
+              // They answered, so the follow-up that was waiting for silence does not go.
+              followUp: was?.followUpWaiting ? { status: "skipped", sentAt: null, error: null } : null,
+            },
+            now,
+          );
+        }
+        say.run(now.toISOString(), null, row.id);
+      })();
+      answered += replies.size;
+    } catch (error) {
+      say.run(now.toISOString(), error instanceof Error ? error.message : String(error), row.id);
+    }
+  }
+  return answered;
+}
+
+/** Whether the last look at an account's inbox worked - a follow-up waits on one that did not. */
+export function inboxInOrder(db: Db, accountId: string): boolean {
+  const row = db.prepare(`SELECT imap_host, imap_error FROM mail_accounts WHERE id = ?`).get(accountId) as
+    | { imap_host: string | null; imap_error: string | null }
+    | undefined;
+  return row !== undefined && row.imap_host !== null && row.imap_error === null;
+}
+
+/**
+ * Sends one message from an account, now. Throws in words a person can act
+ * on. `messageId` is the id it goes out with; `inReplyTo` puts it in the
+ * thread of an earlier one, which is where a follow-up belongs.
+ */
+export async function sendFromAccount(
+  db: Db,
+  accountId: string,
+  message: { to: string; subject: string; body: string; messageId?: string | null; inReplyTo?: string | null },
+): Promise<void> {
+  const row = db.prepare(`SELECT * FROM mail_accounts WHERE id = ?`).get(accountId) as Row | undefined;
+  if (!row) throw new Error("That account is not connected any more.");
+  const password = passwordOf(row, "nothing was sent");
   try {
     await makeTransport({ host: row.host, port: row.port, secure: row.secure === 1, username: row.username, password }).sendMail({
       from: { name: row.label, address: row.address },
       to: message.to,
       subject: message.subject,
       text: message.body,
+      ...(message.messageId ? { messageId: message.messageId } : {}),
+      ...(message.inReplyTo ? { inReplyTo: message.inReplyTo, references: message.inReplyTo } : {}),
     });
   } catch (error) {
     throw sayProblem(error, row.host);

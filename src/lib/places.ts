@@ -1,5 +1,5 @@
 import { CURRENCIES } from "@shared/domain";
-import { countryOptions as countries } from "@shared/countries";
+import { countryOptions as countries, timezoneCity } from "@shared/countries";
 
 /**
  * The options for where a company is: its country, its money and its clock,
@@ -44,5 +44,9 @@ export function timezoneChoices(current: string): { value: string; label: string
     zones = [];
   }
   if (!zones.includes(current)) zones = [current, ...zones];
-  return zones.map((zone) => ({ value: zone, label: zone.replace(/_/g, " ") }));
+  // The city first, as it is said, and the region after for the cities that share a name.
+  return zones.map((zone) => {
+    const region = zone.includes("/") ? zone.split("/")[0] : null;
+    return { value: zone, label: region ? `${timezoneCity(zone)} · ${region.replace(/_/g, " ")}` : timezoneCity(zone) };
+  });
 }

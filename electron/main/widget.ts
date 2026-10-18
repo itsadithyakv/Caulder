@@ -24,9 +24,24 @@ import { attachToWallpaper, detachFromWallpaper, type Attached } from "./wallpap
  *    where pointer events cannot be leaned on at all.
  *
  * One mechanism, both directions, no dependence on the DOM.
+ *
+ * **It opens when the pointer rests on it, not when it passes.** Opening on
+ * the first tick threw a panel up every time the pointer crossed the corner
+ * on its way somewhere else; a few ticks of resting is what "I want to read
+ * this" looks like. It closes the same way, so a wobble off the edge does
+ * not snap it shut.
+ *
+ * **It is dragged by hand, not by a drag region.** A region marked
+ * `-webkit-app-region: drag` swallows every click, so the widget could be
+ * moved or clicked but never both. The page says when a press starts and
+ * ends; main follows the real cursor in between.
  */
 
-const TICK = 180;
+const TICK = 150;
+/** Ticks the pointer must rest before the panel opens: about half a second. */
+const OPEN_AFTER = 3;
+/** Ticks off it before the panel closes again. */
+const CLOSE_AFTER = 3;
 
 let window: BrowserWindow | null = null;
 let level: WidgetLevel = "front";
@@ -37,6 +52,13 @@ let rest = { x: 0, y: 0, ...DESK_PILL };
 /** How tall the panel is, which is however tall the page says its contents are. */
 let panel = { ...DESK_PANEL };
 let timer: NodeJS.Timeout | null = null;
+/** Consecutive ticks over the widget, and off it. */
+let over = 0;
+let off = 0;
+/** A press being dragged: where the pointer and the pill were when it started. */
+let drag: { from: { x: number; y: number }; rest: { x: number; y: number }; moved: boolean } | null = null;
+/** Opens the main window on Today; index.ts hands it over. */
+let opener: (() => void) | null = null;
 /** What the desktop level last answered, or null at any other level. */
 let pinned: Attached | null = null;
 const movers = new Set<(spot: { x: number; y: number }) => void>();
@@ -93,18 +115,6 @@ function build(): BrowserWindow {
   if (devServer) void created.loadURL(`${devServer}#widget`);
   else void created.loadFile(join(__dirname, "../renderer/index.html"), { hash: "widget" });
 
-  // Only a person dragging the pill reaches this. Measured on Windows:
-  // `moved` is not emitted for a programmatic setBounds, so the window's own
-  // growing and shrinking cannot be mistaken for somebody moving it. The
-  // `opened` guard stays anyway - it is the one that would matter if a future
-  // Electron started emitting it.
-  created.on("moved", () => {
-    if (opened || created.isDestroyed()) return;
-    const { x, y } = created.getBounds();
-    rest = { x, y, ...DESK_PILL };
-    for (const listener of movers) listener({ x, y });
-  });
-
   created.on("closed", () => {
     window = null;
     stopWatching();
@@ -137,10 +147,18 @@ function startWatching(): void {
   if (timer) return;
   timer = setInterval(() => {
     if (!window || window.isDestroyed()) return;
+    if (drag) return;
     const point = pointer();
     const bounds = opened ? deskOpen(rest, areaFor(rest), panel) : rest;
-    if (deskHovered(point, bounds, opened)) grow();
-    else shrink();
+    if (deskHovered(point, bounds, opened)) {
+      over += 1;
+      off = 0;
+      if (over >= OPEN_AFTER) grow();
+    } else {
+      off += 1;
+      over = 0;
+      if (off >= CLOSE_AFTER) shrink();
+    }
   }, TICK);
 }
 
@@ -210,6 +228,45 @@ export function hideWidget(): void {
 export function setWidgetLevel(wanted: WidgetLevel): void {
   level = wanted;
   if (window) apply(level);
+}
+
+/**
+ * A press on the pill or the panel's head: started, the pointer moving, let
+ * go. The pointer is read here rather than sent, so the page's coordinates
+ * and the screen's never have to agree. Answers whether it moved, so the page
+ * can tell a click from a drag.
+ */
+export function dragWidget(phase: "start" | "move" | "end"): boolean {
+  if (!window) return false;
+  const point = pointer();
+  if (phase === "start") {
+    drag = { from: point, rest: { x: rest.x, y: rest.y }, moved: false };
+    return false;
+  }
+  if (!drag) return false;
+  const dx = point.x - drag.from.x;
+  const dy = point.y - drag.from.y;
+  if (Math.abs(dx) > 3 || Math.abs(dy) > 3) drag.moved = true;
+  if (drag.moved) {
+    rest = deskRest({ x: drag.rest.x + dx, y: drag.rest.y + dy }, areaFor(point));
+    place(opened ? deskOpen(rest, areaFor(rest), panel) : rest);
+  }
+  const moved = drag.moved;
+  if (phase === "end") {
+    drag = null;
+    if (moved) for (const listener of movers) listener({ x: rest.x, y: rest.y });
+  }
+  return moved;
+}
+
+/** What opens the main window, from index.ts. */
+export function setWidgetOpener(open: () => void): void {
+  opener = open;
+}
+
+/** The widget clicked: Caulder, on Today. */
+export function openFromWidget(): void {
+  opener?.();
 }
 
 export function widgetState(): { on: boolean; level: WidgetLevel; reason: string | null } {

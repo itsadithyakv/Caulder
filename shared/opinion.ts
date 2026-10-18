@@ -35,8 +35,6 @@ export type Example = {
   page?: { id: string; title: string } | null;
   /** Filed by the person, rather than a seed. */
   own: boolean;
-  /** For one of the person's tasks: the area it was filed under. */
-  area?: string | null;
 };
 
 type Opinion = {
@@ -89,7 +87,6 @@ const NONE: Opinion = { kind: null, page: null, because: null };
 
 const SAID: Record<LessonKind, string> = {
   task: "something to do",
-  journal: "a day in the journal",
   idea: "an idea",
   note: "a note",
   memory: "something to remember",
@@ -148,31 +145,3 @@ export function secondOpinion(
   return { kind, page, because };
 }
 
-/** How much of the vote an area needs, and how alike its nearest task must be. */
-export const AREA = { share: 0.6, best: 0.45 } as const;
-
-/**
- * The area for a task nothing else put in one - not a #tag, your words, a
- * lesson or the keyword lists (shared/quickadd.ts) - from the areas of the
- * person's own tasks nearest it in meaning: "revise unit 3" goes where the
- * other revising went. Null when they do not agree, and the line falls back
- * to Personal or Company as it always has.
- */
-export function areaOpinion(examples: readonly Example[], numbers: typeof AREA = AREA): string | null {
-  const tasks = examples
-    .filter((each) => each.own && each.kind === "task" && each.area && each.score >= OPINION.floor)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, OPINION.most);
-  const votes = new Map<string, { weight: number; best: number }>();
-  let total = 0;
-  for (const each of tasks) {
-    const weight = each.score ** 3;
-    total += weight;
-    const had = votes.get(each.area as string);
-    votes.set(each.area as string, { weight: (had?.weight ?? 0) + weight, best: Math.max(had?.best ?? 0, each.score) });
-  }
-  const [winner] = [...votes.entries()].sort((a, b) => b[1].weight - a[1].weight);
-  if (!winner || total === 0) return null;
-  const [area, vote] = winner;
-  return vote.weight / total >= numbers.share && vote.best >= numbers.best ? area : null;
-}

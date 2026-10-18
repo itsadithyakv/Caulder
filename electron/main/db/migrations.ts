@@ -2656,6 +2656,220 @@ const M047_SAID_AGAIN = `
   );
 `;
 
+/**
+ * Where a contact is found, and which template a message came from
+ * (10 October 2026).
+ *
+ * A first message to a stranger is as often a LinkedIn note or an Instagram
+ * DM as an email, so a contact carries both as fields of its own: the address
+ * in full, as `shared/profiles.ts` cleans it. They are not in the search
+ * index (nobody looks a contact up by its handle).
+ *
+ * `emails.template_id` is the template a message started from, so a template
+ * can say how many it sent and how many were answered. Null for a message
+ * written from scratch, and for every message sent before this.
+ *
+ * And the history learns two kinds, `linkedin` and `instagram`. Its kind was
+ * still a CHECK, the last one left from before kinds were checked in
+ * TypeScript, so this is the table's fourth rebuild and its last: the CHECK
+ * goes. Rows are copied whole - the history is append-only, so there is
+ * nothing to reconcile - and keep their ids, so the search index, which
+ * knows a row by its id, still points at them. Dropping the table takes its
+ * three search triggers with it; they are made again here by the same code
+ * that made them in migration 20, unchanged.
+ *
+ * `rebuilds`: calls point at a history entry, and with foreign keys on,
+ * dropping the table would null every one of those.
+ */
+function m048(): string {
+  const history = M020_SOURCES.find((source) => source.kind === "history");
+  if (!history) throw new Error("Migration 48 lost its history source.");
+  return `
+  ALTER TABLE leads ADD COLUMN linkedin TEXT;
+  ALTER TABLE leads ADD COLUMN instagram TEXT;
+  ALTER TABLE emails ADD COLUMN template_id TEXT REFERENCES email_templates (id) ON DELETE SET NULL;
+  CREATE INDEX emails_template ON emails (template_id) WHERE template_id IS NOT NULL;
+
+  CREATE TABLE activities_new (
+    id          TEXT PRIMARY KEY,
+    company_id  TEXT NOT NULL REFERENCES companies (id) ON DELETE CASCADE,
+    lead_id     TEXT NOT NULL REFERENCES leads (id) ON DELETE CASCADE,
+    kind        TEXT NOT NULL,
+    body        TEXT,
+    occurred_at TEXT NOT NULL,
+    created_at  TEXT NOT NULL,
+    meta        TEXT
+  );
+
+  INSERT INTO activities_new
+    SELECT id, company_id, lead_id, kind, body, occurred_at, created_at, meta
+    FROM activities;
+
+  DROP TABLE activities;
+  ALTER TABLE activities_new RENAME TO activities;
+
+  CREATE INDEX activities_lead    ON activities (lead_id, occurred_at DESC);
+  CREATE INDEX activities_company ON activities (company_id, occurred_at DESC);
+
+  CREATE TRIGGER search_history_insert AFTER INSERT ON activities BEGIN${m020Refresh(history, "NEW.id")}
+  END;
+  CREATE TRIGGER search_history_update AFTER UPDATE OF ${history.columns} ON activities BEGIN${m020Refresh(history, "NEW.id")}
+  END;
+  CREATE TRIGGER search_history_delete AFTER DELETE ON activities BEGIN${m020Refresh(history, "OLD.id")}
+  END;
+`;
+}
+
+/**
+ * Caulder is the company's, and nothing else's (PLAN.md, part seven,
+ * 10 October 2026). The personal half is taken out, and what it kept goes
+ * with it - asked for in so many words, with the backup made before every
+ * migration as the way back:
+ *
+ * - the journal's private lines and sealed days, habits and their ticks, time
+ *   and numbers logged on a hobby, the reading shelf, the vision board, the
+ *   quiet-day answers, theme days and goal check-ins: their tables are
+ *   dropped;
+ * - every page in the sections that were personal - studies, hobbies, goals,
+ *   the journal - and every page kept in the calendar's own workspace, which
+ *   is where memories about a life were kept. Deleting a page takes its
+ *   history, its links, its place on the map, its search entry and what was
+ *   read of it for meaning, by the cascades and triggers those already have;
+ * - the settings that belonged to it: the journal's passcode and recovery
+ *   key, the switch that let personal pages go to an AI, Looking back's local
+ *   model, and the like;
+ * - founder sharing, which is to be made again later and differently: the
+ *   tombstones a shared brain kept. The `brain_*` columns on a company stay,
+ *   empty, because dropping a column that a CHECK names is a rebuild for
+ *   nothing.
+ *
+ * The calendar's own workspace stays, with its blocks, tasks and terms: a
+ * class and the gym are what a call is planned around. A block or a task
+ * that was for a page now gone keeps everything but that link.
+ */
+const M049_COMPANY_ONLY = `
+  DELETE FROM brain_pages WHERE section IN ('studies', 'hobbies', 'goals', 'journal');
+  DELETE FROM brain_pages WHERE company_id IN (SELECT id FROM companies WHERE kind = 'personal');
+  DELETE FROM map_positions WHERE company_id IN (SELECT id FROM companies WHERE kind = 'personal');
+
+  -- A shared brain kept a note of each page deleted, by two triggers. With
+  -- its table going they would fail every later delete of a page or a company.
+  DROP TRIGGER IF EXISTS brain_tombstone;
+  DROP TRIGGER IF EXISTS brain_tombstones_company;
+
+  DROP TABLE IF EXISTS journal_private;
+  DROP TABLE IF EXISTS journal_sealed;
+  DROP TABLE IF EXISTS habit_checks;
+  DROP TABLE IF EXISTS habits;
+  DROP TABLE IF EXISTS hobby_logs;
+  DROP TABLE IF EXISTS shelf_books;
+  DROP TABLE IF EXISTS vision_tiles;
+  DROP TABLE IF EXISTS day_checkins;
+  DROP TABLE IF EXISTS day_themes;
+  DROP TABLE IF EXISTS goal_checkins;
+  DROP TABLE IF EXISTS brain_tombstones;
+
+  UPDATE block_series SET is_habit = 0 WHERE is_habit = 1;
+  UPDATE companies SET brain_key = NULL, brain_name = NULL, brain_role = NULL, brain_connection = NULL,
+                       brain_cursor = 0, brain_synced_at = NULL, brain_error = NULL
+   WHERE brain_key IS NOT NULL OR brain_role IS NOT NULL;
+
+  DELETE FROM settings WHERE key IN (
+    'journalLock', 'journalLockToday', 'journalNudged', 'journalNudgeAt',
+    'aiPersonal', 'lookBackLocal', 'looseLeft', 'datesTold', 'pulseOff', 'shelfCovers',
+    'levelsHidden'
+  );
+
+  -- What a deleted page held is in the index's old segments until they are
+  -- rewritten: a journal day should not outlast the journal in the file.
+  INSERT INTO brain_search (brain_search) VALUES ('optimize');
+`;
+
+/**
+ * Contacts kept as a Google Sheet (PLAN.md, part seven; shared/sheet.ts).
+ *
+ * - `sheet_links` is one row a company that keeps one: where the spreadsheet
+ *   is, when the two were last in step and how that went - the count written,
+ *   how many contacts the sheet changed and made, what it said that could not
+ *   be kept (`problems`, a JSON list of sentences) and, when a pass failed,
+ *   why (`error`).
+ * - `sheet_rows` is what Caulder last wrote for each contact (`base`, the
+ *   editable cells as JSON). A cell that differs from it next time was edited
+ *   in the sheet. It goes with its contact, so a contact deleted here is
+ *   simply not in the next write.
+ */
+/**
+ * Replies from a mail account that is not the Google script (PLAN.md, part
+ * eight; shared/replies.ts).
+ *
+ * An account may be asked for its inbox: `imap_host` set is the switch, off
+ * until the person turns it on. `imap_checked_at` and `imap_error` are what
+ * the last look came to, for the card in Settings.
+ *
+ * `emails.message_id` is the Message-ID a message went out with, which is how
+ * a reply says what it is answering.
+ */
+const M051_INBOX = `
+  ALTER TABLE mail_accounts ADD COLUMN imap_host TEXT;
+  ALTER TABLE mail_accounts ADD COLUMN imap_port INTEGER CHECK (imap_port IS NULL OR imap_port BETWEEN 1 AND 65535);
+  ALTER TABLE mail_accounts ADD COLUMN imap_checked_at TEXT;
+  ALTER TABLE mail_accounts ADD COLUMN imap_error TEXT;
+
+  ALTER TABLE emails ADD COLUMN message_id TEXT;
+  CREATE INDEX emails_account_sent ON emails (account_id, status, sent_at) WHERE account_id IS NOT NULL;
+`;
+
+/**
+ * People and hiring taken out (PLAN.md, part eight; the owner's decision, 11
+ * October 2026): a one-person company has no team to keep.
+ *
+ * **The two tables stay, and nothing reads them.** `tasks.person_id` refers
+ * to `people`, a column with a reference cannot be dropped, and a table that
+ * another still refers to cannot go without every later write to `tasks`
+ * failing - so `people` and `openings` are left as they are, with whatever
+ * was in them, and Export everything still writes them out.
+ *
+ * What goes is everything that showed them: their rows in the search index
+ * and the triggers that kept those, the lines pages drew to them, and their
+ * places on the Map. A page filed under People moves to Company, which is
+ * where a section that no longer exists would otherwise hide it.
+ */
+const M052_NO_PEOPLE = `
+  DROP TRIGGER IF EXISTS search_person_insert;
+  DROP TRIGGER IF EXISTS search_person_update;
+  DROP TRIGGER IF EXISTS search_person_delete;
+  DROP TRIGGER IF EXISTS links_person_gone;
+
+  DELETE FROM brain_search WHERE rowid IN (SELECT id FROM search_map WHERE kind = 'person');
+  DELETE FROM search_map WHERE kind = 'person';
+  DELETE FROM brain_links WHERE to_kind = 'person';
+  DELETE FROM map_positions WHERE node LIKE 'person:%';
+
+  UPDATE brain_pages SET section = 'company' WHERE section = 'people';
+`;
+
+const M050_SHEET = `
+  CREATE TABLE sheet_links (
+    company_id TEXT PRIMARY KEY REFERENCES companies (id) ON DELETE CASCADE,
+    url        TEXT,
+    synced_at  TEXT,
+    count      INTEGER NOT NULL DEFAULT 0,
+    changed    INTEGER NOT NULL DEFAULT 0,
+    made       INTEGER NOT NULL DEFAULT 0,
+    error      TEXT,
+    problems   TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL
+  );
+
+  CREATE TABLE sheet_rows (
+    lead_id    TEXT PRIMARY KEY REFERENCES leads (id) ON DELETE CASCADE,
+    company_id TEXT NOT NULL REFERENCES companies (id) ON DELETE CASCADE,
+    base       TEXT NOT NULL
+  );
+
+  CREATE INDEX sheet_rows_company ON sheet_rows (company_id);
+`;
+
 const M046_UNDERSTANDING = `
   CREATE TABLE vectors (
     kind       TEXT NOT NULL,
@@ -2715,6 +2929,107 @@ const M046_UNDERSTANDING = `
   INSERT INTO embed_queue (kind, ref_id, queued_at) SELECT 'note', id, strftime('%Y-%m-%dT%H:%M:%fZ', 'now') FROM notes;
 `;
 
+/**
+ * 53: a block's kinds are a working day's (PLAN.md, part eight, phase 32).
+ *
+ * Class, Studying, Break and Personal were a student's day. A block or a
+ * repeat that has one of them becomes Away - time that is not work, without
+ * saying what. Nothing else about it changes: its title still says what it
+ * is. A kind typed by hand is left alone, as it always was.
+ *
+ * And a contact gains what its person is there - "Owner", "Head of
+ * marketing" - beside who they are. Alt phone, Location and PIN came from
+ * the first customer's spreadsheet; they are kept and still imported, and are
+ * no longer on the form.
+ *
+ * Nothing is dropped. `tasks.area`, `area_words`, `terms`,
+ * `block_series.term_id`, the area on `line_lessons` and the 'name' rows of
+ * `line_guesses` are all left where they are and are no longer read or
+ * written: a task has no area and a week has no term.
+ */
+const M053_WORKING_DAY = `
+  UPDATE blocks SET kind = 'away' WHERE kind IN ('class', 'study', 'break', 'personal');
+  UPDATE block_series SET kind = 'away' WHERE kind IN ('class', 'study', 'break', 'personal');
+
+  ALTER TABLE leads ADD COLUMN contact_role TEXT;
+`;
+
+/**
+ * A retainer (PLAN.md, part eight, phase 34, the owner's decision 5): an
+ * invoice that says it repeats. When the next one falls due to be written, a
+ * draft is made from it - to be looked at and sent, never sent by itself -
+ * and the saying moves to the draft, so one invoice in the run carries it.
+ */
+const M054_RETAINERS = `
+  ALTER TABLE invoices ADD COLUMN repeats TEXT CHECK (repeats IN ('monthly', 'quarterly', 'yearly'));
+`;
+
+/**
+ * Repeats that are not a week's days (PLAN.md, part twelve, phase 47): rent on
+ * the 1st, GST every quarter's month, a birthday every year. A task that says
+ * it repeats makes the next one when it is ticked off. And a block series that
+ * runs every other week - "team call every other wednesday 10am" - says so,
+ * so ending or describing it knows.
+ */
+const M055_REPEATS = `
+  ALTER TABLE tasks ADD COLUMN repeats TEXT CHECK (repeats IN ('fortnightly', 'monthly', 'yearly'));
+  ALTER TABLE block_series ADD COLUMN every_weeks INTEGER NOT NULL DEFAULT 1 CHECK (every_weeks IN (1, 2));
+`;
+
+/**
+ * Who a word means (PLAN.md, part twelve, phase 48): when the line asked
+ * "which Priya?" or "is that Priya?" and was answered, the word and the
+ * contact, so it is not asked again. Per company, because contacts are.
+ */
+const M056_LINE_NAMES = `
+  CREATE TABLE line_names (
+    id         TEXT PRIMARY KEY,
+    company_id TEXT NOT NULL REFERENCES companies (id) ON DELETE CASCADE,
+    said       TEXT NOT NULL,
+    lead_id    TEXT NOT NULL REFERENCES leads (id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL
+  );
+
+  CREATE UNIQUE INDEX line_names_said ON line_names (company_id, said COLLATE NOCASE);
+`;
+
+/**
+ * What stays true about a contact (PLAN.md, part twelve, phase 49): said to
+ * the line and kept on them, not on their history. A fact that ends - on
+ * leave till the 20th - keeps the day.
+ */
+const M057_FACTS = `
+  CREATE TABLE lead_facts (
+    id         TEXT PRIMARY KEY,
+    company_id TEXT NOT NULL REFERENCES companies (id) ON DELETE CASCADE,
+    lead_id    TEXT NOT NULL REFERENCES leads (id) ON DELETE CASCADE,
+    text       TEXT NOT NULL,
+    until_day  TEXT,
+    created_at TEXT NOT NULL
+  );
+
+  CREATE INDEX lead_facts_lead ON lead_facts (lead_id, created_at);
+`;
+
+/**
+ * The week's three things (PLAN.md, part eight, phase 35): chosen at the head
+ * of the Calendar's week for the week after, shown at the head of Today until
+ * done or the week ends, and said in Monday's brief. At most three a week.
+ */
+const M058_WEEK_THINGS = `
+  CREATE TABLE week_things (
+    id         TEXT PRIMARY KEY,
+    company_id TEXT NOT NULL REFERENCES companies (id) ON DELETE CASCADE,
+    week_start TEXT NOT NULL,
+    position   INTEGER NOT NULL CHECK (position BETWEEN 0 AND 2),
+    text       TEXT NOT NULL,
+    done_at    TEXT,
+    created_at TEXT NOT NULL
+  );
+
+  CREATE UNIQUE INDEX week_things_place ON week_things (company_id, week_start, position);
+`;
+
 export const MIGRATIONS: readonly Migration[] = [
   { version: 1, name: "companies, stages, settings", sql: M001_COMPANIES },
   { version: 2, name: "leads, activities", sql: M002_LEADS },
@@ -2763,6 +3078,17 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 45, name: "search forgets what it is told to", sql: M045_SEARCH_FORGETS },
   { version: 46, name: "understanding, on this machine", sql: M046_UNDERSTANDING },
   { version: 47, name: "said again", sql: M047_SAID_AGAIN },
+  { version: 48, name: "where a contact is found", sql: m048(), rebuilds: true },
+  { version: 49, name: "the company's, and nothing else's", sql: M049_COMPANY_ONLY },
+  { version: 50, name: "contacts as a google sheet", sql: M050_SHEET },
+  { version: 51, name: "replies from other mail accounts", sql: M051_INBOX },
+  { version: 52, name: "one person, and no people", sql: M052_NO_PEOPLE },
+  { version: 53, name: "a working day's blocks, and what a contact is there", sql: M053_WORKING_DAY },
+  { version: 54, name: "an invoice that repeats", sql: M054_RETAINERS },
+  { version: 55, name: "a task that comes back, and every other week", sql: M055_REPEATS },
+  { version: 56, name: "who a word means", sql: M056_LINE_NAMES },
+  { version: 57, name: "what stays true about a contact", sql: M057_FACTS },
+  { version: 58, name: "the week's three things", sql: M058_WEEK_THINGS },
 ];
 
 export function currentVersion(db: Db): number {

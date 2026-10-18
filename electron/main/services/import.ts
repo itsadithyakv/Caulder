@@ -34,6 +34,7 @@ import {
 } from "@shared/normalise";
 import { parsePasted } from "@shared/paste";
 import type { Lead } from "@shared/domain";
+import { profileLink } from "@shared/profiles";
 import { createLead, deleteLead, findLead } from "../repositories/leads";
 
 /**
@@ -203,6 +204,10 @@ function readRow(row: unknown[], mapping: ColumnMapping): ImportValues | null {
   const explicitAlt = cell("Alt Phone");
   const place = splitLocation(cell("Location"));
   const explicitCity = cell("City");
+  // A sheet from LinkedIn itself calls the profile "URL", which reads as a
+  // website: a website that is a LinkedIn profile is kept as the profile.
+  const site = cell("Website");
+  const siteProfile = site !== null && site.toLowerCase().includes("linkedin.com") ? profileLink("linkedin", site) : null;
 
   return {
     name,
@@ -216,7 +221,10 @@ function readRow(row: unknown[], mapping: ColumnMapping): ImportValues | null {
     city: explicitCity ?? place.city,
     pin: place.pin,
     source: cell("Source") ?? inferredSource,
-    website: cell("Website"),
+    website: siteProfile === null ? site : null,
+    // What does not read as a profile is left out rather than refusing the row.
+    linkedin: profileLink("linkedin", cell("LinkedIn")) ?? siteProfile,
+    instagram: profileLink("instagram", cell("Instagram")),
     value: parseValue(cell("Value")),
     notes: cell("Notes"),
   };
@@ -309,6 +317,8 @@ const CONFLICT_FIELDS: { field: keyof ImportValues; label: string }[] = [
   { field: "location", label: "Location" },
   { field: "source", label: "Source" },
   { field: "website", label: "Website" },
+  { field: "linkedin", label: "LinkedIn" },
+  { field: "instagram", label: "Instagram" },
   { field: "value", label: "Value" },
 ];
 
@@ -451,6 +461,8 @@ function leadToValues(lead: Lead): ImportValues {
     pin: lead.pin,
     source: lead.source,
     website: lead.website,
+    linkedin: lead.linkedin,
+    instagram: lead.instagram,
     value: lead.value,
     notes: lead.notes,
   };
@@ -469,16 +481,6 @@ export function commitImport(
   db: Db,
   jobId: string,
   resolutions: Record<number, Resolution>,
-  /**
-   * The campaign every lead in this file came from, if it came from one.
-   *
-   * Batch-wide rather than per row: a spreadsheet of two hundred scraped
-   * schools is one push, and asking two hundred times would mean it is never
-   * answered at all. Only applied to leads this import CREATES — a lead that
-   * already existed came from wherever it came from, and rewriting that would
-   * be attributing somebody else's work to this campaign.
-   */
-  campaignId: string | null = null,
 ): ImportSummary {
   const job = jobs.get(jobId);
   if (!job) {
@@ -525,7 +527,7 @@ export function commitImport(
       }
 
       if (row.status === "valid") {
-        const lead = createLead(db, job.companyId, toLeadInput(row.values, campaignId));
+        const lead = createLead(db, job.companyId, toLeadInput(row.values));
         stampBatch(db, lead.id, batchId);
         madeThisRun.set(row.rowNumber, lead.id);
         created += 1;
@@ -539,7 +541,7 @@ export function commitImport(
       }
 
       if (resolution === "create") {
-        const lead = createLead(db, job.companyId, toLeadInput(row.values, campaignId));
+        const lead = createLead(db, job.companyId, toLeadInput(row.values));
         stampBatch(db, lead.id, batchId);
         madeThisRun.set(row.rowNumber, lead.id);
         created += 1;
@@ -597,6 +599,8 @@ const MERGEABLE = [
   "pin",
   "source",
   "website",
+  "linkedin",
+  "instagram",
   "notes",
 ] as const;
 
@@ -644,6 +648,8 @@ const COLUMN: Record<(typeof MERGEABLE)[number], string> = {
   pin: "pin",
   source: "source",
   website: "website",
+  linkedin: "linkedin",
+  instagram: "instagram",
   notes: "notes",
 };
 
@@ -653,8 +659,9 @@ function putValue(db: Db, leadId: string, name: string, value: number | null): v
   else if (value !== null) createDeal(db, leadId, { title: name, stageId: null, value });
 }
 
-function toLeadInput(values: ImportValues, campaignId: string | null) {
-  return { ...values, stageId: null, campaignId, doNotContact: false, relationship: "prospect" as const };
+function toLeadInput(values: ImportValues) {
+  // A sheet has no column for what the person is there; it is set on the contact afterwards.
+  return { ...values, contactRole: null, stageId: null, doNotContact: false, relationship: "prospect" as const };
 }
 
 /* ---- Undo --------------------------------------------------------------- */
@@ -720,9 +727,20 @@ export function undoImport(db: Db, batchId: string): { deleted: number; restored
            contact_person = @contactPerson, email = @email, phone = @phone,
            alt_phone = @altPhone, location = @location, city = @city, pin = @pin,
            source = @source, website = @website, notes = @notes,
+           linkedin = CASE WHEN @hasProfiles = 1 THEN @linkedin ELSE linkedin END,
+           instagram = CASE WHEN @hasProfiles = 1 THEN @instagram ELSE instagram END,
            updated_at = @now
          WHERE id = @id`,
-      ).run({ ...values, id: leadId, now: new Date().toISOString() });
+      ).run({
+        // An import from before contacts had profiles knows nothing about
+        // them, so undoing it leaves them as they are.
+        ...values,
+        linkedin: values.linkedin ?? null,
+        instagram: values.instagram ?? null,
+        hasProfiles: "linkedin" in values ? 1 : 0,
+        id: leadId,
+        now: new Date().toISOString(),
+      });
       if (existing.value !== values.value) putValue(db, leadId, existing.name, values.value);
       restored += 1;
     }

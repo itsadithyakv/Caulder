@@ -162,6 +162,32 @@ test("the pointer on it grows the window, not the contents", async () => {
   await widget?.waitForSelector(".desk--pill");
 });
 
+test("a press that does not move opens Caulder; one that moves drags the widget", async () => {
+  const { app: running, page } = await openApp();
+  await expect.poll(() => widgetSize(running)).toBe("pill");
+  const widget = running.windows().find((w) => w.url().includes("#widget"));
+  if (!widget) throw new Error("No widget window.");
+
+  // The pointer kept well away, so the panel never opens: this is the pill.
+  await point(running, false);
+  await goTo(page, "Contacts");
+  await widget.locator(".desk--pill").click();
+  await expect(page.getByText(/^Good (morning|afternoon|evening)/)).toBeVisible();
+
+  // Main follows the pointer while a press is held; moved, it is a drag, not a click.
+  const before = await widgetBounds(running);
+  await widget.mouse.move(20, 20);
+  await widget.mouse.down();
+  await running.evaluate(() => {
+    const hook = (globalThis as { __caulderWidget?: Hook }).__caulderWidget;
+    const rest = hook?.rest();
+    if (rest) hook?.point({ x: rest.x - 500 - 120, y: rest.y - 500 - 60 });
+  });
+  await widget.mouse.move(24, 22);
+  await widget.mouse.up();
+  await expect.poll(async () => (await widgetBounds(running))?.x).toBe((before?.x ?? 0) - 120);
+});
+
 test("it can be pinned to the wallpaper, and the app still quits", async () => {
   const { app: running, page } = await openApp();
   await goTo(page, "Settings");

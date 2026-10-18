@@ -2,14 +2,12 @@ import { randomUUID } from "node:crypto";
 import type { Db } from "../db/connection";
 import { createLead, setLeadStage, writeActivity } from "../repositories/leads";
 import { createTask, completeTask } from "../repositories/tasks";
-import { createBlock, setOutcome } from "../repositories/blocks";
+import { createBlock } from "../repositories/blocks";
 import { addPayment, saveInvoice, saveQuote, setInvoiceStatus, setQuoteStatus } from "../repositories/money";
 import { listStages } from "../repositories/companies";
 import { leadInput, taskInput, type PipelineStage } from "@shared/domain";
-import { daysBetween, shiftDay, today as todayIn, weekdayOf } from "@shared/dates";
-import { linkToken } from "@shared/links";
+import { shiftDay, today as todayIn } from "@shared/dates";
 import { createPage } from "../repositories/brain";
-import { entryTitle, makeTime } from "./life";
 
 /**
  * Sample data, so a new company is not six empty screens.
@@ -102,6 +100,9 @@ const SEEDS: Seed[] = [
     city: "Madrid",
     value: 1500,
     stage: 1,
+    // Contacted, so spoken to: a contacted contact who was never contacted is a sample that contradicts itself.
+    spokeDaysAgo: 5,
+    note: "Lucía wants the portfolio site live before the spring fair.",
     task: { title: "Follow up on the portfolio site", kind: "follow_up", inDays: 1 },
   },
   {
@@ -160,10 +161,10 @@ const SEEDS: Seed[] = [
 /** One founder's Tuesday, on whichever day the sample is looked at. */
 const SAMPLE_BLOCKS: { startsAt: string; minutes: number; title: string; kind: string }[] = [
   { startsAt: "09:00", minutes: 90, title: "Build the onboarding screens", kind: "focus" },
-  { startsAt: "11:00", minutes: 60, title: "Product design class", kind: "class" },
-  { startsAt: "14:00", minutes: 30, title: "Call with Kettle & Crumb", kind: "meeting" },
+  { startsAt: "11:00", minutes: 60, title: "Invoices and the month's books", kind: "admin" },
+  { startsAt: "14:00", minutes: 30, title: "Call with Kettle & Crumb", kind: "call" },
   { startsAt: "15:00", minutes: 90, title: "Proposal for Harbour Coffee", kind: "focus" },
-  { startsAt: "18:00", minutes: 60, title: "Gym", kind: "personal" },
+  { startsAt: "18:00", minutes: 60, title: "Gym", kind: "away" },
 ];
 
 function walkTo(stages: PipelineStage[], target: PipelineStage): PipelineStage[] {
@@ -357,116 +358,25 @@ export function seedDemo(db: Db, companyId: string, now: Date = new Date()): str
       setQuoteStatus(db, companyId, quote.id, "sent");
     }
 
-    // And the half of a founder's life that is not the company: an evening
-    // course with a review coming, a hobby with evenings set aside for it, a
-    // goal part of the way there, and two days of the journal - so the
-    // brain's own sections, Today's journal card and the Calendar's evenings
-    // have something in them too.
-    const at = now.toISOString();
-    const course = createPage(
-      db,
-      companyId,
-      {
-        section: "studies",
-        template: "course",
-        title: "Product design",
-        body: `## What it covers\n\nResearch, flows, and making a screen say one thing.\n\n## Assignments\n\n- [ ] Redesign one onboarding flow (by ${shiftDay(day, 6)})\n- [ ] Read chapter 5\n`,
-        fields: { code: "Evening course", term: "Autumn", credits: 4, status: "taking" },
-      },
-      at,
-    );
+    // What the company remembers: a few dated lines on the page the line
+    // keeps them on, so Memories and the line's answers have something to say.
     createPage(
       db,
       companyId,
       {
-        section: "studies",
-        template: "exam",
-        title: "Product design final review",
-        body: `For ${linkToken("Product design", { kind: "page", id: course })}.\n\n## To prepare\n\n- [ ] The case study, start to finish\n- [ ] Five minutes on what I would change\n`,
-        fields: { examOn: shiftDay(day, 12), at: "18:30, online" },
+        section: "remembered",
+        template: "page",
+        title: "Things to remember",
+        body:
+          [
+            `- **Payment terms: half up front, the rest on delivery** · our payment terms are half up front, the rest on delivery _(${shiftDay(day, -20)})_`,
+            `- Harbour Coffee pay on the 5th of the month _(${shiftDay(day, -9)})_`,
+            `- Nordlys want everything in one PDF, not a link _(${shiftDay(day, -3)})_`,
+          ].join("\n") + "\n",
+        fields: {},
       },
-      at,
+      now.toISOString(),
     );
-    const hobby = createPage(
-      db,
-      companyId,
-      {
-        section: "hobbies",
-        template: "hobby",
-        title: "Guitar",
-        body: "## Why I do it\n\nIt is the one hour nothing else gets into.\n",
-        fields: { status: "doing-it", hoursWanted: 3, goal: "Five songs, start to finish" },
-      },
-      at,
-    );
-    makeTime(db, hobby, { weekdays: [2, 5], startsAt: "20:00", minutes: 45, until: shiftDay(day, 56) }, now);
-    // The evenings it already got, the last eight weeks: Tuesdays and Fridays,
-    // a few skipped, and the odd longer Sunday - so its bars have a shape.
-    for (let ago = 56; ago >= 1; ago -= 1) {
-      const on = shiftDay(day, -ago);
-      const weekday = weekdayOf(on);
-      const sunday = weekday === 7 && ago % 3 === 0;
-      if (weekday !== 2 && weekday !== 5 && !sunday) continue;
-      const block = createBlock(db, companyId, {
-        day: on,
-        startsAt: sunday ? "17:00" : "20:00",
-        minutes: sunday ? 90 : 45,
-        title: "Guitar",
-        kind: "personal",
-      });
-      db.prepare(`UPDATE blocks SET page_id = ? WHERE id = ?`).run(hobby, block.id);
-      if (ago % 7 === 4) setOutcome(db, block.id, "skipped");
-    }
-    // A goal set on the first of the year and checked in on as the books were
-    // finished - so its line, its pace and "at this pace" show on the first look.
-    const yearStart = `${day.slice(0, 4)}-01-01`;
-    const goal = createPage(
-      db,
-      companyId,
-      {
-        section: "goals",
-        template: "life-goal",
-        title: "Read 12 books this year",
-        body: "## Why it matters\n\nA founder who reads is a founder who borrows other people's mistakes.\n",
-        fields: { area: "personal", target: 12, progress: 4, unit: "books", byOn: `${day.slice(0, 4)}-12-31` },
-      },
-      `${yearStart}T06:00:00.000Z`,
-    );
-    const sinceStart = daysBetween(yearStart, day);
-    if (sinceStart >= 30) {
-      const read: [number, number, string | null, boolean][] = [
-        [0, 0, null, true],
-        [0.22, 1, "The Mom Test", false],
-        [0.48, 2, null, false],
-        [0.71, 3, "Shoe Dog", false],
-        [0.93, 4, null, false],
-      ];
-      const checkin = db.prepare(
-        `INSERT INTO goal_checkins (id, page_id, on_day, value, note, is_start, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      );
-      for (const [share, value, note, start] of read) {
-        checkin.run(randomUUID(), goal, shiftDay(yearStart, Math.round(share * sinceStart)), value, note, start ? 1 : 0, at);
-      }
-    }
-    const entries: [number, string, string][] = [
-      [2, "okay", "A slow morning on the onboarding screens. Harbour Coffee still has not written back."],
-      [1, "good", "Fieldnote Books paid. Played for forty minutes after dinner without looking at the phone."],
-    ];
-    for (const [ago, mood, words] of entries) {
-      const on = shiftDay(day, -ago);
-      createPage(
-        db,
-        companyId,
-        {
-          section: "journal",
-          template: "entry",
-          title: entryTitle(on),
-          body: `## Today\n\n${words}\n\n## Grateful for\n\n\n## Tomorrow\n\n`,
-          fields: { day: on, mood },
-        },
-        at,
-      );
-    }
 
     return batchId;
   })();

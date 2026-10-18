@@ -31,6 +31,7 @@ type Props = {
 type Draft = {
   name: string;
   contactPerson: string;
+  contactRole: string;
   email: string;
   phone: string;
   altPhone: string;
@@ -39,10 +40,11 @@ type Draft = {
   pin: string;
   source: string;
   website: string;
+  linkedin: string;
+  instagram: string;
   value: string;
   notes: string;
   stageId: string;
-  campaignId: string;
   doNotContact: boolean;
   relationship: Relationship;
 };
@@ -51,6 +53,7 @@ function draftFrom(lead: Lead | undefined, stages: PipelineStage[]): Draft {
   return {
     name: lead?.name ?? "",
     contactPerson: lead?.contactPerson ?? "",
+    contactRole: lead?.contactRole ?? "",
     email: lead?.email ?? "",
     phone: lead?.phone ?? "",
     altPhone: lead?.altPhone ?? "",
@@ -59,11 +62,12 @@ function draftFrom(lead: Lead | undefined, stages: PipelineStage[]): Draft {
     pin: lead?.pin ?? "",
     source: lead?.source ?? "",
     website: lead?.website ?? "",
+    linkedin: lead?.linkedin ?? "",
+    instagram: lead?.instagram ?? "",
     value: lead?.value === null || lead?.value === undefined ? "" : String(lead.value),
     notes: lead?.notes ?? "",
     // A new lead starts in the first stage rather than outside the funnel.
     stageId: lead?.stageId ?? stages[0]?.id ?? "",
-    campaignId: lead?.campaignId ?? "",
     doNotContact: lead?.doNotContact ?? false,
     relationship: lead?.relationship ?? "prospect",
   };
@@ -95,7 +99,6 @@ export function LeadForm({ lead, stages, busy, onSubmit, onCancel }: Props) {
       ...draft,
       value,
       stageId: draft.stageId === "" ? null : draft.stageId,
-      campaignId: draft.campaignId === "" ? null : draft.campaignId,
     });
 
     if (!parsed.success) {
@@ -144,15 +147,25 @@ export function LeadForm({ lead, stages, busy, onSubmit, onCancel }: Props) {
       <div className="leadform__row">
         <Text id="lead-contact" label="Contact person" value={draft.contactPerson}
           onChange={(v) => set("contactPerson", v)} busy={busy} />
-        <Text id="lead-email" label="Email" value={draft.email} type="email"
-          onChange={(v) => set("email", v)} busy={busy} />
+        <Text id="lead-role" label="Role" value={draft.contactRole} placeholder="Owner"
+          onChange={(v) => set("contactRole", v)} busy={busy} />
       </div>
 
+      {/* An alt phone, a location and a PIN a contact already has are carried through
+          the draft untouched: they are kept, and there is no field here to change them. */}
       <div className="leadform__row">
+        <Text id="lead-email" label="Email" value={draft.email} type="email"
+          onChange={(v) => set("email", v)} busy={busy} />
         <Text id="lead-phone" label="Phone" value={draft.phone}
           onChange={(v) => set("phone", v)} busy={busy} />
-        <Text id="lead-alt-phone" label="Alt phone" value={draft.altPhone}
-          onChange={(v) => set("altPhone", v)} busy={busy} />
+      </div>
+
+      {/* Whatever is to hand: the address copied from the browser, or a handle. */}
+      <div className="leadform__row">
+        <Text id="lead-linkedin" label="LinkedIn" value={draft.linkedin} placeholder="linkedin.com/in/…"
+          onChange={(v) => set("linkedin", v)} busy={busy} />
+        <Text id="lead-instagram" label="Instagram" value={draft.instagram} placeholder="@handle"
+          onChange={(v) => set("instagram", v)} busy={busy} />
       </div>
 
       <div className="leadform__row">
@@ -216,8 +229,7 @@ export function LeadForm({ lead, stages, busy, onSubmit, onCancel }: Props) {
         <span className="checkline__text">
           <span className="checkline__title">Do not contact</span>
           <span className="card__hint">
-            Email and WhatsApp refuse this contact, rather than the buttons
-            quietly going missing.
+            Nothing can be sent to them.
           </span>
         </span>
       </label>
@@ -228,9 +240,6 @@ export function LeadForm({ lead, stages, busy, onSubmit, onCancel }: Props) {
         <Text id="lead-website" label="Website" value={draft.website}
           onChange={(v) => set("website", v)} busy={busy} />
       </div>
-
-      <Text id="lead-location" label="Location" value={draft.location}
-        onChange={(v) => set("location", v)} busy={busy} />
 
       <div className="field">
         <label className="field__label" htmlFor="lead-notes">
@@ -272,6 +281,7 @@ function Text({
   busy,
   type = "text",
   inputMode,
+  placeholder,
 }: {
   id: string;
   label: string;
@@ -280,6 +290,7 @@ function Text({
   busy?: boolean;
   type?: string;
   inputMode?: "numeric";
+  placeholder?: string;
 }) {
   return (
     <div className="field">
@@ -291,6 +302,7 @@ function Text({
         className="input"
         type={type}
         {...(inputMode ? { inputMode } : {})}
+        {...(placeholder ? { placeholder } : {})}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         autoComplete="off"

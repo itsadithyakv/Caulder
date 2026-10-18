@@ -22,9 +22,15 @@ import { ArrowRight, X } from "lucide-react";
  * what each one gives is on hover, and read out to a screen reader.
  */
 
-type Item = { id: "copy" | "google" | "ai"; title: string; gives: string };
+type Item = { id: "name" | "copy" | "google" | "ai"; title: string; gives: string };
 
 const ITEMS: readonly Item[] = [
+  {
+    // The one thing asked here rather than in the guide: typed in place.
+    id: "name",
+    title: "Your name",
+    gives: "What Today calls you, and the name kept on every page you change. Kept in Settings under This is me.",
+  },
   {
     // First: the one that protects what is already here (phase 24).
     id: "copy",
@@ -47,6 +53,9 @@ const ITEMS: readonly Item[] = [
 
 const KEY = "caulder.setup.skipped";
 
+/** Said when a name is given here, so Today's hello can use it. */
+export const NAME_GIVEN = "caulder:name-given";
+
 function readSkipped(): string[] {
   try {
     const stored: unknown = JSON.parse(localStorage.getItem(KEY) ?? "[]");
@@ -61,15 +70,18 @@ export function SetupNudge({ companyId, onSetUp }: { companyId: string; onSetUp:
   /** Null until asked: a line that appears and vanishes as the answers come in is worse than one a moment late. */
   const [connected, setConnected] = useState<Record<Item["id"], boolean> | null>(null);
   const [skipped, setSkipped] = useState<string[]>(readSkipped);
+  /** The name being typed, once "Your name" is pressed. */
+  const [naming, setNaming] = useState<string | null>(null);
 
   useEffect(() => {
     let live = true;
     // Both are cheap and offline: what is stored, not a request to anybody.
     Promise.all([
+      window.caulder.me.get().then((name) => name !== null, () => true),
       window.caulder.data.mirror().then((folder) => folder !== null, () => true),
       window.caulder.google.state(companyId).then((state) => state.connected, () => true),
       window.caulder.ask.state().then((state) => state.connected, () => true),
-    ]).then(([copy, google, ai]) => live && setConnected({ copy, google, ai }));
+    ]).then(([name, copy, google, ai]) => live && setConnected({ name, copy, google, ai }));
     return () => {
       live = false;
     };
@@ -95,14 +107,49 @@ export function SetupNudge({ companyId, onSetUp }: { companyId: string; onSetUp:
         Finish setting up
       </h2>
       <ul className="setupnudge__items" aria-label="What is left to set up">
-        {left.map((item) => (
+        {left.map((item) =>
+          item.id === "name" && naming !== null ? (
+            <li key={item.id} className="setupnudge__item">
+              <form
+                className="setupnudge__name"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const typed = naming.trim();
+                  if (!typed) return;
+                  void window.caulder.me.set(typed).then(
+                    () => {
+                      setNaming(null);
+                      setConnected((current) => (current ? { ...current, name: true } : current));
+                      // The hello above says it at once, rather than at the next start.
+                      window.dispatchEvent(new Event(NAME_GIVEN));
+                    },
+                    () => setNaming(null),
+                  );
+                }}
+              >
+                <input
+                  className="input"
+                  autoFocus
+                  maxLength={60}
+                  aria-label="Your first name"
+                  placeholder="Your first name"
+                  value={naming}
+                  onChange={(event) => setNaming(event.target.value)}
+                  onKeyDown={(event) => event.key === "Escape" && setNaming(null)}
+                />
+                <button type="submit" className="btn btn--sm" disabled={!naming.trim()}>
+                  Save
+                </button>
+              </form>
+            </li>
+          ) : (
           <li key={item.id} className="setupnudge__item">
             {/* The name is the button: one press to the guide, where the steps
                 are. What it gives is read out with it, and shown on hover. */}
             <button
               type="button"
               className="setupnudge__go"
-              onClick={onSetUp}
+              onClick={item.id === "name" ? () => setNaming("") : onSetUp}
               title={item.gives}
               aria-describedby={`${id}-${item.id}`}
             >
@@ -122,7 +169,8 @@ export function SetupNudge({ companyId, onSetUp }: { companyId: string; onSetUp:
               <X size={13} aria-hidden />
             </button>
           </li>
-        ))}
+          ),
+        )}
       </ul>
       <button
         type="button"
