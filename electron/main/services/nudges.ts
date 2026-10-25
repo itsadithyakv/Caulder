@@ -7,7 +7,8 @@ import { isFault, logProblem } from "../log";
 import { getSetting, setSetting } from "../repositories/settings";
 import { homeCompanyId } from "../repositories/companies";
 import { minutesOf, startOfWeek, timeNow, today as todayIn, weekdayOf } from "@shared/dates";
-import { MORNING, nudgeDue, nudgeInput, reminderDue, sayBrief, sayReminder, type NudgeSettings } from "@shared/nudges";
+import { MORNING, nudgeDue, nudgeInput, reminderDue, renewalsToTell, sayBrief, sayRenewal, sayReminder, type NudgeSettings } from "@shared/nudges";
+import { renewalsFor } from "./costs";
 
 /**
  * The notifications Caulder sends by itself (shared/nudges.ts says when and
@@ -57,8 +58,15 @@ export function stopNudges(): void {
   timer = null;
 }
 
+/**
+ * The morning brief is on at nine unless it was switched off (23 October
+ * 2026, the owner's word): off until switched on, nobody switched it on, and
+ * a call due yesterday went by without a word. Never set is nine; switched
+ * off is kept as an empty value.
+ */
 export function nudgeSettings(db: Db): NudgeSettings {
-  return { briefAt: getSetting(db, "briefAt") || null };
+  const saved = getSetting(db, "briefAt");
+  return { briefAt: saved === null ? MORNING : saved || null };
 }
 
 export function setNudgeSettings(db: Db, raw: unknown): NudgeSettings {
@@ -142,6 +150,30 @@ export function checkNudges(db: Db, now: Date, show: Show): void {
         : [];
     const brief = sayBrief(due.map((task) => ({ title: task.title, must: task.priority === "must" })), late, three);
     if (brief) show(brief, "today");
+
+    // What renews, in every company, by its own clock: once as it comes into view, again on its day.
+    let told: string[] = [];
+    try {
+      told = JSON.parse(getSetting(db, "renewalsTold") ?? "[]") as string[];
+    } catch {
+      told = [];
+    }
+    const companies = db.prepare(`SELECT id, name, timezone FROM companies WHERE is_archived = 0 AND kind <> 'personal'`).all() as {
+      id: string;
+      name: string;
+      timezone: string;
+    }[];
+    const live: string[] = [];
+    for (const company of companies) {
+      const day = todayIn(company.timezone, now);
+      const renewals = renewalsFor(db, company.id, day);
+      live.push(...renewals.flatMap((each) => [`${each.pageId}|${each.nextOn}|soon`, `${each.pageId}|${each.nextOn}|due`]));
+      const { tell, marks } = renewalsToTell(renewals, told);
+      for (const renewal of tell) show(sayRenewal(renewal, day, company.name), "today");
+      told = [...told, ...marks];
+    }
+    // Only the marks of what is still in view are kept, so the list never grows.
+    setSetting(db, "renewalsTold", JSON.stringify(told.filter((mark) => live.includes(mark))));
   }
 
 }

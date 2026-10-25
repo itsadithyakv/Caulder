@@ -75,6 +75,10 @@ is nine o'clock, and an instant would move when the machine's timezone did.
 | 56 | who a word means | `line_names` |
 | 57 | what stays true about a contact | `lead_facts` |
 | 58 | the week's three things | `week_things` |
+| 59 | runs that keep their day, and reminders on | `tasks.repeat_day`, `invoices.repeat_day`: the day of the month a run was set on; `companies.remind_minutes` 10 where none was set |
+| 60 | tax, terms, quotes that end, and hours billed | `companies.tax_on`, `tax_rate`, `tax_inclusive`, `tax_region`, `tax_number`, `payment_terms`, `hourly_rate`; `leads.tax_number`, `tax_country`, `tax_region`, `payment_terms`, `hourly_rate`; `quote_lines.tax_rate`, `invoice_lines.tax_rate`; `tax_treatment`, `tax_inclusive`, `tax_region` on `quotes` and `invoices`; `quotes.valid_until`; `blocks.lead_id`, `billable`, `invoice_id` |
+| 61 | how invoices look, and where they are kept | `companies.invoice_look` |
+| 62 | not registered, composition, tax withheld, and rules of the company's own | `companies.tax_scheme`, `companies.tax_rules`, `payments.withheld` |
 
 Each migration is one transaction, gated on `PRAGMA user_version`, with a
 backup taken before any of them runs. Additions use `ALTER TABLE ADD COLUMN`;
@@ -296,6 +300,10 @@ still work), `title`, `kind`, `status`, `due_on`, `notes`, `completed_at`.
   stay, because migrations are not edited; a task made since has null there.
 - **`priority`** is `must`, `should` or `spare`; null reads as `should`.
   Caulder's alone — Google Tasks has no such field.
+- **`repeat_day`** (migration 59) is the day of the month a task that comes
+  back was set on, carried from each to the next: a run on the 31st comes
+  back on the 31st after February's 28th, and 29 February comes back in a
+  leap year. Set from the due day when a repeat is chosen or the day moved.
 - `external_id` and `is_dirty` are the Google join key and the "changed here,
   not yet sent" flag. Unique per workspace where set.
 - `due_on` is a calendar day. See
@@ -433,7 +441,7 @@ they are encrypted with the OS credential store before they are written, and
 never handed back to the window.
 
 **`captureShortcut` has three states, and two of them look alike.** Never set
-means the default, Ctrl+Win+A (`Ctrl+Super+A` to Electron). Set to an empty string means deliberately off,
+means the default, Ctrl+Q (Ctrl+Win+A until 23 October 2026). Set to an empty string means deliberately off,
 and stays off — telling those two apart is the whole reason the row is read
 raw rather than as "a key or nothing". `keepInTray` is likewise yes until it
 is set to `0`.
@@ -514,8 +522,10 @@ reminder switch: this was asked for in so many words, so it is sent whatever
 that switch says. A reminder for a task done first is settled without being
 sent, and deleting the task deletes it.
 
-The morning brief keeps no rows: its hour is `briefAt` in `settings` (empty
-is off), and the day it was last sent is `briefed`, so it is sent once a day.
+The morning brief keeps no rows: its hour is `briefAt` in `settings` (never
+set is nine, empty is off), and the day it was last sent is `briefed`, so it
+is sent once a day. The renewals said with it are `renewalsTold`: a JSON list
+of `pageId|day|soon` and `pageId|day|due`, pruned to what is still in view.
 
 ## mail_accounts
 
@@ -607,6 +617,45 @@ accountant would recognise. See PLAN.md, phase 3.
 - **Paid is derived from `payments`, never typed.** An invoice is paid when
   the payments cover the total and stops being paid if one is removed;
   `paid_on` follows. "Mark paid" records a payment for the remainder.
+- **Tax** (migration 60, `shared/tax.ts`): each line keeps its rate
+  (`tax_rate`, a percentage, null for none) and each quote or invoice keeps
+  how it was taxed when it was made - `tax_treatment` (`standard`,
+  `india-intra`, `india-inter`, `canada`, `reverse`, `export`, or null for
+  none), `tax_inclusive` (prices said with the tax in) and `tax_region` (the
+  client's state or province then) - so a change to the company's settings
+  never rewrites a document already sent. The tax itself is worked out when
+  read: on all the lines at each rate, rounded once a rate to whole units.
+  `quotes.valid_until` is the day a quote stops being good, or null.
+- **What a company charges** is on `companies`: `tax_on`, `tax_rate` (a new
+  line's rate), `tax_inclusive`, `tax_region` (India's state or Canada's
+  province, when the tax number does not say), `tax_number`, and the
+  defaults for every client - `payment_terms` (days to pay) and
+  `hourly_rate`. **A client's own** are on `leads`: `tax_number`,
+  `tax_country`, `tax_region`, `payment_terms`, `hourly_rate`, set apart from
+  the contact's form so nothing that saves a contact can clear them.
+- **How its invoices look** is `companies.invoice_look` (migration 61): one
+  JSON value - `layout`, `ink`, `footer`, `logo` (whether the chosen file is
+  printed; the file is `invoice-logo-<company id>` beside the attachments),
+  and the person's own `folder` a copy of each invoice goes into, with
+  `foldering` (`flat`, `year`, `month`, `client`) and `naming`. Read by
+  `shared/invoicelook.ts`; null, or anything it cannot read, is the look
+  every invoice had before.
+- **The company's own tax rules** are `companies.tax_rules` (migration 62):
+  JSON of what it changed from its country's - the tax's name, its rates,
+  what its number is called, the titles, the words a document must carry
+  when it is not registered, the registration threshold (`thresholdAmount`
+  as a sum), the tax clients withhold and its rate, when the financial year
+  starts, the numbers usually printed. Only what differs is kept, so a
+  corrected default reaches a company that changed nothing
+  (`shared/taxrules.ts`). `companies.tax_scheme` is `composition` for India's
+  scheme - no tax charged, a bill of supply - and null otherwise.
+- **Tax a client withheld** is `payments.withheld` (migration 62): India's
+  TDS, paid in the company's name. It pays the invoice as money in does, so
+  an invoice is paid when `amount + withheld` covers it; money in and the
+  runway count `amount` alone.
+- **A run keeps its day** (`invoices.repeat_day`, migration 59): the day of
+  the month it was set on, so a retainer issued on the 31st is drafted on the
+  31st again after February's 28th, rather than on the 28th for good.
 - **A retainer is `invoices.repeats`** (migration 54), and only the newest
   invoice of a run carries it. When the next is due to be written -
   `issued_on` so many months on, and the invoice sent - `draftRepeats`
@@ -634,9 +683,10 @@ accountant would recognise. See PLAN.md, phase 3.
 
 **A running cost is not a table.** It is read off the brain pages that
 already say what something costs and when it renews: a `tool` page (`cost`,
-`cycle`, `renewsOn`), a `domain` page (`cost` a year, `renewsOn`) and a
-`running-cost` page in Money plan (`amount`, `cycle`, `dueOn`, `category`,
-`payee`) for rent, salaries and the rest. `shared/costs.ts` says which field
+`cycle`, `renewsOn`), a `domain` page (`cost` a year, `renewsOn`, `years`
+paid for) and a `running-cost` page in Money plan (`amount`, `cycle`,
+`years`, `dueOn`, `category`, `payee`) for rent, salaries and the rest. Each
+may say the `account` it was bought with. `shared/costs.ts` says which field
 is which. Archived pages are not costs. So a server bill is written down
 once, beside its login and its notes, and the brain's search, export and Map
 carry it.
@@ -867,6 +917,10 @@ so it has a clock and a length a task has never had.
   repeated sync update rather than duplicate.
 - `task_id` nulls rather than cascades: deleting the task leaves the hour you
   set aside standing.
+- **`lead_id`, `billable`, `invoice_id`** (migration 60, part thirteen): the
+  client the time is for, whether it is billed by the hour, and the invoice
+  that billed it. Set apart from the block's own form; both references null
+  when what they point at goes, so deleting a draft gives the hours back.
 - **`page_id`** (on `blocks` and `block_series`, migration 30) is a page the
   time was set aside for. Nothing sets it now - it was for a course's study
   hours and a hobby's evenings, which went with migration 49 - and it nulls

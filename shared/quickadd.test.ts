@@ -97,6 +97,13 @@ describe("what it asks, and only then", () => {
 });
 
 describe("days", () => {
+  it("reads next year as a year on, and leaves it in a title that says no day", () => {
+    const clock = { today: "2026-10-25", now: 600 };
+    expect(parseQuick("domain expires on the 27th next year", clock).task).toMatchObject({ day: "2027-10-27", title: "Domain expires" });
+    expect(parseQuick("audit on 3 march next year", clock).task.day).toBe("2027-03-03");
+    expect(parseQuick("launch the app next year", clock).task).toMatchObject({ day: null, title: "Launch the app next year" });
+  });
+
   it.each([
     ["report tomorrow", "2026-09-11"],
     ["report tmrw", "2026-09-11"],

@@ -38,6 +38,14 @@ import { attachToWallpaper, detachFromWallpaper, type Attached } from "./wallpap
  */
 
 const TICK = 150;
+/**
+ * How often the pointer is looked for while it is nowhere near: a third as
+ * often, so a widget sitting on the desktop all day is not woken seven times
+ * a second for nothing. Within NEAR pixels it is looked for every TICK again
+ * - and a pointer crossing that far takes longer than one slow look.
+ */
+const FAR_TICK = 500;
+const NEAR = 300;
 /** Ticks the pointer must rest before the panel opens: about half a second. */
 const OPEN_AFTER = 3;
 /** Ticks off it before the panel closes again. */
@@ -145,26 +153,35 @@ function shrink(): void {
 
 function startWatching(): void {
   if (timer) return;
-  timer = setInterval(() => {
+  const look = () => {
+    timer = null;
     if (!window || window.isDestroyed()) return;
-    if (drag) return;
-    const point = pointer();
-    const bounds = opened ? deskOpen(rest, areaFor(rest), panel) : rest;
-    if (deskHovered(point, bounds, opened)) {
-      over += 1;
-      off = 0;
-      if (over >= OPEN_AFTER) grow();
-    } else {
-      off += 1;
-      over = 0;
-      if (off >= CLOSE_AFTER) shrink();
+    let next = TICK;
+    if (!drag) {
+      const point = pointer();
+      const bounds = opened ? deskOpen(rest, areaFor(rest), panel) : rest;
+      if (deskHovered(point, bounds, opened)) {
+        over += 1;
+        off = 0;
+        if (over >= OPEN_AFTER) grow();
+      } else {
+        off += 1;
+        over = 0;
+        if (off >= CLOSE_AFTER) shrink();
+        // Far away, and nothing open to close: look less often.
+        const far =
+          point.x < bounds.x - NEAR || point.x > bounds.x + bounds.width + NEAR || point.y < bounds.y - NEAR || point.y > bounds.y + bounds.height + NEAR;
+        if (far && !opened) next = FAR_TICK;
+      }
     }
-  }, TICK);
+    timer = setTimeout(look, next);
+  };
+  timer = setTimeout(look, TICK);
 }
 
 function stopWatching(): void {
   if (!timer) return;
-  clearInterval(timer);
+  clearTimeout(timer);
   timer = null;
 }
 

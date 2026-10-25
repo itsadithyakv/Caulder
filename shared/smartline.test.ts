@@ -299,5 +299,7 @@ describe("asked about a contact, the money and the hours left (part twelve, phas
     expect(readEdit("move my 6pm to 7", { ...clock, open, last: null })).toMatchObject({ do: "move", task: { id: "g" }, time: "19:00" });
     // Nothing open is it: not an edit.
     expect(readEdit("done the tax return", { ...clock, open, last: null })).toBeNull();
+    // A number said is meant: "done call 3 people" is not "call rahul" (logic pass, 23 October 2026).
+    expect(readEdit("done call 3 people", { ...clock, open, last: null })).toBeNull();
   });
 });

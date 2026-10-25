@@ -1,4 +1,4 @@
-import { readCommand, spendIn, type Command } from "./commands";
+import { readCommand, renewalIn, spendIn, type Command } from "./commands";
 import { parseQuick } from "./quickadd";
 import { expand } from "./slang";
 import { distance, slipAt } from "./slips";
@@ -417,6 +417,37 @@ const OPENS_DONE = /^\s*(?:i\s+|we\s+|just\s+)?(?:called|rang|phoned|spoke|talke
 const PAID_IN = /^\s*(?:(?:i\s+|we\s+)?(?:got|received|recd|rcvd)\s+(?:a\s+)?(?:payment\s+(?:of\s+)?)?|(?:payment|money)\s+(?:of\s+)?)(?:₹|rs\.?\s*|inr\s*|\$|€|£)?\s*(\d[\d,]*(?:\.\d+)?\s*k?)?\s*(?:came\s+in\s+|received\s+)?(?:from|by)\s+/i;
 const PAID_BY = /^\s*[\p{L}][\p{L}.&' ]{0,40}?\s+(?:has\s+|have\s+|just\s+)?(?:paid|settled|cleared)(?:\s+(?:me|us|up|the\s+invoice|their\s+invoice|in\s+full))*(?:\s+(?:₹|rs\.?\s*|inr\s*|\$|€|£)?\s*(\d[\d,]*(?:\.\d+)?\s*k?))?\s*[.!]?$/iu;
 
+/**
+ * Said not to have come in: "harbour hasn't paid", "payment from maya is late",
+ * "money from harbour still pending". Read as paid, each of these marked the
+ * invoice paid that the line was complaining about (logic pass, 23 October 2026).
+ */
+const NOT_PAID = /\b(?:not|never|yet|still|late|overdue|pending|due|chase|chasing|remind|owes?|owing|waiting|awaiting)\b|n['’]t\b/i;
+
+/** Where the payer is named: after "from" or "by", or before "paid" - up to the first break. */
+function payerPart(said: string, match: RegExpExecArray, after: boolean): string {
+  if (after) return said.slice(match.index + match[0].length).split(/[,;]|\s+(?:for|and|but|need|needs|to|re|about|on|towards)\s+/i)[0] ?? "";
+  return said.slice(match.index).split(/\s+(?:has\s+|have\s+|just\s+)?(?:paid|settled|cleared)\b/i)[0] ?? "";
+}
+
+/** Somebody else's, said in a line about a contact: their accountant, their boss, a third person's number. */
+const SOMEBODY_ELSES = /\b(?:accountant|assistant|partner|boss|manager|colleague|friend|wife|husband|spouse|sister|brother|mum|mom|dad|father|mother|son|daughter|secretary|team|office|cofounder|co-founder|lawyer|agent|intern|pa)\b|\bgave\s+(?:me|us)\b/i;
+
+/**
+ * Whether a number or an address in the line is the contact's own. Not when
+ * the line says whose else it is - "maya's accountant's email is", "maya gave
+ * me sam's number", "priya's partner's number" - each of which used to be
+ * written over the contact's own.
+ */
+function theirOwn(said: string, contact: { name: string }, person: string | null): boolean {
+  if (SOMEBODY_ELSES.test(said)) return false;
+  const theirs = new Set(words(`${contact.name} ${person ?? ""}`.toLowerCase()));
+  for (const match of said.matchAll(/([\p{L}]+)(?:'s|’s)\s+(?:new\s+|other\s+)?(?:number|no\.?|phone|mobile|cell|email|e-?mail|whatsapp|contact)\b/giu)) {
+    if (!theirs.has((match[1] ?? "").toLowerCase())) return false;
+  }
+  return true;
+}
+
 function amountOf(said: string | undefined): number | null {
   if (!said) return null;
   const k = /k\s*$/i.test(said);
@@ -755,7 +786,9 @@ export function readCapture(
       ? command.phone || command.email
         ? { do: "update", contact: already, phone: command.phone, email: command.email }
         : { do: "open", contact: already, how: null }
-      : command;
+      : // "My unifloe.app domain expires on the 27th next year, renews for 2,639": a running cost, on its day.
+        // "Paid 20000 for the domain for 5 years" is one too, not only money spent.
+        (prefix || contact || (command && command.do !== "spend") ? command : (renewalIn(said, when.day, clock.today) ?? command));
   // Somebody new, told about the way you would tell a friend: kept as a contact,
   // with what happened and what to do about them (shared/newperson.ts).
   const met = prefix || contact || asked ? null : readNewPerson(said, known.contacts, clock, doing);
@@ -801,13 +834,21 @@ export function readCapture(
         }
       : null;
   // A number or an address, said of somebody who is already a contact: theirs, set - not a new contact.
-  const detailPhone = contact && DETAIL_CUE.test(said) ? (PHONE.exec(said)?.[1]?.replace(/[\s-]+/g, " ").trim() ?? null) : null;
-  const detailEmail = contact && (DETAIL_CUE.test(said) || EMAIL.test(said)) ? (EMAIL.exec(said)?.[1] ?? null) : null;
+  // Never one the line says is somebody else's.
+  const own = contact ? theirOwn(said, contact, known.contacts.find((each) => each.id === contact.id)?.person ?? null) : false;
+  const detailPhone = contact && own && DETAIL_CUE.test(said) ? (PHONE.exec(said)?.[1]?.replace(/[\s-]+/g, " ").trim() ?? null) : null;
+  const detailEmail = contact && own && (DETAIL_CUE.test(said) || EMAIL.test(said)) ? (EMAIL.exec(said)?.[1] ?? null) : null;
   const detail: Ask | null =
     contact && (detailPhone || detailEmail) && !timed ? { do: "update", contact, phone: detailPhone, email: detailEmail } : null;
   // "Got 2400 from harbour": their invoice paid, not 2,400 come back (part twelve, phase 49).
-  const paidIn = contact && !prefix ? (PAID_IN.exec(said) ?? PAID_BY.exec(said)) : null;
-  const paid: Ask | null = paidIn && contact ? { do: "paid", contact, amount: amountOf(paidIn[1]) } : null;
+  // Never when the line says it has not come; and only from the contact named as paying, not another the line mentions.
+  const paidFrom = contact && !prefix && !NOT_PAID.test(said) ? PAID_IN.exec(said) : null;
+  const paidBy = contact && !prefix && !paidFrom && !NOT_PAID.test(said) ? PAID_BY.exec(said) : null;
+  const paidIn = paidFrom ?? paidBy;
+  const payer =
+    paidIn && answered === undefined ? findContact(payerPart(said, paidIn, paidFrom !== null), known.contacts, known.names ?? []).contact : contact;
+  // The payer is who it is from, though the line may be about another ("for the kettle job").
+  const paid: Ask | null = paidIn && payer ? { do: "paid", contact: payer, amount: amountOf(paidIn[1]) } : null;
   const ask: Ask | null = prefix
     ? null
     : (paid ??

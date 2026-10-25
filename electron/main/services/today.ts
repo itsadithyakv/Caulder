@@ -8,7 +8,7 @@ import { getSetting, setSetting } from "../repositories/settings";
 import { listDueOn, listOverdue, listUpcoming } from "../repositories/tasks";
 import { listBlocks } from "../repositories/blocks";
 import { layOut } from "@shared/day";
-import { listDraftedRepeats, listOverdueInvoices } from "../repositories/money";
+import { listDraftedRepeats, listOverdueInvoices, listQuotesWaiting } from "../repositories/money";
 import { listRecentReplies } from "../repositories/mail";
 import { renewalsFor } from "./costs";
 import { dueSoon } from "./deadlines";
@@ -102,6 +102,7 @@ export function buildToday(db: Db, companyIds: string | readonly string[], now: 
       (a, b) => b.repliedAt.localeCompare(a.repliedAt),
     ),
     reach,
+    quotesWaiting: all((id) => listQuotesWaiting(db, id, day), (a, b) => a.issuedOn.localeCompare(b.issuedOn)),
   };
 }
 

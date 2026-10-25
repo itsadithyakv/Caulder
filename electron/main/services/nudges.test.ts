@@ -29,6 +29,9 @@ const add = (title: string, day: string, time: string | null, remind: boolean, p
   quickAdd(db, home, { title, day, time, minutes: null, kind: "todo", priority, leadId: null, notes: null, followUp: null, repeat: null, remind });
 
 describe("a reminder asked for in the line", () => {
+  // The brief is on unless switched off; these are about reminders alone.
+  beforeEach(() => setNudgeSettings(db, { briefAt: null }));
+
   it("is sent at its time, once, and never before", () => {
     add("Check the oven", "2026-09-23", "14:20", true);
     checkNudges(db, at("08:49"), show); // 14:19 in Kolkata
@@ -57,14 +60,44 @@ describe("a reminder asked for in the line", () => {
 });
 
 describe("the daily nudges", () => {
-  it("sends the morning brief with the must-dos first, and nothing when switched off", () => {
+  it("sends the morning brief at nine with the must-dos first, unless switched off", () => {
     add("Buy milk", "2026-09-23", null, false);
     add("Submit DBMS", "2026-09-23", null, false, "must");
     add("Old thing", "2026-09-20", null, false);
-    checkNudges(db, at("03:30"), show);
+    // Never set is on, at nine: a day's work is said without anybody asking for it (23 October 2026).
+    checkNudges(db, at("03:29"), show);
     expect(shown).toEqual([]);
-    setNudgeSettings(db, { briefAt: "09:00" });
     checkNudges(db, at("03:30"), show);
     expect(shown).toEqual([{ title: "Today: one must-do", body: "Submit DBMS, and 1 more, 1 late from before", place: "today" }]);
+  });
+
+  it("says nothing once switched off", () => {
+    add("Buy milk", "2026-09-23", null, false);
+    setNudgeSettings(db, { briefAt: null });
+    checkNudges(db, at("03:30"), show);
+    expect(shown).toEqual([]);
+  });
+});
+
+describe("what renews", () => {
+  it("is said with the brief as it comes into view and again on its day, with the account it was bought with", async () => {
+    const { newPage, savePage } = await import("./brain");
+    const company = createCompany(db, { name: "Unifloe", accent: "blue", timezone: "Asia/Kolkata" }).id;
+    const page = newPage(db, company, "tools", "domain", at("03:00"));
+    savePage(db, page.id, { title: "unifloe.app", body: "", fields: { cost: 2640, renewsOn: "2026-10-20", account: "me@gmail.com" }, baseRevision: page.revision }, at("03:00"));
+
+    checkNudges(db, at("03:30"), show);
+    const said = shown.filter((note) => note.title.startsWith("unifloe.app"));
+    expect(said).toHaveLength(1);
+    expect(said[0]?.body).toContain("me@gmail.com");
+    expect(said[0]?.body).toContain("Unifloe");
+
+    // The next morning it is not said again; on its day, it is.
+    shown.length = 0;
+    checkNudges(db, new Date("2026-09-24T03:30:00Z"), show);
+    expect(shown.filter((note) => note.title.startsWith("unifloe.app"))).toEqual([]);
+    shown.length = 0;
+    checkNudges(db, new Date("2026-10-20T03:30:00Z"), show);
+    expect(shown.filter((note) => note.title.startsWith("unifloe.app"))).toEqual([{ title: "unifloe.app renews today", body: "me@gmail.com · 2,640 · Unifloe", place: "today" }]);
   });
 });

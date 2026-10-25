@@ -28,6 +28,16 @@ function calledFor(db: Db, leadId: string): string {
   return lead.contact_person?.trim().split(/\s+/)[0] || lead.name;
 }
 
+/** Whether a fact is the contact's own birthday: their name, then "birthday", then when. */
+function ownBirthday(db: Db, leadId: string, text: string): boolean {
+  const said = /^(.*?)(?:'s|s'|’s)?\s*\b(?:birthday|bday|b'day)[\s:-]+(?:is\s+)?(?:on\s+)?\S/iu.exec(text);
+  if (!said) return false;
+  const lead = db.prepare(`SELECT name, contact_person FROM leads WHERE id = ?`).get(leadId) as { name: string; contact_person: string | null } | undefined;
+  const names = `${lead?.name ?? ""} ${lead?.contact_person ?? ""}`.toLowerCase().split(/\s+/).filter(Boolean);
+  const words = (said[1] ?? "").toLowerCase().replace(/['’]s?$/u, "").split(/\s+/).filter(Boolean);
+  return words.every((word) => names.includes(word));
+}
+
 export function addFact(db: Db, companyId: string, input: FactInput): { facts: Fact[]; task: Task | null } {
   const lead = db.prepare(`SELECT 1 FROM leads WHERE id = ? AND company_id = ?`).get(input.leadId, companyId);
   if (!lead) throw new Error("That contact is not in this company.");
@@ -42,12 +52,24 @@ export function addFact(db: Db, companyId: string, input: FactInput): { facts: F
     );
     let task: Task | null = null;
     if (input.birthday) {
+      // A birthday said again is a correction: the one said before goes, and its task moves.
+      // Only their own: "Wife's birthday is 2 March" and "Hates birthday fuss" stay.
+      const remove = db.prepare(`DELETE FROM lead_facts WHERE id = ?`);
+      const earlier = db.prepare(`SELECT id, text FROM lead_facts WHERE lead_id = ? AND text <> ?`).all(input.leadId, input.text) as { id: string; text: string }[];
+      for (const fact of earlier) if (ownBirthday(db, input.leadId, fact.text)) remove.run(fact.id);
       const title = `${calledFor(db, input.leadId)}'s birthday`;
       const already = db
-        .prepare(`SELECT 1 FROM tasks WHERE company_id = ? AND lead_id = ? AND status = 'open' AND repeats = 'yearly' AND title = ?`)
-        .get(companyId, input.leadId, title);
+        .prepare(`SELECT id, due_on FROM tasks WHERE company_id = ? AND lead_id = ? AND status = 'open' AND repeats = 'yearly' AND title = ?`)
+        .get(companyId, input.leadId, title) as { id: string; due_on: string } | undefined;
       if (!already) {
         task = createTask(db, companyId, { title, kind: "todo", priority: null, dueOn: input.birthday, leadId: input.leadId, notes: null, repeats: "yearly" });
+      } else if (already.due_on !== input.birthday) {
+        db.prepare(`UPDATE tasks SET due_on = ?, repeat_day = ?, is_dirty = 1, updated_at = ? WHERE id = ?`).run(
+          input.birthday,
+          Number(input.birthday.slice(8, 10)),
+          new Date().toISOString(),
+          already.id,
+        );
       }
     }
     return { facts: listFacts(db, input.leadId), task };

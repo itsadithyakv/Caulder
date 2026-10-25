@@ -3030,6 +3030,108 @@ const M058_WEEK_THINGS = `
   CREATE UNIQUE INDEX week_things_place ON week_things (company_id, week_start, position);
 `;
 
+/**
+ * What the logic pass of 23 October 2026 found missing from the schema.
+ *
+ * - **Reminders before a block, on** (`companies.remind_minutes` 10 where
+ *   none was set): off until switched on, nobody switched them on, and the
+ *   hours set aside went by without a word (the owner, 23 October 2026).
+ * - **The day a run was set on** (`tasks.repeat_day`, `invoices.repeat_day`):
+ *   each next one was worked out from the last, so a run on the 31st was
+ *   clamped to the 28th in February and stayed there, and 29 February was
+ *   lost for good. The day of the month is kept, and every next one falls
+ *   on it, or the month's last day when it is shorter.
+ */
+const M059_RUNS_KEEP_THEIR_DAY = `
+  ALTER TABLE tasks ADD COLUMN repeat_day INTEGER CHECK (repeat_day IS NULL OR repeat_day BETWEEN 1 AND 31);
+  ALTER TABLE invoices ADD COLUMN repeat_day INTEGER CHECK (repeat_day IS NULL OR repeat_day BETWEEN 1 AND 31);
+  UPDATE tasks SET repeat_day = CAST(substr(due_on, 9, 2) AS INTEGER) WHERE repeats IS NOT NULL;
+  UPDATE invoices SET repeat_day = CAST(substr(issued_on, 9, 2) AS INTEGER) WHERE repeats IS NOT NULL;
+  UPDATE companies SET remind_minutes = 10 WHERE remind_minutes IS NULL;
+`;
+
+/**
+ * Part thirteen (PLAN.md): the business still done elsewhere.
+ *
+ * - **Tax** (phase 51): what a company charges (`companies.tax_on`,
+ *   `tax_rate`, `tax_inclusive`, `tax_region`, `tax_number`), each line's
+ *   rate (`quote_lines.tax_rate`, `invoice_lines.tax_rate`), and how a
+ *   document was taxed when it was made (`tax_treatment`, `tax_inclusive`,
+ *   `tax_region` on quotes and invoices), so a change of settings later never
+ *   rewrites one already sent.
+ * - **A client's billing details**: their tax number and where they are
+ *   (`leads.tax_number`, `tax_country`, `tax_region`), their payment terms
+ *   (phase 53) and their hourly rate (phase 57).
+ * - **A quote's last day** (`quotes.valid_until`, phase 52).
+ * - **Payment terms and an hourly rate** for the company, the default for
+ *   every client (`companies.payment_terms`, `hourly_rate`).
+ * - **Hours that are billed** (phase 57): a block for a contact
+ *   (`blocks.lead_id`), billable or not, and the invoice that billed it
+ *   (`blocks.invoice_id`).
+ */
+const M060_PART_THIRTEEN = `
+  ALTER TABLE companies ADD COLUMN tax_on INTEGER NOT NULL DEFAULT 0 CHECK (tax_on IN (0, 1));
+  ALTER TABLE companies ADD COLUMN tax_rate REAL CHECK (tax_rate IS NULL OR (tax_rate >= 0 AND tax_rate <= 100));
+  ALTER TABLE companies ADD COLUMN tax_inclusive INTEGER NOT NULL DEFAULT 0 CHECK (tax_inclusive IN (0, 1));
+  ALTER TABLE companies ADD COLUMN tax_region TEXT;
+  ALTER TABLE companies ADD COLUMN tax_number TEXT;
+  ALTER TABLE companies ADD COLUMN payment_terms INTEGER CHECK (payment_terms IS NULL OR payment_terms BETWEEN 0 AND 365);
+  ALTER TABLE companies ADD COLUMN hourly_rate INTEGER CHECK (hourly_rate IS NULL OR hourly_rate >= 0);
+
+  ALTER TABLE leads ADD COLUMN tax_number TEXT;
+  ALTER TABLE leads ADD COLUMN tax_country TEXT;
+  ALTER TABLE leads ADD COLUMN tax_region TEXT;
+  ALTER TABLE leads ADD COLUMN payment_terms INTEGER CHECK (payment_terms IS NULL OR payment_terms BETWEEN 0 AND 365);
+  ALTER TABLE leads ADD COLUMN hourly_rate INTEGER CHECK (hourly_rate IS NULL OR hourly_rate >= 0);
+
+  ALTER TABLE quote_lines ADD COLUMN tax_rate REAL CHECK (tax_rate IS NULL OR (tax_rate >= 0 AND tax_rate <= 100));
+  ALTER TABLE invoice_lines ADD COLUMN tax_rate REAL CHECK (tax_rate IS NULL OR (tax_rate >= 0 AND tax_rate <= 100));
+
+  ALTER TABLE quotes ADD COLUMN tax_treatment TEXT;
+  ALTER TABLE quotes ADD COLUMN tax_inclusive INTEGER NOT NULL DEFAULT 0 CHECK (tax_inclusive IN (0, 1));
+  ALTER TABLE quotes ADD COLUMN tax_region TEXT;
+  ALTER TABLE quotes ADD COLUMN valid_until TEXT;
+  ALTER TABLE invoices ADD COLUMN tax_treatment TEXT;
+  ALTER TABLE invoices ADD COLUMN tax_inclusive INTEGER NOT NULL DEFAULT 0 CHECK (tax_inclusive IN (0, 1));
+  ALTER TABLE invoices ADD COLUMN tax_region TEXT;
+
+  ALTER TABLE blocks ADD COLUMN lead_id TEXT REFERENCES leads (id) ON DELETE SET NULL;
+  ALTER TABLE blocks ADD COLUMN billable INTEGER NOT NULL DEFAULT 0 CHECK (billable IN (0, 1));
+  ALTER TABLE blocks ADD COLUMN invoice_id TEXT REFERENCES invoices (id) ON DELETE SET NULL;
+  CREATE INDEX blocks_lead ON blocks (lead_id, day) WHERE lead_id IS NOT NULL;
+`;
+
+/**
+ * Part fourteen (PLAN.md): how a company's invoices look - a layout, an ink,
+ * a logo, a closing line - and the folder of the person's own their copies
+ * go into, as one JSON value read by shared/invoicelook.ts. Null is the
+ * look every invoice had before.
+ */
+const M061_INVOICE_LOOK = `
+  ALTER TABLE companies ADD COLUMN invoice_look TEXT;
+`;
+
+/**
+ * Part fourteen, the rest: invoicing for a business that is not registered
+ * for tax, or is on India's composition scheme, and money a client withheld.
+ *
+ * - **`companies.tax_scheme`**: `composition` for India's scheme - no GST
+ *   charged, a bill of supply with the words rule 46 asks for. Null is
+ *   registered (`tax_on`) or not registered at all.
+ * - **`payments.withheld`**: what the client kept back as tax and paid to the
+ *   government in the company's name - India's TDS - so an invoice paid 90%
+ *   with 10% deducted is paid, and the 10% is claimed back at the year's end.
+ * - **`companies.tax_rules`**: the company's own changes to its country's tax
+ *   and invoicing rules (shared/taxrules.ts) - a rate, a name, the words a
+ *   document must carry - as JSON, so a change in the law is typed in rather
+ *   than waited for. Null follows the country's as Caulder has them.
+ */
+const M062_UNREGISTERED_AND_WITHHELD = `
+  ALTER TABLE companies ADD COLUMN tax_scheme TEXT CHECK (tax_scheme IS NULL OR tax_scheme = 'composition');
+  ALTER TABLE payments ADD COLUMN withheld INTEGER NOT NULL DEFAULT 0 CHECK (withheld >= 0);
+  ALTER TABLE companies ADD COLUMN tax_rules TEXT;
+`;
+
 export const MIGRATIONS: readonly Migration[] = [
   { version: 1, name: "companies, stages, settings", sql: M001_COMPANIES },
   { version: 2, name: "leads, activities", sql: M002_LEADS },
@@ -3089,6 +3191,10 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 56, name: "who a word means", sql: M056_LINE_NAMES },
   { version: 57, name: "what stays true about a contact", sql: M057_FACTS },
   { version: 58, name: "the week's three things", sql: M058_WEEK_THINGS },
+  { version: 59, name: "runs that keep their day, and reminders on", sql: M059_RUNS_KEEP_THEIR_DAY },
+  { version: 60, name: "tax, terms, quotes that end, and hours billed", sql: M060_PART_THIRTEEN },
+  { version: 61, name: "how invoices look, and where they are kept", sql: M061_INVOICE_LOOK },
+  { version: 62, name: "not registered, composition, tax withheld, and rules of the company's own", sql: M062_UNREGISTERED_AND_WITHHELD },
 ];
 
 export function currentVersion(db: Db): number {

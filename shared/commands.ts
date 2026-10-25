@@ -41,8 +41,26 @@ export type Command =
       happened?: string | null;
       then?: NewPerson["then"];
     }
-  /** "Netflix 649 monthly": something paid again and again, kept as a running cost in the brain's Money. */
-  | { do: "cost"; title: string; amount: number; cycle: "monthly" | "quarterly" | "yearly"; day: number | null };
+  /**
+   * "Netflix 649 monthly": something paid again and again, kept as a running cost in the brain's Money.
+   * "My unifloe.app domain expires on the 27th next year, renews for ₹2,639" (`renewalIn`): the day it
+   * renews (`on`), and a domain kept as the domain it is, in Tools.
+   */
+  | {
+      do: "cost";
+      title: string;
+      amount: number | null;
+      cycle: "monthly" | "quarterly" | "yearly";
+      day: number | null;
+      on?: string | null;
+      domain?: boolean;
+      /** How many years one payment covers. */
+      years?: number;
+      /** Paid now, as said: the payment is logged and the day moves a term on. */
+      paid?: boolean;
+    }
+  /** "I use Resend with studio@gmail.com" (`accountIn`): the account a service was bought with, on its page. */
+  | { do: "account"; title: string; email: string; was: string | null; domain: boolean };
 
 const PLACES: readonly { place: Place; label: string; words: RegExp }[] = [
   { place: "today", label: "Today", words: /^(?:today|home|dashboard|start|tasks?|to-?dos?|to-?do\s+list|task\s+list)$/ },
@@ -207,6 +225,9 @@ function readContact(rest: string): Command | null {
 
 /** What the line asks Caulder to do, or null when it is not asking. */
 export function readCommand(line: string): Command | null {
+  // Before a contact: an email in "I use resend with studio@gmail.com" is an account, not somebody.
+  const account = accountIn(line);
+  if (account) return account;
   const go = GO.exec(line);
   if (go) {
     const where = (go[1] ?? "").trim().toLowerCase();
@@ -317,6 +338,100 @@ export function readCommand(line: string): Command | null {
       : null;
   }
   return null;
+}
+
+const RENEWS = /^\s*(?:(?:my|our|the)\s+)?(.+?)\s+(?:is\s+|will\s+)?(?:expires?|expiring|lapses?|renews?|(?:is\s+)?due\s+for\s+renewal|comes\s+up\s+for\s+renewal)\b/i;
+/** "Paid 20000 for the domain for 5 years", "renewed figma for 3 years at 30000". */
+const PAID_AHEAD = /\b(?:paid|bought|renewed|registered|purchased|got|extended)\b(.*?)\bfor\s+(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:more\s+)?(?:years?|yrs?)\b/i;
+const A_DOMAIN = /\b((?:[a-z0-9-]+\.)+[a-z]{2,})\b/i;
+const RENEWAL_SUM = new RegExp(String.raw`(?:\b(?:for|at|costs?|of|price|paid|renews?\s+for)\s+|(?=${SYMBOL}))${AMOUNT}`, "gi");
+const YEARS_WORDS: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
+const yearsOf = (said: string) => YEARS_WORDS[said.toLowerCase()] ?? Number(said);
+
+/**
+ * Something the company pays for that runs out on a day - a domain, a
+ * licence, an insurance - said the way it is noticed: "My unifloe.app domain
+ * expires on the 27th next year. It renews for ₹2,639.51". Or paid ahead:
+ * "I paid 20000 for the domain for 5 years. Starting today" - paid now
+ * (`paid`), and due again five years on (`years`). The day is the one the
+ * line's own reader found, or today for one paid ahead; a sum is what it
+ * renews for, the whole term's. Without a sum it is only a running cost when
+ * it is a domain: "my passport expires in march" is a task on the day, not
+ * the company's spending.
+ */
+export function renewalIn(line: string, day: string | null, today: string): Extract<Command, { do: "cost" }> | null {
+  const ahead = PAID_AHEAD.exec(line);
+  const said = ahead ? null : RENEWS.exec(line);
+  if (!ahead && (!said || !day)) return null;
+  // What it is: the words before "expires", or what was paid for - "the domain", "unifloe.app".
+  const raw = ahead
+    ? (ahead[1] ?? "").replace(new RegExp(AMOUNT, "gi"), " ").replace(/\b(?:for|at|on|of|my|our|the|a|an|it)\b/gi, " ")
+    : (said?.[1] ?? "");
+  const subject = raw.replace(/\s+/g, " ").trim().replace(/['’]s$/u, "");
+  const domain = A_DOMAIN.exec(line)?.[1]?.toLowerCase() ?? null;
+  if (!domain && (!subject || subject.split(/\s+/).length > 6 || /[,;]/.test(subject))) return null;
+  if (!domain && /^(?:i|we|you|it|this|that|they|he|she|there|here|what|when|which)\b/i.test(subject)) return null;
+  const years = ahead ? Math.min(10, Math.max(1, yearsOf(ahead[2] ?? "1"))) : (() => {
+    const term = /\bfor\s+(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:years?|yrs?)\b/i.exec(line);
+    return term ? Math.min(10, Math.max(1, yearsOf(term[1] ?? "1"))) : 1;
+  })();
+  // "Renews for 1 year at 999": the sum, not how long.
+  const sum = [...line.matchAll(RENEWAL_SUM)].find(
+    (match) => amountOf(match[1], match[2]) >= 10 && !/^\s*(?:years?|months?|days?|weeks?|yrs?)\b/i.test(line.slice((match.index ?? 0) + match[0].length)),
+  );
+  const amount = sum ? amountOf(sum[1], sum[2]) : null;
+  if (!amount && (!domain || ahead)) return null;
+  const cycle = /\b(?:monthly|every\s+month|a\s+month|per\s+month|\/\s*mo)\b/i.test(line)
+    ? "monthly"
+    : /\b(?:quarterly|every\s+quarter|a\s+quarter)\b/i.test(line)
+      ? "quarterly"
+      : "yearly";
+  const isDomain = domain !== null || /^domain(?:\s+name)?$/i.test(subject);
+  const title = domain ?? subject.charAt(0).toUpperCase() + subject.slice(1);
+  return { do: "cost", title, amount, cycle, day: null, on: ahead ? (day ?? today) : day, domain: isDomain, years, paid: ahead !== null };
+}
+
+const AN_EMAIL = /\b([a-z0-9._%+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,})\b/i;
+/** "I use resend with paperkite@gmail.com", "bought the domain with me@gmail.com". */
+const BOUGHT_WITH =
+  /^\s*(?:i\s+|we\s+)?(?:use|used|bought|purchased|registered|got|signed\s+up\s+for|pay\s+for|paid\s+for|run)\s+(?:the\s+|my\s+|our\s+)?(.+?)\s+(?:with|on|using|under|through|via|from)\s+(?:the\s+|my\s+|our\s+)?(?:account\s+|email\s+|login\s+)?(\S+@\S+?)[.!]?\s*$/i;
+/** "Resend's account is paperkite@gmail.com", "the domain was bought with me@gmail.com". */
+const ACCOUNT_IS =
+  /^\s*(?:the\s+|my\s+|our\s+)?(.+?)(?:'s|’s)?\s+(?:account|login|email)\s+(?:is|=|:)\s*(\S+@\S+?)[.!]?\s*$|^\s*(?:the\s+|my\s+|our\s+)?(.+?)\s+(?:is|was)\s+(?:bought|purchased|registered|set\s+up)\s+(?:with|on|under|through)\s+(\S+@\S+?)[.!]?\s*$/i;
+
+const CHANGED = /^\s*(?:i\s+|we\s+)?(?:changed|switched|moved|updated)\s+(.+?)\s+from\s+(\S+@\S+?)\s+(?:to|over\s+to)\s+(\S+@\S+?)[.!]?\s*$/i;
+
+/**
+ * Which account something the company pays for was bought with: "I bought
+ * the domain with adithya@gmail.com", "I use Resend with studio@gmail.com".
+ * Kept on its page in Tools (`account`), and said with its renewal - the
+ * account is the one to sign in with to renew it. Read before a contact is,
+ * since an email in a line is otherwise somebody to keep.
+ */
+function accountIn(line: string): Extract<Command, { do: "account" }> | null {
+  // "Changed leaflet's google drive permission email from old@gmail.com to new@gmail.com": the new one, and what it was.
+  const changed = CHANGED.exec(line);
+  if (changed) {
+    const thing = (changed[1] ?? "")
+      .replace(/['’]s\b/g, "")
+      .replace(/\b(?:the|my|our|a|an|for|of|on|users?|user's|connecting|connection|permissions?|email|account|login|address)\b/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    const was = AN_EMAIL.exec(changed[2] ?? "")?.[1]?.toLowerCase() ?? null;
+    const email = AN_EMAIL.exec(changed[3] ?? "")?.[1]?.toLowerCase() ?? null;
+    if (!email || !thing || thing.split(/\s+/).length > 6) return null;
+    const domain = A_DOMAIN.exec(thing)?.[1]?.toLowerCase() ?? null;
+    return { do: "account", title: domain ?? thing.charAt(0).toUpperCase() + thing.slice(1), email, was, domain: domain !== null || /^domain$/i.test(thing) };
+  }
+  const said = BOUGHT_WITH.exec(line) ?? ACCOUNT_IS.exec(line);
+  if (!said) return null;
+  const thing = (said[1] ?? said[3] ?? "").trim();
+  const email = AN_EMAIL.exec(said[2] ?? said[4] ?? "")?.[1]?.toLowerCase() ?? null;
+  if (!email || !thing || thing.split(/\s+/).length > 4 || /[,;]/.test(thing)) return null;
+  if (/^(?:i|we|you|it|this|that|they|he|she|him|her|them|there|here)$/i.test(thing)) return null;
+  const domain = A_DOMAIN.exec(thing)?.[1]?.toLowerCase() ?? null;
+  const isDomain = domain !== null || /^domain(?:\s+name)?$/i.test(thing);
+  return { do: "account", title: domain ?? thing.charAt(0).toUpperCase() + thing.slice(1), email, was: null, domain: isDomain };
 }
 
 /** What a number is when it is not money: an hour, a length, a count of something, a date. */

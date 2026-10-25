@@ -25,8 +25,8 @@ import { secondOpinion, type Example } from "@shared/opinion";
 import { REMIND_ME } from "@shared/nudges";
 import { LOGGED_SAID } from "@shared/nextstep";
 import { occurrencesOf } from "@shared/repeat";
-import { daysBetween, minutesOf, timeNow, today as todayIn } from "@shared/dates";
-import { dateFormatter, formatDuration, formatTime, inSentence, numberText } from "@/lib/format";
+import { addMonths, daysBetween, minutesOf, timeNow, today as todayIn } from "@shared/dates";
+import { dateFormatter, formatDay, formatDuration, formatTime, inSentence, numberText } from "@/lib/format";
 import { messageOf } from "@/lib/errors";
 
 /**
@@ -79,11 +79,76 @@ function sayAsk(ask: Ask): string {
             : `Open ${ask.contact.name}`;
     case "update":
       return `Save ${[ask.phone, ask.email].filter(Boolean).join(" and ")} on ${ask.contact.name}`;
-    case "cost":
-      return `${ask.title}: ${numberText(ask.amount)} ${ask.cycle === "monthly" ? "a month" : ask.cycle === "yearly" ? "a year" : "a quarter"}`;
+    case "cost": {
+      const years = ask.years ?? 1;
+      const per = years > 1 ? `for ${years} years` : ask.cycle === "monthly" ? "a month" : ask.cycle === "yearly" ? "a year" : "a quarter";
+      const sum = ask.amount === null ? null : `${numberText(ask.amount)} ${per}`;
+      const when = ask.paid ? `paid, renews ${formatDay(addMonths(ask.on ?? "", 12 * years))}` : ask.on ? `renews ${formatDay(ask.on)}` : null;
+      return [ask.title, [sum, when].filter(Boolean).join(", ")].filter(Boolean).join(": ");
+    }
     case "paid":
       return `${ask.contact.name} paid${ask.amount ? ` ${numberText(ask.amount)}` : ""}: their invoice, marked`;
+    case "account":
+      return `${ask.title}: on ${ask.email}${ask.was ? `, not ${ask.was}` : ""}`;
   }
+}
+
+/** The page a thing the company pays for already has, by its title; "the domain", unnamed, is its one domain. */
+async function pageFor(companyId: string, title: string, domain: boolean) {
+  const titles = await window.caulder.brain.titles(companyId).catch(() => []);
+  const named = titles.find((each) => each.title.trim().toLowerCase() === title.toLowerCase());
+  const domains = titles.filter((each) => /^(?:[a-z0-9-]+\.)+[a-z]{2,}$/i.test(each.title.trim()));
+  const match = named ?? (domain && title === "Domain" && domains.length === 1 ? domains[0] : undefined);
+  return match ? await window.caulder.brain.page(match.id).catch(() => null) : null;
+}
+
+/**
+ * The account a service was bought with, on its page in Tools - a new tool
+ * page when it has none. A change of account keeps what it was, dated, at the
+ * foot of the page: which email ran it last year is asked more than once.
+ */
+async function keepAccount(companyId: string, ask: Extract<Ask, { do: "account" }>, today: string): Promise<string> {
+  const found = await pageFor(companyId, ask.title, ask.domain);
+  const page = found ?? (await window.caulder.brain.create(companyId, "tools", ask.domain ? "domain" : "tool"));
+  const before = typeof page.fields["account"] === "string" ? page.fields["account"].trim() : "";
+  const was = ask.was ?? (before && before.toLowerCase() !== ask.email ? before : null);
+  const body = was ? `${page.body.trimEnd()}\n\n- Was on ${was} until ${today}\n` : page.body;
+  await window.caulder.brain.save(page.id, {
+    title: found ? page.title : ask.title,
+    body,
+    fields: { ...page.fields, account: ask.email },
+    secrets: {},
+    baseRevision: page.revision,
+  });
+  return `${sayAsk(ask)}, on its page in Tools`;
+}
+
+/**
+ * A running cost from the line (shared/costs.ts): a page in the brain's Money,
+ * or a domain in Tools. Said again, the page it already has is brought up to
+ * date rather than a second made. Paid ahead, the payment is logged and the
+ * day moves a term on, by the one way a cost is paid (`costs:renew`).
+ */
+async function keepCost(companyId: string, ask: Extract<Ask, { do: "cost" }>, today: string): Promise<string> {
+  const template = ask.domain ? "domain" : RUNNING_COST_TEMPLATE;
+  const found = await pageFor(companyId, ask.title, ask.domain === true);
+  const page = found && found.template === template ? found : await window.caulder.brain.create(companyId, ask.domain ? "tools" : "money", template);
+  const years = ask.years ?? 1;
+  const on = ask.on ?? (ask.day ? nextOnThe(ask.day, today) : null);
+  const term = years > 1 ? years : (page.fields["years"] ?? null);
+  const fields = ask.domain
+    ? { ...page.fields, renewsOn: on ?? page.fields["renewsOn"] ?? null, cost: ask.amount === null ? (page.fields["cost"] ?? null) : Math.round(ask.amount / years), years: term }
+    : {
+        ...page.fields,
+        amount: ask.amount ?? page.fields["amount"] ?? null,
+        cycle: ask.cycle,
+        dueOn: on ?? page.fields["dueOn"] ?? null,
+        years: term,
+        category: page.fields["category"] ?? costKind(ask.title),
+      };
+  await window.caulder.brain.save(page.id, { title: page === found ? page.title : ask.title, body: page.body, fields, secrets: {}, baseRevision: page.revision });
+  if (ask.paid && on) await window.caulder.costs.renew(companyId, page.id);
+  return `${sayAsk(ask)}, ${ask.domain ? "a domain in Tools" : "a running cost in Money"}`;
 }
 
 /** Where a running cost is filed, by what it is: a streaming service is software, the flat is rent. */
@@ -665,24 +730,8 @@ export function QuickAdd({
           await window.caulder.leads.update(lead.id, parsed.data);
           summary = sayAsk(ask);
         }
-        else if (ask.do === "cost") {
-          // A running cost is a page in the brain's Money (shared/costs.ts), with its amount, how often and when next.
-          const page = await window.caulder.brain.create(companyId, "money", RUNNING_COST_TEMPLATE);
-          await window.caulder.brain.save(page.id, {
-            title: ask.title,
-            body: page.body,
-            fields: {
-              ...page.fields,
-              amount: ask.amount,
-              cycle: ask.cycle,
-              dueOn: ask.day ? nextOnThe(ask.day, today) : null,
-              category: costKind(ask.title),
-            },
-            secrets: {},
-            baseRevision: page.revision,
-          });
-          summary = `${sayAsk(ask)}, a running cost in Money`;
-        }
+        else if (ask.do === "cost") summary = await keepCost(companyId, ask, today);
+        else if (ask.do === "account") summary = await keepAccount(companyId, ask, today);
         else if (ask.do === "paid") {
           const result = await window.caulder.money.paidFrom(companyId, { leadId: ask.contact.id, amount: ask.amount });
           summary = `${result.say}, from ${ask.contact.name}`;

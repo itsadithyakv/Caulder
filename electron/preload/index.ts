@@ -151,6 +151,8 @@ const api: CaulderApi = {
   money: {
     get: (companyId) => invoke(CHANNELS.moneyGet, companyId),
     paidFrom: (companyId, input) => invoke(CHANNELS.moneyPaidFrom, companyId, input),
+    accountantPack: (companyId, period) => invoke(CHANNELS.moneyAccountantPack, companyId, period),
+    health: (companyId) => invoke(CHANNELS.moneyHealth, companyId),
     forLead: (leadId) => invoke(CHANNELS.moneyForLead, leadId),
     saveQuote: (companyId, id, input) => invoke(CHANNELS.quoteSave, companyId, id, input),
     setQuoteStatus: (companyId, id, status) =>
@@ -162,12 +164,31 @@ const api: CaulderApi = {
       invoke(CHANNELS.invoiceStatus, companyId, id, status),
     markPaid: (companyId, id) => invoke(CHANNELS.invoiceMarkPaid, companyId, id),
     invoicePdf: (companyId, id) => invoke(CHANNELS.invoicePdf, companyId, id),
+    quotePdf: (companyId, id) => invoke(CHANNELS.quotePdf, companyId, id),
     deleteInvoice: (companyId, id) => invoke(CHANNELS.invoiceDelete, companyId, id),
     addPayment: (companyId, invoiceId, input) =>
       invoke(CHANNELS.paymentAdd, companyId, invoiceId, input),
     deletePayment: (companyId, id) => invoke(CHANNELS.paymentDelete, companyId, id),
     addSpend: (companyId, input) => invoke(CHANNELS.spendEntryAdd, companyId, input),
     deleteSpend: (companyId, id) => invoke(CHANNELS.spendEntryDelete, companyId, id),
+  },
+  hours: {
+    setFor: (blockId, input) => invoke(CHANNELS.hoursSetFor, blockId, input),
+    toBill: (companyId, leadId) => invoke(CHANNELS.hoursToBill, companyId, leadId),
+    bill: (companyId, leadId) => invoke(CHANNELS.hoursBill, companyId, leadId),
+  },
+  billing: {
+    company: (companyId) => invoke(CHANNELS.billingCompany, companyId),
+    setCompany: (companyId, input) => invoke(CHANNELS.billingSetCompany, companyId, input),
+    client: (companyId, leadId) => invoke(CHANNELS.billingClient, companyId, leadId),
+    setClient: (companyId, leadId, input) => invoke(CHANNELS.billingSetClient, companyId, leadId, input),
+    taxRules: (companyId) => invoke(CHANNELS.billingTaxRules, companyId),
+    setTaxRules: (companyId, changes) => invoke(CHANNELS.billingSetTaxRules, companyId, changes),
+    invoiceLook: (companyId) => invoke(CHANNELS.billingInvoiceLook, companyId),
+    setInvoiceLook: (companyId, look) => invoke(CHANNELS.billingSetInvoiceLook, companyId, look),
+    invoiceLogo: (companyId, remove) => invoke(CHANNELS.billingInvoiceLogo, companyId, remove === true),
+    invoiceFolder: (companyId) => invoke(CHANNELS.billingInvoiceFolder, companyId),
+    invoiceSample: (companyId) => invoke(CHANNELS.billingInvoiceSample, companyId),
   },
   outreach: {
     whatsapp: (leadId, message) => invoke(CHANNELS.outreachWhatsApp, leadId, message),

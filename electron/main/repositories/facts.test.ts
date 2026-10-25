@@ -44,6 +44,14 @@ describe("what stays true about a contact", () => {
     expect(db.prepare(`SELECT due_on FROM tasks WHERE status = 'open'`).all()).toEqual([{ due_on: "2028-05-03" }]);
   });
 
+  it("replaces only their own birthday when it is said again", () => {
+    fact("Maya's birthday is 3 May", { birthday: "2027-05-03" });
+    fact("Wife's birthday is 2 March");
+    fact("Hates birthday fuss");
+    fact("Maya's birthday is 14 July", { birthday: "2027-07-14" });
+    expect(listFacts(db, maya).map((each) => each.text).sort()).toEqual(["Hates birthday fuss", "Maya's birthday is 14 July", "Wife's birthday is 2 March"]);
+  });
+
   it("says what is away until a day that has not come", () => {
     fact("Maya is on leave till the 20th", { until: "2026-10-20" });
     fact("Away last month", { until: "2026-09-01" });

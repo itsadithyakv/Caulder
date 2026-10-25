@@ -79,9 +79,17 @@ function taskNamed(phrase: string, around: Around): OpenTask | null {
   if (byHour) return byHour;
   const named = coreOf(said);
   if (named.length === 0) return null;
+  // A number said is a number meant: "done invoice 1042" is not the task about invoice 1043, and
+  // "completed 3 calls" is not "Call Priya". The words alone leave numbers out.
+  const numbers = said.match(/\d+/g) ?? [];
   const candidates = around.open
     .map((task) => ({ task, core: coreOf(task.title) }))
-    .filter(({ task, core }) => !UNDOING.test(task.title) && named.every((word) => core.includes(word)));
+    .filter(
+      ({ task, core }) =>
+        !UNDOING.test(task.title) &&
+        named.every((word) => core.includes(word)) &&
+        numbers.every((number) => (task.title.match(/\d+/g) ?? ([] as string[])).includes(number)),
+    );
   // The closest title first - fewest words not said - then the soonest still to come, then anything late.
   candidates.sort((a, b) => {
     const ahead = (task: OpenTask) => (task.dueOn >= around.today ? 0 : 1);

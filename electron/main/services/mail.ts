@@ -9,7 +9,8 @@ import {
   type RemoteEmail,
 } from "@shared/mail";
 import { render } from "@shared/render";
-import { MAIL_SINCE_VERSION, SCRIPT_VERSION } from "@shared/script";
+import { ATTACH_SINCE_VERSION, MAIL_SINCE_VERSION, SCRIPT_VERSION } from "@shared/script";
+import { documentPdf } from "./invoice";
 import { findTemplate } from "../repositories/email";
 import { findLead } from "../repositories/leads";
 import {
@@ -189,10 +190,19 @@ export async function sendEmail(db: Db, raw: unknown, now: Date = new Date()): P
   if (lead.doNotContact) throw new Error(`${lead.name} is marked do not contact.`);
   if (!lead.email) throw new Error(`${lead.name} has no email address.`);
 
-  if (input.accountId) return sendByAccount(db, { ...input, accountId: input.accountId }, lead, now);
+  // An invoice or a quote to go with it, printed here from what was named - never bytes from the window.
+  if (input.attach && (input.sendAt || input.followUp)) throw new Error("A message with a file is sent now, without a follow-up.");
+  const file = input.attach ? await documentPdf(db, lead.companyId, input.attach) : null;
+  if (file && file.leadId !== lead.id) throw new Error("That document is for somebody else.");
+  const files = file ? [{ name: file.name, bytes: file.bytes }] : [];
+
+  if (input.accountId) return sendByAccount(db, { ...input, accountId: input.accountId, files }, lead, now);
 
   const state = await scriptState(db);
   if (!state.ready) throw new Error(state.reason ?? "Email cannot be sent from here yet.");
+  if (files.length > 0 && (scriptInfo(db)?.version ?? 0) < ATTACH_SINCE_VERSION) {
+    throw new Error(`Your Google script cannot send files yet. Update it in Settings (version ${ATTACH_SINCE_VERSION}), or send this from another account.`);
+  }
 
   const sendAt = scheduleFor(input.sendAt, now);
   const followUp = input.followUp ? followUpFor(db, lead, input.followUp) : null;
@@ -215,6 +225,7 @@ export async function sendEmail(db: Db, raw: unknown, now: Date = new Date()): P
     body: input.body,
     sendAt,
     followUp,
+    attachments: files.map((each) => ({ name: each.name, mimeType: "application/pdf", data: each.bytes.toString("base64") })),
   });
 
   recordEmail(
@@ -245,7 +256,15 @@ export async function sendEmail(db: Db, raw: unknown, now: Date = new Date()): P
  */
 async function sendByAccount(
   db: Db,
-  input: { accountId: string; templateId: string | null; subject: string; body: string; sendAt: string | null; followUp: { days: number; templateId: string } | null },
+  input: {
+    accountId: string;
+    templateId: string | null;
+    subject: string;
+    body: string;
+    sendAt: string | null;
+    followUp: { days: number; templateId: string } | null;
+    files?: { name: string; bytes: Buffer }[];
+  },
   lead: Lead,
   now: Date,
 ): Promise<EmailRecord[]> {
@@ -261,7 +280,7 @@ async function sendByAccount(
   const id = randomUUID();
   const messageId = newMessageId(db, input.accountId);
   // Sent before anything is written: a message the server refused is not a message that was sent.
-  if (!sendAt) await sendFromAccount(db, input.accountId, { to, subject: input.subject, body: input.body, messageId });
+  if (!sendAt) await sendFromAccount(db, input.accountId, { to, subject: input.subject, body: input.body, messageId, files: input.files ?? [] });
   const at = new Date().toISOString();
   const waiting = followUp ? { status: "waiting" as const, sentAt: null, error: null } : null;
   recordEmail(

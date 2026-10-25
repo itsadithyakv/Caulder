@@ -116,7 +116,7 @@ test("a sent invoice past its due date is on Today, above the tasks", async () =
   const reminder = page.getByRole("dialog", { name: "A reminder about INV-0002" });
   await expect(reminder.getByLabel("Subject")).toHaveValue(/^Reminder: invoice INV-0002 from /);
   await expect(reminder.getByLabel("Message")).toHaveValue(/Invoice INV-0002 for .*20,000.* was due on .*days ago\./);
-  await expect(reminder).toContainText("It goes on their history.");
+  await expect(reminder).toContainText("To Oakridge International School");
   await reminder.getByRole("button", { name: "Cancel" }).click();
   await expect(reminder).toHaveCount(0);
 

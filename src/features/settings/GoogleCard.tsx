@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Copy, ExternalLink, FileCode2, Link2, RefreshCw, Unlink } from "lucide-react";
 import type { GoogleState } from "@shared/domain";
-import { CONTACTS_SINCE_VERSION, MAIL_SINCE_VERSION, SHEET_SINCE_VERSION } from "@shared/script";
+import { CONTACTS_SINCE_VERSION, MAIL_SINCE_VERSION, SHEET_SINCE_VERSION, TASK_LISTS_SINCE_VERSION } from "@shared/script";
 import { useWorkspace } from "@/lib/workspace";
 import { messageOf } from "@/lib/errors";
 import { inSentence, relativeDay } from "@/lib/format";
@@ -365,7 +365,9 @@ function ScriptStatus({
               ? `Version ${script.latest} saves a contact to your phone through Google Contacts and keeps a backup in your Drive; your calendar, tasks and email go on working meanwhile.`
               : script.version < SHEET_SINCE_VERSION
                 ? `Version ${script.latest} can keep your contacts as a Google Sheet, to read and change on your phone; what you have goes on working meanwhile.`
-                : `Version ${script.latest} mends Google Tasks: every task list is offered, not only the first twenty, and a missing Tasks API is said plainly instead of stopping the connection.`}{" "}
+                : script.version < TASK_LISTS_SINCE_VERSION
+                  ? `Version ${script.latest} mends Google Tasks: every task list is offered, not only the first twenty, and a missing Tasks API is said plainly instead of stopping the connection.`
+                  : `Version ${script.latest} sends an invoice's or a quote's PDF with the email.`}{" "}
           To update it, keeping the same URL:
         </p>
         <UpdateSteps />

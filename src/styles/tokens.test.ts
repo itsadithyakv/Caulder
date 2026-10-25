@@ -78,7 +78,8 @@ describe("theme-dependent tokens are overridden for dark", () => {
   const COLOUR_VALUE = /^(#[0-9a-f]{3,8}|rgba?\(|color-mix\()/i;
 
   const mustOverride = [...light.entries()]
-    .filter(([name, value]) => COLOUR_VALUE.test(value) && !name.startsWith("--shadow"))
+    // A --doc- colour is the paper's (an invoice's ink): it is the same whatever the window's theme.
+    .filter(([name, value]) => COLOUR_VALUE.test(value) && !name.startsWith("--shadow") && !name.startsWith("--doc-"))
     .map(([name]) => name);
 
   it.each(mustOverride)("%s has a dark value", (name) => {

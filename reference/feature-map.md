@@ -62,7 +62,7 @@ The systems everything else plugs into.
 | Turn text in a page into tasks | `shared/steps.ts` + `services/steps.ts` (`- [ ]` lines with `@owner`, `(day N)`, `(by date)`). | A separate checklist feature. |
 | Talk to Google | `callScript` in `services/gsync.ts` - the person's own Apps Script (`resources/appsscript/Caulder.gs`, version 6). A new thing the script does is a new `case` in its `handle`, a bump of `SCRIPT_VERSION` in both files, and a test in `services/script.test.ts`, which runs the real script. | OAuth from the app. |
 | Keep a secret | Connections and keys: `services/credentials.ts` (safeStorage, refused rather than kept readable). Page fields: `services/secrets.ts`. The line never keeps one: `shared/secretline.ts` warns before it is filed. | A plain setting. |
-| Notify the person | `services/nudges.ts` (`addReminder`) for anything asked for; `notify.ts` (daily digest) and `remind.ts` (before a block). All off until switched on. | A fourth timer. |
+| Notify the person | `services/nudges.ts` (`addReminder`) for anything asked for, and the brief with what renews; `notify.ts` (daily digest) and `remind.ts` (before a block). The brief and the block reminder are on unless switched off; the digest is off until switched on. | A fourth timer. |
 | Run something in the background | `services/scheduler.ts`, or a tick in the owning service started from `electron/main/index.ts` and stopped on `before-quit`. A tick that awaits must not reschedule itself once stopped (`generation` in `services/understand.ts`). | `setInterval` in a screen. A child process started on the way out (`closeModel`). |
 | Store a preference | `repositories/settings.ts` (one key per setting). | A new table for one value. |
 | Handle a date | `shared/dates.ts`. A due date is a `YYYY-MM-DD` day in the company's timezone; a time is `HH:MM`. `today`, `dayOf` and `timeNow` keep one formatter per timezone. | `Date` arithmetic in local time; a date library. `new Intl.DateTimeFormat` in a loop: making one costs a thousand formats with it, and Today made six thousand. |
@@ -101,7 +101,7 @@ rows are one list with no labels, your time first. There is no *You* group:
 `journal` and `life` were routes until 10 October 2026.
 
 Other keys: `A` add a task, `Ctrl+K` search everything, `/` search contacts,
-`N` add a contact, `?` the list. Global quick window: `Ctrl+Win+A`
+`N` add a contact, `?` the list. Global quick window: `Ctrl+Q`
 (`electron/main/capture.ts`).
 
 ---
@@ -196,8 +196,54 @@ Four numbers a month and three lists. Paid comes from payments; overdue is worke
 - Tests: `repositories/money.test.ts`, `services/invoice-html.test.ts`; e2e `money.spec.ts`
 - Touches: overdue invoices lead Today; an accepted quote makes the invoice and sets the deal's value; the PDF is filed as a document on the contact; the issuer comes from the brain's company page.
 
+### A company's own tax rules
+Part fourteen. Settings › Workspace › Tax and billing › *Rules* (`TaxRulesEditor.tsx`): every value a law could change is the company's to type - what the tax is called, its rates, what the tax number is called, the titles with and without tax, the words a document must carry when the business is not registered ("TVA non applicable, art. 293 B du CGI"), the registration threshold in words and as a sum, the tax clients withhold and its rate (India's TDS at 10%), the composition scheme's title and words, when the financial year starts, and the numbers usually printed (PAN, Udyam, ABN, SIRET). The country's are only where they start (`shared/tax.ts`, `shared/invoicerules.ts`); only what differs is kept, and *Back to the country's* clears it. A country Caulder does not know starts blank, and this is how its invoices are built. India's status is one of three: not registered, registered, composition (a bill of supply, no GST).
+- Logic: `shared/taxrules.ts` (`defaultTaxRules`, `resolveTaxRules`), `shared/invoicerules.ts` · Main: `repositories/billing.ts` (`taxRules`, `setTaxRules`, `companyBilling().rules`) · IPC: `billing:tax-rules`, `billing:set-tax-rules` · Tables: `companies.tax_rules`, `companies.tax_scheme` (migration 62)
+- Read by: `taxed` (the tax's name), `rateFor`, the invoice and quote PDF (titles, the words, the number label), the accountant's pack and Health (the year), numbering (the year)
+- Tests: `shared/taxrules.test.ts`, `electron/main/partfourteen.test.ts`; e2e `invoices.spec.ts`
+
+### Invoices: numbers, words, TDS, quotes and email
+Part fourteen. **Numbers as the company writes them** (`numbering` in `invoice_look`, `formatInvoiceNumber`): a prefix, the year or financial year, three to five digits - "PK/26-27/0042", sixteen characters at most; the count never restarts, so a number is unique for good. Every display, search, chase and file name reads `Invoice.label`. **Numbers under the name** (`ids`): PAN, Udyam, a company number. **The amount in words** ("Rupees Sixty-Six Thousand Eighty Only", `shared/words.ts`), on by default in India. **TDS on a payment** (`payments.withheld`): *They deducted TDS* fills the rule's rate of the amount before tax; it pays the invoice but is not money in. **A quote as a PDF** in the same look (`writeQuotePdf`). **Email it** (`DocumentMailForm` in `ChaseForm.tsx`, from an invoice's or a quote's row): the words written, the PDF attached - printed in main from what was named (`sendEmailInput.attach`, `documentPdf`), sent now through Gmail (script version 8) or another account; emailing a draft marks it sent. A reminder can carry the PDF too.
+- Main: `services/invoice.ts`, `services/mail.ts`, `services/mailaccounts.ts` · Script: `resources/appsscript/Caulder.gs` (`deliver` with attachments, `ATTACH_SINCE_VERSION`) · IPC: `quotes:pdf`
+- Tests: `shared/words.test.ts`, `services/script.test.ts`, `electron/main/partfourteen.test.ts`; e2e `invoices.spec.ts`, `mail.spec.ts`
+
+### Health
+Part fourteen. Money › *Health* (`MoneyHealth.tsx`): a year of money in, and of what was left after spending, as the metrics' own chart draws them (`MetricChart`); the financial year's turnover, tax charged and tax withheld; for a business not registered, its turnover against the threshold as a bar, and when, at this pace, it reaches it; the next filings on the company's calendar (Deadlines). Worked out when read (`shared/health.ts`, `services/health.ts`, `money:health`); a part with nothing in it is not drawn.
+- Tests: `shared/health.test.ts`; e2e `invoices.spec.ts`
+
+### How invoices look, and where their copies go
+Part fourteen. Settings › Workspace › *Invoices* (`InvoiceLookCard.tsx`): a layout (Classic, Banner, Compact), one of six inks, a logo (a PNG or JPEG kept as `invoice-logo-<company>` beside the attachments, printed from inside the page), and a closing line; *See a sample* prints a made-up invoice in the look. And a folder of the person's own: each invoice's PDF is copied there as well as filed on the contact - all in one, by year, by month or by client, named by number or number and client (`invoiceFilePath`) - and the copy is what opens. The folder is only ever chosen in the system's dialog; the window can clear it but never name one.
+- Logic: `shared/invoicelook.ts` · Main: `services/invoice.ts` (`printedLook`, `writeInvoiceSample`, `keepInvoicePdf`), `invoice-html.ts` (`look`), `repositories/billing.ts` (`invoiceLook`) · IPC: `billing:invoice-look`, `billing:set-invoice-look`, `billing:invoice-logo`, `billing:invoice-folder`, `billing:invoice-sample` · Table: `companies.invoice_look` (migration 61) · Colours: `--doc-ink-*` in `tokens.css`, the same in dark, as the paper is
+- Tests: `shared/invoicelook.test.ts`, `services/invoice-html.test.ts`; e2e `invoices.spec.ts`
+
+### Tax on quotes and invoices
+Part thirteen, phase 51. `shared/tax.ts` knows each country's tax by name, number label, usual rates and whether the document is titled "Tax invoice" - India, the 27 of the European Union, the UK, Switzerland, Norway, Canada, Australia, New Zealand, Singapore, the Gulf, much of Asia, Africa and Latin America - and any other country types its own. A company charges it from Settings › Workspace › *Tax and billing* (`BillingCard.tsx`): on, a usual rate, prices with tax in, its tax number, its state or province. **Each line keeps its rate** (from the product, or the client's usual); **each document keeps its treatment** when made (`treatmentFor`): `standard`; India's CGST and SGST in the company's state, or IGST in another, read from the GSTINs' first two digits; Canada's HST, or GST and QST/PST, by the client's province; an EU reverse charge to a business client elsewhere in the Union (from their VAT number); not charged to a client abroad, with the note the law asks for. `taxed` works out the subtotal, the tax by component and rate, and the total, in whole units: each line's amount, then the tax once for each rate, so it is never more than half a unit out; a label said twice (British Columbia's GST on a 5% and a 12% line) is one line. The form shows it as the file will (`DocumentForm`); the PDF says it, with the client's number and India's HSN/SAC codes from the products (`invoice.ts`, `invoice-html.ts`); Money says the quarter's tax.
+- Logic: `shared/tax.ts`, `shared/billing.ts` · Main: `repositories/billing.ts`, `repositories/money.ts` (`taxFor`, `moneyOf`) · IPC: `billing:` · Tables: `companies.tax_*`, `leads.tax_*`, `*_lines.tax_rate`, `tax_treatment`/`tax_inclusive`/`tax_region` on quotes and invoices (migration 60)
+- Tests: `shared/tax.test.ts`, `electron/main/partthirteen.test.ts`; e2e `tax.spec.ts`
+- Rates are as they stood in 2026 and can be typed; the setting is not advice.
+
+### A client's billing details, and payment terms
+On a contact's page, folded under their money (`ClientBilling.tsx`): their tax number, country and state, their payment terms and hourly rate - kept apart from the contact's form (`billing:client`), so nothing that saves a contact can clear them. A new invoice is due by the client's terms, else the company's, else a fortnight (`termsFor`); accepting a quote uses them too (phase 53).
+
+### A quote nobody answered
+Phase 52. A sent quote with no answer for a week, or past its *Valid until* day (`quotes.valid_until`), is on Today (`listQuotesWaiting`, `Today.quotesWaiting`), with *Accepted* (which makes the invoice) and *Declined* on its row.
+
+### The next 90 days, and who the money comes from
+Phases 54 and 55, on Money (`MoneyInsights.tsx`), worked out when read in `shared/insights.ts`: three thirties of what is owed and due (late money in the first), retainers to come and running costs going out (`aheadOf`); and a *Clients* tab of each client's year - paid, owed, late, days to pay - with a line when one client is half the income or more (`clientsOf`).
+
+### The accountant's pack
+Phase 56. *For the accountant* on Money: a quarter, or a year - the country's financial year where it is not the calendar's, April to March in India, July to June in Australia (`periodDays`, `shared/accountant.ts`) - then a folder, and `accounts.xlsx` (invoices with each tax component, payments, spend, tax, a summary) and every invoice's PDF are written there (`services/accountant.ts`, `money:accountant-pack`).
+
+### Hours to invoice
+Phase 57. A block can be for a client and billed by the hour (`BlockClient.tsx`): said as it is made (`blockInput.forClient`, every one of a repeat), and after that changed apart from the block's own form (`hours:set-for`). Billable time that has happened and is on no invoice is offered on the client's page (`HoursToBill.tsx`), at the amount the invoice will come to, and made a draft invoice, a line a block at the client's rate (`repositories/hours.ts`); a deleted draft gives the hours back.
+
 ### Running costs and runway
 Recurring costs read from brain pages (tool, domain, running cost), marked paid onto spend; runway from typed balances and the burn.
+- **From the line** (`readCommand` and `renewalIn`, `shared/commands.ts`, the `cost` command): "Netflix 649 monthly"; "My unifloe.app domain expires on the 27th next year. It renews for 2,640" - on its day, a domain kept as a Domain page in Tools; "I paid 20000 for the domain for 5 years" - paid now through `costs:renew`, due again five years on. Said again, the page it has is brought up to date (`keepCost`, `QuickAdd.tsx`).
+- **Paid ahead** (`years` on a page): a domain's cost is a year's, so a renewal pays it times the years; a running cost's amount is each payment. The month, the 90 days and the renewal all count the term (`costOf`: `each`, `years`).
+- **The account it is on** (`account` on tools, domains and running costs): "I use Resend with studio@gmail.com", "changed leaflet's drive permission email from a@ to b@" (`accountIn`, the `account` command) - set on the page, and the one it was is kept, dated, at its foot. Said on Today's renewal row, in the list, and in the notice.
+- **By account, or by product**: chips over the list, each offered once any cost says its account or the product it serves (`product` on tools, domains and running costs) - which login holds what, and what each product costs, across a company's products.
+- **Told** with the morning brief, each its own notification: once as it comes into view (a month ahead for a yearly one) and again on its day (`sayRenewal`, `renewalsToTell` in `shared/nudges.ts`; the setting `renewalsTold`).
 - UI: `src/features/money/CostsTab.tsx`, Paid on Today · Logic: `shared/costs.ts` · Main: `services/costs.ts`, `repositories/costs.ts`, `ipc/costs.ts`
 - Tables: `cash_balances`, `spend`, `brain_pages` · IPC: `costs:` · Tests: `shared/costs.test.ts`, `services/costs.test.ts`; e2e `money.spec.ts`
 
@@ -481,11 +527,11 @@ Part twelve, phase 46. `yourDay` (`shared/habitual.ts`) reads the shape of the p
 - Tests: `shared/yourday.test.ts`
 
 ### A task that comes back
-Part twelve, phase 47. "Pay rent on the 1st of every month", "renew the domain every year on 3 may", "review metrics every other monday": `every` on the parsed task, `tasks.repeats` (`fortnightly`, `monthly`, `yearly`). Ticking one makes the next (`comeBack` in `repositories/tasks.ts`, the day from `nextDue` in `shared/repeat.ts`), at the same hour when it had one, and never a second open one. Shown on the row and changed in the task form (*Comes back*). Every other week **with** an hour is a block series instead, `every: 2` on the repeat (`block_series.every_weeks`).
+Part twelve, phase 47. "Pay rent on the 1st of every month", "renew the domain every year on 3 may", "review metrics every other monday": `every` on the parsed task, `tasks.repeats` (`fortnightly`, `monthly`, `yearly`). Ticking one makes the next (`comeBack` in `repositories/tasks.ts`, the day from `nextDue` in `shared/repeat.ts`), at the same hour when it had one, and never a second open one for the same contact. It keeps the day of the month it was set on (`tasks.repeat_day`, migration 59), so the 31st comes back on the 31st after February. Undoing the tick takes the next one back; a tick in Google Tasks makes it too. Shown on the row and changed in the task form (*Comes back*). Every other week **with** an hour is a block series instead, `every: 2` on the repeat (`block_series.every_weeks`).
 - Tests: `shared/repeat.test.ts`, `repositories/tasks.test.ts`, `shared/quickadd.test.ts`
 
 ### What stays true about a contact
-Part twelve, phase 49. A line that starts with a contact and goes on with what stays true - "Maya prefers WhatsApp", "Sam's address is…", "Harbour GST no…", "Jonas is on leave till the 20th", "Kemi's birthday is 9 March" - is `logged: "fact"` (`factAbout` in `shared/capture.ts`), kept on the contact in `lead_facts` and shown on their page as *Known about them* (`src/features/leads/KnownAbout.tsx`), not on their history. A fact that ends keeps its day, and a task planned for them before it is warned about under the line. A birthday is a fact and a task that comes back every year. The line's questions read facts first (`factsAbout`). A line opened by something done - "called priya - no answer, try again thursday" - is the call and its next step (`OPENS_DONE`, and the try-again in `nextStepIn`). Money in from a contact - "got 2400 from harbour", "harbour paid" - marks their open invoice paid, or records a part (`paidFrom` in `repositories/money.ts`).
+Part twelve, phase 49. A line that starts with a contact and goes on with what stays true - "Maya prefers WhatsApp", "Sam's address is…", "Harbour GST no…", "Jonas is on leave till the 20th", "Kemi's birthday is 9 March" - is `logged: "fact"` (`factAbout` in `shared/capture.ts`), kept on the contact in `lead_facts` and shown on their page as *Known about them* (`src/features/leads/KnownAbout.tsx`), not on their history. A fact that ends keeps its day, and a task planned for them before it is warned about under the line. A birthday is a fact and a task that comes back every year. The line's questions read facts first (`factsAbout`). A line opened by something done - "called priya - no answer, try again thursday" - is the call and its next step (`OPENS_DONE`, and the try-again in `nextStepIn`). Money in from a contact - "got 2400 from harbour", "harbour paid" - marks their open invoice paid, or records a part (`paidFrom` in `repositories/money.ts`), dated by the company's day. Never when the line says it has not come ("hasn't paid", "is late", "still pending": `NOT_PAID`), and always against the contact named as paying (`payerPart`). A number or an address is set as a contact's own only when the line does not say whose else it is (`theirOwn`). A birthday said again moves the yearly task.
 - Main: `repositories/facts.ts`, `money.ts` · IPC: `facts:`, `money:paid-from` · Tests: `shared/capture.test.ts`, `repositories/facts.test.ts`
 
 ### Questions, edits and the rest
@@ -501,7 +547,7 @@ Answer a question from what is stored (the day, free hours, a contact, money, me
 - Tables: `line_lessons`, `line_guesses` · IPC: `lessons:`, `tune:`
 
 ### The quick window from anywhere
-An always-on-top window from the tray or `Ctrl+Win+A`. It is `QuickAdd` without `smart`: tasks and notes only.
+An always-on-top window from the tray or `Ctrl+Q`. It is `QuickAdd` without `smart`: tasks and notes only.
 - UI: `src/features/notes/Capture.tsx` · Main: `electron/main/capture.ts`, `popup.ts`, `tray.ts` · IPC: `capture:`, `tray:` · Tests: `electron/main/popup.test.ts`; e2e `tray.spec.ts`
 
 ### Adding a kind to the line
@@ -569,15 +615,15 @@ Four groups: **Workspace** (This is me, companies, your own fields, stages, temp
 - UI: `src/features/settings/` · Main: `repositories/settings.ts` plus each card's own service
 
 ### Notifications
-Three services, all off until switched on: `notify.ts` (daily digest, never before 9), `remind.ts` (before a block), `nudges.ts` (reminders asked for, a morning brief). A click sends `nav:go`.
+Three services: `notify.ts` (daily digest, never before 9; off until switched on), `remind.ts` (before a block: **on, ten minutes ahead**, unless switched off), `nudges.ts` (reminders asked for, always; the morning brief **on at nine** unless switched off). Both went on by default on 23 October 2026, when a call due the day before went by without a word. A click sends `nav:go`.
 - Tables: `reminders` · IPC: `notify:`, `nudges:` · Tests: `shared/nudges.test.ts`, `remind.test.ts`, `services/nudges.test.ts`
 
 ### Tray
-Tray icon, a quick window beside it, right-click menu, keep in tray on close.
+Tray icon, a quick window beside it, right-click menu, keep in tray on close. The menu carries *Open when Windows starts* as a tick (*Startup apps…* for a Store copy), built again when it changes from there or from Settings (`refreshTray`).
 - Main: `electron/main/tray.ts`, `popup.ts`, `capture.ts`, `identity.ts` · e2e `tray.spec.ts`
 
 ### Opening when Windows starts
-On from the first launch of an installed copy (the owner's decision, 15 October 2026; `startupSet` remembers it was decided), and a checkbox beside *Keep Caulder in the tray*. The installer's copy registers a login item with `--at-login` and, kept in the tray, opens there with no window; a notification or the tray makes the window. A Store copy cannot register itself: the package declares a startup task (`resources/appx-startup.xml`, through `customExtensionsPath`), it opens with its window, and Settings sends you to Windows' Startup apps to change it.
+On from the first launch of an installed copy (the owner's decision, 15 October 2026; `startupSet` remembers it was decided) - never from the build folder (`win-unpacked`), and an installed copy points a stale entry at itself - and a tick on the tray icon's menu and in Settings › This computer › *Windows*, the first card there, beside *Keep Caulder in the tray* (25 October 2026: it had been inside the quick key's card). The installer's copy registers a login item with `--at-login` and, kept in the tray, opens there with no window; a notification or the tray makes the window. A Store copy cannot register itself: the package declares a startup task (`resources/appx-startup.xml`, through `customExtensionsPath`), it opens with its window, and Settings sends you to Windows' Startup apps to change it.
 - Main: `electron/main/startup.ts` · IPC: `app:startup`, `app:set-startup`, `app:startup-apps` · UI: `SettingsScreen.tsx`
 
 ### Desk widget
@@ -585,6 +631,14 @@ A pill on the desktop naming the one thing worth a glance, with the mark, and a 
 - **What it says** is decided in `shared/widget.ts` and worded in `Widget.tsx`. The pill (`deskGlance`) names the thing, soonest first: a block starting within ten minutes, a reply, the first late task, what is on, what is next, the first task due - and "+2" for the rest. The panel: the day's date, what is left of the day with what is on now marked (`deskHours`), the late and due tasks by name with a tick each (`deskTasks`, four at most), then who replied, invoices unpaid and late, prospects waiting, people reached (`deskFacts`).
 - **Clicked and dragged** (17 October 2026): a press on the pill or the panel's head opens Caulder on Today; a press that moves drags it, main following the cursor (`dragWidget`), so there is no drag region swallowing clicks. A task is ticked off from its row. At the desktop level Windows takes the clicks, so the ticks are not drawn there.
 - UI: `src/features/widget/Widget.tsx`, `DeskCard.tsx` · Logic: `shared/widget.ts` · Main: `electron/main/widget.ts`, `desk.ts`, `wallpaper.ts` · IPC: `widget:` · Tests: `desk.test.ts`, `shared/widget.test.ts`; e2e `widget.spec.ts`
+
+### Light in the background, quick in front
+Measured on 25 October 2026 and kept to (STATUS.md has the numbers):
+- **Drawn without the graphics card** (`app.disableHardwareAcceleration`, `electron/main/index.ts`; `--gpu` puts it back): about 180 MB in all rather than 260, and every screen settles as fast or faster.
+- **The model is let go after three minutes with nothing to read** (`understand/host.ts`), and loaded again when there is; only falling over counts towards its three tries.
+- **The desk widget looks for the pointer a third as often while it is far away** (`widget.ts`, `FAR_TICK`); the reading loop looks for work once a minute when idle.
+- **Screens are read when first wanted** (`lazy` in `src/app/App.tsx`), then all of them in the background once Today has drawn (`warmScreens`): the window's first script is 325 kB rather than 1.2 MB.
+- **A screen's arrival is quicker**: the page rises in `--dur-fast`, and sections arrive 25 ms apart, at most five (`motion.css`).
 
 ### Backups, restore and export
 A backup on every launch (ten kept), on demand, a mirror folder, a Drive copy; restore checks the file and can be undone; export everything.

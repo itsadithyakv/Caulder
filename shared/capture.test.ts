@@ -419,4 +419,89 @@ describe("what stays true about a contact (part twelve, phase 49)", () => {
     expect(read("harbour paid").ask).toMatchObject({ do: "paid", amount: null });
     expect(read("maya has paid 1,200").ask).toMatchObject({ do: "paid", amount: 1200 });
   });
+
+  // Logic pass, 23 October 2026: each of these marked an invoice paid that had not been.
+  it("never reads money that has not come as money in", () => {
+    for (const line of [
+      "harbour hasn't paid",
+      "maya still hasn't paid",
+      "harbour has not paid",
+      "harbour never paid",
+      "remind harbour they haven't paid",
+      "payment from harbour is late",
+      "money from harbour still hasn't come",
+      "payment from maya still pending",
+    ]) {
+      expect(read(line).ask?.do, line).not.toBe("paid");
+    }
+  });
+
+  it("records money against the contact who paid, not another the line names", () => {
+    expect(read("got 2400 from maya for the kettle job").ask).toMatchObject({ do: "paid", contact: { id: "c1" }, amount: 2400 });
+    expect(read("received 5000 from priya, need to pay harbour").ask).toMatchObject({ do: "paid", contact: { id: "c2" }, amount: 5000 });
+  });
+
+  it("never sets somebody else's number or address as the contact's own", () => {
+    for (const line of [
+      "maya's accountant's email is acc@ledger.com",
+      "maya's assistant's number is 98450 12345",
+      "maya gave me sam's number 98450 12345",
+      "maya said to email her boss at boss@harbour.com",
+      "priya's partner's number 98450 12345",
+    ]) {
+      expect(read(line).ask?.do, line).not.toBe("update");
+    }
+    // Their own still is.
+    expect(read("maya's number is 98450 12345").ask).toMatchObject({ do: "update", contact: { id: "c1" }, phone: "98450 12345" });
+    expect(read("harbour email is maya@harbour.com").ask).toMatchObject({ do: "update", email: "maya@harbour.com" });
+  });
+});
+
+describe("what the company pays for, and which account it is on", () => {
+  const on = (line: string) => readCapture(line, known, { today: "2026-10-25", now: 600 });
+
+  it("keeps a renewal as a running cost on its day, a domain as the domain it is", () => {
+    expect(on("My unifloe.app domain expires on the 27th next year. It renews for ₹2,639.51").ask).toMatchObject({
+      do: "cost",
+      title: "unifloe.app",
+      amount: 2640,
+      on: "2027-10-27",
+      domain: true,
+      years: 1,
+      paid: false,
+    });
+    expect(on("Google Workspace renews on 3 feb for 8400").ask).toMatchObject({ do: "cost", title: "Google Workspace", amount: 8400, on: "2027-02-03", domain: false });
+  });
+
+  it("keeps one paid ahead as paid, and due again when the years are up", () => {
+    expect(on("I paid 20000 for the domain for 5 years. Starting today.").ask).toMatchObject({
+      do: "cost",
+      title: "Domain",
+      amount: 20000,
+      on: "2026-10-25",
+      domain: true,
+      years: 5,
+      paid: true,
+    });
+    // A sum that is not for years is still only money spent.
+    expect(on("paid 2400 for the cab").ask).toMatchObject({ do: "spend", amount: 2400 });
+  });
+
+  it("leaves what is not the company's spending to the readings it was", () => {
+    expect(on("my passport expires in march").ask).toBeNull();
+    expect(on("renew the domain on friday").kind).toBe("task");
+  });
+
+  it("knows the account a service was bought with, and the one it changed from", () => {
+    expect(on("I purchased the domain with adithya@gmail.com").ask).toEqual({ do: "account", title: "Domain", email: "adithya@gmail.com", was: null, domain: true });
+    expect(on("i use resend with studio@gmail.com").ask).toMatchObject({ do: "account", title: "Resend", email: "studio@gmail.com" });
+    expect(on("I changed leaflet's google drive permission email from leafletapp@gmail.com to adithya@gmail.com").ask).toMatchObject({
+      do: "account",
+      title: "Leaflet google drive",
+      email: "adithya@gmail.com",
+      was: "leafletapp@gmail.com",
+    });
+    // Somebody with an email is still somebody.
+    expect(on("add contact zoya zoya@kiln.studio").ask).toMatchObject({ do: "contact", email: "zoya@kiln.studio" });
+  });
 });

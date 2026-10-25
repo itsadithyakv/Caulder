@@ -2844,3 +2844,127 @@ deciding vote. The model on this machine stays where it is.
 3. **The order.** *Recommended: 45, 46, 47, 50, 48, 49* - measure first;
    then the cheap rules that are most often hit; then ticking off from the
    line, used every day; then learning; then facts, which is the largest.
+
+# Part thirteen: the business that is still done elsewhere - *built 23 October 2026*
+
+*From the owner's question after 1.0.0: what else a one-person company needs
+that is relevant. Each is something a founder does today in a spreadsheet,
+an accountant's email or their head, with the data already in Caulder.
+Nothing here is built; the order is a recommendation.*
+
+## What the owner said
+
+> Do another pass of the logic etc, what other business things you can add.
+> Something that is relevant, other ways to make the app better.
+
+## Phase 51 - Tax on the invoice
+- **The gap**: products carry a tax rate and an HSN/SAC code, but a quote
+  and an invoice carry no tax at all, so a GST- or VAT-registered business
+  cannot send its invoices from Caulder.
+- A tax rate on each line (from the product, or typed), tax-exclusive or
+  inclusive; the invoice and its PDF show the taxable value and the tax -
+  CGST and SGST, or IGST, in India by the client's state; VAT elsewhere.
+- What was charged in a quarter, for the return: on Money and in the export.
+- **Done when**: an Indian GST invoice and a UK VAT invoice from Caulder are
+  ones an accountant would accept.
+
+## Phase 52 - A quote that was not answered
+- A sent quote with no answer in seven days is offered on Today, beside late
+  invoices: *QUO-0004 to Harbour, sent 9 days ago*. A quote can carry the
+  day it is good until, and says so when it passes.
+
+## Phase 53 - Payment terms
+- A contact's terms (on receipt, 7, 15, 30 days) set a new invoice's due day,
+  and the company has a default. Today the due day is typed every time.
+
+## Phase 54 - Money coming in
+- The next 30, 60 and 90 days on Money: invoices due and retainers expected,
+  against running costs going out - the forward half of runway, which looks
+  only back.
+
+## Phase 55 - Who the money comes from
+- On Money: what each client paid this year, what they owe, how many days
+  they take to pay, and one line when one client is most of the income
+  ("62% of this year's income is Harbour").
+
+## Phase 56 - The accountant's pack
+- A quarter or a year in one folder: the invoices as PDFs, payments, spend
+  by category, tax charged, as a spreadsheet and the documents. Export
+  everything is the whole company; this is what an accountant asks for.
+
+## Phase 57 - Hours to invoice
+- A block can be for a contact, and billable at a rate; *Invoice the hours*
+  drafts lines from the blocks not yet invoiced. For a studio or a
+  consultant, the time is the product. Later than the rest: it touches the
+  calendar, Google sync and money together.
+
+## Not proposed, and why
+- A pipeline forecast, sequences, marketing verdicts: removed on purpose
+  (feature map, "Removed on purpose").
+- E-signatures, a client portal, online payments: each needs a server or an
+  account of Caulder's.
+
+## Built
+The owner said: "Do the taxs things for as many countries as you can. Add the
+buisness features too." All seven were built the same day, in the order
+recommended, and are in the feature map. Tax knows about eighty countries by
+name, rate and number, and any other types its own. Every part is checked by
+`shared/tax.test.ts`, `shared/insights.test.ts`,
+`electron/main/partthirteen.test.ts` and `e2e/tax.spec.ts`.
+
+## For the owner to decide, part thirteen
+1. **Whether to build it, and the order.** *Built, in that order.* *Recommended: 51, 52, 53, then
+   54 and 55 together, then 56; 57 last.* Tax first, because without it
+   the money half is not usable by a registered business.
+2. **Phase 36 and phase 30 first, or after.** *Recommended: 51 before both -
+   it is the one a paying customer would stop over.*
+
+3. **Money in the currency's smallest unit.** *Found in the pass before
+   1.0.0 (24 October 2026).* Every amount is a whole rupee, euro or pound, so
+   an invoice's tax is to the whole unit: rounded once a rate, it is never
+   more than half a unit out, which India's GST allows and a VAT invoice in
+   euros or pounds does not. Cents would touch every table that holds money,
+   every form and the PDF - a migration of its own, not a fix. *Recommended:
+   before Caulder is offered outside India.*
+
+# Part fourteen: invoices that look like the company's, kept where it keeps things - *built 25 October 2026*
+
+## What the owner said
+"Add some customisation to invoices generation too. How they look, and their
+organisation into folders if the user wants." And, of renewals: which account
+each service was bought with, across PaperKite's products and Unifloe.
+
+## Built
+- **How an invoice looks**, per company: three layouts (Classic, Banner,
+  Compact), six inks that print well, a logo, a closing line, and a sample
+  printed from Settings - the only honest preview of a PDF.
+- **Copies in a folder of the person's own**, by year, month or client, named
+  by number and client; the file on the contact stays as it was.
+- **Running costs by account**, and renewals that say the account (part
+  twelve's notice, 25 October).
+
+## Built later the same day
+The owner: "Ok do that ones not built", then invoicing for businesses not
+registered for GST, for as many countries as can be, "for the ones you cant,
+allow a general builder", and "Dont hardcode any of these ... i want the user
+in the future to be able to edit and configure the values themselfs".
+- **Rules of the company's own** (`shared/taxrules.ts`, migration 62): every
+  rate, name, title, threshold and required wording is a starting value the
+  company changes in Settings; an unknown country builds its own.
+- **Not registered, registered, composition** for India, each with the
+  document and the words the law asks for; the exemption words of seven EU
+  countries; thresholds for twenty.
+- **Numbering of the company's own**, chasing read by it; **TDS** on a
+  payment; **amount in words**; **quotes as PDFs**; **email with the PDF**
+  (script version 8); **Health** on Money; **costs by product**.
+
+## Not built, and why
+- **A credit note** (correcting or refunding an invoice already sent, which
+  GST and VAT both ask to be a document of its own): its own table, number
+  series and tax. *Recommended next*.
+- **Numbers that start again each year**: the invoices table keeps a number
+  unique per company, and rebuilding it is not worth what a year in the label
+  already says. Unique for good is unique within a year, as rule 46 asks.
+- **Products as spaces of their own** (each with its marketing, tasks and
+  pages): costs say their product now; the rest waits until it is asked for
+  again.

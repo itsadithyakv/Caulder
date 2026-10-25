@@ -84,8 +84,8 @@
  * it stays where it is.
  * ========================================================================= */
 
-/** Caulder reads this to know what the script can do. Email arrived in 2, contacts and Drive backups in 4, the contacts sheet in 6. */
-var SCRIPT_VERSION = 7;
+/** Caulder reads this to know what the script can do. Email arrived in 2, contacts and Drive backups in 4, the contacts sheet in 6, files with a message in 8. */
+var SCRIPT_VERSION = 8;
 
 /** Run once, by hand. Grants permission and prints the key. */
 function setUp() {
@@ -784,8 +784,9 @@ function isMine(from, mine) {
  * Through a draft rather than GmailApp.sendEmail, because sending a draft
  * hands back the message, and its thread is how the reply is found later.
  */
-function deliver(to, subject, body) {
-  var message = GmailApp.createDraft(to, subject, body).send();
+function deliver(to, subject, body, attachments) {
+  var options = attachments && attachments.length ? { attachments: attachments } : {};
+  var message = GmailApp.createDraft(to, subject, body, options).send();
   return {
     threadId: message.getThread().getId(),
     messageId: message.getId(),
@@ -814,6 +815,16 @@ function sendEmail(request) {
 
   var sendAt = request.sendAt ? new Date(request.sendAt).getTime() : 0;
   if (request.sendAt && isNaN(sendAt)) throw new Error("That send time is not a date.");
+
+  // A file goes with a message sent now: what waits is kept where a file does not fit.
+  var files = [];
+  var given = request.attachments || [];
+  for (var i = 0; i < given.length; i++) {
+    var file = given[i] || {};
+    if (!file.name || !file.data) throw new Error("A file came without its name or its contents.");
+    files.push(Utilities.newBlob(Utilities.base64Decode(String(file.data)), String(file.mimeType || "application/pdf"), String(file.name)));
+  }
+  if (files.length && sendAt && sendAt > Date.now() + 60000) throw new Error("A message with a file is sent at once, not held.");
 
   var followUp = null;
   if (request.followUp) {
@@ -852,7 +863,7 @@ function sendEmail(request) {
 
     // Due now: sent while Caulder waits, so a mistake comes back on screen.
     if (!sendAt || sendAt <= Date.now() + 60000) {
-      markSent(job, deliver(to, subject, body));
+      markSent(job, deliver(to, subject, body, files));
     }
 
     writeJob(job);

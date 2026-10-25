@@ -2,6 +2,8 @@ node_modules/
 out/
 dist/
 release/
+# Packages built beside it while the installed copy runs from release/win-unpacked.
+release-*/
 *.log
 .DS_Store
 Thumbs.db

@@ -58,3 +58,22 @@ describe("the invoice page", () => {
     expect(html).toContain("A &amp; &quot;B&quot;");
   });
 });
+
+describe("how it looks (part fourteen)", () => {
+  const look = { layout: "classic" as const, ink: "#1f4e8c", logo: null, footer: null };
+
+  it("prints in the company's ink, with a banner or tighter rows when chosen", () => {
+    expect(invoiceHtml({ ...base, look })).toContain("color: #1f4e8c");
+    expect(invoiceHtml({ ...base, look: { ...look, layout: "band" } })).toContain("background: #1f4e8c");
+    expect(invoiceHtml({ ...base, look: { ...look, layout: "compact" } })).toContain("font-size: 11.5px");
+    // Anything but a colour never reaches the style sheet.
+    expect(invoiceHtml({ ...base, look: { ...look, ink: "red; } body { display: none" } })).not.toContain("display: none");
+  });
+
+  it("carries a logo only as an image inside the page, and a closing line escaped", () => {
+    const png = "data:image/png;base64,iVBORw0KGgo=";
+    expect(invoiceHtml({ ...base, look: { ...look, logo: png } })).toContain(`<img class="logo" src="${png}"`);
+    expect(invoiceHtml({ ...base, look: { ...look, logo: "file:///C:/secret.png" } })).not.toContain("<img");
+    expect(invoiceHtml({ ...base, look: { ...look, footer: "Thanks <3" } })).toContain('<div class="footer">Thanks &lt;3</div>');
+  });
+});

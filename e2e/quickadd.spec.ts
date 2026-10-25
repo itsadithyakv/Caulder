@@ -394,14 +394,17 @@ test("a line that says remind me says it will, and Settings has the brief and a 
   await line.press("Enter");
   await expect(page.locator(".quickadd__added")).toContainText("Call the plumber");
   // Kept as a reminder against the task, at its day and time.
+  // The brief is on at nine until switched off (23 October 2026).
   const kept = await page.evaluate(() => window.caulder.nudges.get());
-  expect(kept).toEqual({ briefAt: null });
+  expect(kept).toEqual({ briefAt: "09:00" });
 
   await page.getByLabel("Main").getByRole("button", { name: "Settings" }).click();
   const brief = page.getByRole("switch", { name: "A morning brief of what matters today" });
-  await expect(brief).toHaveAttribute("aria-checked", "false");
-  await brief.click();
   await expect(brief).toHaveAttribute("aria-checked", "true");
+  await brief.click();
+  await expect(brief).toHaveAttribute("aria-checked", "false");
+  await expect.poll(() => page.evaluate(() => window.caulder.nudges.get())).toEqual({ briefAt: null });
+  await brief.click();
   await expect.poll(() => page.evaluate(() => window.caulder.nudges.get())).toEqual({ briefAt: "09:00" });
 
   // The test is sent, and says where to look if Windows holds it back.

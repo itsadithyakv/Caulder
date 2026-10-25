@@ -40,6 +40,10 @@ function block(startsAt: string, minutes: number, kind: string | null = "focus")
     isDirty: false,
     createdAt: "",
     updatedAt: "",
+    leadId: null,
+    leadName: null,
+    billable: false,
+    invoiceId: null,
   };
 }
 

@@ -109,6 +109,32 @@ test("a sum that was not said to be spent is offered, and logged only when chose
   expect(spent).toContainEqual(["Swiggy lunch", 320]);
 });
 
+test("a domain said to expire is kept as one, with the account it is on and paid five years ahead", async () => {
+  await goTo(page, "Today");
+  await line().fill("My unifloe.app domain expires on the 27th next year. It renews for 2,640");
+  await expect(goesTo().getByRole("button", { name: "unifloe.app: 2,640 a year, renews 27 Oct 2027" })).toHaveAttribute("aria-pressed", "true");
+  await line().press("Enter");
+  await expect(page.getByText(/unifloe\.app: 2,640 a year, renews .*a domain in Tools/)).toBeVisible();
+  await line().fill("I bought unifloe.app with adithya@gmail.com");
+  await line().press("Enter");
+  await expect(page.getByText(/unifloe\.app: on adithya@gmail\.com/)).toBeVisible();
+  await line().fill("I paid 20000 for unifloe.app for 5 years");
+  await line().press("Enter");
+
+  await goTo(page, "Money");
+  await page.getByRole("tab", { name: "Running costs" }).click();
+  const row = page.getByRole("list", { name: "Running costs" }).locator(".money__row", { hasText: "unifloe.app" });
+  await expect(row).toHaveCount(1);
+  await expect(row).toContainText("for 5 years");
+  await expect(row).toContainText("adithya@gmail.com");
+  const spent = await page.evaluate(async () => {
+    const { activeCompanyId } = await window.caulder.companies.list();
+    const money = await window.caulder.money.get(activeCompanyId as string);
+    return money.spend.map((entry) => [entry.what, entry.amount]);
+  });
+  expect(spent).toContainEqual(["unifloe.app", 20000]);
+});
+
 test("what was remembered is read back from the brain, and nothing personal is on the sidebar", async () => {
   const nav = page.getByLabel("Main");
   for (const gone of ["Journal", "Life"]) {

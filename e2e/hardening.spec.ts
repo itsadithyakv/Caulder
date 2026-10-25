@@ -219,8 +219,7 @@ test("settings says where the data actually lives", async () => {
 
   await page.getByRole("button", { name: "Settings" }).click();
   // No cloud behind this, so the location is stated rather than hidden.
-  await expect(page.getByText(/The database is at/)).toBeVisible();
-  await expect(page.getByText(/with Caulder closed/)).toBeVisible();
+  await expect(page.getByText(/The database:/)).toBeVisible();
 });
 
 test("a refusal from main arrives as its sentence, not as Electron's wrapper", async () => {

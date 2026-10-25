@@ -336,7 +336,7 @@ export async function readFirstFor(db: Db, read: Read, companyId: string, purpos
 
 /** Quickly while there is a queue; slowly once there is not. */
 const BUSY_MS = 1_500;
-const IDLE_MS = 30_000;
+const IDLE_MS = 60_000;
 
 let timer: NodeJS.Timeout | null = null;
 let lastProblem: string | null = null;

@@ -4,6 +4,8 @@ import type { EmailReply } from "./mail";
 import type { Renewal } from "./costs";
 import type { Deadline } from "./deadlines";
 import { cleanProfile, type ProfileKind } from "./profiles";
+import { TAX_TREATMENTS, type TaxLine, type TaxTreatment } from "./tax";
+import type { Ahead, ClientMoney } from "./insights";
 
 /**
  * The domain types and their validators, imported by BOTH the renderer and the
@@ -911,6 +913,8 @@ export type Today = {
   deadlines: Deadline[];
   /** Who was reached, and who is still waiting to be. */
   reach: Reach;
+  /** Quotes sent a week ago or more with no answer, or past their last day (part thirteen, phase 52). */
+  quotesWaiting: Quote[];
 };
 
 /* ---- Settings -----------------------------------------------------------
@@ -989,10 +993,12 @@ export const SETTING_KEYS = [
   "widgetSpot",
   // Set once the first launch of an installed copy has turned on opening at sign-in.
   "startupSet",
-  /** The hour of the morning brief, "HH:MM"; empty or never set is off. */
+  /** The hour of the morning brief, "HH:MM"; never set is 09:00, empty is off. */
   "briefAt",
   /** The day the morning brief was last sent. */
   "briefed",
+  /** The renewals already said, as "pageId|day|soon" or "|due" (JSON), kept only while each is in view. */
+  "renewalsTold",
   /** "on" when understanding on this machine is switched off; on by default (PLAN.md, part five). */
   "understandOff",
   /** Loose memories not to offer moving again, as "pageId#hash" (JSON): *Not these*, phase 21. */
@@ -1017,7 +1023,8 @@ export type SettingKey = (typeof SETTING_KEYS)[number];
  * Not Ctrl and the Windows key alone: a system-wide key needs a key, not only
  * modifiers, so two modifiers by themselves cannot be claimed.
  */
-export const DEFAULT_CAPTURE_SHORTCUT = "Ctrl+Super+A";
+/** Ctrl+Q, the owner's choice (23 October 2026); it was Ctrl+Win+A. Held, no other app gets Ctrl+Q. */
+export const DEFAULT_CAPTURE_SHORTCUT = "Ctrl+Q";
 
 /** "Ctrl+Win+A": an accelerator the way a person on Windows would say it. */
 export function sayShortcut(accelerator: string): string {
@@ -1143,6 +1150,13 @@ export type Block = {
   isDirty: boolean;
   createdAt: string;
   updatedAt: string;
+  /** The contact this time is for (part thirteen, phase 57), and their name. */
+  leadId: string | null;
+  leadName: string | null;
+  /** Billed by the hour: offered on the contact's page until it is on an invoice. */
+  billable: boolean;
+  /** The invoice that billed it, once one has. */
+  invoiceId: string | null;
 };
 
 export const blockInput = z.object({
@@ -1173,6 +1187,13 @@ export const blockInput = z.object({
     .max(24 * 60, "A day is as far ahead as a reminder can be set.")
     .nullable()
     .default(null),
+  /**
+   * Whom the time is for, and whether it is billed by the hour (PLAN.md,
+   * part thirteen, phase 57). Read only when a block is made; after that it
+   * is changed apart from the form (`hours:set-for`), so a drag or a sync
+   * that saves the block cannot forget it.
+   */
+  forClient: z.object({ leadId: z.string().min(1), billable: z.boolean() }).nullable().optional(),
   /**
    * How it repeats, if it does. ISO weekday numbers and a last day.
    *
@@ -1365,8 +1386,17 @@ export const moneyLineInput = z.object({
    * the catalogue says later.
    */
   productId: z.string().nullable().optional(),
+  /** The tax on it, as a percentage; null for none. Left out, the line takes the product's, or the client's usual. */
+  taxRate: z.number().min(0, "A tax rate cannot be negative.").max(100, "A tax rate is at most 100%.").nullable().optional(),
 });
 export type MoneyLineInput = z.infer<typeof moneyLineInput>;
+
+/** How a document is taxed (shared/tax.ts). Left out of a new one, it is worked out from the company and the client. */
+const docTaxInput = z.object({
+  treatment: z.enum(TAX_TREATMENTS).nullable(),
+  inclusive: z.boolean(),
+});
+
 
 export const quoteInput = z.object({
   leadId: z.string().min(1, "Pick a contact."),
@@ -1375,6 +1405,9 @@ export const quoteInput = z.object({
   issuedOn: dayString,
   notes: optionalText(2000),
   lines: z.array(moneyLineInput).min(1, "Add at least one line.").max(50, "Fifty lines is the limit."),
+  tax: docTaxInput.optional(),
+  /** A quote's last good day (phase 52); not used by an invoice. */
+  validUntil: dayString.nullable().optional(),
 });
 export type QuoteInput = z.infer<typeof quoteInput>;
 
@@ -1403,8 +1436,11 @@ export const paymentInput = z.object({
   amount: z.number().int("Whole units of the currency.").positive("A payment has to be more than nothing."),
   paidOn: dayString,
   note: optionalText(500),
+  /** What the client kept back as tax and paid in the company's name: India's TDS (migration 62). */
+  withheld: z.number().int("Whole units of the currency.").min(0, "Withheld tax cannot be less than nothing.").default(0),
 });
-export type PaymentInput = z.infer<typeof paymentInput>;
+/** As typed: `withheld` may be left out, and is nothing. */
+export type PaymentInput = z.input<typeof paymentInput>;
 
 export const spendEntryInput = z.object({
   spentOn: dayString,
@@ -1425,6 +1461,26 @@ export type MoneyLine = {
   /** The product it came from, if it did, and that product's name now. */
   productId: string | null;
   productName: string | null;
+  /** Its tax, as a percentage; null for none. */
+  taxRate: number | null;
+};
+
+/** What a quote or an invoice adds up to, with its tax (shared/tax.ts `taxed`). */
+type DocMoney = {
+  /** Before tax. */
+  subtotal: number;
+  /** The tax, one line a component and a rate. Empty when none is charged. */
+  tax: TaxLine[];
+  /** Said on it when tax is not charged, and why: a reverse charge, an export. */
+  taxNote: string | null;
+  taxTreatment: TaxTreatment | null;
+  taxInclusive: boolean;
+  /**
+   * Its number as printed, searched for and chased by: "INV-0042", or as the
+   * company writes them - "PK/26-27/0042" (shared/invoicelook.ts). A quote's
+   * is always "Q-0007".
+   */
+  label: string;
 };
 
 export type Quote = {
@@ -1438,15 +1494,21 @@ export type Quote = {
   status: QuoteStatus;
   issuedOn: string;
   notes: string | null;
+  /** What it comes to, tax and all. */
   total: number;
   lines: MoneyLine[];
   createdAt: string;
-};
+  /** Its last good day, or null. */
+  validUntil: string | null;
+} & DocMoney;
 
 export type Payment = {
   id: string;
   invoiceId: string;
+  /** What came in. */
   amount: number;
+  /** What the client withheld as tax (TDS): paid towards the invoice, but not money in the bank. */
+  withheld: number;
   paidOn: string;
   note: string | null;
 };
@@ -1482,7 +1544,7 @@ export type Invoice = {
    * kept to say so. Null when none has, and for an invoice that is not owed.
    */
   reminded: { at: string; times: number } | null;
-};
+} & DocMoney;
 
 export type SpendEntry = {
   id: string;
@@ -1507,6 +1569,12 @@ export type MoneyOverview = {
   spend: SpendEntry[];
   /** Sent, past due, unpaid. Also on Today. */
   overdue: Invoice[];
+  /** The tax charged on what was invoiced this quarter, by component and rate: what the return asks (phase 51). */
+  taxQuarter: { from: string; to: string; lines: TaxLine[] };
+  /** The next ninety days: owed and due, retainers to come, running costs (phase 54). */
+  ahead: Ahead;
+  /** Who the money comes from (phase 55). */
+  clients: { clients: ClientMoney[]; mostOfIt: ClientMoney | null };
 };
 
 /** A sent invoice past its due date. Worked out when read, never stored. */

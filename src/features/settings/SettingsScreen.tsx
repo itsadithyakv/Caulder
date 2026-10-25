@@ -21,6 +21,8 @@ import { ConnectionsCard } from "./Connected";
 import { DeskCard } from "./DeskCard";
 import { UnderstandCard } from "./UnderstandCard";
 import { ThisIsMeCard } from "./ThisIsMeCard";
+import { BillingCard } from "./BillingCard";
+import { InvoiceLookCard } from "./InvoiceLookCard";
 import { getTheme, setTheme, type ThemeChoice } from "@/lib/theme";
 import { DEFAULT_CAPTURE_SHORTCUT, sayShortcut, type AccentId, type Company } from "@shared/domain";
 import { countryName } from "@shared/countries";
@@ -129,6 +131,8 @@ export function SettingsScreen({
           {activeCompany && (
             <Column title="Contacts and deals">
               <StageEditor key={activeCompany.id} companyId={activeCompany.id} />
+              <BillingCard key={`billing-${activeCompany.id}`} companyId={activeCompany.id} currency={activeCompany.currency} />
+              <InvoiceLookCard key={`invoices-${activeCompany.id}`} companyId={activeCompany.id} />
               <FieldsCard />
               <TemplatesCard key={`templates-${activeCompany.id}`} />
             </Column>
@@ -160,6 +164,7 @@ export function SettingsScreen({
 
         <Group id="computer">
           <Column>
+            <WindowsCard />
             <AppearanceCard />
             <UpdatesCard />
           </Column>
@@ -464,12 +469,77 @@ function CompanyRow({ company, canArchive }: { company: Company; canArchive: boo
  * to the combination first, and believing in a key you do not have is worse
  * than having none.
  */
+/**
+ * How Caulder sits on this computer: whether it opens when Windows starts,
+ * and whether closing the window leaves it in the tray. First under This
+ * computer, and on the tray icon's own menu too, since both are asked for
+ * from the desktop rather than from inside the app.
+ */
+function WindowsCard() {
+  const [keep, setKeep] = useState(true);
+  const [startup, setStartup] = useState<{ on: boolean; store: boolean } | null>(null);
+
+  useEffect(() => {
+    void window.caulder.capture.keepInTray().then(setKeep);
+    window.caulder.app.startup().then(setStartup, () => undefined);
+  }, []);
+
+  async function chooseKeep(on: boolean) {
+    setKeep(on);
+    await window.caulder.capture.setKeepInTray(on);
+  }
+
+  return (
+    <Card title="Windows">
+      {/* `field` carries the display; `checkline` only sets its direction. */}
+      <label className="field checkline">
+        <input
+          type="checkbox"
+          className="tickbox"
+          checked={keep}
+          onChange={(event) => void chooseKeep(event.target.checked)}
+          aria-label="Keep Caulder in the tray when its window is closed"
+        />
+        <span className="checkline__text">
+          <span className="checkline__title">Keep Caulder in the tray when its window is closed</span>
+          <span className="card__hint">
+            Quit from the tray icon&rsquo;s menu.
+          </span>
+        </span>
+      </label>
+
+      {startup && !startup.store && (
+        <label className="field checkline">
+          <input
+            type="checkbox"
+            className="tickbox"
+            checked={startup.on}
+            onChange={(event) => void window.caulder.app.setStartup(event.target.checked).then(setStartup)}
+            aria-label="Open Caulder when Windows starts"
+          />
+          <span className="checkline__text">
+            <span className="checkline__title">Open Caulder when Windows starts</span>
+            <span className="card__hint">{keep ? "In the tray, out of the way." : "With its window open."}</span>
+          </span>
+        </label>
+      )}
+      {startup?.store && (
+        <p className="card__hint">
+          Opens when Windows starts.{" "}
+          <button type="button" className="linkbtn" onClick={() => void window.caulder.app.startupApps()}>
+            Change it in Windows
+          </button>
+        </p>
+      )}
+
+    </Card>
+  );
+}
+
 function CaptureCard() {
   const [state, setState] = useState<{ accelerator: string; held: boolean; reason: string | null } | null>(null);
   const [draft, setDraft] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
-  const [keep, setKeep] = useState(true);
-  const [startup, setStartup] = useState<{ on: boolean; store: boolean } | null>(null);
 
   async function load() {
     const now = await window.caulder.capture.get();
@@ -479,8 +549,6 @@ function CaptureCard() {
 
   useEffect(() => {
     void load();
-    void window.caulder.capture.keepInTray().then(setKeep);
-    window.caulder.app.startup().then(setStartup, () => undefined);
   }, []);
 
   async function apply(next: string) {
@@ -490,10 +558,6 @@ function CaptureCard() {
     await load();
   }
 
-  async function chooseKeep(on: boolean) {
-    setKeep(on);
-    await window.caulder.capture.setKeepInTray(on);
-  }
 
   const held = state?.held ? state.accelerator : "";
 
@@ -553,47 +617,6 @@ function CaptureCard() {
             ? state.reason
             : "No key set. The tray icon still works."}
       </p>
-
-      {/* `field` carries the display; `checkline` only sets its direction. */}
-      <label className="field checkline">
-        <input
-          type="checkbox"
-          className="tickbox"
-          checked={keep}
-          onChange={(event) => void chooseKeep(event.target.checked)}
-          aria-label="Keep Caulder in the tray when its window is closed"
-        />
-        <span className="checkline__text">
-          <span className="checkline__title">Keep Caulder in the tray when its window is closed</span>
-          <span className="card__hint">
-            Quit from the tray icon&rsquo;s menu.
-          </span>
-        </span>
-      </label>
-
-      {startup && !startup.store && (
-        <label className="field checkline">
-          <input
-            type="checkbox"
-            className="tickbox"
-            checked={startup.on}
-            onChange={(event) => void window.caulder.app.setStartup(event.target.checked).then(setStartup)}
-            aria-label="Open Caulder when Windows starts"
-          />
-          <span className="checkline__text">
-            <span className="checkline__title">Open Caulder when Windows starts</span>
-            <span className="card__hint">{keep ? "In the tray, out of the way." : "With its window open."}</span>
-          </span>
-        </label>
-      )}
-      {startup?.store && (
-        <p className="card__hint">
-          Opens when Windows starts.{" "}
-          <button type="button" className="linkbtn" onClick={() => void window.caulder.app.startupApps()}>
-            Change it in Windows
-          </button>
-        </p>
-      )}
 
       <Explain label="What the window does">
         <p>

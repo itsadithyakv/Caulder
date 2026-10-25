@@ -110,6 +110,16 @@
   /* The three-pixel halo a focused field or a hovered primary button wears. */
   --accent-halo: color-mix(in srgb, var(--accent) 22%, transparent);
 
+  /* The inks an invoice can be printed in (shared/invoicelook.ts, INVOICE_INKS):
+   * the paper's colours, shown as swatches in Settings. The same in dark mode,
+   * because the paper does not change. Keep the two lists in step. */
+  --doc-ink-ink: #1a1f2b;
+  --doc-ink-blue: #1f4e8c;
+  --doc-ink-teal: #0f6b6b;
+  --doc-ink-green: #2f6b2f;
+  --doc-ink-plum: #5b2a6e;
+  --doc-ink-rust: #9a3d12;
+
   /* The funnel.
    *
    * Columns are neutral. The stage is carried by the line along the top of a

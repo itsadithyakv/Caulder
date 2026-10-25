@@ -68,6 +68,7 @@ function harness(extra: Record<string, unknown> = {}) {
   const threads = new Map<string, Message[]>();
   const messages = new Map<string, Message>();
   const outbox: Message[] = [];
+  const sentFiles: unknown[] = [];
   const triggers: { handler: string; minutes: number }[] = [];
   const settings = { quota: 100, replyAllTo: null as string | null };
   let counter = 0;
@@ -136,7 +137,11 @@ function harness(extra: Record<string, unknown> = {}) {
   const context = {
     Date: FakeDate,
     Logger: { log: () => undefined },
-    Utilities: { getUuid: () => `uuid-${(counter += 1)}` },
+    Utilities: {
+      getUuid: () => `uuid-${(counter += 1)}`,
+      base64Decode: (data: string) => [...Buffer.from(data, "base64")],
+      newBlob: (bytes: number[], type: string, name: string) => ({ name, type, size: bytes.length }),
+    },
     PropertiesService: {
       getScriptProperties: () => ({
         getProperty: (key: string) => props.get(key) ?? null,
@@ -171,8 +176,11 @@ function harness(extra: Record<string, unknown> = {}) {
     MailApp: { getRemainingDailyQuota: () => settings.quota },
     GmailApp: {
       getAliases: () => ["hello@unifloe.in"],
-      createDraft: (to: string, subject: string, body: string) => ({
-        send: () => wrap(store({ from: ME, to, subject, body })),
+      createDraft: (to: string, subject: string, body: string, options?: { attachments?: unknown[] }) => ({
+        send: () => {
+          if (options?.attachments) sentFiles.push(...options.attachments);
+          return wrap(store({ from: ME, to, subject, body }));
+        },
       }),
       getThreadById: (id: string) => (threads.has(id) ? thread(id) : null),
       getMessageById: (id: string) => wrap(messages.get(id)!),
@@ -206,7 +214,7 @@ function harness(extra: Record<string, unknown> = {}) {
     message.headers = headers;
   }
 
-  return { clock, script, post, outbox, triggers, settings, props, answer };
+  return { clock, script, post, outbox, triggers, settings, props, answer, sentFiles };
 }
 
 let h: ReturnType<typeof harness>;
@@ -717,5 +725,21 @@ describe("contacts in a Google Sheet", () => {
     const out = with_.script.doPost({ postData: { contents: JSON.stringify({ action: "brainPull", invite: "anything" }) } });
     expect(JSON.parse(out.text)).toMatchObject({ ok: false, error: "That key is not right." });
     expect(loose(with_.post("brainPull", {})).error).toContain("does not do");
+  });
+});
+
+describe("a file with a message (version 8)", () => {
+  const pdf = { name: "INV-0001.pdf", mimeType: "application/pdf", data: Buffer.from("%PDF-1.4 sample").toString("base64") };
+
+  it("sends an invoice's PDF with a message sent now", () => {
+    expect(send({ attachments: [pdf] }).ok).toBe(true);
+    expect(h.sentFiles).toEqual([{ name: "INV-0001.pdf", type: "application/pdf", size: 15 }]);
+  });
+
+  it("refuses to hold a message with a file for later", () => {
+    const later = new Date(h.clock.now + 3 * 60 * 60 * 1000).toISOString();
+    const reply = send({ attachments: [pdf], sendAt: later });
+    expect(reply.ok).toBe(false);
+    expect(reply.error).toMatch(/sent at once/);
   });
 });

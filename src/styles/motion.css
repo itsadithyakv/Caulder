@@ -109,7 +109,7 @@
   to   { opacity: 0; transform: translateX(14px) scale(0.98); }
 }
 
-.anim-page  { animation: rise      var(--dur)      var(--ease) both; }
+.anim-page  { animation: rise      var(--dur-fast) var(--ease) both; }
 .anim-in    { animation: fade      var(--dur-fast) var(--ease) both; }
 .anim-menu  { animation: menu-in   var(--dur-fast) var(--ease) both; }
 .anim-modal { animation: float-up  var(--dur)      var(--ease) both; }
@@ -126,10 +126,12 @@
  * are the funnel left to right - so revealing them in sequence says something
  * a simultaneous fade does not.
  *
- * Capped at eight. Past that the delay is longer than anyone waits to read the
- * top of the screen, so the rest arrive together. */
+ * Capped at five, 25ms apart (25 October 2026: at eight and 45ms the last
+ * section landed half a second after a screen whose data was there in
+ * twenty milliseconds, and the app felt slower than it is). Past that the
+ * rest arrive together. */
 .anim-stagger {
-  --stagger: 45ms;
+  --stagger: 25ms;
 }
 
 .anim-stagger > * {
@@ -141,9 +143,7 @@
 .anim-stagger > *:nth-child(3) { animation-delay: calc(var(--stagger) * 2); }
 .anim-stagger > *:nth-child(4) { animation-delay: calc(var(--stagger) * 3); }
 .anim-stagger > *:nth-child(5) { animation-delay: calc(var(--stagger) * 4); }
-.anim-stagger > *:nth-child(6) { animation-delay: calc(var(--stagger) * 5); }
-.anim-stagger > *:nth-child(7) { animation-delay: calc(var(--stagger) * 6); }
-.anim-stagger > *:nth-child(n + 8) { animation-delay: calc(var(--stagger) * 7); }
+.anim-stagger > *:nth-child(n + 6) { animation-delay: calc(var(--stagger) * 5); }
 
 /* Boot, and any wait long enough to need saying. The mark rather than a
  * spinner: this is the app starting, not a request in flight. */

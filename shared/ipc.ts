@@ -4,6 +4,12 @@ import type { ProfileKind } from "./profiles";
 import type { SheetState } from "./sheet";
 import type { Fact, FactInput, PaidFromInput } from "./domain";
 import type { WeekReview, WeekThing, WeekThingsInput } from "./week";
+import type { ClientBilling, CompanyBilling, CompanyBillingChanges } from "./billing";
+import type { TaxRules, TaxRulesChanges } from "./taxrules";
+import type { InvoiceLook } from "./invoicelook";
+import type { HoursToBill } from "./hours";
+import type { AccountantPack, AccountantPeriod } from "./accountant";
+import type { Health } from "./health";
 import type {
   BrainExport,
   BrainHome,
@@ -235,6 +241,7 @@ export const CHANNELS = {
   invoiceStatus: "invoices:status",
   invoiceMarkPaid: "invoices:mark-paid",
   invoicePdf: "invoices:pdf",
+  quotePdf: "quotes:pdf",
   invoiceDelete: "invoices:delete",
   paymentAdd: "payments:add",
   paymentDelete: "payments:delete",
@@ -387,6 +394,22 @@ export const CHANNELS = {
   factsRemove: "facts:remove",
   factsAway: "facts:away",
   moneyPaidFrom: "money:paid-from",
+  billingCompany: "billing:company",
+  billingSetCompany: "billing:set-company",
+  billingClient: "billing:client",
+  billingSetClient: "billing:set-client",
+  billingTaxRules: "billing:tax-rules",
+  billingSetTaxRules: "billing:set-tax-rules",
+  billingInvoiceLook: "billing:invoice-look",
+  billingSetInvoiceLook: "billing:set-invoice-look",
+  billingInvoiceLogo: "billing:invoice-logo",
+  billingInvoiceFolder: "billing:invoice-folder",
+  billingInvoiceSample: "billing:invoice-sample",
+  moneyAccountantPack: "money:accountant-pack",
+  moneyHealth: "money:health",
+  hoursSetFor: "hours:set-for",
+  hoursToBill: "hours:to-bill",
+  hoursBill: "hours:bill",
   tuneNameKeep: "tune:name-keep",
   tuneNameForget: "tune:name-forget",
   lessonsList: "lessons:list",
@@ -778,8 +801,46 @@ export type OutreachApi = {
  * and a screen that patched those by hand would eventually disagree with the
  * database.
  */
+/**
+ * What a company charges and how it is paid, and the same of a client (part
+ * thirteen): tax, payment terms, an hourly rate (shared/billing.ts).
+ */
+export type BillingApi = {
+  company: (companyId: string) => Promise<CompanyBilling>;
+  setCompany: (companyId: string, input: CompanyBillingChanges) => Promise<CompanyBilling>;
+  /** The company's tax and invoicing rules: its changes, what applies, and its country's (shared/taxrules.ts). */
+  taxRules: (companyId: string) => Promise<{ changes: TaxRulesChanges; rules: TaxRules; defaults: TaxRules }>;
+  /** Saves them; only what differs from the country's is kept. */
+  setTaxRules: (companyId: string, changes: TaxRulesChanges) => Promise<{ changes: TaxRulesChanges; rules: TaxRules; defaults: TaxRules }>;
+  client: (companyId: string, leadId: string) => Promise<ClientBilling>;
+  setClient: (companyId: string, leadId: string, input: ClientBilling) => Promise<ClientBilling>;
+  /** How its invoices look and where their copies go (part fourteen, shared/invoicelook.ts). */
+  invoiceLook: (companyId: string) => Promise<InvoiceLook>;
+  /** Saves the look. The folder is only ever cleared here; it is chosen with `invoiceFolder`. */
+  setInvoiceLook: (companyId: string, look: InvoiceLook) => Promise<InvoiceLook>;
+  /** Asks for a PNG or JPEG and keeps it as the logo; with `remove`, takes it off. Null when cancelled. */
+  invoiceLogo: (companyId: string, remove?: boolean) => Promise<InvoiceLook | null>;
+  /** Asks for the folder copies go into. Null when cancelled. */
+  invoiceFolder: (companyId: string) => Promise<InvoiceLook | null>;
+  /** A made-up invoice in the company's look, opened as a PDF. */
+  invoiceSample: (companyId: string) => Promise<void>;
+};
+
+/** Time billed by the hour (part thirteen, phase 57). */
+export type HoursApi = {
+  /** Whom a block's time is for, and whether it is billed by the hour. */
+  setFor: (blockId: string, input: { leadId: string | null; billable: boolean }) => Promise<void>;
+  toBill: (companyId: string, leadId: string) => Promise<HoursToBill>;
+  /** The hours as a draft invoice, a line a block. */
+  bill: (companyId: string, leadId: string) => Promise<Invoice>;
+};
+
 export type MoneyApi = {
   get: (companyId: string) => Promise<MoneyOverview>;
+  /** A period's invoices, tax, payments and spend in a folder the person picks; null when they did not pick one (phase 56). */
+  accountantPack: (companyId: string, period: AccountantPeriod) => Promise<AccountantPack | null>;
+  /** How the company is doing with money: a year by month, the year's turnover against its threshold, the next filings (part fourteen). */
+  health: (companyId: string) => Promise<Health>;
   /** "Got 2400 from harbour": their open invoice paid, or a payment against it (part twelve, phase 49). */
   paidFrom: (companyId: string, input: PaidFromInput) => Promise<{ say: string }>;
   /** What a contact has been quoted and invoiced. */
@@ -795,6 +856,8 @@ export type MoneyApi = {
   markPaid: (companyId: string, id: string) => Promise<MoneyOverview>;
   /** Writes the PDF, attaches it to the contact and opens it. */
   invoicePdf: (companyId: string, id: string) => Promise<void>;
+  /** The quote as a PDF in the company's look, filed on the contact and opened (part fourteen). */
+  quotePdf: (companyId: string, id: string) => Promise<void>;
   deleteInvoice: (companyId: string, id: string) => Promise<MoneyOverview>;
   addPayment: (companyId: string, invoiceId: string, input: PaymentInput) => Promise<MoneyOverview>;
   deletePayment: (companyId: string, id: string) => Promise<MoneyOverview>;
@@ -1347,6 +1410,8 @@ export type CaulderApi = {
   today: TodayApi;
   outreach: OutreachApi;
   money: MoneyApi;
+  billing: BillingApi;
+  hours: HoursApi;
   day: DayApi;
   notes: NotesApi;
   brain: BrainApi;

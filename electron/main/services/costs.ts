@@ -86,8 +86,8 @@ export function renewCost(db: Db, companyId: string, pageId: string, now: Date =
   if (!field) throw new Error(`${cost.title} has no date to move on.`);
 
   db.transaction(() => {
-    if (cost.amount !== null && cost.amount > 0) {
-      recordCostPaid(db, companyId, { pageId, title: cost.title, amount: cost.amount }, day, now);
+    if (cost.each !== null && cost.each > 0) {
+      recordCostPaid(db, companyId, { pageId, title: cost.title, amount: cost.each }, day, now);
     }
     const page = getPage(db, pageId);
     savePage(
@@ -96,7 +96,7 @@ export function renewCost(db: Db, companyId: string, pageId: string, now: Date =
       {
         title: page.title,
         body: page.body,
-        fields: { ...page.fields, [field]: nextAfter(cost.nextOn as string, cost.cycle) },
+        fields: { ...page.fields, [field]: nextAfter(cost.nextOn as string, cost.cycle, cost.years) },
         baseRevision: page.revision,
       },
       now,

@@ -48,7 +48,10 @@ type Row = { line: string; kind: CaptureKind; hard: boolean; why: string };
 
 const WRITTEN = [
   { file: "blind-2026-10-a.json", name: "The first set", heldOut: false, floor: { rules: 93, withModel: 93 } },
-  { file: "blind-2026-10-b.json", name: "The second set", heldOut: false, floor: { rules: 90, withModel: 90 } },
+  // 89, from 90, on 25 October 2026: "the co-working membership renews on the 5th and costs 9k a
+  // month" was written as a memory, and is kept as a running cost on the 5th now, as the owner
+  // asked (renewalIn). The set is left as it was written.
+  { file: "blind-2026-10-b.json", name: "The second set", heldOut: false, floor: { rules: 89, withModel: 89 } },
   { file: "blind-2026-10-c.json", name: "The held-out set", heldOut: true, floor: { rules: 71, withModel: 75 } },
 ].map((set) => ({ ...set, written: JSON.parse(readFileSync(join(import.meta.dirname, set.file), "utf8")) as Row[] }));
 

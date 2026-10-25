@@ -2,7 +2,6 @@ import { useCallback } from "react";
 import {
   INVOICE_STATUS_LABEL,
   QUOTE_STATUS_LABEL,
-  documentNumber,
   isOverdueInvoice,
   type Invoice,
   type Quote,
@@ -30,7 +29,7 @@ export function LeadMoney({ leadId, onOpenMoney }: { leadId: string; onOpenMoney
   const documents = [
     ...(data?.invoices ?? []).map((invoice) => ({
       id: invoice.id,
-      number: documentNumber("invoice", invoice.number),
+      number: invoice.label,
       total: invoice.total,
       status: isOverdueInvoice(invoice, day) ? "Overdue" : INVOICE_STATUS_LABEL[invoice.status],
       danger: isOverdueInvoice(invoice, day),
@@ -39,7 +38,7 @@ export function LeadMoney({ leadId, onOpenMoney }: { leadId: string; onOpenMoney
     })),
     ...(data?.quotes ?? []).map((quote) => ({
       id: quote.id,
-      number: documentNumber("quote", quote.number),
+      number: quote.label,
       total: quote.total,
       status: QUOTE_STATUS_LABEL[quote.status],
       danger: false,

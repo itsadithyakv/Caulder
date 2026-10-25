@@ -135,6 +135,8 @@ export type PickableProduct = {
   status: ProductStatus;
   price: Price | null;
   cost: number | null;
+  /** Its tax, as a percentage, when the catalogue says: a line picked from it starts there. */
+  taxRate: number | null;
 };
 
 const money = (label: string) =>

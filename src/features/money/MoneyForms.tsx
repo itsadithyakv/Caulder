@@ -1,10 +1,9 @@
 import { RulesAside } from "@/components/RulesAside";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { Package, Plus, Trash2, X } from "lucide-react";
 import {
   INVOICE_REPEATS,
   INVOICE_REPEAT_LABEL,
-  documentNumber,
   invoiceInput,
   paymentInput,
   quoteInput,
@@ -16,6 +15,8 @@ import {
   type Quote,
 } from "@shared/domain";
 import { shiftDay } from "@shared/dates";
+import { rateFor, taxSystemFor, taxed, treatmentFor, treatmentLabel, treatmentsFor, type TaxTreatment } from "@shared/tax";
+import type { ClientBilling, CompanyBilling } from "@shared/billing";
 import { describeRecurrence, type PickableProduct } from "@shared/products";
 import { Portal } from "@/components/Portal";
 import { Select } from "@/components/Select";
@@ -31,10 +32,27 @@ import { messageOf } from "@/lib/errors";
  * out as you type, so what the form says is what the file will say.
  */
 
-/** A line as typed. `productId` is set when it came from the catalogue, and stays until unlinked. */
-type LineDraft = { description: string; quantity: string; unitPrice: string; productId: string | null };
+/**
+ * A line as typed. `productId` is set when it came from the catalogue, and
+ * stays until unlinked. `taxRate` is the line's tax as typed, "" for none.
+ */
+type LineDraft = { description: string; quantity: string; unitPrice: string; productId: string | null; taxRate: string };
 
-const EMPTY_LINE: LineDraft = { description: "", quantity: "1", unitPrice: "", productId: null };
+const EMPTY_LINE: LineDraft = { description: "", quantity: "1", unitPrice: "", productId: null, taxRate: "" };
+
+const rateText = (rate: number | null | undefined) => (rate === null || rate === undefined ? "" : String(rate));
+
+/** The company's settings and a client's, as the tax rules read them. */
+const asCompany = (billing: CompanyBilling) => ({
+  country: billing.country,
+  on: billing.taxOn,
+  rate: billing.taxRate,
+  inclusive: billing.taxInclusive,
+  region: billing.taxRegion,
+  number: billing.taxNumber,
+  rules: billing.rules,
+});
+const asClient = (billing: ClientBilling | null) => ({ country: billing?.taxCountry ?? null, region: billing?.taxRegion ?? null, number: billing?.taxNumber ?? null });
 
 function useEscape(onClose: () => void) {
   useEffect(() => {
@@ -75,6 +93,15 @@ export function DocumentForm({
   const [dueOn, setDueOn] = useState(
     existing && "dueOn" in existing ? existing.dueOn : shiftDay(day, 14),
   );
+  /** Changed by hand: the client's terms no longer move it. */
+  const [dueTouched, setDueTouched] = useState(Boolean(existing));
+  const [validUntil, setValidUntil] = useState(existing && "validUntil" in existing ? (existing.validUntil ?? "") : "");
+  const [company, setCompany] = useState<CompanyBilling | null>(null);
+  const [client, setClient] = useState<ClientBilling | null>(null);
+  /** How it is taxed: "" for no tax. Worked out from the client until chosen by hand. */
+  const [treatment, setTreatment] = useState<string>(existing?.taxTreatment ?? "");
+  const [treatmentTouched, setTreatmentTouched] = useState(Boolean(existing));
+  const [inclusive, setInclusive] = useState(existing?.taxInclusive ?? false);
   const [notes, setNotes] = useState(existing?.notes ?? "");
   /** A retainer: how often this invoice is written again. "" is never. */
   const [repeats, setRepeats] = useState<string>(existing && "repeats" in existing ? (existing.repeats ?? "") : "");
@@ -85,6 +112,7 @@ export function DocumentForm({
           quantity: String(line.quantity),
           unitPrice: String(line.unitPrice),
           productId: line.productId,
+          taxRate: rateText(line.taxRate),
         }))
       : [EMPTY_LINE],
   );
@@ -102,7 +130,52 @@ export function DocumentForm({
       .pickable(companyId)
       .then(setProducts)
       .catch(() => setProducts([]));
-  }, [companyId]);
+    window.caulder.billing
+      .company(companyId)
+      .then((billing) => {
+        setCompany(billing);
+        if (!existing) setInclusive(billing.taxInclusive);
+      })
+      .catch(() => setCompany(null));
+  }, [companyId, existing]);
+
+  // The client's billing details: their terms set the due day, and where they are sets the tax.
+  useEffect(() => {
+    if (leadId === "") {
+      setClient(null);
+      return;
+    }
+    let live = true;
+    window.caulder.billing
+      .client(companyId, leadId)
+      .then((found) => live && setClient(found))
+      .catch(() => live && setClient(null));
+    return () => {
+      live = false;
+    };
+  }, [companyId, leadId]);
+
+  const charging = Boolean(company?.taxOn) || treatment !== "";
+  const country = company?.country ?? null;
+  const usual = company ? rateFor(asCompany(company), asClient(client), (treatment || null) as TaxTreatment | null) : null;
+
+  // A new document follows its client: how it is taxed, each untouched line's rate, and the due day by their terms.
+  useEffect(() => {
+    if (!company || existing) return;
+    if (!treatmentTouched) setTreatment(treatmentFor(asCompany(company), asClient(client)) ?? "");
+    if (!dueTouched) setDueOn(shiftDay(issuedOn, client?.paymentTerms ?? company.paymentTerms ?? 14));
+    // `usual` follows treatment, which this effect sets; reading it here would be a step behind.
+  }, [company, client, existing, treatmentTouched, dueTouched, issuedOn]);
+
+  // A line still on the rate filled in for it follows when that changes - a client in another province, say; one typed by hand stays.
+  const filledRate = useRef<string | null>(null);
+  useEffect(() => {
+    if (existing || usual === null) return;
+    const before = filledRate.current;
+    const next = String(usual);
+    filledRate.current = next;
+    setLines((current) => current.map((line) => (!line.productId && (line.taxRate === "" || line.taxRate === before) ? { ...line, taxRate: next } : line)));
+  }, [usual, existing]);
 
   /**
    * A product from the catalogue becomes a line with its name and today's
@@ -115,6 +188,7 @@ export function DocumentForm({
       quantity: "1",
       unitPrice: product.price ? String(product.price.amount) : "",
       productId: product.id,
+      taxRate: charging ? rateText(product.taxRate ?? usual) : "",
     };
     setLines((current) => {
       const blank = current.findIndex((draft) => draft.description.trim() === "" && draft.unitPrice.trim() === "");
@@ -147,11 +221,18 @@ export function DocumentForm({
     };
   }, [leadId]);
 
-  const total = lines.reduce((sum, line) => {
-    const quantity = Number(line.quantity);
-    const price = Number(line.unitPrice);
-    return Number.isFinite(quantity) && Number.isFinite(price) ? sum + Math.round(quantity * price) : sum;
-  }, 0);
+  // What the company calls its tax, by its own rules.
+  const taxName = company?.rules.name ?? taxSystemFor(country).name;
+  // What the file will say: each line, its tax at its own rate, written as the treatment says.
+  const money = taxed(
+    lines.flatMap((line) => {
+      const quantity = Number(line.quantity);
+      const unitPrice = Number(line.unitPrice);
+      const rate = line.taxRate.trim() === "" ? null : Number(line.taxRate);
+      return Number.isFinite(quantity) && Number.isFinite(unitPrice) ? [{ quantity, unitPrice, taxRate: rate !== null && Number.isFinite(rate) ? rate : null }] : [];
+    }),
+    { treatment: (treatment || null) as TaxTreatment | null, inclusive, country, region: client?.taxRegion ?? company?.taxRegion ?? null, ...(company ? { name: company.rules.name } : {}) },
+  );
 
   function setLine(index: number, patch: Partial<LineDraft>) {
     setLines((current) => current.map((line, at) => (at === index ? { ...line, ...patch } : line)));
@@ -166,12 +247,15 @@ export function DocumentForm({
       issuedOn,
       dueOn,
       notes: notes.trim() === "" ? null : notes,
+      validUntil: validUntil === "" ? null : validUntil,
       lines: lines.map((line) => ({
         description: line.description,
         quantity: Number(line.quantity),
         unitPrice: Number(line.unitPrice),
         productId: line.productId,
+        taxRate: charging && line.taxRate.trim() !== "" ? Number(line.taxRate) : null,
       })),
+      tax: { treatment: treatment === "" ? null : treatment, inclusive },
     };
     const parsed = kind === "invoice" ? invoiceInput.safeParse(raw) : quoteInput.safeParse(raw);
     if (!parsed.success) {
@@ -259,12 +343,43 @@ export function DocumentForm({
                   className="input"
                   type="date"
                   value={dueOn}
-                  onChange={(event) => setDueOn(event.target.value)}
+                  onChange={(event) => {
+                    setDueTouched(true);
+                    setDueOn(event.target.value);
+                  }}
                   disabled={busy}
                 />
               </label>
             )}
+            {kind === "quote" && (
+              <label className="field">
+                <span className="field__label">Valid until</span>
+                <input className="input" type="date" value={validUntil} onChange={(event) => setValidUntil(event.target.value)} disabled={busy} />
+              </label>
+            )}
           </div>
+
+          {charging && (
+            <div className="blockform__row">
+              <label className="field">
+                <span className="field__label">{taxName}</span>
+                <Select
+                  value={treatment}
+                  onChange={(value) => {
+                    setTreatmentTouched(true);
+                    setTreatment(value);
+                  }}
+                  disabled={busy}
+                  aria-label="Tax"
+                  options={[{ value: "", label: "None" }, ...treatmentsFor(country).map((each) => ({ value: each, label: treatmentLabel(each, country, taxName) }))]}
+                />
+              </label>
+              <label className="field checkline">
+                <input type="checkbox" className="tickbox" checked={inclusive} onChange={(event) => setInclusive(event.target.checked)} disabled={busy} />
+                <span className="checkline__title">Prices include {taxName}</span>
+              </label>
+            </div>
+          )}
 
           {kind === "invoice" && (
             <div className="field">
@@ -314,6 +429,20 @@ export function DocumentForm({
                     aria-label={`Line ${index + 1} unit price`}
                     disabled={busy}
                   />
+                  {charging && (
+                    <span className="money__lineTax">
+                      <input
+                        className="input"
+                        value={line.taxRate}
+                        onChange={(event) => setLine(index, { taxRate: event.target.value })}
+                        inputMode="decimal"
+                        placeholder="0"
+                        aria-label={`Line ${index + 1} tax rate`}
+                        disabled={busy}
+                      />
+                      %
+                    </span>
+                  )}
                   <button
                     type="button"
                     className="btn btn--sm btn--ghost btn--danger"
@@ -369,7 +498,7 @@ export function DocumentForm({
                 type="button"
                 className="btn btn--sm btn--ghost"
                 disabled={busy || lines.length >= 50}
-                onClick={() => setLines((current) => [...current, EMPTY_LINE])}
+                onClick={() => setLines((current) => [...current, { ...EMPTY_LINE, taxRate: charging ? rateText(usual) : "" }])}
               >
                 <Plus size={14} aria-hidden />
                 Add a line
@@ -386,8 +515,23 @@ export function DocumentForm({
                   From the catalogue
                 </button>
               )}
-              <span className="money__formTotal">Total {formatValue(total, currency)}</span>
+              {money.tax.length === 0 && <span className="money__formTotal">Total {formatValue(money.total, currency)}</span>}
             </div>
+            {money.tax.length > 0 && (
+              <dl className="money__sums" aria-label="What it comes to">
+                <dt>Subtotal</dt>
+                <dd>{formatValue(money.subtotal, currency)}</dd>
+                {money.tax.map((line) => (
+                  <Fragment key={line.label}>
+                    <dt>{line.label}</dt>
+                    <dd>{formatValue(line.amount, currency)}</dd>
+                  </Fragment>
+                ))}
+                <dt className="money__sumsTotal">Total</dt>
+                <dd className="money__sumsTotal">{formatValue(money.total, currency)}</dd>
+              </dl>
+            )}
+            {money.note && <span className="card__hint">{money.note}</span>}
           </div>
 
           <label className="field">
@@ -539,6 +683,15 @@ export function PaymentsForm({
   const [amount, setAmount] = useState(String(owed));
   const [paidOn, setPaidOn] = useState(day);
   const [note, setNote] = useState("");
+  // Tax the client kept back and paid in the company's name - India's TDS - by the company's own rules.
+  const [withholding, setWithholding] = useState<{ name: string; rate: number } | null>(null);
+  const [withheld, setWithheld] = useState("");
+  useEffect(() => {
+    window.caulder.billing
+      .company(companyId)
+      .then((billing) => setWithholding(billing.rules.withholding))
+      .catch(() => setWithholding(null));
+  }, [companyId]);
   const [confirming, setConfirming] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -553,12 +706,12 @@ export function PaymentsForm({
 
   async function record() {
     setError(null);
-    const parsed = paymentInput.safeParse({ amount: Number(amount), paidOn, note });
+    const parsed = paymentInput.safeParse({ amount: Number(amount), paidOn, note, withheld: withheld.trim() ? Number(withheld) : 0 });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Check the details.");
       return;
     }
-    if (parsed.data.amount > owed) {
+    if (parsed.data.amount + parsed.data.withheld > owed) {
       setError(`That is more than the ${money(owed)} still owed.`);
       return;
     }
@@ -587,7 +740,7 @@ export function PaymentsForm({
     }
   }
 
-  const title = `Payments on ${documentNumber("invoice", invoice.number)}`;
+  const title = `Payments on ${invoice.label}`;
 
   return (
     <Portal>
@@ -615,7 +768,11 @@ export function PaymentsForm({
                 <li key={payment.id} className="money__row">
                   <span className="money__main money__main--flat">
                     <span className="money__number">{formatDay(payment.paidOn)}</span>
-                    {payment.note && <span className="money__who">{payment.note}</span>}
+                    {(payment.note || payment.withheld > 0) && (
+                      <span className="money__who">
+                        {[payment.note, payment.withheld > 0 ? `${withholding?.name ?? "Tax"} withheld ${money(payment.withheld)}` : null].filter(Boolean).join(" · ")}
+                      </span>
+                    )}
                   </span>
                   <span className="money__amount">{money(payment.amount)}</span>
                   {confirming === payment.id ? (
@@ -677,6 +834,34 @@ export function PaymentsForm({
                   />
                 </label>
               </div>
+              {withholding && (
+                <label className="field checkline">
+                  <input
+                    type="checkbox"
+                    className="tickbox"
+                    checked={withheld !== ""}
+                    disabled={busy}
+                    onChange={(event) => {
+                      if (event.target.checked) {
+                        // On what was charged before tax, as TDS is; never more than is owed.
+                        const kept = Math.min(owed, Math.round((invoice.subtotal * withholding.rate) / 100));
+                        setWithheld(String(kept));
+                        setAmount(String(Math.max(owed - kept, 0)));
+                      } else {
+                        setWithheld("");
+                        setAmount(String(owed));
+                      }
+                    }}
+                  />
+                  <span className="checkline__title">They deducted {withholding.name}</span>
+                </label>
+              )}
+              {withheld !== "" && (
+                <label className="field">
+                  <span className="field__label">{withholding?.name ?? "Tax"} withheld</span>
+                  <input className="input" value={withheld} onChange={(event) => setWithheld(event.target.value)} inputMode="numeric" disabled={busy} />
+                </label>
+              )}
               <label className="field">
                 <span className="field__label">Note</span>
                 <input

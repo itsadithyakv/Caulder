@@ -10,6 +10,7 @@ import { clashingWith } from "@shared/day";
 import { formatDuration, formatTime } from "@/lib/format";
 import type { Block, BlockInput, Task } from "@shared/domain";
 import { Portal } from "@/components/Portal";
+import { BlockClient } from "./BlockClient";
 
 /**
  * Putting something in an hour, or changing what is already there.
@@ -104,6 +105,7 @@ export function BlockForm({
   );
   const [taskId, setTaskId] = useState(block?.taskId ?? forTask?.id ?? "");
   const [notes, setNotes] = useState(block?.notes ?? "");
+  const [forClient, setForClient] = useState({ leadId: "", billable: false });
   // Most of a week is the same week again, so the repeat is on
   // the form rather than behind a second step. It only appears for a new
   // block: changing the rule of one that already exists means rewriting
@@ -141,6 +143,7 @@ export function BlockForm({
       taskId: taskId.length > 0 ? taskId : null,
       priority,
       remindMinutes: remind === "" ? null : Number(remind),
+      forClient: !block && forClient.leadId ? forClient : null,
       repeat: repeats && !block ? { weekdays, until } : null,
     });
 
@@ -301,6 +304,8 @@ export function BlockForm({
               />
             </div>
           )}
+
+          {block ? <BlockClient block={block} /> : <BlockClient value={forClient} onChange={setForClient} />}
 
           {!block && (
             <div className="repeat">

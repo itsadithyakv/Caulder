@@ -1,5 +1,6 @@
 import type { Db } from "../db/connection";
-import { ACTIVITY_LABEL, documentNumber, type ActivityKind } from "@shared/domain";
+import { ACTIVITY_LABEL, type ActivityKind } from "@shared/domain";
+import { findInvoice } from "./money";
 import type { SearchHit } from "@shared/search";
 import type { BrainSectionId } from "@shared/brain";
 import { linkLabelsOnly } from "@shared/links";
@@ -147,20 +148,16 @@ function describe(db: Db, row: HitRow): SearchHit | null {
         : null;
     }
     case "invoice": {
-      const invoice = db
-        .prepare(
-          `SELECT i.id, i.number, i.lead_id, l.name FROM invoices i
-           JOIN leads l ON l.id = i.lead_id WHERE i.id = ?`,
-        )
-        .get(row.ref_id) as { id: string; number: number; lead_id: string; name: string } | undefined;
+      // As the company writes its numbers, so a search for "PK/26-27" finds them as printed.
+      const invoice = findInvoice(db, row.ref_id);
       return invoice
         ? {
             kind: "invoice",
             id: invoice.id,
-            title: `${documentNumber("invoice", invoice.number)} · ${invoice.name}`,
+            title: `${invoice.label} · ${invoice.leadName}`,
             detail,
             section: null,
-            leadId: invoice.lead_id,
+            leadId: invoice.leadId,
           }
         : null;
     }

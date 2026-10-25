@@ -20,6 +20,14 @@ const AT_LOGIN = "--at-login";
 /** Test runs and the smoke check launch the packaged app; none of them may register it. */
 const background = () => process.env["CAULDER_BACKGROUND"] === "1";
 
+/**
+ * The packaged app as electron-builder leaves it, before it is installed. It
+ * must never put itself in the startup list: it is rebuilt in place, and one
+ * opened once was what Windows started every morning, instead of the copy
+ * that was installed.
+ */
+const unpacked = () => /[\\/]win-unpacked[\\/]/i.test(process.execPath);
+
 /** Started by Windows at sign-in, rather than by somebody opening it. */
 export function openedAtLogin(): boolean {
   return process.argv.includes(AT_LOGIN);
@@ -33,18 +41,27 @@ export function startupState(): StartupState {
 }
 
 export function setStartup(on: boolean): StartupState {
-  if (!process.windowsStore && app.isPackaged && !background()) {
+  if (!process.windowsStore && app.isPackaged && !background() && !unpacked()) {
     app.setLoginItemSettings({ openAtLogin: on, args: [AT_LOGIN] });
   }
   return startupState();
 }
 
-/** The first launch of an installed copy turns it on; never again after that. */
+/**
+ * The first launch of an installed copy turns it on; never again after that.
+ * And when the entry Windows has points at another copy - one since moved,
+ * reinstalled, or the build folder - it is pointed at this one.
+ */
 export function startupFirstTime(db: Db): void {
-  if (process.windowsStore || !app.isPackaged || background()) return;
-  if (getSetting(db, "startupSet")) return;
-  setSetting(db, "startupSet", "1");
-  setStartup(true);
+  if (process.windowsStore || !app.isPackaged || background() || unpacked()) return;
+  if (!getSetting(db, "startupSet")) {
+    setSetting(db, "startupSet", "1");
+    setStartup(true);
+    return;
+  }
+  const items = app.getLoginItemSettings({ args: [AT_LOGIN] }).launchItems ?? [];
+  const elsewhere = items.some((item) => item.enabled && item.path.toLowerCase() !== process.execPath.toLowerCase());
+  if (elsewhere) setStartup(true);
 }
 
 /** Windows' Startup apps page, where a Store copy is switched. */

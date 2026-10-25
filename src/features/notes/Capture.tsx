@@ -5,7 +5,7 @@ import { taskExample } from "@shared/voice";
 import { sayOnce } from "@/features/today/said";
 
 /**
- * The quick window - opened from the tray icon or with Ctrl+Win+A.
+ * The quick window - opened from the tray icon or with Ctrl+Q.
  *
  * One box, over whatever you were doing, gone again in a second. It has no
  * workspace switcher and almost no controls on purpose: every element here is

@@ -1,3 +1,4 @@
+import { companyBilling } from "../repositories/billing";
 import type { Db } from "../db/connection";
 import {
   ENTITY_TYPES,
@@ -380,6 +381,10 @@ type InvoiceIssuer = {
   payTo: string[];
 };
 
+function taxNumberOf(db: Db, companyId: string): string | null {
+  return (db.prepare(`SELECT tax_number FROM companies WHERE id = ?`).get(companyId) as { tax_number: string | null } | undefined)?.tax_number ?? null;
+}
+
 export function invoiceIssuer(db: Db, companyId: string, fallbackName: string): InvoiceIssuer {
   const profile = pagesOf(db, companyId, "profile")[0]?.stored ?? {};
   // An invoice speaks the language of where the company is: India's names in India.
@@ -409,8 +414,10 @@ export function invoiceIssuer(db: Db, companyId: string, fallbackName: string): 
   return {
     name: text(profile, "legalName") ?? fallbackName,
     address: text(profile, "registeredAddress") ?? text(profile, "workingAddress"),
-    gstin: text(profile, "gstin"),
-    taxLabel: india ? "GSTIN" : "Tax no.",
+    // The number set with the company's tax, else the one on its profile; called what it is called there.
+    gstin: taxNumberOf(db, companyId) ?? text(profile, "gstin"),
+    // As the company's own rules call it (shared/taxrules.ts): GSTIN in India unless changed.
+    taxLabel: companyBilling(db, companyId).rules.numberLabel,
     email: text(profile, "email"),
     phone: text(profile, "phone"),
     payTo,

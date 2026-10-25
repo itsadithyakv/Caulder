@@ -157,6 +157,7 @@ export function pickableProducts(db: Db, companyId: string, day: string): Pickab
       status: product.status,
       price: product.current,
       cost: product.cost,
+      taxRate: product.taxRate,
     }));
 }
 

@@ -3,7 +3,7 @@ import { DEFAULT_CAPTURE_SHORTCUT, sayShortcut } from "./domain";
 
 describe("the quick key", () => {
   it("is Ctrl and the Windows key, with A - a key, because modifiers alone cannot be claimed", () => {
-    expect(DEFAULT_CAPTURE_SHORTCUT).toBe("Ctrl+Super+A");
+    expect(DEFAULT_CAPTURE_SHORTCUT).toBe("Ctrl+Q");
     expect(DEFAULT_CAPTURE_SHORTCUT.split("+").at(-1)).toMatch(/^[A-Z]$/);
   });
 

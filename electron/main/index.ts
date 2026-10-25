@@ -50,6 +50,14 @@ import {
 const isDev = !app.isPackaged;
 
 /**
+ * Drawn without the graphics card. Caulder is text, lists and a few charts:
+ * measured on 25 October 2026, the GPU process held 127 MB of its own to
+ * draw them, and every screen settled as fast or faster without it - 185 MB
+ * in all rather than 262. Launched with --gpu, it uses the card again.
+ */
+if (!process.argv.includes("--gpu")) app.disableHardwareAcceleration();
+
+/**
  * Caulder holds one SQLite file. A second instance writing the same file is a
  * corruption risk, so the second launch hands focus to the first and exits.
  */
@@ -281,7 +289,12 @@ void app.whenReady().then(() => {
 
   // The icon by the clock. Before the key, so the menu can show the key it
   // ends up with.
-  createTray({ open: showMain, quit: () => app.quit() });
+  createTray({
+    open: showMain,
+    quit: () => app.quit(),
+    // Changed from the tray, as from Settings: remembered as decided, so the first launch never turns it back on.
+    decided: () => setSetting(getDatabase(), "startupSet", "1"),
+  });
   // The widget clicked: the app, on Today - the place everything on it comes from.
   setWidgetOpener(() => {
     showMain();
@@ -292,7 +305,7 @@ void app.whenReady().then(() => {
   // the installed app only.
   startUpdates();
 
-  // The quick-add key: Ctrl+Win+A unless somebody chose another, or none. A
+  // The quick-add key: Ctrl+Q unless somebody chose another, or none. A
   // refusal is not shown here - another application may have claimed the
   // combination since last launch, and a dialog before the window has even
   // appeared is the wrong moment. Settings and the tray say what it got.

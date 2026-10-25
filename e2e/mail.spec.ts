@@ -45,8 +45,8 @@ async function installScript() {
     };
     const fake = {
       // The script this build ships (shared/script.ts): anything older is asked to update.
-      // The script as it is now: an older one is its own test, further down.
-      version: 7,
+      // An older one is its own test, further down.
+      version: 8,
       calls: [] as unknown[],
       jobs: new Map<string, Job>(),
       replied: new Set<string>(),
@@ -283,6 +283,11 @@ test("a reply shows on the contact and on Today", async () => {
 test("an older script is explained on Settings, and a contact falls back to the mail app", async () => {
   await app.evaluate(() => {
     ((globalThis as Record<string, unknown>)["fakeScript"] as { version: number }).version = 1;
+  });
+  // Caulder asks the script what it is when it connects and when told to look again: told to, as a person would.
+  await page.evaluate(async () => {
+    const c = (await window.caulder.companies.list()).activeCompanyId as string;
+    await window.caulder.google.refresh(c);
   });
 
   await goTo(page, "Settings");

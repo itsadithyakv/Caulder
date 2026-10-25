@@ -122,6 +122,12 @@ export const sendEmailInput = z.object({
       templateId: z.string().min(1, "Pick the template the follow-up uses."),
     })
     .nullable(),
+  /**
+   * An invoice or a quote to go with it, as its PDF (part fourteen). Named,
+   * never sent: main prints the file itself, so the window never hands over
+   * bytes to mail. Only with a message sent now - a held one keeps no files.
+   */
+  attach: z.object({ kind: z.enum(["invoice", "quote"]), id: z.string().min(1) }).nullable().default(null),
 });
 
 export type SendEmailInput = z.input<typeof sendEmailInput>;

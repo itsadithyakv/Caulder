@@ -1,5 +1,5 @@
 import { daysBetween } from "./dates";
-import { documentNumber, type Invoice } from "./domain";
+import { type Invoice } from "./domain";
 
 /**
  * Money that asks for itself (PLAN.md, part eight, phase 34).
@@ -36,7 +36,7 @@ export function chaseOffer(invoice: Pick<Invoice, "status" | "dueOn" | "reminded
 
 /** The words of a reminder, for the person to read and change before it goes. */
 export function reminderFor(told: {
-  invoice: Pick<Invoice, "number" | "issuedOn" | "dueOn" | "total" | "paid" | "reminded">;
+  invoice: Pick<Invoice, "number" | "label" | "issuedOn" | "dueOn" | "total" | "paid" | "reminded">;
   company: string;
   /** Who it is written to, when the contact has a person named on it. */
   person: string | null;
@@ -46,7 +46,7 @@ export function reminderFor(told: {
   date: (day: string) => string;
 }): { subject: string; body: string } {
   const { invoice } = told;
-  const number = documentNumber("invoice", invoice.number);
+  const number = invoice.label;
   const late = daysLate(invoice, told.day);
   const again = (invoice.reminded?.times ?? 0) > 0;
   const owed = invoice.total - invoice.paid;
@@ -64,6 +64,31 @@ export function reminderFor(told: {
       "",
       "Could you tell me when it will be paid? If it already has been, thank you, and please ignore this.",
       "",
+      told.company,
+    ].join("\n"),
+  };
+}
+
+/** The words of an email that carries an invoice or a quote, for the person to read and change before it goes (part fourteen). */
+export function sendingFor(told: {
+  kind: "invoice" | "quote";
+  doc: { label: string; total: number; dueOn?: string | null };
+  company: string;
+  person: string | null;
+  money: (value: number) => string;
+  date: (day: string) => string;
+}): { subject: string; body: string } {
+  const first = (told.person ?? "").trim().split(/\s+/)[0] ?? "";
+  const { doc } = told;
+  const when = doc.dueOn ? `, ${told.kind === "invoice" ? "due on" : "good until"} ${told.date(doc.dueOn)}` : "";
+  return {
+    subject: `${told.kind === "invoice" ? "Invoice" : "Quote"} ${doc.label} from ${told.company}`,
+    body: [
+      first ? `Hello ${first},` : "Hello,",
+      "",
+      `${told.kind === "invoice" ? "Here is invoice" : "Here is our quote"} ${doc.label} for ${told.money(doc.total)}${when}.`,
+      "",
+      "Thank you,",
       told.company,
     ].join("\n"),
   };

@@ -308,6 +308,7 @@ export const BRAIN_TEMPLATES: readonly BrainTemplate[] = [
     fields: [
       { key: "amount", label: "Amount", kind: "money", hint: "Each time it is paid." },
       { key: "cycle", label: "Paid", kind: "choice", options: options("Monthly", "Quarterly", "Yearly", "Once") },
+      { key: "years", label: "Paid ahead for", kind: "number", hint: "Cycles at once: 3 for three years." },
       { key: "dueOn", label: "Next due", kind: "date" },
       {
         key: "category",
@@ -316,6 +317,8 @@ export const BRAIN_TEMPLATES: readonly BrainTemplate[] = [
         options: options("Hosting", "Software", "Rent", "People", "Marketing", "Travel", "Other"),
       },
       { key: "payee", label: "Paid to", kind: "text" },
+      { key: "account", label: "Account", kind: "email", hint: "The email it was bought with." },
+      { key: "product", label: "For product", kind: "text", hint: "Which of the company's products it serves." },
     ],
     body: "## What it is for\n\n\n## How to stop it\n\n",
   },
@@ -519,6 +522,8 @@ export const BRAIN_TEMPLATES: readonly BrainTemplate[] = [
       { key: "cost", label: "Cost", kind: "money" },
       { key: "cycle", label: "Billed", kind: "choice", options: options("Monthly", "Yearly", "Once", "Free") },
       { key: "renewsOn", label: "Renews on", kind: "date" },
+      { key: "account", label: "Account", kind: "email", hint: "The email it was bought with." },
+      { key: "product", label: "For product", kind: "text", hint: "Which of the company's products it serves." },
       { key: "owner", label: "Whose card", kind: "text" },
       {
         key: "login",
@@ -540,6 +545,9 @@ export const BRAIN_TEMPLATES: readonly BrainTemplate[] = [
       { key: "registrar", label: "Registrar", kind: "text" },
       { key: "renewsOn", label: "Renews on", kind: "date" },
       { key: "cost", label: "Cost a year", kind: "money" },
+      { key: "years", label: "Paid for, in years", kind: "number" },
+      { key: "account", label: "Account", kind: "email", hint: "The email it was bought with." },
+      { key: "product", label: "For product", kind: "text", hint: "Which of the company's products it serves." },
     ],
     body: PAGE_BODY,
   },

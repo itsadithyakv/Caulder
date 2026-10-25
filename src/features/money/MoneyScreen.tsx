@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { BellRing, FileText, Plus, Trash2 } from "lucide-react";
+import { BellRing, FileText, Mail, Plus, Trash2 } from "lucide-react";
 import { chaseOffer, owedByAge } from "@shared/chase";
-import { ChaseForm } from "./ChaseForm";
+import { ChaseForm, DocumentMailForm } from "./ChaseForm";
+import { MoneyHealth } from "./MoneyHealth";
 import {
   INVOICE_REPEAT_LABEL,
   INVOICE_STATUS_LABEL,
   QUOTE_STATUS_LABEL,
-  documentNumber,
   isOverdueInvoice,
   type Invoice,
   type MoneyOverview,
@@ -26,6 +26,7 @@ import { ErrorLine } from "@/components/ErrorLine";
 import { DocumentForm, PaymentsForm, SpendForm, TargetForm } from "./MoneyForms";
 import { CostsTab } from "./CostsTab";
 import { ProductsTab } from "./ProductsTab";
+import { AccountantForm, ClientsTab, MoneyAhead, TaxQuarter } from "./MoneyInsights";
 
 /**
  * Is the company making money?
@@ -39,7 +40,7 @@ import { ProductsTab } from "./ProductsTab";
  * invoice, the paid figure and the overdue list in one read.
  */
 
-type Tab = "invoices" | "quotes" | "spend" | "products" | "costs";
+type Tab = "invoices" | "quotes" | "spend" | "products" | "costs" | "clients" | "health";
 
 function isTab(value: unknown): value is Tab {
   return typeof value === "string" && value in TAB_LABEL;
@@ -51,6 +52,8 @@ const TAB_LABEL: Record<Tab, string> = {
   spend: "Spend",
   products: "Products",
   costs: "Running costs",
+  clients: "Clients",
+  health: "Health",
 };
 
 export function MoneyScreen({
@@ -80,6 +83,7 @@ export function MoneyScreen({
   const costs = useResource<CostsOverview>(companyId ? fetchCosts : null);
 
   const [tab, setTab] = useState<Tab>("invoices");
+  const [forAccountant, setForAccountant] = useState(false);
   const [openProduct, setOpenProduct] = useState<string | null>(null);
 
   useEffect(() => {
@@ -102,6 +106,8 @@ export function MoneyScreen({
   const [paying, setPaying] = useState<string | null>(null);
   /** The invoice a reminder is being written about. */
   const [chasing, setChasing] = useState<Invoice | null>(null);
+  // An invoice or a quote being emailed with its PDF (part fourteen).
+  const [sending, setSending] = useState<{ kind: "invoice"; doc: Invoice } | { kind: "quote"; doc: Quote } | null>(null);
   const [settingTarget, setSettingTarget] = useState(false);
 
   if (!companyId) return null;
@@ -142,9 +148,14 @@ export function MoneyScreen({
       <Card
         title="This month"
         actions={
-          <button type="button" className="btn btn--sm" onClick={() => setSettingTarget(true)}>
-            {data.target === null ? "Set a target" : "Change the target"}
-          </button>
+          <div className="actions">
+            <button type="button" className="btn btn--sm btn--ghost" onClick={() => setForAccountant(true)}>
+              For the accountant
+            </button>
+            <button type="button" className="btn btn--sm" onClick={() => setSettingTarget(true)}>
+              {data.target === null ? "Set a target" : "Change the target"}
+            </button>
+          </div>
         }
       >
         <div className="money__figures">
@@ -165,6 +176,7 @@ export function MoneyScreen({
             </button>
           </p>
         )}
+        <TaxQuarter data={data} money={money} />
         {data.target !== null && (
           <p className="money__target">
             {data.paid >= data.target
@@ -190,6 +202,7 @@ export function MoneyScreen({
                 onEdit={() => setEditing({ kind: "invoice", invoice })}
                 onPayments={() => setPaying(invoice.id)}
                 onChase={() => setChasing(invoice)}
+                onSend={() => setSending({ kind: "invoice", doc: invoice })}
                 onAct={act}
                 companyId={companyId}
               />
@@ -197,6 +210,9 @@ export function MoneyScreen({
           </ul>
         </Card>
       )}
+
+      <MoneyAhead data={data} money={money} />
+      {forAccountant && <AccountantForm companyId={companyId} onClose={() => setForAccountant(false)} />}
 
       <div className="tabs tabs--line" role="tablist" aria-label="Money">
         {(Object.keys(TAB_LABEL) as Tab[]).map((option) => (
@@ -212,6 +228,9 @@ export function MoneyScreen({
           </button>
         ))}
       </div>
+
+      {tab === "clients" && <ClientsTab data={data} money={money} />}
+      {tab === "health" && <MoneyHealth companyId={companyId} money={money} version={data.invoices.length + data.spend.length} />}
 
       {tab === "invoices" && (
         <Card
@@ -245,6 +264,7 @@ export function MoneyScreen({
                   onEdit={() => setEditing({ kind: "invoice", invoice })}
                   onPayments={() => setPaying(invoice.id)}
                   onChase={() => setChasing(invoice)}
+                  onSend={() => setSending({ kind: "invoice", doc: invoice })}
                   onAct={act}
                   companyId={companyId}
                 />
@@ -282,6 +302,7 @@ export function MoneyScreen({
                   money={money}
                   busy={busy}
                   onEdit={() => setEditing({ kind: "quote", quote })}
+                  onSend={() => setSending({ kind: "quote", doc: quote })}
                   onAct={act}
                   companyId={companyId}
                 />
@@ -381,6 +402,28 @@ export function MoneyScreen({
         />
       )}
 
+      {sending && (
+        <DocumentMailForm
+          {...(sending.kind === "invoice" ? { kind: "invoice" as const, doc: sending.doc, purpose: "send" as const } : { kind: "quote" as const, doc: sending.doc, purpose: "send" as const })}
+          company={activeCompany?.name ?? ""}
+          currency={data.currency}
+          day={day}
+          onClose={() => setSending(null)}
+          onSent={() => {
+            const sent = sending;
+            setSending(null);
+            // Emailed is sent: a draft that went is not a draft any more.
+            void (async () => {
+              if (sent.doc.status === "draft") {
+                if (sent.kind === "invoice") await window.caulder.money.setInvoiceStatus(companyId, sent.doc.id, "sent");
+                else await window.caulder.money.setQuoteStatus(companyId, sent.doc.id, "sent");
+              }
+              reload();
+            })();
+          }}
+        />
+      )}
+
       {chasing && (
         <ChaseForm
           invoice={chasing}
@@ -450,6 +493,7 @@ function InvoiceRow({
   onEdit,
   onPayments,
   onChase,
+  onSend,
   onAct,
 }: {
   invoice: Invoice;
@@ -461,6 +505,8 @@ function InvoiceRow({
   onPayments: () => void;
   /** Write a reminder about it: offered once it is late, and again a week after the last. */
   onChase: () => void;
+  /** Email it with its PDF. */
+  onSend: () => void;
   onAct: (run: () => Promise<unknown>) => Promise<void>;
 }) {
   const overdue = isOverdueInvoice(invoice, day);
@@ -472,7 +518,7 @@ function InvoiceRow({
   return (
     <li className="money__row">
       <button type="button" className="money__main" onClick={onEdit} disabled={busy}>
-        <span className="money__number">{documentNumber("invoice", invoice.number)}</span>
+        <span className="money__number">{invoice.label}</span>
         <span className="money__who">{whoFor(invoice)}</span>
         <span className="money__when">
           {overdue ? `Due ${relativeDay(invoice.dueOn)}` : `Due ${formatDay(invoice.dueOn)}`}
@@ -533,6 +579,12 @@ function InvoiceRow({
             Mark paid
           </button>
         )}
+        {(invoice.status === "draft" || invoice.status === "sent") && (
+          <button type="button" className="btn btn--sm btn--ghost" disabled={busy} onClick={onSend} title="Email it with its PDF">
+            <Mail size={14} aria-hidden />
+            Email
+          </button>
+        )}
         {invoice.status !== "void" && (
           <button
             type="button"
@@ -550,7 +602,7 @@ function InvoiceRow({
             type="button"
             className="btn btn--sm btn--ghost btn--danger"
             disabled={busy}
-            aria-label={`Delete ${documentNumber("invoice", invoice.number)}`}
+            aria-label={`Delete ${invoice.label}`}
             onClick={() => void onAct(() => api.deleteInvoice(companyId, invoice.id))}
           >
             <Trash2 size={14} aria-hidden />
@@ -576,6 +628,7 @@ function QuoteRow({
   busy,
   companyId,
   onEdit,
+  onSend,
   onAct,
 }: {
   quote: Quote;
@@ -583,6 +636,8 @@ function QuoteRow({
   busy: boolean;
   companyId: string;
   onEdit: () => void;
+  /** Email it with its PDF. */
+  onSend: () => void;
   onAct: (run: () => Promise<unknown>) => Promise<void>;
 }) {
   const api = window.caulder.money;
@@ -592,13 +647,29 @@ function QuoteRow({
   return (
     <li className="money__row">
       <button type="button" className="money__main" onClick={onEdit} disabled={busy}>
-        <span className="money__number">{documentNumber("quote", quote.number)}</span>
+        <span className="money__number">{quote.label}</span>
         <span className="money__who">{whoFor(quote)}</span>
         <span className="money__when">{formatDay(quote.issuedOn)}</span>
       </button>
       <span className="money__amount">{money(quote.total)}</span>
       <span className={`badge badge--${tone}`}>{QUOTE_STATUS_LABEL[quote.status]}</span>
       <span className="money__actions">
+        {(quote.status === "draft" || quote.status === "sent") && (
+          <button type="button" className="btn btn--sm btn--ghost" disabled={busy} onClick={onSend} title="Email it with its PDF">
+            <Mail size={14} aria-hidden />
+            Email
+          </button>
+        )}
+        <button
+          type="button"
+          className="btn btn--sm btn--ghost"
+          disabled={busy}
+          title="Write the PDF, attach it to the contact and open it"
+          onClick={() => void onAct(() => api.quotePdf(companyId, quote.id))}
+        >
+          <FileText size={14} aria-hidden />
+          PDF
+        </button>
         {quote.status === "draft" && (
           <button
             type="button"
@@ -634,7 +705,7 @@ function QuoteRow({
             type="button"
             className="btn btn--sm btn--ghost btn--danger"
             disabled={busy}
-            aria-label={`Delete ${documentNumber("quote", quote.number)}`}
+            aria-label={`Delete ${quote.label}`}
             onClick={() => void onAct(() => api.deleteQuote(companyId, quote.id))}
           >
             <Trash2 size={14} aria-hidden />

@@ -1,6 +1,13 @@
 import { randomUUID } from "node:crypto";
 import type { Db } from "../db/connection";
-import { shiftDay, today as todayIn } from "@shared/dates";
+import { addMonths, dayOf, shiftDay, today as todayIn } from "@shared/dates";
+import { clientRegion, companyRegion, rateFor, taxed, treatmentFor, type TaxTreatment } from "@shared/tax";
+import { clientTax, companyTax, termsFor } from "./billing";
+import { listCosts } from "./costs";
+import { aheadOf, clientsOf } from "@shared/insights";
+import { readTaxRules, resolveTaxRules } from "@shared/taxrules";
+import { formatInvoiceNumber, readInvoiceLook } from "@shared/invoicelook";
+import type { TaxLine } from "@shared/tax";
 import { findDeal, mainDeal, setDealValue } from "./deals";
 import { productInCompany } from "./products";
 import {
@@ -55,6 +62,13 @@ type DocRow = {
   notes: string | null;
   created_at: string;
   repeats?: string | null;
+  tax_treatment: string | null;
+  tax_inclusive: number;
+  tax_region: string | null;
+  valid_until?: string | null;
+  company_country: string | null;
+  company_tax_rules: string | null;
+  company_invoice_look: string | null;
 };
 
 type LineRow = {
@@ -65,18 +79,36 @@ type LineRow = {
   unit_price: number;
   product_id: string | null;
   product_name: string | null;
+  tax_rate: number | null;
 };
 
 type PaymentRow = {
   id: string;
   invoice_id: string;
   amount: number;
+  withheld: number;
   paid_on: string;
   note: string | null;
 };
 
-const lineTotal = (line: MoneyLine) => Math.round(line.quantity * line.unitPrice);
 const sum = (values: number[]) => values.reduce((total, value) => total + value, 0);
+
+/**
+ * A document's money, with its tax, as it was taxed when it was made
+ * (shared/tax.ts) and named as the company names it (shared/taxrules.ts) -
+ * and its number as the company writes them.
+ */
+function moneyOf(row: DocRow, lines: MoneyLine[], kind: "quote" | "invoice") {
+  const treatment = (row.tax_treatment ?? null) as TaxTreatment | null;
+  const inclusive = row.tax_inclusive === 1;
+  const rules = resolveTaxRules(row.company_country, readTaxRules(row.company_tax_rules));
+  const money = taxed(lines, { treatment, inclusive, country: row.company_country, region: row.tax_region, name: rules.name });
+  const label =
+    kind === "quote"
+      ? documentNumber("quote", row.number)
+      : formatInvoiceNumber(readInvoiceLook(row.company_invoice_look).numbering, row.number, row.issued_on, rules.yearStarts);
+  return { subtotal: money.subtotal, tax: money.tax, taxNote: money.note, taxTreatment: treatment, taxInclusive: inclusive, total: money.total, label };
+}
 
 function linesFor(db: Db, table: "quote_lines" | "invoice_lines", parentIds: string[]): Map<string, MoneyLine[]> {
   const byParent = new Map<string, MoneyLine[]>();
@@ -85,7 +117,7 @@ function linesFor(db: Db, table: "quote_lines" | "invoice_lines", parentIds: str
   const rows = db
     .prepare(
       `SELECT t.id, t.${column} AS parent_id, t.description, t.quantity, t.unit_price,
-              t.product_id, p.name AS product_name
+              t.product_id, p.name AS product_name, t.tax_rate
          FROM ${table} t
          LEFT JOIN products p ON p.id = t.product_id
         WHERE t.${column} IN (${parentIds.map(() => "?").join(",")})
@@ -101,6 +133,7 @@ function linesFor(db: Db, table: "quote_lines" | "invoice_lines", parentIds: str
       unitPrice: row.unit_price,
       productId: row.product_id,
       productName: row.product_name,
+      taxRate: row.tax_rate,
     });
     byParent.set(row.parent_id, list);
   }
@@ -112,7 +145,7 @@ function paymentsFor(db: Db, invoiceIds: string[]): Map<string, Payment[]> {
   if (invoiceIds.length === 0) return byInvoice;
   const rows = db
     .prepare(
-      `SELECT id, invoice_id, amount, paid_on, note FROM payments
+      `SELECT id, invoice_id, amount, withheld, paid_on, note FROM payments
         WHERE invoice_id IN (${invoiceIds.map(() => "?").join(",")})
         ORDER BY paid_on, created_at`,
     )
@@ -123,6 +156,7 @@ function paymentsFor(db: Db, invoiceIds: string[]): Map<string, Payment[]> {
       id: row.id,
       invoiceId: row.invoice_id,
       amount: row.amount,
+      withheld: row.withheld,
       paidOn: row.paid_on,
       note: row.note,
     });
@@ -135,9 +169,12 @@ function paymentsFor(db: Db, invoiceIds: string[]): Map<string, Payment[]> {
 
 const QUOTE_SELECT = `
   SELECT q.id, q.company_id, q.lead_id, l.name AS lead_name, q.deal_id, d.title AS deal_title,
-         q.number, q.status, q.issued_on, q.notes, q.created_at
+         q.number, q.status, q.issued_on, q.notes, q.created_at,
+         q.tax_treatment, q.tax_inclusive, q.tax_region, q.valid_until, c.country AS company_country,
+         c.tax_rules AS company_tax_rules, c.invoice_look AS company_invoice_look
     FROM quotes q
     JOIN leads l ON l.id = q.lead_id
+    JOIN companies c ON c.id = q.company_id
     LEFT JOIN deals d ON d.id = q.deal_id`;
 
 function toQuotes(db: Db, rows: DocRow[]): Quote[] {
@@ -155,9 +192,10 @@ function toQuotes(db: Db, rows: DocRow[]): Quote[] {
       status: row.status as QuoteStatus,
       issuedOn: row.issued_on,
       notes: row.notes,
-      total: sum(own.map(lineTotal)),
       lines: own,
       createdAt: row.created_at,
+      validUntil: row.valid_until ?? null,
+      ...moneyOf(row, own, "quote"),
     };
   });
 }
@@ -169,7 +207,7 @@ function listQuotes(db: Db, companyId: string): Quote[] {
   return toQuotes(db, rows);
 }
 
-function findQuote(db: Db, id: string): Quote | null {
+export function findQuote(db: Db, id: string): Quote | null {
   const row = db.prepare(`${QUOTE_SELECT} WHERE q.id = ?`).get(id) as DocRow | undefined;
   return row ? (toQuotes(db, [row])[0] ?? null) : null;
 }
@@ -187,24 +225,42 @@ function writeLines(
   companyId: string,
   parentId: string,
   lines: MoneyLineInput[],
+  /** The rate a line takes when it says none: the client's usual, or null when no tax is charged. */
+  usual: number | null = null,
 ): void {
   const column = table === "quote_lines" ? "quote_id" : "invoice_id";
   db.prepare(`DELETE FROM ${table} WHERE ${column} = ?`).run(parentId);
   const insert = db.prepare(
-    `INSERT INTO ${table} (id, ${column}, position, description, quantity, unit_price, product_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO ${table} (id, ${column}, position, description, quantity, unit_price, product_id, tax_rate)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   );
-  lines.forEach((line, index) =>
-    insert.run(
-      randomUUID(),
-      parentId,
-      index,
-      line.description,
-      line.quantity,
-      line.unitPrice,
-      line.productId ? productInCompany(db, companyId, line.productId) : null,
-    ),
-  );
+  lines.forEach((line, index) => {
+    const productId = line.productId ? productInCompany(db, companyId, line.productId) : null;
+    // A line that does not say: the product's rate when it has one, else the client's usual.
+    const own = productId ? (db.prepare(`SELECT tax_rate FROM products WHERE id = ?`).get(productId) as { tax_rate: number | null } | undefined)?.tax_rate : null;
+    const rate = line.taxRate !== undefined ? line.taxRate : usual === null ? null : (own ?? usual);
+    insert.run(randomUUID(), parentId, index, line.description, line.quantity, line.unitPrice, productId, rate);
+  });
+}
+
+/**
+ * How a document is taxed: as it says, or - new, and saying nothing - worked
+ * out from the company's settings and where the client is. An edit that says
+ * nothing keeps what it had.
+ */
+function taxFor(
+  db: Db,
+  companyId: string,
+  leadId: string,
+  said: QuoteInput["tax"],
+  kept: { treatment: string | null; inclusive: number; region: string | null } | null,
+): { treatment: TaxTreatment | null; inclusive: boolean; region: string | null; usual: number | null } {
+  const company = companyTax(db, companyId);
+  const client = clientTax(db, leadId);
+  const region = company.country === "CA" || company.country === "IN" ? (clientRegion(client, company.country) ?? companyRegion(company)) : null;
+  const treatment = said ? said.treatment : kept ? ((kept.treatment ?? null) as TaxTreatment | null) : treatmentFor(company, client);
+  const inclusive = said ? said.inclusive : kept ? kept.inclusive === 1 : company.inclusive;
+  return { treatment, inclusive, region: kept && !said ? kept.region : region, usual: rateFor(company, client, treatment) };
 }
 
 function assertLeadInCompany(db: Db, companyId: string, leadId: string): void {
@@ -248,21 +304,38 @@ export function saveQuote(db: Db, companyId: string, id: string | null, input: Q
   const quoteId = db.transaction(() => {
     if (id === null) {
       const created = randomUUID();
+      const tax = taxFor(db, companyId, input.leadId, input.tax, null);
       db.prepare(
-        `INSERT INTO quotes (id, company_id, lead_id, deal_id, number, status, issued_on, notes, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?)`,
-      ).run(created, companyId, input.leadId, dealId, nextNumber(db, "quotes", companyId), input.issuedOn, input.notes ?? null, now, now);
-      writeLines(db, "quote_lines", companyId, created, input.lines);
+        `INSERT INTO quotes (id, company_id, lead_id, deal_id, number, status, issued_on, notes, valid_until, tax_treatment, tax_inclusive, tax_region, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).run(
+        created,
+        companyId,
+        input.leadId,
+        dealId,
+        nextNumber(db, "quotes", companyId),
+        input.issuedOn,
+        input.notes ?? null,
+        input.validUntil ?? null,
+        tax.treatment,
+        tax.inclusive ? 1 : 0,
+        tax.region,
+        now,
+        now,
+      );
+      writeLines(db, "quote_lines", companyId, created, input.lines, tax.usual);
       return created;
     }
-    const changed = db
-      .prepare(
-        `UPDATE quotes SET lead_id = ?, deal_id = ?, issued_on = ?, notes = ?, updated_at = ?
-          WHERE id = ? AND company_id = ?`,
-      )
-      .run(input.leadId, dealId, input.issuedOn, input.notes ?? null, now, id, companyId).changes;
-    if (changed === 0) throw new Error("That quote no longer exists.");
-    writeLines(db, "quote_lines", companyId, id, input.lines);
+    const kept = db.prepare(`SELECT tax_treatment AS treatment, tax_inclusive AS inclusive, tax_region AS region FROM quotes WHERE id = ? AND company_id = ?`).get(id, companyId) as
+      | { treatment: string | null; inclusive: number; region: string | null }
+      | undefined;
+    if (!kept) throw new Error("That quote no longer exists.");
+    const tax = taxFor(db, companyId, input.leadId, input.tax, kept);
+    db.prepare(
+      `UPDATE quotes SET lead_id = ?, deal_id = ?, issued_on = ?, notes = ?, valid_until = ?, tax_treatment = ?, tax_inclusive = ?, tax_region = ?, updated_at = ?
+        WHERE id = ? AND company_id = ?`,
+    ).run(input.leadId, dealId, input.issuedOn, input.notes ?? null, input.validUntil ?? null, tax.treatment, tax.inclusive ? 1 : 0, tax.region, now, id, companyId);
+    writeLines(db, "quote_lines", companyId, id, input.lines, tax.usual);
     return id;
   })();
 
@@ -299,14 +372,17 @@ export function acceptQuote(db: Db, companyId: string, id: string, now: Date = n
       leadId: quote.leadId,
       dealId: quote.dealId,
       issuedOn: day,
-      dueOn: shiftDay(day, 14),
+      // Due when the client's terms say (phase 53); a fortnight when nobody has said.
+      dueOn: shiftDay(day, termsFor(db, companyId, quote.leadId)),
       notes: quote.notes,
       lines: quote.lines.map((line) => ({
         description: line.description,
         quantity: line.quantity,
         unitPrice: line.unitPrice,
         productId: line.productId,
+        taxRate: line.taxRate,
       })),
+      tax: { treatment: quote.taxTreatment, inclusive: quote.taxInclusive },
     });
     db.prepare(`UPDATE invoices SET quote_id = ? WHERE id = ?`).run(id, invoice.id);
     const deal = quote.dealId ? findDeal(db, quote.dealId) : null;
@@ -315,20 +391,38 @@ export function acceptQuote(db: Db, companyId: string, id: string, now: Date = n
   })();
 }
 
+/** How long a sent quote goes unanswered before Today asks after it. */
+const QUOTE_WAIT_DAYS = 7;
+
+/**
+ * Quotes still out (phase 52): sent, neither accepted nor declined, and sent
+ * a week ago or more - or past the day they were good until. Oldest first.
+ */
+export function listQuotesWaiting(db: Db, companyId: string, day: string): Quote[] {
+  return listQuotes(db, companyId)
+    .filter((quote) => quote.status === "sent" && (quote.issuedOn <= shiftDay(day, -QUOTE_WAIT_DAYS) || (quote.validUntil !== null && quote.validUntil < day)))
+    .sort((a, b) => a.issuedOn.localeCompare(b.issuedOn));
+}
+
 /* ---- Invoices ----------------------------------------------------------- */
 
 const INVOICE_SELECT = `
   SELECT i.id, i.company_id, i.lead_id, l.name AS lead_name, i.deal_id, d.title AS deal_title,
-         i.quote_id, i.number, i.status, i.issued_on, i.due_on, i.paid_on, i.notes, i.created_at, i.repeats
+         i.quote_id, i.number, i.status, i.issued_on, i.due_on, i.paid_on, i.notes, i.created_at, i.repeats,
+         i.tax_treatment, i.tax_inclusive, i.tax_region, c.country AS company_country,
+         c.tax_rules AS company_tax_rules, c.invoice_look AS company_invoice_look
     FROM invoices i
     JOIN leads l ON l.id = i.lead_id
+    JOIN companies c ON c.id = i.company_id
     LEFT JOIN deals d ON d.id = i.deal_id`;
 
 /**
  * The reminders that went about invoices still owed: every email sent to an
- * invoice's contact with its number in the subject. Read, never kept - so
- * one written by hand from the contact's page counts as well as one from
- * Money.
+ * invoice's contact with its number in the subject, after the day it was due.
+ * Read, never kept - so one written by hand from the contact's page counts as
+ * well as one from Money. Not before it was due: the email that sent the
+ * invoice is not a reminder, and counted as one it made the first chase a
+ * "second reminder". The number whole, so INV-1000 is not INV-10001.
  */
 function remindersFor(db: Db, rows: DocRow[]): Map<string, { at: string; times: number }> {
   const owed = rows.filter((row) => row.status === "sent");
@@ -343,8 +437,13 @@ function remindersFor(db: Db, rows: DocRow[]): Map<string, { at: string; times: 
     )
     .all(...leads) as { lead_id: string; subject: string; at: string }[];
   for (const row of owed) {
-    const number = documentNumber("invoice", row.number);
-    const mine = sent.filter((email) => email.lead_id === row.lead_id && email.subject.includes(number));
+    // As the company writes its numbers: "PK/26-27/0042" has a slash, which is nothing to a pattern once escaped.
+    const number = moneyOf(row, [], "invoice").label.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
+    const whole = new RegExp(`(^|[^0-9A-Za-z])${number}($|[^0-9])`);
+    const timezone = companyTimezone(db, row.company_id);
+    const mine = sent.filter(
+      (email) => email.lead_id === row.lead_id && whole.test(email.subject) && (!row.due_on || dayOf(email.at, timezone) > row.due_on),
+    );
     const last = mine.at(-1);
     if (last) out.set(row.id, { at: last.at, times: mine.length });
   }
@@ -373,8 +472,9 @@ function toInvoices(db: Db, rows: DocRow[]): Invoice[] {
       dueOn: row.due_on ?? row.issued_on,
       paidOn: row.paid_on ?? null,
       notes: row.notes,
-      total: sum(own.map(lineTotal)),
-      paid: sum(paid.map((payment) => payment.amount)),
+      ...moneyOf(row, own, "invoice"),
+      // Tax a client withheld pays the invoice as much as money in: it is paid to the government in the company's name.
+      paid: sum(paid.map((payment) => payment.amount + payment.withheld)),
       lines: own,
       payments: paid,
       createdAt: row.created_at,
@@ -408,7 +508,10 @@ export function saveInvoice(db: Db, companyId: string, id: string | null, input:
         `INSERT INTO invoices (id, company_id, lead_id, deal_id, number, status, issued_on, due_on, notes, repeats, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?)`,
       ).run(created, companyId, input.leadId, dealId, nextNumber(db, "invoices", companyId), input.issuedOn, input.dueOn, input.notes ?? null, input.repeats ?? null, now, now);
-      writeLines(db, "invoice_lines", companyId, created, input.lines);
+      if (input.repeats) db.prepare(`UPDATE invoices SET repeat_day = ? WHERE id = ?`).run(Number(input.issuedOn.slice(8, 10)), created);
+      const tax = taxFor(db, companyId, input.leadId, input.tax, null);
+      db.prepare(`UPDATE invoices SET tax_treatment = ?, tax_inclusive = ?, tax_region = ? WHERE id = ?`).run(tax.treatment, tax.inclusive ? 1 : 0, tax.region, created);
+      writeLines(db, "invoice_lines", companyId, created, input.lines, tax.usual);
       return created;
     }
     const existing = findInvoice(db, id);
@@ -417,9 +520,30 @@ export function saveInvoice(db: Db, companyId: string, id: string | null, input:
       throw new Error("A paid or void invoice cannot be edited. Make a new one.");
     }
     db.prepare(
-      `UPDATE invoices SET lead_id = ?, deal_id = ?, issued_on = ?, due_on = ?, notes = ?, repeats = ?, updated_at = ? WHERE id = ?`,
-    ).run(input.leadId, dealId, input.issuedOn, input.dueOn, input.notes ?? null, input.repeats ?? null, now, id);
-    writeLines(db, "invoice_lines", companyId, id, input.lines);
+      `UPDATE invoices SET lead_id = ?, deal_id = ?, issued_on = ?, due_on = ?, notes = ?, repeats = ?,
+         repeat_day = CASE WHEN ? IS NULL THEN NULL WHEN issued_on = ? AND repeat_day IS NOT NULL THEN repeat_day ELSE ? END,
+         updated_at = ? WHERE id = ?`,
+    ).run(
+      input.leadId,
+      dealId,
+      input.issuedOn,
+      input.dueOn,
+      input.notes ?? null,
+      input.repeats ?? null,
+      input.repeats ?? null,
+      input.issuedOn,
+      Number(input.issuedOn.slice(8, 10)),
+      now,
+      id,
+    );
+    const kept = db.prepare(`SELECT tax_treatment AS treatment, tax_inclusive AS inclusive, tax_region AS region FROM invoices WHERE id = ?`).get(id) as {
+      treatment: string | null;
+      inclusive: number;
+      region: string | null;
+    };
+    const tax = taxFor(db, companyId, input.leadId, input.tax, kept);
+    db.prepare(`UPDATE invoices SET tax_treatment = ?, tax_inclusive = ?, tax_region = ? WHERE id = ?`).run(tax.treatment, tax.inclusive ? 1 : 0, tax.region, id);
+    writeLines(db, "invoice_lines", companyId, id, input.lines, tax.usual);
     settle(db, id);
     return id;
   })();
@@ -434,8 +558,9 @@ export function saveInvoice(db: Db, companyId: string, id: string | null, input:
  * side: a payment in, a payment removed, a line edited.
  */
 /** The same day so many months on, or the month's last day when it has no such day: the 31st, a month on, is the 30th. */
-function monthsOn(day: string, months: number): string {
-  const [year = 2000, month = 1, date = 1] = day.split("-").map(Number);
+function monthsOn(day: string, months: number, onDay?: number | null): string {
+  const [year = 2000, month = 1, parsed = 1] = day.split("-").map(Number);
+  const date = onDay ?? parsed;
   const first = new Date(Date.UTC(year, month - 1 + months, 1));
   const last = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0)).getUTCDate();
   return `${first.getUTCFullYear()}-${String(first.getUTCMonth() + 1).padStart(2, "0")}-${String(Math.min(date, last)).padStart(2, "0")}`;
@@ -459,29 +584,35 @@ function monthsOn(day: string, months: number): string {
 export function draftRepeats(db: Db, companyId: string, day: string): number {
   const due = (
     db
-      .prepare(`SELECT id, issued_on, repeats FROM invoices WHERE company_id = ? AND repeats IS NOT NULL AND status IN ('sent', 'paid')`)
-      .all(companyId) as { id: string; issued_on: string; repeats: InvoiceRepeat }[]
-  ).filter((row) => monthsOn(row.issued_on, INVOICE_REPEAT_MONTHS[row.repeats]) <= day);
+      .prepare(`SELECT id, issued_on, repeats, repeat_day FROM invoices WHERE company_id = ? AND repeats IS NOT NULL AND status IN ('sent', 'paid')`)
+      .all(companyId) as { id: string; issued_on: string; repeats: InvoiceRepeat; repeat_day: number | null }[]
+  ).filter((row) => monthsOn(row.issued_on, INVOICE_REPEAT_MONTHS[row.repeats], row.repeat_day) <= day);
   if (due.length === 0) return 0;
   return db.transaction(() => {
     let made = 0;
     for (const row of due) {
       const last = findInvoice(db, row.id);
       if (!last) continue;
-      const issuedOn = monthsOn(row.issued_on, INVOICE_REPEAT_MONTHS[row.repeats]);
+      const issuedOn = monthsOn(row.issued_on, INVOICE_REPEAT_MONTHS[row.repeats], row.repeat_day);
       const term = Math.max(0, Math.round((Date.parse(`${last.dueOn}T00:00:00Z`) - Date.parse(`${last.issuedOn}T00:00:00Z`)) / 86_400_000));
       const now = new Date().toISOString();
       const id = randomUUID();
       db.prepare(
-        `INSERT INTO invoices (id, company_id, lead_id, deal_id, number, status, issued_on, due_on, notes, repeats, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?)`,
-      ).run(id, companyId, last.leadId, last.dealId, nextNumber(db, "invoices", companyId), issuedOn, shiftDay(issuedOn, term), last.notes, row.repeats, now, now);
+        `INSERT INTO invoices (id, company_id, lead_id, deal_id, number, status, issued_on, due_on, notes, repeats, repeat_day, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?)`,
+      ).run(id, companyId, last.leadId, last.dealId, nextNumber(db, "invoices", companyId), issuedOn, shiftDay(issuedOn, term), last.notes, row.repeats, row.repeat_day ?? Number(row.issued_on.slice(8, 10)), now, now);
       writeLines(
         db,
         "invoice_lines",
         companyId,
         id,
-        last.lines.map((line) => ({ description: line.description, quantity: line.quantity, unitPrice: line.unitPrice, productId: line.productId })),
+        last.lines.map((line) => ({ description: line.description, quantity: line.quantity, unitPrice: line.unitPrice, productId: line.productId, taxRate: line.taxRate })),
+      );
+      db.prepare(`UPDATE invoices SET tax_treatment = ?, tax_inclusive = ?, tax_region = (SELECT tax_region FROM invoices WHERE id = ?) WHERE id = ?`).run(
+        last.taxTreatment,
+        last.taxInclusive ? 1 : 0,
+        row.id,
+        id,
       );
       db.prepare(`UPDATE invoices SET repeats = NULL, updated_at = ? WHERE id = ?`).run(now, row.id);
       made += 1;
@@ -557,13 +688,13 @@ export function addPayment(db: Db, companyId: string, invoiceId: string, input: 
   const id = randomUUID();
   db.transaction(() => {
     db.prepare(
-      `INSERT INTO payments (id, company_id, invoice_id, amount, paid_on, note, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    ).run(id, companyId, invoiceId, input.amount, input.paidOn, input.note ?? null, new Date().toISOString());
+      `INSERT INTO payments (id, company_id, invoice_id, amount, withheld, paid_on, note, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(id, companyId, invoiceId, input.amount, input.withheld ?? 0, input.paidOn, input.note ?? null, new Date().toISOString());
     settle(db, invoiceId);
   })();
 
-  return { id, invoiceId, amount: input.amount, paidOn: input.paidOn, note: input.note ?? null };
+  return { id, invoiceId, amount: input.amount, withheld: input.withheld ?? 0, paidOn: input.paidOn, note: input.note ?? null };
 }
 
 /** The remainder, dated today. What "Mark as paid" means. */
@@ -592,7 +723,7 @@ export function paidFrom(db: Db, companyId: string, input: PaidFromInput, now: D
   const open = listInvoices(db, companyId).filter((invoice) => invoice.leadId === input.leadId && invoice.status === "sent" && invoice.total - invoice.paid > 0);
   const owed = (invoice: Invoice) => invoice.total - invoice.paid;
   if (open.length === 0) throw new Error(`${lead.name} has no invoice waiting to be paid.`);
-  const number = (invoice: Invoice) => documentNumber("invoice", invoice.number);
+  const number = (invoice: Invoice) => invoice.label;
   const exact = input.amount === null ? null : (open.find((invoice) => owed(invoice) === input.amount) ?? null);
   const only = open.length === 1 ? open[0]! : null;
   const target = exact ?? only;
@@ -604,7 +735,7 @@ export function paidFrom(db: Db, companyId: string, input: PaidFromInput, now: D
     );
   }
   if (input.amount !== null && input.amount < owed(target)) {
-    addPayment(db, companyId, target.id, { amount: input.amount, paidOn: now.toISOString().slice(0, 10), note: null });
+    addPayment(db, companyId, target.id, { amount: input.amount, paidOn: todayIn(companyTimezone(db, companyId), now), note: null });
     return { say: `Recorded against ${number(target)}, with ${owed(target) - input.amount} still owed` };
   }
   markPaid(db, companyId, target.id, now);
@@ -702,9 +833,24 @@ export function buildMoney(db: Db, companyId: string, now: Date = new Date()): M
     ),
   );
 
+  // The quarter's tax, by component and rate, on what went out in it: what a return asks for.
+  const quarterStart = `${month.slice(0, 5)}${String(Math.floor((Number(month.slice(5, 7)) - 1) / 3) * 3 + 1).padStart(2, "0")}-01`;
+  const quarterEnd = shiftDay(addMonths(quarterStart, 3), -1);
+  const taxLines = new Map<string, TaxLine>();
+  for (const invoice of invoices) {
+    if (invoice.status === "draft" || invoice.status === "void" || invoice.issuedOn < quarterStart || invoice.issuedOn > quarterEnd) continue;
+    for (const line of invoice.tax) {
+      const held = taxLines.get(line.label);
+      taxLines.set(line.label, held ? { ...held, amount: held.amount + line.amount } : { ...line });
+    }
+  }
+
   return {
     month,
     currency: company.currency,
+    taxQuarter: { from: quarterStart, to: quarterEnd, lines: [...taxLines.values()] },
+    ahead: aheadOf({ day, invoices, costs: listCosts(db, companyId) }),
+    clients: clientsOf(invoices, day),
     quoted: sum(quotes.filter((q) => q.status !== "declined" && inMonth(q.issuedOn)).map((q) => q.total)),
     invoiced: sum(
       invoices.filter((i) => i.status !== "void" && i.status !== "draft" && inMonth(i.issuedOn)).map((i) => i.total),

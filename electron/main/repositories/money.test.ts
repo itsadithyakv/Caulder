@@ -75,17 +75,17 @@ describe("invoices", () => {
 
   it("is paid when the payments cover it, and not before", () => {
     const invoice = saveInvoice(db, company.id, null, { leadId, issuedOn: "2026-09-01", dueOn: "2026-09-15", notes: null, lines });
-    expect(() => addPayment(db, company.id, invoice.id, { amount: 1000, paidOn: "2026-09-02", note: null })).toThrow(
+    expect(() => addPayment(db, company.id, invoice.id, { amount: 1000, paidOn: "2026-09-02", note: null, withheld: 0 })).toThrow(
       /Send the invoice/,
     );
     setInvoiceStatus(db, company.id, invoice.id, "sent");
 
-    addPayment(db, company.id, invoice.id, { amount: 10000, paidOn: "2026-09-02", note: null });
+    addPayment(db, company.id, invoice.id, { amount: 10000, paidOn: "2026-09-02", note: null, withheld: 0 });
     let money = buildMoney(db, company.id, NOW);
     expect(money.invoices[0]?.status).toBe("sent");
     expect(money.invoices[0]?.paid).toBe(10000);
 
-    addPayment(db, company.id, invoice.id, { amount: 22500, paidOn: "2026-09-10", note: null });
+    addPayment(db, company.id, invoice.id, { amount: 22500, paidOn: "2026-09-10", note: null, withheld: 0 });
     money = buildMoney(db, company.id, NOW);
     expect(money.invoices[0]?.status).toBe("paid");
     expect(money.invoices[0]?.paidOn).toBe("2026-09-10");
@@ -106,7 +106,7 @@ describe("invoices", () => {
   it("mark paid records the remainder, dated today", () => {
     const invoice = saveInvoice(db, company.id, null, { leadId, issuedOn: "2026-09-01", dueOn: "2026-09-15", notes: null, lines });
     setInvoiceStatus(db, company.id, invoice.id, "sent");
-    addPayment(db, company.id, invoice.id, { amount: 500, paidOn: "2026-09-02", note: null });
+    addPayment(db, company.id, invoice.id, { amount: 500, paidOn: "2026-09-02", note: null, withheld: 0 });
     markPaid(db, company.id, invoice.id, NOW);
     const money = buildMoney(db, company.id, NOW);
     expect(money.invoices[0]?.status).toBe("paid");
@@ -201,7 +201,7 @@ describe("the month", () => {
     const lastMonth = saveInvoice(db, company.id, null, { leadId, issuedOn: "2026-08-02", dueOn: "2026-08-16", notes: null, lines });
     setInvoiceStatus(db, company.id, lastMonth.id, "sent");
     // Paid this month for last month's invoice still counts as paid this month.
-    addPayment(db, company.id, lastMonth.id, { amount: 32500, paidOn: "2026-09-05", note: null });
+    addPayment(db, company.id, lastMonth.id, { amount: 32500, paidOn: "2026-09-05", note: null, withheld: 0 });
     addSpend(db, company.id, { spentOn: "2026-09-03", amount: 1200, what: "Domain" });
     addSpend(db, company.id, { spentOn: "2026-08-03", amount: 5000, what: "Ads" });
 

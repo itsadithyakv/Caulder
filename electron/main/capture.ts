@@ -13,7 +13,7 @@ import { nearTray, trayShouldOpen } from "./popup";
  *
  * Two rules it lives by:
  *
- *  - **On from the start, and easy to turn off.** The key is Ctrl+Win+A until
+ *  - **On from the start, and easy to turn off.** The key is Ctrl+Q until
  *    somebody picks another or none - and a key turned off stays off.
  *  - **A failed registration is reported, not swallowed.** Another app may
  *    already own the combination, and believing you have a key that does

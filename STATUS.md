@@ -20,14 +20,16 @@ rearranged. On 11 October the last of the student went too (phase 32): a
 task has no area, the Timetable is *A usual week* without terms, and a
 block's kinds are a working day's. And Contacts can say who has not
 answered, and walk a ticked list through WhatsApp, LinkedIn or Instagram
-one at a time (phase 33). **None of it is committed**: it is one
-large uncommitted change on the `general` branch.
+one at a time (phase 33). **Committed by the owner as `fc38509`
+("Update") on `general`**, up to the performance pass of 17 October; the
+logic pass, the reminders and Ctrl+Q of 23 October are not yet.
 
 ## Version
 
 - **1.0.0** is packaged (14 October 2026) as the Store package,
   `release/Caulder-1.0.0-x64.msix`: unsigned, for Partner Center to sign,
-  with the identity it reserved, and built from the **uncommitted** tree.
+  with the identity it reserved; rebuilt on 23 October from a tree with
+  that day's work uncommitted.
   The installer is `release/Caulder Setup 1.0.0.exe`, unsigned, so
   SmartScreen warns before it runs.
 - **Installing 1.0.0 over 0.5.0 runs migrations 49 to 58 on the first
@@ -479,6 +481,193 @@ tokens in `tokens.css`:
   dark. The rest of the e2e suite was not run for this.
 - **Then Patrick Hand**, bundled on the owner's word - and taken out again
   within the hour (below).
+
+## Done on 23 October: a logic pass
+
+Three reviews, of money, of time and of the line, each finding were proved
+with a test before it was believed. Mended, most serious first:
+- **"Harbour hasn't paid" marked Harbour's invoice paid**, and so did
+  "payment from maya is late". The line never reads money in from a line
+  that says it has not come, and records it against the contact named as
+  paying, not another the line mentions ("got 2400 from maya for the kettle
+  job" was Kettle's).
+- **Somebody else's number or email was written over a contact's own**
+  ("maya's accountant's email is...", "maya gave me sam's number").
+- **Google Calendar duplicated or dropped events at the edges of its window**
+  for anyone not on UTC: the script asked Google for UTC days. Caulder now
+  asks for a day more each side and plans with its own days - no script
+  update needed.
+- **A task ticked in Google Tasks ended its repeat**; and a refresh from
+  Google made an old tick this week's, in the week's review.
+- **Repeats drifted**: the 31st became the 28th for good after February, and
+  29 February was lost; the same for a retainer. Migration 59 keeps the day a
+  run was set on (`tasks.repeat_day`, `invoices.repeat_day`).
+- **Two clients' "Send invoice" on the 1st were one run**; undoing a tick on a
+  repeating task left two open; a corrected birthday kept the old date.
+- **Money:** a part payment from the line was dated by UTC (the wrong month
+  near midnight); a one-off running cost, paid, never counted in the burn;
+  the email that delivered an invoice counted as a reminder, so the first
+  chase said "second reminder" (and INV-1000 matched INV-10001).
+- **Changing a filing's day** brought every past period back as late.
+- **"done invoice 1042"** ticked a task about another invoice: numbers said
+  are now numbers meant.
+- **Not mended, and why**: a deleted draft's number is used again - on
+  purpose, so the series has no gaps, which tax rules prefer; Today showing
+  another workspace's invoice in this one's currency needs an invoice in the
+  calendar's own workspace, which nothing makes.
+- **Checked**: `npm run verify` (2,010 tests, eight new in
+  `electron/main/logicpass.test.ts` and more in `capture.test.ts`, each
+  failing without its mend), and **the whole end-to-end suite**: 190 passed
+  first time; the four that failed were three sentences cut in the copy pass
+  that specs still looked for, and the tour finding the quick key held by
+  the Caulder already running. All four pass now.
+
+## Done on 25 October, at the end: lighter and quicker
+
+Measured before and after, on this machine, idle with a company open:
+- **Memory: about 180 MB in all, from 262** (private memory). The graphics
+  process held 127 MB to draw text and lists; drawn without the card it holds
+  36, and every screen settled as fast or faster (Settings 44-69 ms from
+  114-152). `--gpu` puts the card back.
+- **The model lets go after three minutes idle**, and loads again in a second
+  or two when there is something to read. The widget looks for the pointer
+  every half second while it is far away, every 150 ms near. The reading loop
+  wakes once a minute when idle, not twice.
+- **Startup reads less**: screens load when wanted and then all in the
+  background, so the first script is 325 kB from 1.2 MB.
+- **Screens arrive sooner**: they were ready in tens of milliseconds and then
+  took half a second to finish animating in; now about a tenth.
+- **Opening when Windows starts** is a tick on the tray icon's menu, and the
+  first card under Settings › This computer.
+- Checked: `npm run verify`; the `tray`, `widget`, `branding`, `today`,
+  `understanding`, `hub`, `money` and `brain` specs; the packaged smoke check
+  (the widget drawn and pinned without the card).
+
+## Done on 25 October, last: invoicing anywhere, by rules the company keeps
+
+- **Rules of the company's own** in Settings: tax name, rates, number label,
+  titles, the words for not registered, threshold, withholding, financial
+  year, the numbers printed - the country's only where they start; a country
+  Caulder does not know builds its own. Migration 62.
+- **India: not registered, registered or composition** - a plain invoice, a
+  tax invoice, or a bill of supply with rule 46's words.
+- **Invoice numbers as the company writes them** ("PK/26-27/0042"), used by
+  every screen, search, chase and file; **PAN and Udyam** under the name; the
+  **amount in words**; **TDS** on a payment; **quotes as PDFs**; **email with
+  the PDF attached** (the Google script is version 8: update it in Settings);
+  **Health** on Money with the threshold bar and the next filings; costs **by
+  product**.
+- Tests: `npm run verify` (2,073); `invoices`, `tax`, `money`, `hub`, `leads`,
+  `today`, `mail` specs. The e2e runs were slow at times today: the app's own
+  quit takes a tenth of a second, and the process then lingered up to thirty
+  seconds - Windows Defender, by every sign, which locked build folders all
+  day too. Not seen in the packaged smoke check.
+
+## Done on 25 October, later: invoices in the company's look (part fourteen)
+
+- **How invoices look**: Classic, Banner or Compact; six inks; a logo; a
+  closing line; *See a sample* in Settings. Migration 61
+  (`companies.invoice_look`).
+- **A copy in your own folder**: by year, month or client, named by number
+  and client, and the copy is what opens. The folder is chosen only in the
+  system's dialog.
+- **Running costs by account**: grouped under each email on request.
+- The invoice page is white whatever shows it: a dark window had shown
+  through behind it.
+- **Checked**: `npm run verify` (2,055 tests); `invoices.spec.ts` (new) and
+  the `money` spec; the three layouts photographed.
+
+## Done on 25 October: what renews, and which account it is on
+
+- **Renewals from the line.** "My unifloe.app domain expires on the 27th next
+  year. It renews for 2,640" is a domain in Tools that renews on 27 October
+  2027; "I paid 20000 for the domain for 5 years" is paid today and due again
+  in 2031. Before, the first was a task two days away: "next year" was not
+  read at all, and is now a year on.
+- **Paid ahead for years**, on domains and running costs: counted a month at a
+  time over the term, and paid at the term's price.
+- **Told**: each renewal is its own notification with the morning brief, a
+  month ahead for a yearly one and again on its day. Before, only Today's card
+  said it, and only to whoever opened the app.
+- **The account each is on**: "I use Resend with studio@gmail.com" sets it on
+  the page; a change keeps the old one, dated. Shown on Today, in the list and
+  in the notice.
+- The second blind set's floor is 89 from 90: one line it calls a memory, a
+  co-working membership that renews on the 5th, is a running cost now, as
+  asked. **Checked**: `npm run verify` (2,050 tests); `hub`, `money`, `today`,
+  `quickadd` and `brain` specs (53).
+
+## Done on 24 October: the pass before 1.0.0 goes out
+
+- **An upgrade from 0.5.0, tried for real.** A database written by 0.5.0's own
+  code (invoices part paid and late, a quote accepted, a product with a rate,
+  a block, a task) was taken to migration 60 by this build: integrity and
+  foreign keys clean, every total as it was, old invoices still untaxed after
+  tax is switched on, and Money, Today, the PDF and hours all read it.
+- **The accountant's pack** offers the country's financial year (April to
+  March in India) and is checked end to end: the spreadsheet's CGST and SGST
+  columns and the PDFs (`tax.spec.ts`).
+- **A block is for a client from the moment it is made**, a repeat's every
+  one too; before, only an open block could say so.
+- **Fixed, from a review of part thirteen:**
+  - tax was rounded a line at a time, up to half a unit a line out; it is
+    rounded once a rate now, and a label said twice is one line (a Canadian
+    invoice's GST column in the pack had lost one of them);
+  - *Hours to invoice* said a different amount from the invoice it made;
+  - a new invoice's line rates kept the first client's when another, in
+    another province, was chosen;
+  - a rate typed in Settings could not be changed again;
+  - saying a contact's birthday again removed every fact with "birthday" in
+    it, their wife's included;
+  - a client's billing details could be read without the company;
+  - a retainer on the 31st was projected on the 28th after February.
+- **Known, and left:** money is kept in whole units of the currency, so an
+  invoice's tax is to the whole euro or pound, not the cent - right for
+  India's GST, not for a VAT invoice that has to be exact. Planned (PLAN.md).
+
+## Done on 23 October, last: tax, and the business still done elsewhere (part thirteen)
+
+- **Tax on quotes and invoices, by country.** About eighty known by name,
+  rates and number label - India's GST split as CGST and SGST or IGST from
+  the GSTINs, the EU's VAT with the reverse charge, Canada's GST/HST/QST by
+  province, Australia, the UK, the Gulf and the rest - and any other country
+  types its own. A company switches it on in Settings; each line keeps its
+  rate and each document how it was taxed, so a change of settings never
+  rewrites one sent. The form, the PDF ("Tax invoice" where the law asks,
+  the client's number, HSN/SAC) and Money's quarter all say it.
+- **A client's billing details** on their page: tax number, country and
+  state, payment terms, hourly rate. A new invoice is due by their terms.
+- **A quote nobody answered** is on Today after a week, or past its last day,
+  with Accepted and Declined on its row.
+- **The next 90 days and Clients** on Money; **the accountant's pack** (a
+  spreadsheet and every invoice's PDF for a quarter or a year); **hours to
+  invoice** from a client's page.
+- Migration 60. **Checked**: `npm run verify` (2,038 tests), the new
+  `tax.spec.ts` (3), and the `money`, `leads`, `today`, `week`, `quickadd` and
+  `workbench` specs; the screens photographed with an Indian company and a
+  client in another state.
+
+## Done on 23 October, later: reminders that remind, and Ctrl+Q
+
+- **The owner had no reminder of a call due the day before.** Nothing was
+  broken: every notification was off until switched on, and nothing had been
+  - no morning brief, no reminder before a block, and a task with a day and
+  no time has nothing else to say it. Now **the morning brief is on at nine**
+  unless switched off (`nudgeSettings`: never set is nine) and **a block
+  reminds ten minutes before** unless switched off (new companies, and
+  migration 59 for those with none set). Every task due today and every late
+  one is in the brief, which still comes when the laptop opens later.
+- **Windows was starting the build folder** (`release\\win-unpacked`), not
+  the installed Caulder: opened once as an ordinary app, it put itself in the
+  startup list, and every rebuild then changed the app under the owner.
+  A copy in `win-unpacked` never registers now, and an installed copy that
+  finds the entry pointing elsewhere points it at itself. **The owner's
+  entry is still the build folder's until the new installer is run.**
+- **The quick window's key is Ctrl+Q** (was Ctrl+Win+A), the owner's choice.
+  Held by Caulder, no other app gets Ctrl+Q.
+- Both packages were built into a folder of their own and copied into
+  `release/`, because the owner's running Caulder was the build folder's.
+  `smoke:packaged` passes on them.
 
 ## Done on 17 October, later: faster with a lot in it
 

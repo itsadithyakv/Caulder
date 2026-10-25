@@ -277,7 +277,15 @@ export function inboxInOrder(db: Db, accountId: string): boolean {
 export async function sendFromAccount(
   db: Db,
   accountId: string,
-  message: { to: string; subject: string; body: string; messageId?: string | null; inReplyTo?: string | null },
+  message: {
+    to: string;
+    subject: string;
+    body: string;
+    messageId?: string | null;
+    inReplyTo?: string | null;
+    /** An invoice's or a quote's PDF (part fourteen). */
+    files?: { name: string; bytes: Buffer }[];
+  },
 ): Promise<void> {
   const row = db.prepare(`SELECT * FROM mail_accounts WHERE id = ?`).get(accountId) as Row | undefined;
   if (!row) throw new Error("That account is not connected any more.");
@@ -290,6 +298,7 @@ export async function sendFromAccount(
       text: message.body,
       ...(message.messageId ? { messageId: message.messageId } : {}),
       ...(message.inReplyTo ? { inReplyTo: message.inReplyTo, references: message.inReplyTo } : {}),
+      ...(message.files?.length ? { attachments: message.files.map((file) => ({ filename: file.name, content: file.bytes, contentType: "application/pdf" })) } : {}),
     });
   } catch (error) {
     throw sayProblem(error, row.host);

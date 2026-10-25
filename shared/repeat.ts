@@ -103,9 +103,21 @@ export function occurrencesOf(repeat: Repeat): string[] {
  * (PLAN.md, part twelve, phase 47): a fortnight on, or the same day of the
  * next month or year - the last day of a shorter month, as `addMonths` keeps it.
  */
-export function nextDue(day: string, repeats: "fortnightly" | "monthly" | "yearly"): string {
+export function nextDue(day: string, repeats: "fortnightly" | "monthly" | "yearly", onDay?: number | null): string {
   if (repeats === "fortnightly") return shiftDay(day, 14);
-  return addMonths(day, repeats === "monthly" ? 1 : 12);
+  return onTheDay(addMonths(day, repeats === "monthly" ? 1 : 12), onDay);
+}
+
+/**
+ * A day moved onto the day of the month its run was set on, or the month's
+ * last day when the month is shorter. Without it a run on the 31st was
+ * clamped to the 28th in February and stayed there.
+ */
+function onTheDay(day: string, onDay?: number | null): string {
+  if (!onDay) return day;
+  const [year = 2000, month = 1] = day.split("-").map(Number);
+  const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return `${day.slice(0, 8)}${String(Math.min(onDay, last)).padStart(2, "0")}`;
 }
 
 /** How a repeat reads back to a person, for the block that carries it. */

@@ -10,6 +10,14 @@ import { CHANNELS, type Workspace } from "@shared/ipc";
 import { assertId, handle } from "./handle";
 import { type WidgetLevel, widgetLevel, widgetSpot, widgetWanted } from "@shared/widget";
 import { openStartupApps, setStartup, startupState } from "../startup";
+import { refreshTray } from "../tray";
+import { clientBilling, companyBilling, invoiceLook, setClientBilling, setCompanyBilling, setInvoiceLook, setTaxRules, taxRules } from "../repositories/billing";
+import { invoiceLookInput } from "@shared/invoicelook";
+import { billHours, hoursToBill, setBlockFor } from "../repositories/hours";
+import { writeAccountantPack } from "../services/accountant";
+import { buildHealth } from "../services/health";
+import { ACCOUNTANT_PERIODS, type AccountantPeriod } from "@shared/accountant";
+import { clientBillingInput, companyBillingInput } from "@shared/billing";
 import { dragWidget, fitWidget, hideWidget, openFromWidget, setWidgetLevel, showWidget, widgetState } from "../widget";
 import { z } from "zod";
 import { registerBrainHandlers } from "./brain";
@@ -41,7 +49,7 @@ import {
   type LeadSort,
   type GoogleState,
 } from "@shared/domain";
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, join } from "node:path";
 import { existsSync, mkdirSync } from "node:fs";
 import { dialog } from "electron";
@@ -120,7 +128,7 @@ import {
   setInvoiceStatus,
   setQuoteStatus,
 } from "../repositories/money";
-import { writeInvoicePdf } from "../services/invoice";
+import { imageType, invoiceLogoPath, writeInvoicePdf, writeInvoiceSample, writeQuotePdf } from "../services/invoice";
 import {
   INVOICE_STATUSES,
   QUOTE_STATUSES,
@@ -360,7 +368,9 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
   handle(CHANNELS.appSetStartup, (_event, on: unknown) => {
     // Remembered as decided, so the first launch never turns it back on.
     setSetting(getDatabase(), "startupSet", "1");
-    return setStartup(on === true);
+    const state = setStartup(on === true);
+    refreshTray();
+    return state;
   });
 
   handle(CHANNELS.appStartupApps, () => openStartupApps());
@@ -593,6 +603,9 @@ function registerMoneyHandlers() {
 
   handle(CHANNELS.invoicePdf, (_event, companyId: unknown, id: unknown) =>
     writeInvoicePdf(getDatabase(), company(companyId), assertId(id, "invoice id")),
+  );
+  handle(CHANNELS.quotePdf, (_event, companyId: unknown, id: unknown) =>
+    writeQuotePdf(getDatabase(), company(companyId), assertId(id, "quote id")),
   );
 
   handle(CHANNELS.invoiceDelete, (_event, companyId: unknown, id: unknown) => {
@@ -1483,6 +1496,101 @@ function registerTaskHandlers() {
   handle(CHANNELS.factsAway, (_event, companyId: unknown, today: unknown) => {
     if (typeof today !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(today)) throw new Error("That is not a day.");
     return listAway(getDatabase(), assertId(companyId, "company id"), today);
+  });
+  handle(CHANNELS.moneyHealth, (_event, companyId: unknown) => buildHealth(getDatabase(), assertId(companyId, "company id")));
+
+  /* ---- The accountant's pack (part thirteen, phase 56) ---- */
+  handle(CHANNELS.moneyAccountantPack, async (_event, companyId: unknown, period: unknown) => {
+    const id = assertId(companyId, "company id");
+    if (!(ACCOUNTANT_PERIODS as readonly unknown[]).includes(period)) throw new Error("That is not a period.");
+    const picked = await dialog.showOpenDialog({
+      title: "Where should the accountant's pack go?",
+      buttonLabel: "Write it here",
+      properties: ["openDirectory", "createDirectory"],
+    });
+    const parent = picked.canceled ? null : (picked.filePaths[0] ?? null);
+    if (!parent) return null;
+    const pack = await writeAccountantPack(getDatabase(), id, period as AccountantPeriod, companyDay(id), parent);
+    void shell.openPath(pack.folder);
+    return pack;
+  });
+
+  /* ---- Hours billed (part thirteen, phase 57) ---- */
+  handle(CHANNELS.hoursSetFor, (_event, blockId: unknown, raw: unknown) => {
+    const input = raw as { leadId?: unknown; billable?: unknown } | null;
+    const leadId = input?.leadId === null || input?.leadId === undefined ? null : assertId(input.leadId, "contact id");
+    setBlockFor(getDatabase(), assertId(blockId, "block id"), { leadId, billable: input?.billable === true });
+  });
+  handle(CHANNELS.hoursToBill, (_event, companyId: unknown, leadId: unknown) => {
+    const id = assertId(companyId, "company id");
+    return hoursToBill(getDatabase(), id, assertId(leadId, "contact id"), companyDay(id));
+  });
+  handle(CHANNELS.hoursBill, (_event, companyId: unknown, leadId: unknown) => {
+    const id = assertId(companyId, "company id");
+    return billHours(getDatabase(), id, assertId(leadId, "contact id"), companyDay(id));
+  });
+
+  /* ---- Billing: tax, terms and an hourly rate (part thirteen) ---- */
+  handle(CHANNELS.billingCompany, (_event, companyId: unknown) => companyBilling(getDatabase(), assertId(companyId, "company id")));
+  handle(CHANNELS.billingSetCompany, (_event, companyId: unknown, raw: unknown) =>
+    setCompanyBilling(getDatabase(), assertId(companyId, "company id"), companyBillingInput.parse(raw)),
+  );
+  handle(CHANNELS.billingClient, (_event, companyId: unknown, leadId: unknown) => {
+    const lead = assertId(leadId, "contact id");
+    if (!getDatabase().prepare(`SELECT 1 FROM leads WHERE id = ? AND company_id = ?`).get(lead, assertId(companyId, "company id"))) {
+      throw new Error("That contact is not in this company.");
+    }
+    return clientBilling(getDatabase(), lead);
+  });
+  handle(CHANNELS.billingSetClient, (_event, companyId: unknown, leadId: unknown, raw: unknown) =>
+    setClientBilling(getDatabase(), assertId(companyId, "company id"), assertId(leadId, "contact id"), clientBillingInput.parse(raw)),
+  );
+  handle(CHANNELS.billingTaxRules, (_event, companyId: unknown) => taxRules(getDatabase(), assertId(companyId, "company id")));
+  handle(CHANNELS.billingSetTaxRules, (_event, companyId: unknown, raw: unknown) => setTaxRules(getDatabase(), assertId(companyId, "company id"), raw));
+
+  /* ---- How invoices look, and where their copies go (part fourteen) ---- */
+  handle(CHANNELS.billingInvoiceLook, (_event, companyId: unknown) => invoiceLook(getDatabase(), assertId(companyId, "company id")));
+  handle(CHANNELS.billingSetInvoiceLook, (_event, companyId: unknown, raw: unknown) => {
+    const id = assertId(companyId, "company id");
+    const next = invoiceLookInput.parse(raw);
+    // The window can clear the folder but never name one: a path to write into is only ever chosen in the dialog.
+    const kept = invoiceLook(getDatabase(), id).folder;
+    return setInvoiceLook(getDatabase(), id, { ...next, folder: next.folder === null ? null : kept });
+  });
+  handle(CHANNELS.billingInvoiceLogo, async (_event, companyId: unknown, remove: unknown) => {
+    const id = assertId(companyId, "company id");
+    const look = invoiceLook(getDatabase(), id);
+    if (remove === true) {
+      await rm(invoiceLogoPath(id), { force: true });
+      return setInvoiceLook(getDatabase(), id, { ...look, logo: false });
+    }
+    const picked = await dialog.showOpenDialog({
+      title: "Choose the logo for your invoices",
+      filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg"] }],
+      properties: ["openFile"],
+    });
+    const path = picked.canceled ? null : (picked.filePaths[0] ?? null);
+    if (!path) return null;
+    const bytes = await readFile(path);
+    if (bytes.length > 2 * 1024 * 1024) throw new Error("That image is over 2 MB. A logo prints well far smaller.");
+    if (!imageType(bytes)) throw new Error("That is not a PNG or a JPEG.");
+    await mkdir(dirname(invoiceLogoPath(id)), { recursive: true });
+    await writeFile(invoiceLogoPath(id), bytes);
+    return setInvoiceLook(getDatabase(), id, { ...look, logo: true });
+  });
+  handle(CHANNELS.billingInvoiceFolder, async (_event, companyId: unknown) => {
+    const id = assertId(companyId, "company id");
+    const picked = await dialog.showOpenDialog({
+      title: "Where should copies of your invoices go?",
+      buttonLabel: "Keep them here",
+      properties: ["openDirectory", "createDirectory"],
+    });
+    const folder = picked.canceled ? null : (picked.filePaths[0] ?? null);
+    if (!folder) return null;
+    return setInvoiceLook(getDatabase(), id, { ...invoiceLook(getDatabase(), id), folder });
+  });
+  handle(CHANNELS.billingInvoiceSample, async (_event, companyId: unknown) => {
+    await writeInvoiceSample(getDatabase(), assertId(companyId, "company id"), app.getPath("temp"));
   });
   handle(CHANNELS.moneyPaidFrom, (_event, companyId: unknown, raw: unknown) => {
     const parsed = paidFromInput.safeParse(raw);

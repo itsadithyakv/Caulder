@@ -16,7 +16,6 @@ import {
   QUOTE_STATUS_LABEL,
   RELATIONSHIP_LABEL,
   TASK_KIND_LABEL,
-  documentNumber,
   type Activity,
   type Invoice,
   type Quote,
@@ -452,7 +451,7 @@ export function buildDossier(
       return table(
         ["Invoice", "Contact", "Deal", "Issued", "Due", "Total", "Paid"],
         unpaid.map((invoice) => [
-          documentNumber("invoice", invoice.number),
+          invoice.label,
           invoice.leadName,
           invoice.dealTitle ?? "",
           invoice.issuedOn,
@@ -611,7 +610,7 @@ export function buildDossier(
       for (const doc of docs) {
         const invoice = "dueOn" in doc;
         inPlay.push(
-          `- ${documentNumber(invoice ? "invoice" : "quote", doc.number)}, ${doc.issuedOn}: ${money(doc.total)}, ${
+          `- ${doc.label}, ${doc.issuedOn}: ${money(doc.total)}, ${
             invoice ? INVOICE_STATUS_LABEL[(doc as Invoice).status] : QUOTE_STATUS_LABEL[(doc as Quote).status]
           }${doc.dealTitle && doc.dealTitle !== lead.name ? ` (${doc.dealTitle})` : ""}`,
         );

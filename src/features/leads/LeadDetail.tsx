@@ -18,6 +18,8 @@ import { LeadMessage } from "./LeadMessage";
 import { profileShown } from "@shared/profiles";
 import { SaveToPhone } from "./SaveToPhone";
 import { LeadMoney } from "./LeadMoney";
+import { ClientBilling } from "./ClientBilling";
+import { useWorkspace } from "@/lib/workspace";
 import { LeadDeals } from "./LeadDeals";
 import { Attachments, CustomFields } from "./LeadExtras";
 import { KnownAbout } from "./KnownAbout";
@@ -67,6 +69,9 @@ export function LeadDetail({
   const [error, setError] = useState<string | null>(null);
   /** Bumped when an edit here may have moved or renamed a deal. */
   const [dealsVersion, setDealsVersion] = useState(0);
+  /** Moved on when hours are billed, so the money list reads again. */
+  const [moneyVersion, setMoneyVersion] = useState(0);
+  const currency = useWorkspace().activeCompany?.currency ?? "INR";
   /** Bumped after a call, which can tick a task off and add the next. */
   const [tasksVersion, setTasksVersion] = useState(0);
   const startCall = useStartCall();
@@ -386,7 +391,8 @@ export function LeadDetail({
           </div>
 
           <div className="detail__historyTitle">
-            <LeadMoney leadId={leadId} onOpenMoney={onGoToMoney} />
+            <LeadMoney key={moneyVersion} leadId={leadId} onOpenMoney={onGoToMoney} />
+            <ClientBilling companyId={lead.companyId} leadId={leadId} currency={currency} onBilled={() => setMoneyVersion((n) => n + 1)} />
           </div>
         </section>
       </div>

@@ -1,6 +1,5 @@
 import { useCallback, useState } from "react";
 import { AtSign, CalendarClock, CalendarPlus, Mail, MailCheck, MessagesSquare, Phone, Receipt, RefreshCw, Send, Snowflake, Sunrise, type LucideIcon } from "lucide-react";
-import { documentNumber } from "@shared/domain";
 import { formatLongDay, formatValue, region, relativeDay } from "@/lib/format";
 import type { Invoice, ReachWay, Task, TaskInput, Today } from "@shared/domain";
 import { describeDue, today as todayIn } from "@shared/dates";
@@ -106,6 +105,14 @@ export function TodayScreen({
     if (!companyId) return;
     await window.caulder.tasks.create(companyId, input);
     setAdding(false);
+    reload();
+  }
+
+  /** Accepted makes the invoice, as it does on Money; declined puts it away. */
+  async function settleQuote(id: string, answer: "accepted" | "declined") {
+    if (!companyId) return;
+    if (answer === "accepted") await window.caulder.money.acceptQuote(companyId, id);
+    else await window.caulder.money.setQuoteStatus(companyId, id, "declined");
     reload();
   }
 
@@ -264,10 +271,37 @@ export function TodayScreen({
                   <li key={invoice.id}>
                     <button type="button" className="coldrow" onClick={onGoToMoney}>
                       <span className="coldrow__name">
-                        {documentNumber("invoice", invoice.number)} · {invoice.leadName}
+                        {invoice.label} · {invoice.leadName}
                       </span>
                       <span className="coldrow__meta">{formatValue(invoice.total, activeCompany?.currency)}</span>
                       <span className="coldrow__days">for {relativeDay(invoice.issuedOn)}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
+          {/* A quote nobody has answered: asked after, and settled from its row. */}
+          {today.quotesWaiting.length > 0 && (
+            <Card icon={<Receipt size={15} aria-hidden />} title={today.quotesWaiting.length === 1 ? "A quote with no answer" : `${today.quotesWaiting.length} quotes with no answer`}>
+              <ul className="cold">
+                {today.quotesWaiting.map((quote) => (
+                  <li key={quote.id} className="renewrow">
+                    <button type="button" className="coldrow" onClick={onGoToMoney}>
+                      <span className="coldrow__name">
+                        {quote.label} · {quote.leadName}
+                      </span>
+                      <span className="coldrow__meta">{formatValue(quote.total, activeCompany?.currency)}</span>
+                      <span className="coldrow__days">
+                        sent {relativeDay(quote.issuedOn)}
+                        {quote.validUntil && quote.validUntil < today.day ? ` · ended ${relativeDay(quote.validUntil)}` : ""}
+                      </span>
+                    </button>
+                    <button type="button" className="btn btn--sm" onClick={() => void settleQuote(quote.id, "accepted")}>
+                      Accepted
+                    </button>
+                    <button type="button" className="btn btn--sm btn--ghost" onClick={() => void settleQuote(quote.id, "declined")}>
+                      Declined
                     </button>
                   </li>
                 ))}
@@ -288,7 +322,7 @@ export function TodayScreen({
                   <li key={invoice.id} className="renewrow">
                     <button type="button" className="coldrow" onClick={onGoToMoney}>
                       <span className="coldrow__name">
-                        {documentNumber("invoice", invoice.number)} · {invoice.leadName}
+                        {invoice.label} · {invoice.leadName}
                       </span>
                       <span className="coldrow__meta">
                         {formatValue(invoice.total - invoice.paid, activeCompany?.currency)}
@@ -413,9 +447,8 @@ export function TodayScreen({
                     <button type="button" className="coldrow" onClick={() => onOpenPage(renewal.pageId)}>
                       <span className="coldrow__name">{renewal.title}</span>
                       <span className="coldrow__meta">
-                        {renewal.amount !== null && renewal.amount > 0
-                          ? formatValue(renewal.amount, activeCompany?.currency)
-                          : "Not priced"}
+                        {renewal.each !== null && renewal.each > 0 ? formatValue(renewal.each, activeCompany?.currency) : "Not priced"}
+                        {renewal.account && ` · ${renewal.account}`}
                       </span>
                       <span className={`coldrow__days${renewal.daysLeft < 0 ? " renewrow__late" : ""}`}>
                         {describeRenewal(renewal, today.day)}

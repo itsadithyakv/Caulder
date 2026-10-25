@@ -19,6 +19,7 @@ const money = (value: number) => `INR ${value.toLocaleString("en-IN")}`;
 const date = (day: string) => day;
 const invoice = (more: Partial<Parameters<typeof reminderFor>[0]["invoice"]> = {}) => ({
   number: 7,
+  label: "INV-0007",
   issuedOn: "2026-09-15",
   dueOn: "2026-10-02",
   total: 12000,

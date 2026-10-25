@@ -215,7 +215,7 @@ test("the mark on the line is AI mode: a line is read by the AI, shown, and kept
   await expect(mark).toHaveAttribute("aria-pressed", "false");
   await mark.click();
   await expect(mark).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator("[data-ai-mode]")).toContainText("Enter sends each line to Google Gemini");
+  await expect(page.locator("[data-ai-mode]")).toContainText("lines go to Google Gemini");
 
   // A line the AI reads its own way: shown first, and only then kept.
   const before = (await seen()).length;
@@ -276,7 +276,7 @@ test("the mark on the line is AI mode: a line is read by the AI, shown, and kept
 test("the company in brief is drafted by the AI, kept by hand, and then goes with every question", async () => {
   await goTo(page, "Brain");
   const card = page.locator(".card", { has: page.getByRole("heading", { name: "The company in brief" }) });
-  await expect(card).toContainText("put together from the profile and the catalogue");
+  await expect(card).toContainText("Drafted from the profile until you write it");
   await card.getByRole("button", { name: "Draft it with Google Gemini" }).click();
   const draft = card.getByLabel("The drafted brief");
   await expect(draft).toHaveValue("- Sells timetabling to schools.\n- Bills yearly.");

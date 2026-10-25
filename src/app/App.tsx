@@ -1,7 +1,5 @@
-import { MapOf } from "@/features/brain/MapOf";
-import { MemoriesScreen } from "@/features/brain/Memories";
 import { useUpdates } from "@/features/settings/UpdatesCard";
-import { useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { ArrowLeft, Sparkles, Rocket } from "lucide-react";
 import { TitleBar } from "./TitleBar";
 import { Sidebar } from "./Sidebar";
@@ -19,15 +17,8 @@ import { WorkspaceProvider, useWorkspace } from "@/lib/workspace";
 import { ShortcutHelp } from "@/components/ShortcutHelp";
 import { useShortcuts } from "@/lib/shortcuts";
 import { FirstRun } from "@/features/onboarding/FirstRun";
-import { SettingsScreen } from "@/features/settings/SettingsScreen";
-import { LeadsScreen } from "@/features/leads/LeadsScreen";
-import { ImportScreen } from "@/features/import/ImportScreen";
 import { TodayScreen } from "@/features/today/TodayScreen";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { PipelineScreen } from "@/features/pipeline/PipelineScreen";
-import { DayScreen } from "@/features/day/DayScreen";
-import { MoneyScreen } from "@/features/money/MoneyScreen";
-import { BrainScreen } from "@/features/brain/BrainScreen";
 import { SearchPalette } from "@/features/search/SearchPalette";
 import { SetupScreen } from "@/features/onboarding/SetupScreen";
 import { CallProvider } from "@/features/calls/CallProvider";
@@ -35,6 +26,39 @@ import type { SearchHit } from "@shared/search";
 import type { BrainSectionId } from "@shared/brain";
 import { OpenRefProvider } from "@/lib/navigate";
 import type { LinkRef } from "@shared/links";
+
+/**
+ * Every screen but Today is read when it is first wanted, so a launch parses
+ * Today and the shell and no more - and all of them are then read in the
+ * background once Today has drawn (`warmScreens`), so the first visit to one
+ * is as quick as the tenth.
+ */
+const loadMapOf = () => import("@/features/brain/MapOf").then((loaded) => ({ default: loaded.MapOf }));
+const loadMemoriesScreen = () => import("@/features/brain/Memories").then((loaded) => ({ default: loaded.MemoriesScreen }));
+const loadSettingsScreen = () => import("@/features/settings/SettingsScreen").then((loaded) => ({ default: loaded.SettingsScreen }));
+const loadLeadsScreen = () => import("@/features/leads/LeadsScreen").then((loaded) => ({ default: loaded.LeadsScreen }));
+const loadImportScreen = () => import("@/features/import/ImportScreen").then((loaded) => ({ default: loaded.ImportScreen }));
+const loadPipelineScreen = () => import("@/features/pipeline/PipelineScreen").then((loaded) => ({ default: loaded.PipelineScreen }));
+const loadDayScreen = () => import("@/features/day/DayScreen").then((loaded) => ({ default: loaded.DayScreen }));
+const loadMoneyScreen = () => import("@/features/money/MoneyScreen").then((loaded) => ({ default: loaded.MoneyScreen }));
+const loadBrainScreen = () => import("@/features/brain/BrainScreen").then((loaded) => ({ default: loaded.BrainScreen }));
+const MapOf = lazy(loadMapOf);
+const MemoriesScreen = lazy(loadMemoriesScreen);
+const SettingsScreen = lazy(loadSettingsScreen);
+const LeadsScreen = lazy(loadLeadsScreen);
+const ImportScreen = lazy(loadImportScreen);
+const PipelineScreen = lazy(loadPipelineScreen);
+const DayScreen = lazy(loadDayScreen);
+const MoneyScreen = lazy(loadMoneyScreen);
+const BrainScreen = lazy(loadBrainScreen);
+const ALL_SCREENS = [loadMapOf, loadMemoriesScreen, loadSettingsScreen, loadLeadsScreen, loadImportScreen, loadPipelineScreen, loadDayScreen, loadMoneyScreen, loadBrainScreen];
+
+function warmScreens(): void {
+  const idle = (window as { requestIdleCallback?: (run: () => void) => void }).requestIdleCallback ?? ((run: () => void) => setTimeout(run, 400));
+  idle(() => {
+    for (const load of ALL_SCREENS) void load();
+  });
+}
 
 export function App() {
   return (
@@ -48,6 +72,8 @@ function Shell() {
   const { status, error, activeCompany, companies, retry } = useWorkspace();
 
   const [route, setRoute] = useState<RouteId>(DEFAULT_ROUTE);
+  // The other screens, read in the background once the first has drawn.
+  useEffect(() => warmScreens(), []);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [addingCompany, setAddingCompany] = useState(false);
   const [theme, setThemeState] = useState<ThemeChoice>(getTheme);
@@ -408,6 +434,7 @@ function Shell() {
             </div>
 
             <ErrorBoundary onHome={() => go("today")}>
+            <Suspense fallback={null}>
             {route === "today" ? (
               <TodayScreen
                 key={activeCompany?.id}
@@ -500,7 +527,7 @@ function Shell() {
                 onConsumeOpenPage={consumeOpenPage}
                 openSection={openSectionId}
                 onConsumeOpenSection={consumeOpenSection}
-                homeNonce={brainHomeNonce}
+                homeNonce={brainHomeNonce}
                 onOpenMemories={() => go("memories")}
                 onGoToProducts={() => {
                   setMoneyTab("products");
@@ -514,6 +541,7 @@ function Shell() {
             ) : (
               <ImportScreen key={activeCompany?.id} onGoToLeads={() => go("leads")} />
             )}
+            </Suspense>
             </ErrorBoundary>
           </div>
         </main>

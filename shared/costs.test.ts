@@ -66,6 +66,10 @@ describe("what renews soon", () => {
     nextOn,
     category: null,
     monthly: 100,
+    years: 1,
+    each: 100,
+    account: null,
+    product: null,
   });
 
   it("gives a yearly renewal a month's notice and a monthly bill three days", () => {

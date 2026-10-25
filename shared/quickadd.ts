@@ -1262,6 +1262,8 @@ function readLine(input: string, context: Context, answers: Answers): Reading {
     }
   }
 
+  // "The 27th next year", "3 march next year": the day, a year on. Alone it says no day, and stays in the title.
+  if (day !== null && claim(lower, taken, /\b(?:next|the\s+following)\s+year\b/).length > 0 && day.slice(0, 4) === today.slice(0, 4)) day = addMonths(day, 12);
   if (before && day !== null) day = shiftDay(day, -1) < today ? today : shiftDay(day, -1);
   if (after && day !== null) day = shiftDay(day, 1);
   if (asap && day === null) day = today;

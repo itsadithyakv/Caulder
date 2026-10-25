@@ -261,8 +261,9 @@ export function createCompany(db: Db, input: CompanyDraft): Company {
   const id = randomUUID();
 
   const insertCompany = db.prepare(
-    `INSERT INTO companies (id, name, accent, timezone, kind, logo, is_archived, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+    // Reminders before a block start on, ten minutes ahead: off until switched on was nobody reminded.
+    `INSERT INTO companies (id, name, accent, timezone, kind, logo, is_archived, remind_minutes, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, 0, 10, ?, ?)`,
   );
   // A company made with a country starts on its money; one made without, as
   // before any of this, on the rupee it always had. Written as its own step so

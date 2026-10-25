@@ -63,7 +63,7 @@ export function NudgeRows() {
 
   return (
     <>
-      {row("briefAt", "A morning brief of what matters today", "The must-dos by name, then how many more and how many are late. Nothing on a day with nothing.", "09:00")}
+      {row("briefAt", "A morning brief of what matters today", "What is due today, and what is late.", "09:00")}
       <p className="card__hint">
         Anything you tell the line to <strong>remind me</strong> about - &ldquo;remind me in 20 mins to check the oven&rdquo;,
         &ldquo;don&rsquo;t let me forget rent on the 1st&rdquo; - arrives at its time whatever these say, because you asked in so many

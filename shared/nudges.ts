@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { describeRenewal, type CostCycle } from "./costs";
 
 /**
  * The notifications Caulder sends on its own, and the rules for when.
@@ -12,6 +13,9 @@ import { z } from "zod";
  *    that day. Once, and never for a task already done.
  *  - **The morning brief**, at the hour you pick: what matters today - the
  *    must-dos first - in one notification, and nothing on a day with nothing.
+ *  - **What renews**, with the brief: a domain, a licence, a running cost -
+ *    once as it comes into view (a month ahead for a yearly one) and again
+ *    on its day, each its own notification.
  *
  * Pure: the window and main both read these, and the tests read nothing else.
  */
@@ -86,4 +90,35 @@ export function sayBrief(
   ].filter(Boolean);
   const title = musts.length > 0 ? `Today: ${musts.length === 1 ? "one must-do" : `${musts.length} must-dos`}` : `Today: ${due.length} to do`;
   return { title: due.length === 0 ? `${late} late` : title, body: [week, parts.join(", ")].filter(Boolean).join(". ") };
+}
+
+/** A running cost coming up, or come (shared/costs.ts), as one notification. */
+export function sayRenewal(
+  renewal: { title: string; nextOn: string; cycle: CostCycle | null; each: number | null; account?: string | null },
+  today: string,
+  workspace: string,
+): { title: string; body: string } {
+  // The account it was bought with first: it is the one to sign in with to renew it.
+  const said = [renewal.account ?? null, renewal.each ? new Intl.NumberFormat().format(renewal.each) : null, workspace];
+  return { title: `${renewal.title} ${describeRenewal(renewal, today)}`, body: said.filter(Boolean).join(" · ") };
+}
+
+/**
+ * Which renewals to say, and the marks that say each was said: once as it
+ * comes into view, and again on its day or after. A mark is the page, the day
+ * it falls on and which of the two, so a renewal moved on is said afresh.
+ */
+export function renewalsToTell<T extends { pageId: string; nextOn: string; daysLeft: number }>(
+  renewals: readonly T[],
+  told: readonly string[],
+): { tell: T[]; marks: string[] } {
+  const tell: T[] = [];
+  const marks: string[] = [];
+  for (const renewal of renewals) {
+    const mark = `${renewal.pageId}|${renewal.nextOn}|${renewal.daysLeft <= 0 ? "due" : "soon"}`;
+    if (told.includes(mark)) continue;
+    tell.push(renewal);
+    marks.push(mark);
+  }
+  return { tell, marks };
 }

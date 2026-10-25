@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Db } from "../db/connection";
 import {
   dueRule,
+  occurrences,
   obligationInput,
   openOccurrences,
   presetById,
@@ -173,11 +174,25 @@ export function updateObligation(db: Db, id: string, raw: unknown, today: string
     ...input,
     id,
     rule: JSON.stringify(input.rule),
-    startsOn: input.startsOn ?? before.startsOn,
+    startsOn: startsAfterChange(db, id, before, input.rule, input.startsOn ?? before.startsOn),
     active: input.active ? 1 : 0,
     at: now.toISOString(),
   });
   return obligationOr(db, id, today);
+}
+
+/**
+ * When it falls was changed: the new days start with the first period not yet
+ * done - from the start of the month the old days would next have fallen in.
+ * What was done is kept by the day it fell, so moving GSTR-1 from the 11th to
+ * the 13th made every past month's 13th late (logic pass, 23 October 2026).
+ */
+function startsAfterChange(db: Db, id: string, before: Obligation, rule: DueRule, startsOn: string): string {
+  if (JSON.stringify(rule) === JSON.stringify(before.rule)) return startsOn;
+  const lastDone = (db.prepare(`SELECT MAX(due_on) AS last FROM obligation_done WHERE obligation_id = ?`).get(id) as { last: string | null }).last;
+  if (!lastDone || startsOn > lastDone) return startsOn;
+  const nextOld = occurrences(before.rule, shiftDay(lastDone, 1), shiftDay(lastDone, 400))[0];
+  return nextOld ? `${nextOld.slice(0, 8)}01` : shiftDay(lastDone, 1);
 }
 
 export function deleteObligation(db: Db, id: string): void {
