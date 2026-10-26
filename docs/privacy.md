@@ -4,7 +4,7 @@ title: Caulder - privacy
 
 # Privacy
 
-*Caulder, the desktop app. Written 26 September 2026; changed 10 October 2026.*
+*Caulder, the desktop app. Written 26 September 2026; changed 25 October 2026.*
 
 **Caulder keeps everything on your computer.** There is no Caulder account,
 no Caulder server, no advertising, no analytics and no tracking. Nothing
