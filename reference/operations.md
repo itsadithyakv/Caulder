@@ -66,7 +66,8 @@ copy is handed to anybody:
   chosen, and hidden while it is (better a `name@bank` ID than a phone
   number, since everybody sees it).
 - **The privacy page is published.** `docs/privacy.md` goes out through
-  GitHub Pages (Settings → Pages → the `main` branch, `/docs`), at
+  GitHub Pages (Settings → Pages → the `general` branch, `/docs`, switched on
+  26 October 2026; move it to `main` once `general` is merged there), at
   `https://itsadithyakv.github.io/Caulder/privacy.html`. The Store asks for
   that URL. It must say the same as the code: anything that sends something
   new changes it in the same commit.

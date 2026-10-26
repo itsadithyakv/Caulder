@@ -16,7 +16,7 @@ under *The Microsoft Store*.
 | **Category** | Productivity |
 | **Price** | Free. No trial, no add-ons. |
 | **Markets** | All |
-| **Privacy policy URL** | `https://itsadithyakv.github.io/Caulder/privacy.html` (`docs/privacy.md`; GitHub Pages has to be switched on first) |
+| **Privacy policy URL** | `https://itsadithyakv.github.io/Caulder/privacy.html` (`docs/privacy.md`, published by GitHub Pages since 26 October 2026) |
 | **Support contact** | `https://github.com/itsadithyakv/Caulder/issues` |
 | **Website** | `https://github.com/itsadithyakv/Caulder` |
 
