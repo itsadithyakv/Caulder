@@ -135,6 +135,8 @@ export type PickableProduct = {
   status: ProductStatus;
   price: Price | null;
   cost: number | null;
+  /** Its tax, as a percentage, when the catalogue says: a line picked from it starts there. */
+  taxRate: number | null;
 };
 
 const money = (label: string) =>
@@ -164,7 +166,7 @@ export type ProductInput = z.input<typeof productInput>;
 
 export const priceInput = z
   .object({
-    name: z.string().trim().min(1, "Name the price: Standard, Schools, 500+ students.").max(80).default("Standard"),
+    name: z.string().trim().min(1, "Name the price: Standard, Teams, 50+ seats.").max(80).default("Standard"),
     amount: money("The price"),
     recurrence: z.enum(RECURRENCES).default("once"),
     validFrom: day,

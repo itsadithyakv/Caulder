@@ -78,31 +78,6 @@ export function readConnection(): Connection | null {
   }
 }
 
-export function saveBrainConnection(companyId: string, connection: BrainConnection): void {
-  if (!encryptionAvailable()) {
-    throw new Error(
-      "Windows will not encrypt stored secrets on this machine, so Caulder will not keep the shared brain's address. Nothing has been saved.",
-    );
-  }
-  const blob = safeStorage.encryptString(JSON.stringify(connection)).toString("base64");
-  getDatabase().prepare(`UPDATE companies SET brain_connection = ? WHERE id = ?`).run(blob, companyId);
-}
-
-export function readBrainConnection(companyId: string): BrainConnection | null {
-  const row = getDatabase().prepare(`SELECT brain_connection FROM companies WHERE id = ?`).get(companyId) as
-    | { brain_connection: string | null }
-    | undefined;
-  if (!row?.brain_connection || !encryptionAvailable()) return null;
-  try {
-    const parsed = JSON.parse(safeStorage.decryptString(Buffer.from(row.brain_connection, "base64"))) as BrainConnection;
-    return typeof parsed.url === "string" && (typeof parsed.secret === "string" || typeof parsed.invite === "string")
-      ? parsed
-      : null;
-  } catch {
-    return null;
-  }
-}
-
 export function forgetConnection(): void {
   setSetting(getDatabase(), "googleConnection", "");
 }

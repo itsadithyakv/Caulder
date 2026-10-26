@@ -3,9 +3,11 @@ import {
   linkLabelsOnly,
   linkTargets,
   linkToken,
-  openLinkQuery,
   parseLinks,
   refreshLabels,
+  unfinishedLinks,
+  withLink,
+  withoutLink,
 } from "./links";
 
 const PAGE = "3f0c1e2a-1111-4222-8333-944455556666";
@@ -59,16 +61,59 @@ describe("writing links", () => {
   });
 });
 
-describe("typing a link", () => {
-  it("knows when the caret is inside an unfinished link", () => {
-    const text = "We agreed with [[Oak";
-    expect(openLinkQuery(text, text.length)).toEqual({ start: 15, query: "Oak" });
-    expect(openLinkQuery("[[", 2)).toEqual({ start: 0, query: "" });
+describe("a link made on the Map", () => {
+  const page = { kind: "page" as const, id: PAGE };
+  const contact = { kind: "contact" as const, id: CONTACT };
+  const pricing = `[[Pricing|page:${PAGE}]]`;
+  const oakridge = `[[Oakridge|contact:${CONTACT}]]`;
+
+  it("goes on a line of its own at the foot, and the next one beside it", () => {
+    const once = withLink("Ship the pilot.\n", "Pricing", page);
+    expect(once).toBe(`Ship the pilot.\n\n${pricing}`);
+    expect(withLink(once, "Oakridge", contact)).toBe(`Ship the pilot.\n\n${pricing} · ${oakridge}`);
+    expect(withLink("", "Pricing", page)).toBe(pricing);
   });
 
-  it("does not, once the link is closed or the line has ended", () => {
-    expect(openLinkQuery("[[Oak]] then", 12)).toBeNull();
-    expect(openLinkQuery("[[Oak\nmore", 10)).toBeNull();
-    expect(openLinkQuery("no link here", 5)).toBeNull();
+  it("is not written twice, and does not join a line that has words on it", () => {
+    const text = `See ${pricing} first.`;
+    expect(withLink(text, "Pricing", page)).toBe(text);
+    expect(withLink(text, "Oakridge", contact)).toBe(`${text}\n\n${oakridge}`);
+  });
+
+  it("comes out of a line of links with its dot, and the emptied line goes", () => {
+    const both = `Notes.\n\n${pricing} · ${oakridge}`;
+    expect(withoutLink(both, page)).toBe(`Notes.\n\n${oakridge}`);
+    expect(withoutLink(withoutLink(both, page), contact)).toBe("Notes.");
+  });
+
+  it("leaves its words behind in a sentence", () => {
+    expect(withoutLink(`We agreed with ${oakridge} on ${pricing}.`, contact)).toBe(`We agreed with Oakridge on ${pricing}.`);
+    expect(withoutLink("Nothing here.", contact)).toBe("Nothing here.");
   });
 });
+
+describe("a link begun and never finished", () => {
+  it("is the words after [[, to the end of the line or the first stop", () => {
+    expect(unfinishedLinks("They buy the [[Attend\nafter a call")).toEqual([{ start: 13, end: 21, words: "Attend" }]);
+    expect(unfinishedLinks("Ask [[Asha]] today.")).toEqual([{ start: 4, end: 12, words: "Asha" }]);
+    expect(unfinishedLinks("See [[Oak, then lunch")).toEqual([{ start: 4, end: 9, words: "Oak" }]);
+  });
+
+  it("is never a finished link, and nothing without words", () => {
+    expect(unfinishedLinks(`[[Pricing|page:${PAGE}]] and [[`)).toEqual([]);
+    expect(unfinishedLinks("[[ ]]")).toEqual([]);
+  });
+});
+
+describe("links to a team that is gone", () => {
+  it("puts a link to a person back to its words, and leaves every other link alone", async () => {
+    const { withoutPeopleLinks } = await import("./links");
+    const person = "[[Asha Rao|person:11111111-2222-3333-4444-555555555555]]";
+    const contact = "[[Oakridge|contact:11111111-2222-3333-4444-555555555555]]";
+    expect(withoutPeopleLinks(`Ask ${person} about ${contact}.`)).toBe(`Ask Asha Rao about ${contact}.`);
+    expect(withoutPeopleLinks("Nothing linked here.")).toBe("Nothing linked here.");
+    // Not a link at all: the words "person:" in a sentence are left as they are.
+    expect(withoutPeopleLinks("one person: the founder")).toBe("one person: the founder");
+  });
+});
+

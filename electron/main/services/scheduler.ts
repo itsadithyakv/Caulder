@@ -1,11 +1,12 @@
 import { getDatabase } from "../db/connection";
+import { syncLinkedSheets } from "./sheetsync";
 import { getSetting } from "../repositories/settings";
 import { isConnected } from "./credentials";
 import { syncNow } from "./gsync";
-import { syncBrain } from "./brainsync";
 import { isFault, logProblem } from "../log";
 import { hasEmailWork } from "../repositories/mail";
-import { syncEmails } from "./mail";
+import { sendDueAccountMail, syncEmails } from "./mail";
+import { checkReplies } from "./mailaccounts";
 
 /**
  * Keeping Google in step without being asked.
@@ -196,6 +197,9 @@ let lastMailProblem: string | null = null;
 async function watchMail(): Promise<void> {
   try {
     const db = getDatabase();
+    // The accounts that read their own inbox, first: it needs no script, and
+    // each says its own trouble on its card rather than throwing here.
+    await checkReplies(db);
     if (isConnected() && hasEmailWork(db)) {
       await syncEmails(db);
       lastMailProblem = null;
@@ -213,54 +217,70 @@ export function startMailWatch(): void {
   stopMailWatch();
   // Not at once: the window has just opened, and it comes first.
   mailTimer = setTimeout(() => void watchMail(), 30_000);
+  accountTimer = setTimeout(() => void sendDue(), 15_000);
 }
 
 export function stopMailWatch(): void {
   if (mailTimer) clearTimeout(mailTimer);
   mailTimer = null;
+  if (accountTimer) clearTimeout(accountTimer);
+  accountTimer = null;
 }
 
-/* ---- The shared brain ----------------------------------------------------- */
-
-/**
- * Every few minutes, each company whose brain is shared reads the other
- * founder's changes and sends its own. On by being shared - sharing is the
- * asking - and quiet at launch like the rest. A failure is written on the
- * company, where Brain shows it, and the next pass tries again.
+/*
+ * Mail from other accounts that was set to go later is sent by Caulder, so it
+ * is looked for every minute rather than every ten: a message due at nine
+ * should not go at ten past. It is a local query until something is due.
  */
-const BRAIN_EVERY_MS = 3 * 60 * 1000;
-const BRAIN_FIRST_MS = 20_000;
-let brainTimer: ReturnType<typeof setTimeout> | null = null;
-let brainRunning = false;
+const ACCOUNT_EVERY_MS = 60 * 1000;
+let accountTimer: NodeJS.Timeout | null = null;
+let lastAccountProblem: string | null = null;
 
-async function brainPass(): Promise<void> {
-  if (brainRunning) return;
-  brainRunning = true;
+async function sendDue(): Promise<void> {
   try {
-    const shared = getDatabase()
-      .prepare(`SELECT id FROM companies WHERE brain_key IS NOT NULL AND is_archived = 0`)
-      .all() as { id: string }[];
-    for (const { id } of shared) {
-      try {
-        await syncBrain(getDatabase(), id);
-      } catch {
-        // syncBrain has written the reason on the company.
-      }
-    }
+    await sendDueAccountMail(getDatabase());
+    lastAccountProblem = null;
   } catch (error) {
-    if (isFault(error)) logProblem("brain sync", error);
+    const message = error instanceof Error ? error.message : String(error);
+    if (message !== lastAccountProblem) logProblem("email", error);
+    lastAccountProblem = message;
   } finally {
-    brainRunning = false;
-    brainTimer = setTimeout(() => void brainPass(), BRAIN_EVERY_MS);
+    accountTimer = setTimeout(() => void sendDue(), ACCOUNT_EVERY_MS);
   }
 }
 
-export function startBrainSync(): void {
-  if (brainTimer) clearTimeout(brainTimer);
-  brainTimer = setTimeout(() => void brainPass(), BRAIN_FIRST_MS);
+/* ---- Contacts as a Google Sheet -------------------------------------------
+ * A company that keeps its contacts in a sheet has them brought in step every
+ * few minutes - linking the sheet is the asking - so a number typed on the
+ * phone is in Caulder by the time the laptop is open. Quiet at launch like
+ * the rest; a failure is written on the link, where Settings shows it, and
+ * the next pass tries again.
+ * ------------------------------------------------------------------------ */
+
+const SHEET_EVERY_MS = 10 * 60 * 1000;
+const SHEET_FIRST_MS = 40_000;
+let sheetTimer: ReturnType<typeof setTimeout> | null = null;
+let sheetRunning = false;
+
+async function sheetPass(): Promise<void> {
+  if (sheetRunning) return;
+  sheetRunning = true;
+  try {
+    if (isConnected()) await syncLinkedSheets(getDatabase());
+  } catch (error) {
+    if (isFault(error)) logProblem("contacts sheet", error);
+  } finally {
+    sheetRunning = false;
+    sheetTimer = setTimeout(() => void sheetPass(), SHEET_EVERY_MS);
+  }
 }
 
-export function stopBrainSync(): void {
-  if (brainTimer) clearTimeout(brainTimer);
-  brainTimer = null;
+export function startSheetSync(): void {
+  if (sheetTimer) clearTimeout(sheetTimer);
+  sheetTimer = setTimeout(() => void sheetPass(), SHEET_FIRST_MS);
+}
+
+export function stopSheetSync(): void {
+  if (sheetTimer) clearTimeout(sheetTimer);
+  sheetTimer = null;
 }

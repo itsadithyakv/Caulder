@@ -108,3 +108,48 @@ test("the setting survives a restart", async () => {
     page.getByRole("switch", { name: "Tell me when something is overdue" }),
   ).toHaveAttribute("aria-checked", "true");
 });
+
+test("how long before a contact is going quiet is set in Settings, and Today uses it", async () => {
+  const page = await openApp();
+  await page.getByRole("button", { name: /^Settings/ }).click();
+
+  const days = page.getByLabel("Days without contact before going quiet");
+  await expect(days).toHaveValue("14");
+
+  // Refused with the sentence, not a number quietly clamped: a threshold of
+  // two days would list almost everyone.
+  await days.fill("2");
+  await days.blur();
+  await expect(page.getByText("Three days is the shortest")).toBeVisible();
+  await expect(page.getByText("Going quiet after 14 days without contact")).toBeVisible();
+
+  await days.fill("7");
+  await days.blur();
+  await expect(page.getByText("Going quiet after 7 days without contact")).toBeVisible();
+  await expect(page.getByText("Three days is the shortest")).toHaveCount(0);
+
+  // What Today is built from, not only what the box shows.
+  const threshold = await page.evaluate(async () => {
+    const id = (await window.caulder.companies.list()).activeCompanyId;
+    return (await window.caulder.today.get(id!)).coldAfterDays;
+  });
+  expect(threshold).toBe(7);
+});
+
+test("understanding is on, says how far it has read, and switches off", async () => {
+  const page = await openApp();
+  await page.getByRole("button", { name: /^Settings/ }).click();
+
+  const card = page.locator(".card", { hasText: "Understanding" });
+  const toggle = card.getByRole("switch", { name: "Read what I write for what it means" });
+  await expect(toggle).toHaveAttribute("aria-checked", "true");
+  // Either it is reading, or it says the model is not on this computer: both are a sentence, never a blank.
+  await expect(card.getByRole("status")).toHaveText(/Read \d|not on this computer/);
+
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-checked", "false");
+  expect(await page.evaluate(() => window.caulder.understand.state().then((state) => state.on))).toBe(false);
+
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-checked", "true");
+});

@@ -99,7 +99,7 @@ export function LeadDeals({
 
       {deals.length === 0 && !adding && (
         <p className="card__hint">
-          No deals with {lead.name}. Add one when there is something to sell them; it goes on Deals.
+          No deals with {lead.name}. 
         </p>
       )}
 

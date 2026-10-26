@@ -19,14 +19,6 @@ import {
   periodOf,
   type DocumentCategory,
 } from "@shared/deadlines";
-import {
-  CANDIDATE_STAGE_LABEL,
-  OPENING_STATUS_LABEL,
-  PERSON_KIND_LABEL,
-  type CandidateStage,
-  type OpeningStatus,
-  type PersonKind,
-} from "@shared/people";
 
 /**
  * Getting everything out.
@@ -56,7 +48,8 @@ const SHEETS: { file: string; sql: string; shape?: (row: Row) => Row }[] = [
       SELECT l.name AS "Name", l.contact_person AS "Contact Person",
              l.email AS "Email", l.phone AS "Phone", l.alt_phone AS "Alt Phone",
              l.city AS "City", l.location AS "Location", l.pin AS "PIN",
-             l.source AS "Source", l.website AS "Website", md.value AS "Value",
+             l.source AS "Source", l.website AS "Website",
+             l.linkedin AS "LinkedIn", l.instagram AS "Instagram", md.value AS "Value",
              s.name AS "Stage", l.notes AS "Notes", c.name AS "Campaign",
              l.relationship AS "Relationship", l.do_not_contact AS "Do Not Contact",
              l.last_contacted_at AS "Last Contacted", l.created_at AS "Added"
@@ -144,7 +137,7 @@ const SHEETS: { file: string; sql: string; shape?: (row: Row) => Row }[] = [
     file: "products.csv",
     sql: `
       SELECT p.name AS "Product", p.kind AS "Kind", p.unit AS "Sold Per", p.status AS "Status",
-             p.cost AS "Costs Us", p.tax_rate AS "GST %", p.code AS "HSN or SAC",
+             p.cost AS "Costs Us", p.tax_rate AS "Tax %", p.code AS "Tax code",
              r.name AS "Price", r.amount AS "Amount", r.recurrence AS "Charged",
              r.valid_from AS "From", r.valid_to AS "Until", p.notes AS "Notes"
       FROM products p
@@ -244,11 +237,6 @@ const SHEETS: { file: string; sql: string; shape?: (row: Row) => Row }[] = [
       LEFT JOIN openings o ON o.id = p.opening_id
       WHERE p.company_id = ?
       ORDER BY p.kind = 'candidate', p.name COLLATE NOCASE`,
-    shape: (row) => ({
-      ...row,
-      "Here As": PERSON_KIND_LABEL[row["Here As"] as PersonKind] ?? row["Here As"],
-      Stage: row["Stage"] ? (CANDIDATE_STAGE_LABEL[row["Stage"] as CandidateStage] ?? row["Stage"]) : "",
-    }),
   },
   {
     file: "roles.csv",
@@ -258,7 +246,6 @@ const SHEETS: { file: string; sql: string; shape?: (row: Row) => Row }[] = [
       FROM openings o
       WHERE o.company_id = ?
       ORDER BY o.title COLLATE NOCASE`,
-    shape: (row) => ({ ...row, Status: OPENING_STATUS_LABEL[row["Status"] as OpeningStatus] ?? row["Status"] }),
   },
   {
     file: "templates.csv",
@@ -404,8 +391,8 @@ function readme(companyName: string, now: Date): string {
     "obligations.csv  What the company files and pays, and when.",
     "filings.csv    Each one done: which, for what period, and when.",
     "documents.csv  Every document, stored here or written down with where it is.",
-    "people.csv     The team, with pay, equity and vesting, and the candidates.",
-    "roles.csv      The roles being hired for.",
+    "people.csv     From before 11 October 2026, when Caulder kept a team: who, with pay and equity. Nothing in the app shows it now.",
+    "roles.csv      From the same time: the roles that were being hired for.",
     "metrics.csv    Every metric, a row a month for the last year.",
     "templates.csv  The messages worth writing once.",
     "brain/         The company brain, one Markdown file per page -",

@@ -1,23 +1,19 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  BookHeart,
   Building2,
   CalendarClock,
   ChartLine,
   FileText,
   Gavel,
-  GraduationCap,
   Landmark,
   Lightbulb,
   ListChecks,
   MessagesSquare,
-  Mountain,
-  NotebookPen,
   Package,
-  Palette,
   Receipt,
   Scale,
   Target,
-  Users,
   Wrench,
 } from "lucide-react";
 import type { BrainSectionId } from "@shared/brain";
@@ -29,7 +25,6 @@ export const SECTION_ICON: Record<BrainSectionId, LucideIcon> = {
   products: Package,
   money: Landmark,
   tax: Receipt,
-  people: Users,
   customers: MessagesSquare,
   playbooks: ListChecks,
   legal: Scale,
@@ -39,8 +34,5 @@ export const SECTION_ICON: Record<BrainSectionId, LucideIcon> = {
   metrics: ChartLine,
   documents: FileText,
   ideas: Lightbulb,
-  studies: GraduationCap,
-  hobbies: Palette,
-  goals: Mountain,
-  journal: NotebookPen,
+  remembered: BookHeart,
 };

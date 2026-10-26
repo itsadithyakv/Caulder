@@ -401,26 +401,21 @@
   list-style: none;
 }
 
-/* The stage picker carries the stage's name, so the edge colour only repeats
- * what the row already says. */
+/* The stage picker carries the stage's name, so the row has one plain edge
+ * all round: it used to have a thick one down the left, coloured by how the
+ * deal ended, which only repeated what the row already says. */
 .dealrow {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(120px, auto) auto;
   gap: var(--space-2) var(--space-3);
   align-items: center;
   padding: var(--space-2) var(--space-3);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--border-strong);
-  border-radius: var(--radius-sm);
+  border-bottom: 1px solid var(--soft-line);
 }
-
-.dealrow--won { border-left-color: var(--ok); }
-.dealrow--lost { border-left-color: var(--danger); }
 
 .dealrow--editing {
   display: block;
-  border-left-color: var(--accent);
+  border-color: var(--accent);
 }
 
 .dealrow--editing .dealform { margin-top: 0; }
@@ -564,6 +559,16 @@
   gap: var(--space-1);
 }
 
+/* What is not known about a contact yet, in one line, with the way to add it. */
+.facts__missing {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  margin: var(--space-3) 0 0;
+}
+
 .detail__notes {
   display: flex;
   flex-direction: column;
@@ -571,6 +576,39 @@
   margin-top: var(--space-5);
   padding-top: var(--space-4);
   border-top: 1px solid var(--soft-line);
+}
+
+/* Known about them (part twelve, phase 49): what stays true, one line each,
+ * under the facts the form keeps. A rule between, like the notes below. */
+.knownabout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--soft-line);
+}
+
+.knownabout__list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.knownabout__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 32px;
+  color: var(--ink);
+  font-size: var(--text-sm);
+}
+
+.knownabout__until {
+  color: var(--ink-3);
 }
 
 .detail__notesBody {
@@ -728,4 +766,54 @@
   color: var(--ink-3);
   font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
+}
+
+/* "Save to my phone", and what came of it, on one line above the facts. */
+.savetophone {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+/* ---- One message to the contacts ticked ---------------------------------- */
+
+.sendmany {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sendmany__who {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The message as one of them will read it: set apart, in the page's own type. */
+.sendmany__preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-sunken);
+  border: 1px solid var(--soft-line);
+  border-radius: var(--radius-md);
+}
+
+.sendmany__subject {
+  margin: 0;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.sendmany__body {
+  margin: 0;
+  color: var(--ink-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }

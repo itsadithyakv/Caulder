@@ -7,6 +7,8 @@ import {
   listActivities,
   logActivity,
   setLeadStage,
+  updateLead,
+  writeActivity,
 } from "../repositories/leads";
 import { setSetting } from "../repositories/settings";
 import {
@@ -20,7 +22,7 @@ import {
   rescheduleTask,
   updateTask,
 } from "../repositories/tasks";
-import { buildToday } from "./today";
+import { buildToday, readColdAfterDays, setColdAfterDays } from "./today";
 import {
   leadInput,
   taskInput,
@@ -353,6 +355,36 @@ describe("the going-cold list", () => {
     expect(buildToday(db, company.id, NOW).coldAfterDays).toBe(14);
   });
 
+  it("takes a threshold set through Settings, and Today uses it", () => {
+    ageLead(lead.id, 10);
+    expect(readColdAfterDays(db)).toBe(14);
+    expect(buildToday(db, company.id, NOW).cold).toHaveLength(0);
+
+    expect(setColdAfterDays(db, 7)).toBe(7);
+    expect(readColdAfterDays(db)).toBe(7);
+    const day = buildToday(db, company.id, NOW);
+    expect(day.coldAfterDays).toBe(7);
+    expect(day.cold.map((row) => row.id)).toEqual([lead.id]);
+  });
+
+  it("refuses a threshold outside three to ninety days, with the sentence to show", () => {
+    expect(() => setColdAfterDays(db, 2)).toThrow(/Three days is the shortest/);
+    expect(() => setColdAfterDays(db, 91)).toThrow(/Ninety days is the longest/);
+    expect(() => setColdAfterDays(db, 7.5)).toThrow(/whole number of days/);
+    expect(() => setColdAfterDays(db, Number.NaN)).toThrow(/as a number/);
+    // The edges are allowed, and nothing refused was stored.
+    expect(readColdAfterDays(db)).toBe(14);
+    expect(setColdAfterDays(db, 3)).toBe(3);
+    expect(setColdAfterDays(db, 90)).toBe(90);
+  });
+
+  it("reads a stored threshold the setter would refuse as the default", () => {
+    setSetting(db, "coldAfterDays", "1");
+    expect(readColdAfterDays(db)).toBe(14);
+    setSetting(db, "coldAfterDays", "365");
+    expect(buildToday(db, company.id, NOW).coldAfterDays).toBe(14);
+  });
+
   it("lists the quietest lead first", () => {
     const second = createLead(db, company.id, leadInput.parse({ name: "Quieter School" }));
     ageLead(lead.id, 20);
@@ -362,5 +394,108 @@ describe("the going-cold list", () => {
       "Quieter School",
       "Bengaluru Public School",
     ]);
+  });
+});
+
+describe("who to reach out to", () => {
+  /** A prospect added a number of days ago, with whatever is on their page. */
+  function prospect(name: string, daysAgo: number, over: Record<string, unknown> = {}): Lead {
+    const made = createLead(db, company.id, leadInput.parse({ name, ...over }));
+    const at = new Date(NOW.getTime() - daysAgo * 24 * 60 * 60 * 1000).toISOString();
+    db.prepare(`UPDATE leads SET created_at = ? WHERE id = ?`).run(at, made.id);
+    return made;
+  }
+  /** Reached, at a moment, by one of the ways there are. */
+  const reached = (leadId: string, kind: "email_sent" | "linkedin" | "call" | "note", at: Date = NOW) =>
+    writeActivity(db, { companyId: company.id, leadId, kind, body: "x", occurredAt: at.toISOString() });
+
+  it("names those nobody has written to, the longest waiting first, with the ways there are", () => {
+    prospect("Nordlys Design", 2, { email: "jonas@nordlys.example", linkedin: "linkedin.com/in/jonas-berg" });
+    prospect("Atlas Fitness", 20, { phone: "98765 43210" });
+    prospect("Fieldnote Books", 9);
+    const { reach } = buildToday(db, company.id, NOW);
+    // The contact every test starts with is waiting too, added today.
+    expect(reach.next.map((each) => each.name)).toEqual(["Atlas Fitness", "Fieldnote Books", "Nordlys Design", lead.name]);
+    expect(reach.next[0]).toMatchObject({ ways: ["phone"], addedOn: shiftDay(TODAY, -20) });
+    expect(reach.next[2]?.ways).toEqual(["email", "linkedin"]);
+    expect(reach.next[1]?.ways).toEqual([]);
+    expect(reach.waiting).toBe(4);
+    expect(reach).toMatchObject({ today: 0, week: 0 });
+  });
+
+  it("leaves out anybody reached, planned for, scheduled to, closed, not a prospect, or not to be contacted", () => {
+    const written = prospect("Written to", 5);
+    reached(written.id, "linkedin");
+    const planned = prospect("Planned for", 5);
+    createTask(db, company.id, task({ title: "Call them", leadId: planned.id }));
+    const barred = prospect("Do not contact", 5);
+    updateLead(db, barred.id, leadInput.parse({ ...barred, doNotContact: true }));
+    prospect("An accountant", 5, { relationship: "accountant" });
+    const lost = prospect("Lost already", 5);
+    const lostStage = listStages(db, company.id).find((stage) => stage.kind === "lost");
+    setLeadStage(db, lost.id, lostStage?.id ?? null);
+    // A note about somebody is not having reached them.
+    const noted = prospect("Only a note", 5);
+    reached(noted.id, "note");
+
+    const { reach } = buildToday(db, company.id, NOW);
+    expect(reach.next.map((each) => each.name)).toEqual(["Only a note", lead.name]);
+    expect(reach.waiting).toBe(2);
+  });
+
+  it("counts people, not messages, by the company's own day and the seven before it", () => {
+    const one = prospect("One", 30);
+    const two = prospect("Two", 30);
+    const old = prospect("Old", 30);
+    reached(one.id, "email_sent");
+    reached(one.id, "call");
+    reached(two.id, "linkedin", new Date(NOW.getTime() - 3 * 24 * 60 * 60 * 1000));
+    reached(old.id, "call", new Date(NOW.getTime() - 9 * 24 * 60 * 60 * 1000));
+    // 19:30 UTC yesterday is one in the morning today in Kolkata: today's.
+    reached(two.id, "call", new Date("2026-09-02T19:30:00Z"));
+
+    const { reach } = buildToday(db, company.id, NOW);
+    expect(reach.today).toBe(2);
+    expect(reach.week).toBe(2);
+  });
+
+  it("shows five and says how many more there are", () => {
+    for (let i = 0; i < 8; i += 1) prospect(`Prospect ${i}`, 40 - i);
+    const { reach } = buildToday(db, company.id, NOW);
+    expect(reach.next).toHaveLength(5);
+    expect(reach.next[0]?.name).toBe("Prospect 0");
+    expect(reach.waiting).toBe(9);
+  });
+});
+
+describe("who was written to this week, and what came back", () => {
+  const days = (count: number) => new Date(NOW.getTime() - count * 24 * 60 * 60 * 1000);
+  const wrote = (leadId: string, kind: "email_sent" | "whatsapp" | "linkedin" | "email_replied" | "replied" | "call", at: Date) =>
+    writeActivity(db, { companyId: company.id, leadId, kind, body: "x", occurredAt: at.toISOString() });
+  const add = (name: string) => createLead(db, company.id, leadInput.parse({ name }));
+
+  it("counts people, not messages, and whether each has answered since the last one", () => {
+    const silent = add("Silent since Monday");
+    wrote(silent.id, "email_sent", days(4));
+    wrote(silent.id, "email_sent", days(3));
+    const answered = add("Answered");
+    wrote(answered.id, "whatsapp", days(2));
+    wrote(answered.id, "replied", days(1));
+    const again = add("Answered, then written to again");
+    wrote(again.id, "email_sent", days(5));
+    wrote(again.id, "email_replied", days(4));
+    wrote(again.id, "linkedin", days(1));
+    // Rung, not written to: reached, and not waiting on an answer to anything.
+    wrote(add("Only rung").id, "call", days(1));
+    // Too long ago to be this week's.
+    wrote(add("Last month").id, "email_sent", days(30));
+
+    const { reach } = buildToday(db, company.id, NOW);
+    expect(reach.sent).toEqual({ people: 3, answered: 1, waiting: 2, oldestDays: 3 });
+  });
+
+  it("is nobody when nothing was sent", () => {
+    add("Quiet");
+    expect(buildToday(db, company.id, NOW).reach.sent).toEqual({ people: 0, answered: 0, waiting: 0, oldestDays: null });
   });
 });

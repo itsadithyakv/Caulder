@@ -73,9 +73,9 @@ test.afterAll(async () => {
 test("the brain has its own row, a key, and a list of what to write first", async () => {
   await page.keyboard.press("b");
   await expect(page.getByRole("heading", { name: "Brain", exact: true })).toBeVisible();
-  await expect(page.getByRole("img", { name: "0 of 12 written down" })).toBeVisible();
-  // Home, the Map, All sections and Share and export: a section joins the rail when it holds something.
-  await expect(rail().getByRole("button")).toHaveCount(4);
+  await expect(page.getByRole("img", { name: "0 of 10 written down" })).toBeVisible();
+  // Home, the Map, Memories, All sections and Share and export: a section joins the rail when it holds something.
+  await expect(rail().getByRole("button")).toHaveCount(5);
   await shot("home-empty");
 });
 
@@ -86,27 +86,29 @@ test("the profile keeps its numbers masked, and ticks the list as it fills", asy
   await page.getByLabel("One-liner").fill("Timetables for schools");
   await page.getByLabel("Entity type").click();
   await page.getByRole("option", { name: "LLP" }).click();
-  await page.getByLabel("GSTIN").fill("29AAACU9876K1Z5");
-  await page.getByLabel("PAN", { exact: true }).fill("AAACU9876K");
+  await page.getByLabel("Sales tax, VAT or GST number").fill("29AAACU9876K1Z5");
+  await page.getByLabel("Tax ID", { exact: true }).fill("AAACU9876K");
   await shot("profile-editing");
   await page.getByRole("button", { name: "Save", exact: true }).click();
 
   await expect(page.getByText("•••• 876K")).toBeVisible();
   await expect(page.getByText("AAACU9876K", { exact: true })).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Show the PAN" }).click();
+  await page.getByRole("button", { name: "Show the Tax ID" }).click();
   await expect(page.getByText("AAACU9876K", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Hide the PAN" }).click();
+  await page.getByRole("button", { name: "Hide the Tax ID" }).click();
   await expect(page.getByText("AAACU9876K", { exact: true })).toHaveCount(0);
   await shot("profile");
 
   await rail().getByRole("button", { name: "Home" }).click();
-  await expect(page.getByRole("img", { name: "2 of 12 written down" })).toBeVisible();
-  await expect(page.getByText("Timetables for schools")).toBeVisible();
+  await expect(page.getByRole("img", { name: "2 of 10 written down" })).toBeVisible();
+  // Under the name - and in the brief below it, which is what goes to an AI.
+  await expect(page.locator(".brainhome__oneLiner")).toContainText("Timetables for schools");
+  await expect(page.locator(".proposal__text")).toContainText("Timetables for schools");
   // The list shows what is left; the whole of it is a click away.
-  await expect(page.getByRole("button", { name: /The one-liner/ })).toHaveCount(0);
-  await page.getByRole("button", { name: "All 12" }).click();
-  await expect(page.getByRole("button", { name: /The one-liner, written/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^What the company does/ })).toHaveCount(0);
+  await page.getByRole("button", { name: "All 10" }).click();
+  await expect(page.getByRole("button", { name: "What the company does, in one sentence, written" })).toBeVisible();
   await expect(rail().getByRole("button", { name: /^Company/ })).toBeVisible();
   await shot("home");
 });
@@ -142,7 +144,7 @@ test("a page keeps its versions, and an old one can be put back", async () => {
 });
 
 test("a playbook's steps tick in place, and stay ticked", async () => {
-  await openSection("Playbooks");
+  await openSection("How we work");
   await newPage(page, "Playbook");
   await page.getByLabel("Title").fill("Onboarding a school");
   await writeBody("## Steps\n\n- [ ] Send the welcome pack\n- [ ] Book the training call");
@@ -151,7 +153,7 @@ test("a playbook's steps tick in place, and stay ticked", async () => {
   await step.check();
   await expect(step).toBeChecked();
 
-  await openSection("Playbooks");
+  await openSection("How we work");
   await page.getByRole("button", { name: /Onboarding a school/ }).click();
   await expect(page.getByRole("checkbox", { name: "Send the welcome pack" })).toBeChecked();
   await expect(page.getByRole("checkbox", { name: "Book the training call" })).not.toBeChecked();
@@ -171,7 +173,7 @@ test("Ctrl+K finds pages and contacts, and opens what it finds", async () => {
 
   // A page is found by its text as well as its title, and says its section.
   await search.fill("welcome pack");
-  await expect(results.getByRole("option", { name: /Playbooks\s*Onboarding a school/ })).toBeVisible();
+  await expect(results.getByRole("option", { name: /How we work\s*Onboarding a school/ })).toBeVisible();
   await shot("search");
   await search.press("Enter");
 
@@ -187,17 +189,21 @@ test("Ctrl+K finds pages and contacts, and opens what it finds", async () => {
 
 test("a caught note can be filed into Ideas, or put back", async () => {
   await goTo(page, "Today");
-  const notes = page.getByPlaceholder("Anything. It does not have to be about a contact.");
+  // Today has one way in, the quick line: "note:" says it outright, and the
+  // note waits on Today, beside the work, to be filed.
+  const line = page.getByLabel("Anything, in one line");
+  await expect(page.getByLabel("Write a note")).toHaveCount(0);
 
-  await notes.fill("Referral bonus for schools");
-  await page.getByRole("button", { name: "Keep it" }).click();
+  await line.fill("note: Referral bonus for schools");
+  await line.press("Enter");
+  await expect(page.locator(".quickadd__added")).toContainText("A note, on Today");
   await page.getByRole("button", { name: 'File "Referral bonus for schools" in the brain' }).click();
   await page.getByRole("button", { name: "File it", exact: true }).click();
   await expect(page.getByText("Filed in Ideas as “Referral bonus for schools”.")).toBeVisible();
   await expect(page.locator(".note", { hasText: "Referral bonus for schools" })).toHaveCount(0);
 
-  await notes.fill("Parents newsletter");
-  await page.getByRole("button", { name: "Keep it" }).click();
+  await line.fill("note: Parents newsletter");
+  await line.press("Enter");
   await page.getByRole("button", { name: 'File "Parents newsletter" in the brain' }).click();
   await page.getByRole("button", { name: "File it", exact: true }).click();
   await page.getByRole("button", { name: "Undo" }).click();
@@ -237,7 +243,7 @@ test("[[ links a page to a page and a contact, and both know it", async () => {
   const text = page.getByLabel("Page", { exact: true });
   await text.fill("");
   await text.pressSequentially("We sell the [[Work");
-  const picker = page.getByRole("listbox", { name: "Link to" });
+  const picker = page.getByRole("listbox", { name: "Suggestions" });
   await expect(picker.getByRole("option", { name: /Workshop/ })).toBeVisible();
   await shot("linking");
   await text.press("Enter");
@@ -326,12 +332,12 @@ test("the whole brain exports as Markdown, masked unless asked", async () => {
   const root = join(target, folder ?? "");
   expect(existsSync(join(root, "README.md"))).toBe(true);
   const profile = readFileSync(join(root, "01 Company", "Company profile.md"), "utf8");
-  expect(profile).toContain("- **PAN:** •••• 876K");
-  expect(profile).not.toContain("**PAN:** AAACU9876K");
-  expect(readdirSync(join(root, "08 Playbooks"))).toEqual(["Onboarding a school.md"]);
+  expect(profile).toContain("- **Tax ID:** •••• 876K");
+  expect(profile).not.toContain("**Tax ID:** AAACU9876K");
+  expect(readdirSync(join(root, "07 How we work"))).toEqual(["Onboarding a school.md"]);
 
   // A link is a link in the files too: relative to the page it points at.
-  const decision = readFileSync(join(root, "11 Decisions", "Annual billing only.md"), "utf8");
+  const decision = readFileSync(join(root, "10 Decisions", "Annual billing only.md"), "utf8");
   expect(decision).toContain(
     "We sell the [Workshop full day](../03%20Products%20and%20pricing/Workshop%20full%20day.md) to **Oakridge School**",
   );

@@ -34,6 +34,10 @@ type BlockRow = {
   is_dirty: number;
   created_at: string;
   updated_at: string;
+  lead_id: string | null;
+  lead_name: string | null;
+  billable: number;
+  invoice_id: string | null;
 };
 
 function toBlock(row: BlockRow): Block {
@@ -60,15 +64,20 @@ function toBlock(row: BlockRow): Block {
     isDirty: row.is_dirty === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    leadId: row.lead_id ?? null,
+    leadName: row.lead_name ?? null,
+    billable: row.billable === 1,
+    invoiceId: row.invoice_id ?? null,
   };
 }
 
 /** Every read joins the task and the page, so a block can say what it is set aside for. */
 const SELECT = `
-  SELECT b.*, t.title AS task_title, p.title AS page_title
+  SELECT b.*, t.title AS task_title, p.title AS page_title, l.name AS lead_name
     FROM blocks b
     LEFT JOIN tasks t ON t.id = b.task_id
     LEFT JOIN brain_pages p ON p.id = b.page_id
+    LEFT JOIN leads l ON l.id = b.lead_id
 `;
 
 export function listBlocks(db: Db, companyId: string, day: string): Block[] {
@@ -115,8 +124,8 @@ function insertBlock(
   db.prepare(
     `INSERT INTO blocks
        (id, company_id, day, starts_at, minutes, title, kind, notes, task_id,
-        series_id, priority, remind_minutes, source, is_dirty, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        series_id, priority, remind_minutes, lead_id, billable, source, is_dirty, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     id,
     companyId,
@@ -132,6 +141,8 @@ function insertBlock(
     seriesId,
     input.priority ?? null,
     input.remindMinutes ?? null,
+    input.forClient?.leadId ?? null,
+    input.forClient?.billable ? 1 : 0,
     source,
     // A block we made has never been pushed, so it is dirty from birth. One we
     // mirrored from Google is already in step with it.
@@ -144,7 +155,7 @@ function insertBlock(
 }
 
 /**
- * Creates one block, or a whole term of them.
+ * Creates one block, or a whole run of them.
  *
  * A repeat writes every occurrence up front. The trade is rows for
  * predictability: editing one Tuesday is editing a block, and nothing else in
@@ -157,6 +168,9 @@ export function createBlock(
   source: BlockSource = "caulder",
 ): Block {
   const repeat = input.repeat ?? null;
+  if (input.forClient && !db.prepare(`SELECT 1 FROM leads WHERE id = ? AND company_id = ?`).get(input.forClient.leadId, companyId)) {
+    throw new Error("That contact is not in this company.");
+  }
 
   if (!repeat) {
     const id = insertBlock(db, companyId, input, input.day, source, null);
@@ -165,7 +179,7 @@ export function createBlock(
     return created;
   }
 
-  const rule = { weekdays: repeat.weekdays, from: input.day, until: repeat.until };
+  const rule = { weekdays: repeat.weekdays, from: input.day, until: repeat.until, every: repeat.every ?? 1 };
   const problem = checkRepeat(rule);
   if (!problem.ok) throw new Error(problem.reason);
 
@@ -182,8 +196,8 @@ export function createBlock(
     db.prepare(
       `INSERT INTO block_series
          (id, company_id, title, kind, notes, starts_at, minutes, weekdays,
-          from_day, until_day, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          from_day, until_day, every_weeks, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       seriesId,
       companyId,
@@ -195,6 +209,7 @@ export function createBlock(
       repeat.weekdays.join(","),
       input.day,
       repeat.until,
+      repeat.every ?? 1,
       now,
     );
 

@@ -19,8 +19,20 @@ import {
 } from "../services/brain";
 import { exportBrain } from "../services/brain-export";
 import { exportDossier } from "../services/dossier";
-import { backlinks, keepPositions, letGo, linkTargetsFor, localMap, wholeMap } from "../services/map";
+import { nearestTo, readFirstFor, understandingOn } from "../services/understand";
+import { modelHere, readLines } from "../understand/host";
+import { z } from "zod";
+
+/** What Export for an AI is told besides which company (phase 22). */
+const dossierOptions = z.object({
+  purpose: z.string().max(200, "Say what it is for in under 200 characters.").optional(),
+});
+import { buildTopicBrief } from "../services/topic";
+import { backlinks, connect, disconnect, keepPositions, letGo, linkTargetsFor, localMap, wholeMap } from "../services/map";
 import { makeTasks, pageTasks } from "../services/steps";
+import { allMemories, editMemory, forgetMemory, pageTitles } from "../services/memories";
+import { remember } from "../services/remember";
+import { applySort, rulesOn, sortPlan } from "../services/howwework";
 import { decisionLog } from "../services/brain";
 
 /** A copied number is wiped from the clipboard after this, if nothing replaced it. */
@@ -44,9 +56,9 @@ export function registerBrainHandlers(): void {
     newPage(getDatabase(), companyOf(companyId), section, template, new Date(), preset),
   );
 
-  handle(CHANNELS.brainSave, (_event, id: unknown, input: unknown) =>
-    savePage(getDatabase(), pageOf(id), input, new Date()),
-  );
+  handle(CHANNELS.brainSave, (_event, id: unknown, input: unknown) => {
+    return savePage(getDatabase(), pageOf(id), input, new Date());
+  });
 
   handle(CHANNELS.brainPin, (_event, id: unknown, pinned: unknown) =>
     pinPage(getDatabase(), pageOf(id), pinned === true),
@@ -100,8 +112,9 @@ export function registerBrainHandlers(): void {
     return exportBrain(getDatabase(), id, company.name, picked.filePaths[0], { secrets: secrets === true });
   });
 
-  handle(CHANNELS.brainDossier, async (_event, companyId: unknown, secrets: unknown) => {
+  handle(CHANNELS.brainDossier, async (_event, companyId: unknown, secrets: unknown, raw: unknown) => {
     const id = companyOf(companyId);
+    const options = dossierOptions.parse(raw ?? {});
     const company = getDatabase().prepare(`SELECT name FROM companies WHERE id = ?`).get(id) as
       | { name: string }
       | undefined;
@@ -113,12 +126,37 @@ export function registerBrainHandlers(): void {
     });
     if (picked.canceled || !picked.filePaths[0]) return null;
 
-    return exportDossier(getDatabase(), id, company.name, picked.filePaths[0], { secrets: secrets === true });
+    // What it is for, and what to read first for it - by meaning, when understanding is on (phase 22).
+    const db = getDatabase();
+    const purpose = options.purpose?.trim() || null;
+    const reading = understandingOn(db) && modelHere() ? readLines : null;
+    const first = purpose && reading ? await readFirstFor(db, reading, id, purpose).catch(() => []) : [];
+    return exportDossier(db, id, company.name, picked.filePaths[0], { secrets: secrets === true }, new Date(), {
+      purpose: purpose ? { said: purpose, first } : null,
+    });
   });
 
   handle(CHANNELS.brainSearch, (_event, companyId: unknown, text: unknown) =>
     search(getDatabase(), companyOf(companyId), text),
   );
+
+  // The brief goes on the clipboard from here rather than being handed to
+  // the window to copy: it is the pages and the contacts written out in
+  // full, and the screen has no use for the words. It is also not wiped
+  // after thirty seconds the way a revealed number is - the whole point is
+  // to paste it into something else, which may be minutes away.
+  handle(CHANNELS.brainTopic, async (_event, companyId: unknown, text: unknown) => {
+    const db = getDatabase();
+    const id = companyOf(companyId);
+    // Pages near the topic in meaning join what its words found (phase 22).
+    const meant =
+      typeof text === "string" && text.trim() && understandingOn(db) && modelHere()
+        ? [...new Set((await nearestTo(db, readLines, [id], text.trim(), { kinds: ["page", "memory"], most: 8, floor: 0.35 }).catch(() => [])).map((hit) => hit.sourceId))]
+        : [];
+    const brief = buildTopicBrief(db, id, text, new Date(), meant);
+    clipboard.writeText(brief.markdown);
+    return { topic: brief.topic, chars: brief.chars, went: brief.went, cut: brief.cut };
+  });
 
   /* ---- Links and the Map ---- */
 
@@ -127,6 +165,17 @@ export function registerBrainHandlers(): void {
   );
 
   handle(CHANNELS.brainBacklinks, (_event, kind: unknown, id: unknown) => backlinks(getDatabase(), kind, id));
+
+  handle(CHANNELS.brainTitles, (_event, companyId: unknown) => pageTitles(getDatabase(), companyOf(companyId)));
+  handle(CHANNELS.brainMemories, (_event, companyId: unknown) => allMemories(getDatabase(), companyOf(companyId)));
+  handle(CHANNELS.brainEditMemory, (_event, input: unknown) => editMemory(getDatabase(), input, new Date()));
+  handle(CHANNELS.brainForgetMemory, (_event, input: unknown) => forgetMemory(getDatabase(), input, new Date()));
+  handle(CHANNELS.brainRemember, (_event, input: unknown) => remember(getDatabase(), input, new Date()));
+  handle(CHANNELS.brainRulesOn, (_event, companyId: unknown, subject: unknown) => rulesOn(getDatabase(), companyOf(companyId), subject));
+  handle(CHANNELS.brainSortPlan, (_event, companyId: unknown, pageId: unknown) =>
+    sortPlan(getDatabase(), companyOf(companyId), assertId(pageId, "page id")),
+  );
+  handle(CHANNELS.brainSortApply, (_event, companyId: unknown, input: unknown) => applySort(getDatabase(), companyOf(companyId), input));
 
   handle(CHANNELS.brainMap, (_event, companyId: unknown, allContacts: unknown) =>
     wholeMap(getDatabase(), companyOf(companyId), allContacts),
@@ -142,6 +191,14 @@ export function registerBrainHandlers(): void {
 
   handle(CHANNELS.brainLetGo, (_event, companyId: unknown) => {
     letGo(getDatabase(), companyOf(companyId));
+  });
+
+  handle(CHANNELS.brainConnect, (_event, companyId: unknown, from: unknown, to: unknown) =>
+    connect(getDatabase(), companyOf(companyId), from, to, new Date()),
+  );
+
+  handle(CHANNELS.brainDisconnect, (_event, companyId: unknown, one: unknown, other: unknown) => {
+    disconnect(getDatabase(), companyOf(companyId), one, other, new Date());
   });
 
   handle(CHANNELS.brainSteps, (_event, id: unknown) => pageTasks(getDatabase(), pageOf(id)));

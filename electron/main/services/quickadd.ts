@@ -4,6 +4,7 @@ import { createBlock } from "../repositories/blocks";
 import { blockKindFor } from "@shared/quickadd";
 import { occurrencesOf } from "@shared/repeat";
 import { blockInput, taskInput, type QuickInput, quickInput, type Task } from "@shared/domain";
+import { addReminder } from "./nudges";
 
 /**
  * A task from the quick-add line, and the hour set aside for it.
@@ -25,7 +26,7 @@ export function quickAdd(
   db: Db,
   companyId: string,
   raw: QuickInput,
-): { task: Task | null; blocked: boolean; repeats: number } {
+): { task: Task | null; blocked: boolean; repeats: number; followUp: Task | null } {
   const input = quickInput.parse(raw);
   // A contact named in the line must be one of this company's.
   if (input.leadId && !db.prepare(`SELECT 1 FROM leads WHERE id = ? AND company_id = ?`).get(input.leadId, companyId)) {
@@ -44,15 +45,15 @@ export function quickAdd(
         minutes: input.minutes ?? 60,
         title: input.title,
         kind: blockKindFor(input),
-        notes: null,
+        notes: input.notes,
         taskId: null,
         priority: input.priority,
         remindMinutes: null,
         repeat: input.repeat,
       }),
     );
-    const repeats = occurrencesOf({ weekdays: input.repeat.weekdays, from: input.day, until: input.repeat.until }).length;
-    return { task: null, blocked: true, repeats };
+    const repeats = occurrencesOf({ weekdays: input.repeat.weekdays, from: input.day, until: input.repeat.until, every: input.repeat.every }).length;
+    return { task: null, blocked: true, repeats, followUp: null };
   }
 
   return db.transaction(() => {
@@ -62,15 +63,36 @@ export function quickAdd(
       taskInput.parse({
         title: input.title,
         kind: input.kind,
-        area: input.area,
         priority: input.priority,
         dueOn: input.day,
         leadId: input.leadId,
-        notes: null,
+        notes: input.notes,
+        repeats: input.every,
       }),
     );
 
-    if (input.time === null) return { task, blocked: false, repeats: 0 };
+    // "...so i need to remind him 2 days prior": the second thing the line
+    // asked for, for the same contact. Inside the
+    // transaction, so a reminder is never left behind for a task that failed.
+    const followUp = input.followUp
+      ? createTask(
+          db,
+          companyId,
+          taskInput.parse({
+            title: input.followUp.title,
+            kind: input.followUp.kind,
+            priority: null,
+            dueOn: input.followUp.day,
+            leadId: input.leadId,
+            notes: input.followUp.notes,
+          }),
+        )
+      : null;
+
+    // Asked for in so many words: a notification at its time, or at the start of its day.
+    if (input.remind) addReminder(db, { companyId, taskId: task.id, title: input.title, day: input.day, time: input.time });
+
+    if (input.time === null) return { task, blocked: false, repeats: 0, followUp };
 
     createBlock(
       db,
@@ -91,6 +113,6 @@ export function quickAdd(
       }),
     );
 
-    return { task, blocked: true, repeats: 0 };
+    return { task, blocked: true, repeats: 0, followUp };
   })();
 }

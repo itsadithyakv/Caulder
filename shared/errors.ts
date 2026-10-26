@@ -2,8 +2,8 @@
  * What a failure looks like by the time a person reads it.
  *
  * An error thrown in main crosses the bridge as a string, and Electron builds
- * that string itself: `Error invoking remote method 'words:add': Error: "CS301"
- * is already a word for College.` The last part is a sentence written for
+ * that string itself: `Error invoking remote method 'stages:create': Error:
+ * There is already a stage called Won.` The last part is a sentence written for
  * somebody; the rest is Electron's bookkeeping, and it sat in front of every
  * error the app could show.
  *

@@ -1,11 +1,14 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Copy, ExternalLink, FileCode2, Link2, RefreshCw, Unlink } from "lucide-react";
 import type { GoogleState } from "@shared/domain";
-import { MAIL_SINCE_VERSION } from "@shared/script";
+import { CONTACTS_SINCE_VERSION, MAIL_SINCE_VERSION, SHEET_SINCE_VERSION, TASK_LISTS_SINCE_VERSION } from "@shared/script";
 import { useWorkspace } from "@/lib/workspace";
 import { messageOf } from "@/lib/errors";
-import { relativeDay } from "@/lib/format";
+import { inSentence, relativeDay } from "@/lib/format";
 import { Select } from "@/components/Select";
+import { Explain } from "@/components/Explain";
+import { Shot, type ShotName } from "./Shot";
+import { announceConnections } from "./Connected";
 
 /**
  * The Google link: Calendar, Tasks and Gmail.
@@ -72,6 +75,7 @@ export function GoogleCard({ startOpen = false }: { startOpen?: boolean }) {
     setError(null);
     try {
       setState(await work());
+      announceConnections();
     } catch (cause) {
       setError(messageOf(cause));
     } finally {
@@ -92,9 +96,7 @@ export function GoogleCard({ startOpen = false }: { startOpen?: boolean }) {
       ) : !state.connected ? (
         <>
           <p className="card__hint">
-            Your day&rsquo;s blocks and tasks, both ways, and email sent from your own
-            Gmail with replies noticed &mdash; through a script that runs inside your own
-            Google account. Caulder never signs in to Google. About five minutes, once.
+            Calendar, tasks and email, through a script in your own Google account. About five minutes.
           </p>
 
           <div className="actions">
@@ -185,8 +187,7 @@ export function GoogleCard({ startOpen = false }: { startOpen?: boolean }) {
       ) : (
         <>
           <p className="card__hint">
-            Connected{state.account ? ` as ${state.account}` : ""}. Caulder only ever
-            touches the calendar and list you pick here.
+            Connected{state.account ? ` as ${state.account}` : ""}. 
           </p>
 
           <ScriptStatus
@@ -238,6 +239,13 @@ export function GoogleCard({ startOpen = false }: { startOpen?: boolean }) {
                   ...state.taskLists.map((list) => ({ value: list.id, label: list.name })),
                 ]}
               />
+              {/* Google always has one list: none at all means the script cannot see Tasks. */}
+              {state.taskLists.length === 0 && (
+                <span className="card__hint card__hint--warn">
+                  No task lists came back from Google. Open your Caulder script, add Tasks API under Services, run setUp once
+                  more, then press Check again here.
+                </span>
+              )}
             </label>
           </div>
 
@@ -259,11 +267,7 @@ export function GoogleCard({ startOpen = false }: { startOpen?: boolean }) {
             <span className="checkline__text">
               <span className="checkline__title">Keep this in step automatically</span>
               <span className="card__hint">
-                Every ten minutes, and about half a minute after you change
-                something here &mdash; so a task written in Caulder is on your phone
-                before you have put the phone down. If it starts failing it slows
-                down rather than hammering Google, and stops after a couple of
-                hours with the reason left on this card.
+                Every ten minutes, and soon after a change.
               </span>
             </span>
           </div>
@@ -319,15 +323,14 @@ function Summary({ state }: { state: GoogleState }) {
 
   return (
     <p className="card__hint">
-      Last synced {relativeDay(sync.lastSyncedAt).toLowerCase()} &mdash; {sync.pushed} sent,{" "}
+      Last synced {inSentence(relativeDay(sync.lastSyncedAt))} &mdash; {sync.pushed} sent,{" "}
       {sync.pulled} brought back
       {sync.conflicts > 0
         ? `, and ${sync.conflicts} ${
             sync.conflicts === 1 ? "thing had" : "things had"
           } been changed in both places, where whoever created it won`
         : ""}
-      . Days from {sync.syncedFrom} to {sync.syncedTo} were looked at; anything
-      outside that was left alone.
+      . 
     </p>
   );
 }
@@ -357,8 +360,14 @@ function ScriptStatus({
         <p className="card__hint card__hint--warn">
           Your script is version {script.version}.{" "}
           {script.version < MAIL_SINCE_VERSION
-            ? `Version ${script.latest} sends email from Caulder, notices replies and sends follow-ups, and shares the brain with a co-founder.`
-            : `Version ${script.latest} shares the brain with a co-founder; email goes on working meanwhile.`}{" "}
+            ? `Version ${script.latest} sends email from Caulder, notices replies and sends follow-ups.`
+            : script.version < CONTACTS_SINCE_VERSION
+              ? `Version ${script.latest} saves a contact to your phone through Google Contacts and keeps a backup in your Drive; your calendar, tasks and email go on working meanwhile.`
+              : script.version < SHEET_SINCE_VERSION
+                ? `Version ${script.latest} can keep your contacts as a Google Sheet, to read and change on your phone; what you have goes on working meanwhile.`
+                : script.version < TASK_LISTS_SINCE_VERSION
+                  ? `Version ${script.latest} mends Google Tasks: every task list is offered, not only the first twenty, and a missing Tasks API is said plainly instead of stopping the connection.`
+                  : `Version ${script.latest} sends an invoice's or a quote's PDF with the email.`}{" "}
           To update it, keeping the same URL:
         </p>
         <UpdateSteps />
@@ -393,8 +402,7 @@ function ScriptStatus({
   return (
     <p className="card__hint">
       Email goes out from {script.address ?? "your Gmail"}
-      {script.remaining != null ? `, with ${script.remaining} sends left today` : ""}. Scheduled
-      email and follow-ups go out every fifteen minutes, even with Caulder closed.
+      {script.remaining != null ? `, with ${script.remaining} sends left today` : ""}. 
     </p>
   );
 }
@@ -420,57 +428,87 @@ function UpdateSteps() {
   );
 }
 
+/** One step: what to do, and a picture of the screen it happens on. */
+function Step({ what, shot, children }: { what: string; shot?: ShotName; children: ReactNode }) {
+  return (
+    <li>
+      <div className="guide__step">
+        <div className="guide__words">
+          <h3 className="guide__what">{what}</h3>
+          <p>{children}</p>
+        </div>
+        {shot && <Shot of={shot} />}
+      </div>
+    </li>
+  );
+}
+
 /**
- * The steps, in Google's own words.
+ * The steps, in Google's own words, each with a picture of the screen.
  *
  * Written out rather than linked because every one of them is a place somebody
- * gets stuck, and four of them have a wrong-looking correct answer: adding two
- * services by hand, running a function to be asked for permission, Google's
- * warning that it has not verified a script you wrote for yourself, and a
- * deployment set to "Anyone" - which sounds alarming and is not, because the
- * key is what actually guards it.
+ * gets stuck, and the sticking is never the instruction - it is finding the
+ * one word on a screen built for programmers. So each step is a sentence and a
+ * drawing of that screen with the thing to press ringed.
+ *
+ * Two of them have a correct answer that looks wrong - Google's warning that
+ * it has not verified a script you wrote for yourself, and a deployment open
+ * to "Anyone". Both are answered under the steps rather than inside them: a
+ * reader following instructions wants the next move, and a reader who has
+ * stopped to worry wants the paragraph.
  */
 function Guide() {
   return (
     <>
       <ol className="guide">
-        <li>
-          Press <strong>Copy the script</strong>, then <strong>Open Apps Script</strong>, which
-          starts a new project in your browser. Select everything in the editor and paste over
-          it, click <em>Untitled project</em> at the top and call it <strong>Caulder</strong>,
-          then save.
-        </li>
-        <li>
-          In the left sidebar, press <strong>+</strong> beside <strong>Services</strong> and add
+        <Step what="Paste the script in" shot="paste">
+          <strong>Copy the script</strong>, then <strong>Open Apps Script</strong>, which starts a
+          new project. Select everything there, paste over it, call it <strong>Caulder</strong>,
+          and save.
+        </Step>
+        <Step what="Add two services" shot="services">
+          In the left sidebar press <strong>+</strong> beside <strong>Services</strong>, and add
           both <strong>Google Calendar API</strong> and <strong>Tasks API</strong>. Leave their
           names as they are.
-        </li>
-        <li>
-          Pick <strong>setUp</strong> in the dropdown at the top and press <strong>Run</strong>,
-          then <strong>Review permissions</strong> and your account. Google says{" "}
-          <em>Google hasn&rsquo;t verified this app</em>, because nobody at Google has reviewed a
-          script you made for yourself: press <strong>Advanced</strong>, then{" "}
-          <strong>Go to Caulder (unsafe)</strong>, then <strong>Allow</strong>. The log
-          underneath prints <em>Your Caulder key</em>; copy that whole line.
-        </li>
-        <li>
-          Press <strong>Deploy &rsaquo; New deployment</strong>, click the gear and choose{" "}
-          <strong>Web app</strong>. Set <em>Execute as</em> to <strong>Me</strong> and{" "}
-          <em>Who has access</em> to <strong>Anyone</strong>, press Deploy, and copy the{" "}
-          <strong>Web app URL</strong>, which ends in <code>/exec</code>. &ldquo;Anyone&rdquo; is
-          needed because Caulder is not signed in to Google; the URL is unguessable and nothing
-          works without the key.
-        </li>
-        <li>
-          Paste both below and press <strong>Connect</strong>.
-        </li>
+        </Step>
+        <Step what="Run setUp, and allow it" shot="run">
+          Pick <strong>setUp</strong> at the top, press <strong>Run</strong>, then{" "}
+          <strong>Review permissions</strong> and your account. Google warns that it has not
+          verified the app: <strong>Advanced</strong>, <strong>Go to Caulder (unsafe)</strong>,{" "}
+          <strong>Allow</strong>. The log then prints your key &mdash; copy that whole line.
+        </Step>
+        <Step what="Deploy it as a web app" shot="deploy">
+          <strong>Deploy &rsaquo; New deployment</strong>, the gear, <strong>Web app</strong>. Set{" "}
+          <em>Execute as</em> to <strong>Me</strong> and <em>Who has access</em> to{" "}
+          <strong>Anyone</strong>, press <strong>Deploy</strong>, and copy the{" "}
+          <strong>Web app URL</strong> &mdash; it ends in <code>/exec</code>.
+        </Step>
+        <Step what="Paste both below">
+          The URL and the key go in the two boxes under this, then <strong>Connect</strong>.
+          Caulder tries them before keeping them, so a bad paste is caught here rather than
+          turning up later as a sync that never runs.
+        </Step>
       </ol>
-      <p className="card__hint">
-        Updating the script later keeps the same URL: paste the new file over the old one, press{" "}
-        <strong>Deploy &rsaquo; Manage deployments</strong>, the pencil,{" "}
-        <strong>Version &rsaquo; New version</strong> and <strong>Deploy</strong>, then run{" "}
-        <strong>setUp</strong> once more.
-      </p>
+
+      <Explain label="Two of those look wrong. Here is why they are not.">
+        <p>
+          <strong>&ldquo;Google hasn&rsquo;t verified this app.&rdquo;</strong> The app it means is
+          the script you just pasted, in your own account. Nobody at Google has reviewed it,
+          because nobody at Google reviews what you write for yourself. You can delete it from
+          there whenever you like.
+        </p>
+        <p>
+          <strong>Who has access: Anyone.</strong> Caulder is not signed in to Google, so the
+          script has to answer a request that carries no Google account at all. The address is
+          unguessable, and nothing happens without the key, which stays on this computer.
+        </p>
+        <p>
+          Updating the script later keeps the same URL: paste the new file over the old one, press{" "}
+          <strong>Deploy &rsaquo; Manage deployments</strong>, the pencil,{" "}
+          <strong>Version &rsaquo; New version</strong> and <strong>Deploy</strong>, then run{" "}
+          <strong>setUp</strong> once more.
+        </p>
+      </Explain>
     </>
   );
 }

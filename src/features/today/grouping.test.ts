@@ -3,7 +3,8 @@ import { groupDue } from "./grouping";
 import type { Task } from "@shared/domain";
 
 /**
- * When "Due today" splits by area, and when it keeps the call batching.
+ * How "Due today" is divided: by kind, in a fixed order, with what has to
+ * happen first inside each heading.
  */
 
 let counter = 0;
@@ -15,15 +16,16 @@ function task(over: Partial<Task>): Task {
     companyId: "c",
     leadId: null,
     leadName: null,
+    leadDoNotContact: false,
     pageId: null,
     pageTitle: null,
     title: `Task ${counter}`,
     kind: "todo",
-    area: "company",
     priority: null,
     status: "open",
     dueOn: "2026-09-10",
     notes: null,
+    repeats: null,
     completedAt: null,
     createdAt: "2026-09-10T00:00:00.000Z",
     updatedAt: "2026-09-10T00:00:00.000Z",
@@ -33,65 +35,47 @@ function task(over: Partial<Task>): Task {
 
 const titles = (tasks: Task[]) => groupDue(tasks).map((group) => group.title);
 
-describe("one area", () => {
-  it("keeps grouping by kind, so the calls stay in one sitting", () => {
+describe("the headings", () => {
+  it("groups by kind, in the fixed order rather than the order they came in", () => {
     expect(
       titles([
-        task({ kind: "call" }),
+        task({ kind: "todo" }),
+        task({ kind: "meeting" }),
+        task({ kind: "follow_up" }),
         task({ kind: "email" }),
         task({ kind: "call" }),
       ]),
-    ).toEqual(["Calls to make", "Emails to send"]);
-  });
-});
-
-describe("more than one area", () => {
-  it("splits by area, in the fixed order rather than the order they came in", () => {
-    expect(
-      titles([
-        task({ area: "health", title: "Gym" }),
-        task({ area: "company", kind: "call" }),
-        task({ area: "college", title: "Reading for Friday" }),
-      ]),
-    ).toEqual(["College", "Company", "Health"]);
+    ).toEqual(["Calls to make", "Emails to send", "Follow-ups", "Meetings", "Other"]);
   });
 
-  it("puts an area typed by hand after the four it knows", () => {
-    expect(
-      titles([task({ area: "club" }), task({ area: "college" })]),
-    ).toEqual(["College", "club"]);
+  it("keeps the calls in one sitting, however they were interleaved", () => {
+    const groups = groupDue([
+      task({ kind: "call", title: "Ring Oakridge" }),
+      task({ kind: "email" }),
+      task({ kind: "call", title: "Ring Asha" }),
+    ]);
+    expect(groups.map((group) => group.title)).toEqual(["Calls to make", "Emails to send"]);
+    expect(groups[0]?.tasks.map((t) => t.title)).toEqual(["Ring Oakridge", "Ring Asha"]);
   });
 
-  it("gives the tasks with no area a heading of their own", () => {
-    expect(
-      titles([task({ area: "college" }), task({ area: "personal" }), task({ area: null })]),
-    ).toEqual(["College", "Personal", "No area"]);
-  });
-});
-
-describe("a task with no area", () => {
-  it("does not count as an area, so one from Google Tasks cannot break the batching", () => {
-    // Ten company calls and one task pulled in from Google Tasks: still one
-    // real area, so still grouped by kind.
-    const day = [
-      ...Array.from({ length: 10 }, () => task({ kind: "call" })),
-      task({ area: null, kind: "todo" }),
-    ];
-    expect(titles(day)).toEqual(["Calls to make", "Other"]);
+  it("leaves out a heading with nothing under it", () => {
+    expect(titles([task({ kind: "meeting" }), task({ kind: "todo" })])).toEqual(["Meetings", "Other"]);
+    expect(groupDue([])).toEqual([]);
   });
 
-  it("leaves a day of nothing but unsorted tasks grouped by kind", () => {
-    expect(titles([task({ area: null, kind: "email" })])).toEqual(["Emails to send"]);
+  it("gives each group a key, a title and its tasks", () => {
+    const call = task({ kind: "call" });
+    expect(groupDue([call])).toEqual([{ key: "kind-call", title: "Calls to make", tasks: [call] }]);
   });
 });
 
 describe("nothing lost", () => {
-  it("puts every task under exactly one heading either way", () => {
+  it("puts every task under exactly one heading", () => {
     const mixed = [
-      task({ area: "college" }),
-      task({ area: "company", kind: "call" }),
-      task({ area: null }),
-      task({ area: "club" }),
+      task({ kind: "todo" }),
+      task({ kind: "call" }),
+      task({ kind: "email" }),
+      task({ kind: "call" }),
     ];
     const grouped = groupDue(mixed).flatMap((group) => group.tasks.map((t) => t.id));
     expect(grouped.sort()).toEqual(mixed.map((t) => t.id).sort());
@@ -129,14 +113,14 @@ describe("inside a heading", () => {
   });
 
   it("orders the rows and never the headings", () => {
-    // One urgent college task must not lift College above Company; the
-    // headings stay where they always are.
+    // One urgent email must not lift Emails above Calls; the headings stay
+    // where they always are.
     const groups = groupDue([
-      task({ area: "company", title: "Routine", priority: "spare" }),
-      task({ area: "college", title: "Exam form", priority: "must" }),
-      task({ area: "company", title: "Call back", priority: "must" }),
+      task({ kind: "call", title: "Routine", priority: "spare" }),
+      task({ kind: "email", title: "Send the contract", priority: "must" }),
+      task({ kind: "call", title: "Call back", priority: "must" }),
     ]);
-    expect(groups.map((group) => group.title)).toEqual(["College", "Company"]);
-    expect(groups[1]?.tasks.map((t) => t.title)).toEqual(["Call back", "Routine"]);
+    expect(groups.map((group) => group.title)).toEqual(["Calls to make", "Emails to send"]);
+    expect(groups[0]?.tasks.map((t) => t.title)).toEqual(["Call back", "Routine"]);
   });
 });

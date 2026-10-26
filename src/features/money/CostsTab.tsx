@@ -59,8 +59,65 @@ export function CostsTab({
   const money = (value: number) => formatValue(value, currency);
   const [updating, setUpdating] = useState(false);
   const [showEarlier, setShowEarlier] = useState(false);
+  // Grouped by the account each is on, or the product it serves - offered only once some cost says.
+  const [grouping, setGrouping] = useState<"account" | "product" | null>(null);
+  const keysOf = (by: "account" | "product") =>
+    [...new Set(overview.costs.map((cost) => cost[by]).filter((value): value is string => value !== null))].sort((a, b) => a.localeCompare(b));
+  const offered = (["account", "product"] as const).filter((by) => keysOf(by).length > 0);
   const renewing = new Set(overview.renewals.map((renewal) => renewal.pageId));
   const earlier = overview.balances.slice(1);
+
+  /** One running cost; its account and product said on the row, unless the list is grouped by one. */
+  const row = (cost: RunningCost, grouped: "account" | "product" | null) => {
+    const soon = renewing.has(cost.pageId) && cost.nextOn !== null;
+    const late = cost.nextOn !== null && cost.nextOn < day;
+    return (
+      <li key={cost.pageId} className="money__row cost">
+        <button type="button" className="money__main" onClick={() => onOpenPage(cost.pageId)}>
+          <span className="money__number cost__title">{cost.title}</span>
+          <span className="money__who">
+            {kindOf(cost)}
+            {cost.cycle && cost.years === 1 && ` · ${COST_CYCLE_LABEL[cost.cycle]}`}
+            {cost.each !== null && (cost.cycle !== "monthly" || cost.years > 1) && cost.each > 0 && ` · ${money(cost.each)}`}
+            {cost.years > 1 && ` for ${cost.years} years`}
+            {grouped !== "product" && cost.product && ` · ${cost.product}`}
+            {grouped !== "account" && cost.account && ` · ${cost.account}`}
+          </span>
+          {cost.nextOn && (
+            <span className={`money__when${late ? " cost__late" : ""}`}>
+              {capitalise(describeRenewal({ nextOn: cost.nextOn, cycle: cost.cycle }, day))}
+            </span>
+          )}
+        </button>
+        <span className="money__amount">
+          {/* Nothing where nothing is owed: a free tool, or a page that only says which account a service is on. */}
+          {cost.amount === null
+            ? cost.cycle !== null || cost.nextOn !== null
+              ? "Not priced"
+              : ""
+            : cost.cycle === "free"
+              ? ""
+              : cost.monthly > 0
+                ? `${money(cost.monthly)}/mo`
+                : money(cost.amount)}
+        </span>
+        {soon ? (
+          <button
+            type="button"
+            className="btn btn--sm"
+            onClick={() => onRenew(cost.pageId)}
+            disabled={busy}
+            aria-label={`${cost.title} is paid`}
+            title="Records the payment and moves the date on"
+          >
+            Paid
+          </button>
+        ) : (
+          <span className="cost__spacer" aria-hidden />
+        )}
+      </li>
+    );
+  };
 
   return (
     <>
@@ -88,7 +145,7 @@ export function CostsTab({
         {runway.cash === null ? (
           !updating && (
             <p className="card__hint">
-              Say what is in the bank, and on what day, to see how long it lasts at the rate money goes out.
+              What is in the bank, to see how long it lasts.
             </p>
           )
         ) : (
@@ -144,8 +201,7 @@ export function CostsTab({
               </div>
             </dl>
             <p className="card__hint">
-              Averages are over the last {runway.basis === 1 ? "month" : `${runway.basis} months`}. Paying a
-              running cost here does not count twice.
+              Averaged over the last {runway.basis === 1 ? "month" : `${runway.basis} months`}.
             </p>
           </div>
         )}
@@ -213,46 +269,40 @@ export function CostsTab({
             <p className="costs__total">
               <span className="costs__totalValue">{money(overview.monthly)}</span> a month, all told
             </p>
-            <ul className="money__list" aria-label="Running costs">
-              {overview.costs.map((cost) => {
-                const soon = renewing.has(cost.pageId) && cost.nextOn !== null;
-                const late = cost.nextOn !== null && cost.nextOn < day;
+            {offered.length > 0 && (
+              <div className="chips">
+                {offered.map((by) => (
+                  <button
+                    key={by}
+                    type="button"
+                    className={`chip${grouping === by ? " chip--on" : ""}`}
+                    aria-pressed={grouping === by}
+                    onClick={() => setGrouping((on) => (on === by ? null : by))}
+                  >
+                    {by === "account" ? "By account" : "By product"}
+                  </button>
+                ))}
+              </div>
+            )}
+            {grouping && offered.includes(grouping) ? (
+              [...keysOf(grouping), null].map((key) => {
+                const under = overview.costs.filter((cost) => cost[grouping] === key);
+                if (under.length === 0) return null;
+                const none = grouping === "account" ? "No account said" : "No product said";
                 return (
-                  <li key={cost.pageId} className="money__row cost">
-                    <button type="button" className="money__main" onClick={() => onOpenPage(cost.pageId)}>
-                      <span className="money__number cost__title">{cost.title}</span>
-                      <span className="money__who">
-                        {kindOf(cost)}
-                        {cost.cycle && ` · ${COST_CYCLE_LABEL[cost.cycle]}`}
-                        {cost.amount !== null && cost.cycle !== "monthly" && cost.amount > 0 && ` · ${money(cost.amount)}`}
-                      </span>
-                      {cost.nextOn && (
-                        <span className={`money__when${late ? " cost__late" : ""}`}>
-                          {capitalise(describeRenewal({ nextOn: cost.nextOn, cycle: cost.cycle }, day))}
-                        </span>
-                      )}
-                    </button>
-                    <span className="money__amount">
-                      {cost.amount === null ? "Not priced" : cost.monthly > 0 ? `${money(cost.monthly)}/mo` : money(cost.amount)}
-                    </span>
-                    {soon ? (
-                      <button
-                        type="button"
-                        className="btn btn--sm"
-                        onClick={() => onRenew(cost.pageId)}
-                        disabled={busy}
-                        aria-label={`${cost.title} is paid`}
-                        title="Records the payment and moves the date on"
-                      >
-                        Paid
-                      </button>
-                    ) : (
-                      <span className="cost__spacer" aria-hidden />
-                    )}
-                  </li>
+                  <section key={key ?? "none"} className="costs__account">
+                    <h3 className="costs__accountName">{key ?? none}</h3>
+                    <ul className="money__list" aria-label={key ? `Running costs: ${key}` : `Running costs: ${none.toLowerCase()}`}>
+                      {under.map((cost) => row(cost, grouping))}
+                    </ul>
+                  </section>
                 );
-              })}
-            </ul>
+              })
+            ) : (
+              <ul className="money__list" aria-label="Running costs">
+                {overview.costs.map((cost) => row(cost, null))}
+              </ul>
+            )}
           </>
         )}
       </Card>

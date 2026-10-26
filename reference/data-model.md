@@ -7,7 +7,7 @@ Every table that holds a workspace's data reaches `companies` by cascade, so a
 workspace is a clean partition and deleting a company deletes its world. Most
 carry `company_id` themselves; `custom_values`, `quote_lines` and
 `invoice_lines` reach it through the rows they belong to. Two tables are app-wide
-on purpose and carry no company at all: `settings` and `area_words`.
+on purpose and carry no company at all: `settings`, `area_words` and `line_guesses`.
 
 IDs are UUID text. Timestamps are ISO-8601 UTC strings; due dates are
 `YYYY-MM-DD` calendar days, and times of day are `HH:MM` strings — nine o'clock
@@ -50,6 +50,35 @@ is nine o'clock, and an instant would move when the machine's timezone did.
 | 31 | habits | `habits`, `habit_checks` |
 | 32 | links to everything | `brain_links` rebuilt without the `to_kind` `CHECK`; links and map places cleared when a product, a person or a document is deleted |
 | 33 | the vision board | `vision_tiles` |
+| 34 | the journal's passcode | `journal_sealed` |
+| 35 | a company's country | `companies.country` |
+| 36 | tune | `line_guesses` |
+| 37 | contacts to google | `leads.google_contact` |
+| 38 | goals and your week | `goal_checkins`, `day_themes` |
+| 39 | private lines | `journal_private` |
+| 40 | what was measured, and the shelf | `hobby_logs`, `shelf_books` |
+| 41 | book covers | `shelf_books.cover` |
+| 42 | what a quiet day was | `day_checkins` |
+| 43 | lessons, and other mail accounts | `line_lessons`, `mail_accounts`, `emails.account_id` |
+| 44 | reminders | `reminders` |
+| 45 | search forgets what it is told to | `brain_search` set to `secure-delete`, and optimised |
+| 46 | understanding, on this machine | `vectors`, `embed_queue`, and the triggers that fill the queue |
+| 47 | said again | `said_again` |
+| 48 | where a contact is found | `leads.linkedin`, `leads.instagram`, `emails.template_id`; `activities` rebuilt without the `kind` `CHECK`, run with foreign keys off, and its three search triggers made again |
+| 49 | the company's, and nothing else's | drops `journal_private`, `journal_sealed`, `habits`, `habit_checks`, `hobby_logs`, `shelf_books`, `vision_tiles`, `day_checkins`, `day_themes`, `goal_checkins` and `brain_tombstones`, with the two tombstone triggers; deletes every page in the sections that were personal and every page in the calendar's own workspace; clears the settings that belonged to them and the `brain_*` columns on a company |
+| 50 | contacts as a google sheet | `sheet_links`, `sheet_rows` |
+| 51 | replies from other mail accounts | `mail_accounts.imap_host`, `imap_port`, `imap_checked_at`, `imap_error`; `emails.message_id` |
+| 52 | one person, and no people | drops the `search_person_*` and `links_person_gone` triggers; deletes people from `brain_search`, `search_map`, `brain_links` and `map_positions`; pages filed under `people` move to `company`. **`people` and `openings` are left in place and unread** |
+| 53 | a working day's blocks, and what a contact is there | `leads.contact_role`; `blocks.kind` and `block_series.kind` of `class`, `study`, `break` or `personal` become `away`. Nothing dropped: **`tasks.area`, `area_words`, `terms`, `block_series.term_id`, `line_lessons.area` and the `name` rows of `line_guesses` are left in place and unread** |
+| 54 | an invoice that repeats | `invoices.repeats` (`monthly`, `quarterly`, `yearly` or null): a retainer |
+| 55 | a task that comes back, and every other week | `tasks.repeats` (`fortnightly`, `monthly`, `yearly` or null); `block_series.every_weeks` (1 or 2) |
+| 56 | who a word means | `line_names` |
+| 57 | what stays true about a contact | `lead_facts` |
+| 58 | the week's three things | `week_things` |
+| 59 | runs that keep their day, and reminders on | `tasks.repeat_day`, `invoices.repeat_day`: the day of the month a run was set on; `companies.remind_minutes` 10 where none was set |
+| 60 | tax, terms, quotes that end, and hours billed | `companies.tax_on`, `tax_rate`, `tax_inclusive`, `tax_region`, `tax_number`, `payment_terms`, `hourly_rate`; `leads.tax_number`, `tax_country`, `tax_region`, `payment_terms`, `hourly_rate`; `quote_lines.tax_rate`, `invoice_lines.tax_rate`; `tax_treatment`, `tax_inclusive`, `tax_region` on `quotes` and `invoices`; `quotes.valid_until`; `blocks.lead_id`, `billable`, `invoice_id` |
+| 61 | how invoices look, and where they are kept | `companies.invoice_look` |
+| 62 | not registered, composition, tax withheld, and rules of the company's own | `companies.tax_scheme`, `companies.tax_rules`, `payments.withheld` |
 
 Each migration is one transaction, gated on `PRAGMA user_version`, with a
 backup taken before any of them runs. Additions use `ALTER TABLE ADD COLUMN`;
@@ -74,6 +103,14 @@ no stages cannot show a board, so the two are never allowed to exist apart.
 
 Archiving is a flag, not a delete. Deleting a company would cascade to every
 lead, task and message it owns.
+
+**`country` is where it is** (migration 35), an ISO 3166 code, null for a
+company made before countries. It decides the currency a new company starts
+on, the calling code a bare phone number is dialled with, and whether the
+filing calendar offers India's filings or the generic set. A company with no
+country is treated as India when its currency is INR or its timezone is
+India's - all Caulder assumed before - and as nowhere in particular
+otherwise. `currency` is any ISO 4217 code, not a short list.
 
 Columns added since, each nullable where "not set" means something different
 from zero:
@@ -109,8 +146,24 @@ Lost.
 The core record. Only `name` is `NOT NULL` — the source spreadsheet has rows
 carrying nothing else, and refusing those would mean refusing most of the file.
 
-`contact_person`, `email`, `phone`, `alt_phone`, `location`, `city`, `pin`,
-`source`, `website`, `tags`, `notes`, `last_contacted_at`, `import_batch_id`.
+`contact_person`, `contact_role`, `email`, `phone`, `alt_phone`, `location`,
+`city`, `pin`, `source`, `website`, `linkedin`, `instagram`, `tags`, `notes`,
+`last_contacted_at`, `import_batch_id`.
+
+- **`contact_role`** (migration 53) is what the contact person is there -
+  "Owner", "Head of marketing". Set on the form, and by the quick line when
+  somebody new is told about with what they are.
+- **`alt_phone`, `location` and `pin`** came from the first customer's
+  spreadsheet. They are kept, imported and shown on a contact that has them,
+  and are no longer on the form.
+
+- **`linkedin` and `instagram`** (migration 48) are where a contact is found
+  when it is not by email or phone. Each holds one address in full -
+  `https://www.linkedin.com/in/priya-nair`, `https://www.instagram.com/priya.nair`
+  - whatever was typed, because `shared/profiles.ts` cleans it on the way in
+  and refuses what is not a profile on that site. Main builds the address it
+  opens from the row with the same functions, so the window never hands it
+  one. Neither is in the search index.
 
 - **`stage_id`, `value`, `loss_reason` and `closed_at` are no longer read.**
   They moved to `deals` in migration 22 and stay on the table only because
@@ -191,7 +244,7 @@ by `activity_id`); this table is the part something can count.
 - **`deal_id`, `script_id` and `activity_id` are `SET NULL`.** Deleting a deal
   or a script leaves the call; the contact going takes it.
 - **A call script is a `brain_pages` row** with template `call-script`, in
-  Playbooks; its `tone` and `caller` are fields, its parts are headings in
+  How we work (the section `playbooks`); its `tone` and `caller` are fields, its parts are headings in
   the text. See `shared/calls.ts`.
 - Logging a call is one transaction with everything it implies: the call, its
   history line, the contact's notes when they were edited, the task it came
@@ -208,20 +261,27 @@ when their lead goes or an import is undone. A correction is a new entry.
 
 `lead_id`, `kind`, `body`, `occurred_at`, `meta`.
 
-The `kind` vocabulary was declared complete up front, because SQLite cannot
-alter a `CHECK` without rebuilding the table. It did not stay complete: a
-bounce (migration 6) and a WhatsApp message (14) each needed a kind, and each
-cost a rebuild. Both copied every row across unchanged — the table is
-append-only, so there is nothing to reconcile, only to move.
+The `kind` vocabulary was declared complete up front, as a `CHECK`, because
+SQLite cannot alter one without rebuilding the table. It did not stay
+complete: a bounce (migration 6), a WhatsApp message (14) and then LinkedIn
+and Instagram (48) each needed a kind, and each cost a rebuild. The last of
+those took the `CHECK` off, so the next kind is a line of TypeScript
+(`ACTIVITY_KINDS` in `shared/domain.ts`) like every other enum here. Each
+rebuild copied every row across unchanged, ids and all — the table is
+append-only, so there is nothing to reconcile, only to move — and migration
+48 made the table's three search triggers again, since dropping a table
+takes its triggers with it. **`replied`** (phase 33) is the first kind added
+since: "They answered", put on by hand for a reply somewhere Caulder cannot
+read, and it needed no migration.
 
 ```
-created  note  call  meeting  whatsapp  stage_change  field_change
-email_queued  email_sent  email_opened  email_replied  email_failed
-email_bounced  task_done  imported  import_undone
+created  note  call  meeting  whatsapp  linkedin  instagram  stage_change
+field_change  email_queued  email_sent  email_opened  email_replied
+email_failed  email_bounced  task_done  imported  import_undone  replied
 ```
 
-`whatsapp` counts as contact and moves `last_contacted_at`, like a call; a note
-does not.
+`whatsapp`, `linkedin` and `instagram` count as contact and move
+`last_contacted_at`, like a call; a note does not.
 
 Ordered by `occurred_at DESC, created_at DESC, rowid DESC`. **The rowid matters**:
 timestamps are millisecond-resolution and entries written in one transaction
@@ -234,20 +294,62 @@ What drives Today. `lead_id` (**nullable** — "write the January mailshot" is
 still work), `title`, `kind`, `status`, `due_on`, `notes`, `completed_at`.
 
 - `kind` is `call`, `email`, `follow_up`, `meeting` or `todo` — the verb.
-- **`area`** is which part of a life it belongs to — `college`, `company`,
-  `personal`, `health` — kept apart from the verb. Free text underneath, so a
-  fifth area never needs a rebuild. Migration 15 backfilled it from the only
-  signal there was: a personal workspace's task was personal, an outreach
-  one's was the company's.
+- **`area`** is no longer read or written (PLAN.md, phase 32). It said
+  which part of a life a task belonged to - `college`, `company`, `personal`,
+  `health` - and a company's task is the company's. The column and its index
+  stay, because migrations are not edited; a task made since has null there.
 - **`priority`** is `must`, `should` or `spare`; null reads as `should`.
   Caulder's alone — Google Tasks has no such field.
+- **`repeat_day`** (migration 59) is the day of the month a task that comes
+  back was set on, carried from each to the next: a run on the 31st comes
+  back on the 31st after February's 28th, and 29 February comes back in a
+  leap year. Set from the due day when a repeat is chosen or the day moved.
 - `external_id` and `is_dirty` are the Google join key and the "changed here,
   not yet sent" flag. Unique per workspace where set.
 - `due_on` is a calendar day. See
   [architecture.md](architecture.md#dates-and-timezones).
+- **`repeats`** (migration 55) is `fortnightly`, `monthly` or `yearly`, or
+  null: a task that comes back - rent on the 1st, a birthday. Ticking it off
+  makes the next one, due a fortnight, a month or a year on (the same day of
+  the month, or its last day when the month is shorter), with its title,
+  kind, contact, priority and notes, and - when it had an hour on the
+  Calendar - the same hour on the new day. Only one is ever open: the next is
+  not made when an open one of the same title and repeat is already due then.
+  A week's days are not a task's repeat; they are a block series.
 
 Indexed on `(company_id, status, due_on)`, `(lead_id, status, due_on)` and
 `(company_id, area, status)`.
+
+## week_things
+
+Three things for a week (PLAN.md, part eight, phase 35): `company_id`,
+`week_start` (its Monday), `position` (0 to 2), `text`, `done_at` (when it
+was ticked, or null), `created_at`. Chosen at the head of the Calendar's week
+for the week after; shown at the head of Today until each is done or the week
+ends; said in Monday's morning brief. Unique on `(company_id, week_start,
+position)`, so a week never has more than three; typing over one replaces
+it, and an empty one is removed. Goes with the company.
+
+## lead_facts
+
+What stays true about a contact (PLAN.md, part twelve, phase 49):
+`company_id`, `lead_id`, `text` ("Maya prefers WhatsApp over email"),
+`until_day` (the day a fact that ends stops - "on leave till the 20th" - or
+null), `created_at`. Said to the quick line and kept on the contact, shown
+on their page as *Known about them*, and read by the line's questions - not
+on their history, where a fact and a call read alike. A birthday is a fact
+and, made with it, a task for that contact that comes back every year
+(`tasks.repeats`). Indexed on `(lead_id, created_at)`; goes with the contact.
+
+## line_names
+
+Who a word on the quick line means, once the line has asked and been told
+(PLAN.md, part twelve, phase 48): `company_id`, `said` (the word, as typed),
+`lead_id`, `created_at`. One row per word per company - unique on `said`
+ignoring case - and a second answer for the same word replaces the first.
+Read before any other way of finding a name, so "pk", answered once as Priya
+Nair, is her from then on. Listed in Settings, under Tune, each with Forget;
+goes with the contact or the company.
 
 ## import_batches
 
@@ -288,6 +390,14 @@ scheduled one, and what became of it — `status` is `scheduled`, `sent`,
   means the script has been told it may drop its copy. Caulder only asks the
   script about unsettled rows, and marks a row forgotten only once the script
   has answered.
+- **`template_id`** (migration 48) is the template a message started from,
+  so a template can say how many it sent and how many were answered. Null for
+  one written from scratch and for everything sent before; deleting the
+  template nulls it rather than taking the message.
+- **`message_id`** (migration 51) is the Message-ID a message went out with
+  when Caulder sent it itself, from an account: `<uuid@the-account's-domain>`.
+  A reply names it, which is how it is known for one. Null for anything
+  through the script, which keeps its own, and for everything sent before.
 - Deleting the contact deletes its messages; the history entries they wrote
   go with the contact anyway.
 
@@ -298,19 +408,27 @@ in `SETTING_KEYS` in `shared/domain.ts`, so a typo becomes a type error rather
 than a silently orphaned row: `activeCompanyId`, `coldAfterDays`, `followUpDays`,
 `notify`, `defaulted`, `captureShortcut`, `keepInTray`, `trayNoticed`,
 `googleConnection`, `googleAuto`, `googleScript`, `aiConnection`, `aiModels`,
-`aiModel`, `aiContext`, `thisIsMe`.
+`aiModel`, `aiContext`, `aiScope`, `aiLine`, `thisIsMe`, `widgetOpen`,
+`widgetLevel`, `widgetSpot`.
 
-**`thisIsMe`** is who this Caulder is, for two founders, as JSON: a `name`
-written on every revision it makes, and an `id` made once, which the shared
-brain knows it by.
+The connection opens with `secure_delete` on (`db/connection.ts`), so deleted
+content is overwritten rather than left in free pages - what migration 49
+took out does not linger in the file.
+
+**`thisIsMe`** is who this Caulder is, as JSON: a `name`, which Today greets
+and every revision written here carries, and an `id` made once.
 
 **`aiConnection`** is the AI service Ask the brain uses - which service, its
 address and its API key - ciphertext for the same reason as
 `googleConnection`, and an empty string once disconnected. **`aiModels`** is
 what that service offered when last asked, as JSON, so the picker needs no
 network to draw; **`aiModel`** is which of them answers, and may be a name
-typed by hand; **`aiContext`** is how much of the company goes with a
-question (`small`, `medium`, `large` or `whole`).
+typed by hand; **`aiContext`** is the most that goes with a question
+(`small`, `medium`, `large` or `whole`); **`aiScope`** is what goes within
+that - `needed`, the company in brief and what the question is about, which
+is also what an empty value means, or `all`, the whole company every time;
+and **`aiLine`** is `on` while the quick line is in AI mode, and emptied when
+the AI is disconnected.
 
 **`googleScript`** is what the script said about itself when last asked — its
 version, the Gmail address it sends from, today's remaining sends, and why it
@@ -323,35 +441,118 @@ they are encrypted with the OS credential store before they are written, and
 never handed back to the window.
 
 **`captureShortcut` has three states, and two of them look alike.** Never set
-means the default, Ctrl+Alt+A. Set to an empty string means deliberately off,
+means the default, Ctrl+Q (Ctrl+Win+A until 23 October 2026). Set to an empty string means deliberately off,
 and stays off — telling those two apart is the whole reason the row is read
 raw rather than as "a key or nothing". `keepInTray` is likewise yes until it
 is set to `0`.
+
+**The three `widget` keys are the desk widget between launches**: whether it
+was showing (`widgetOpen`, never set means no - it is the one part of Caulder
+that puts something on screen you did not open), where in the stack
+(`widgetLevel`, one of `desktop`, `front`, `normal`, and anything else reads
+as `front` rather than throwing), and where the pill was dragged to
+(`widgetSpot`, `{"x":n,"y":n}`). The spot is clamped onto a real screen on
+every launch rather than only when it is moved - a widget left on a second
+monitor that is now unplugged would otherwise be somewhere nobody can reach.
+`shared/widget.ts` reads all three.
 
 Anything that belongs to one workspace goes on its `companies` row or its own
 table, never in here.
 
 ## area_words
 
-The words the quick-add line has been taught — "Datascience" is College,
-"Oakridge" is Company. `word`, `area`, `created_at`.
+**Not read or written since phase 32.** It held the words the quick-add
+line had been taught, each pointing at one of a task's four areas -
+"Datascience" is College, "Oakridge" is Company - and a task has no area now.
+`word`, `area`, `created_at`, no `company_id`, `UNIQUE (word COLLATE NOCASE)`.
+The table and its rows are left where they are, and are in the `caulder.db`
+copy and every backup.
 
-**No `company_id`**, deliberately — with `settings`, the only table that is
-app-wide. A course name is a course name in whichever workspace it is typed,
-and a per-workspace list would mean teaching every word twice to a person who
-has two.
+## line_guesses
 
-**`UNIQUE (word COLLATE NOCASE)`**, so "CS301" and "cs301" cannot both exist
-and point in different directions — which one won would be down to the order
-the rows came back in. The repository checks first so it can say where the
-word already points; the index is there so anything else that writes here
-meets the same rule. Spaces inside a phrase are collapsed on the way in, so two
-spacings of one phrase are one row.
+What the quick-add line guessed at, kept so Settings' Tune can ask about it
+later instead of the line stopping to ask there and then. `kind`, `typed`,
+`meant`, `times`, `verdict`, `last_seen`, `created_at`.
 
-`area` is one of the four task areas, checked at the bridge rather than by a
-CHECK, for the reason `channel` is free text: a fifth area should not need a
-table rebuild. Not in the CSV export — it is not per-workspace — but in the
-`caulder.db` copy that ships beside it, and in every backup.
+A row is a **`slip`**: a word read as another - "meetining" as "meeting" -
+with what it was read as in `meant`. `times` counts the lines it has turned up
+in. Rows of kind **`name`** - something a title named that nothing knew, asked
+about so it could be given an area - are from before phase 32, and are neither
+written nor read.
+
+`verdict` is null until answered: `same` means it is read that way from then
+on without comment, and `keep` means the word is never touched again - which
+is also what "Keep as typed" under the line writes, before any question is
+asked. Deleting the row takes an answer back, and leaves the line free to
+guess - and ask - again.
+
+**No `company_id`**: the way somebody's
+fingers slip does not change with the workspace. **`UNIQUE (kind, typed, meant)`
+ignoring case**, so a second sighting adds to the count rather than the list,
+and an answer once given is found again rather than asked again. Not in the CSV
+export; in the `caulder.db` copy and every backup.
+
+## line_lessons
+
+What the quick line learns from being corrected (`shared/lessons.ts`). A line
+moved to another kind before it was kept leaves one row: its `words` (plain,
+sorted, space-separated - the words that carry meaning, with "friends" and
+"friend" as one), the `kind` it was moved to, `times` it has been taught that,
+the line it was first learnt from as `sample`, `created_at`, `last_seen`. The
+same words taught the same answer again add to `times`; nothing else is kept.
+
+A later line that shares words with a lesson is read that way - but a word
+taught two different answers counts for neither. Each row is listed in
+Settings with a way to take it back.
+
+**`area`** is from when a line could be moved to another part of life as
+well. It is not written since phase 32, and a row that has only an area and
+no kind is not read.
+
+## reminders
+
+A reminder the quick line was asked for - "remind me in 20 mins to check the
+oven", "don't let me forget to pay rent tomorrow" (`shared/nudges.ts`). The
+`company_id` and `task_id` it belongs to, its `title`, the `day` and `time`
+where that workspace is (a null `time` is the start of that day - the morning
+brief's hour, or nine), `told_at` once Windows has shown it, `created_at`.
+
+Separate from a block's own notice, which stays behind the workspace's
+reminder switch: this was asked for in so many words, so it is sent whatever
+that switch says. A reminder for a task done first is settled without being
+sent, and deleting the task deletes it.
+
+The morning brief keeps no rows: its hour is `briefAt` in `settings` (never
+set is nine, empty is off), and the day it was last sent is `briefed`, so it
+is sent once a day. The renewals said with it are `renewalsTold`: a JSON list
+of `pageId|day|soon` and `pageId|day|due`, pruned to what is still in view.
+
+## mail_accounts
+
+Mail that is not the Google script: Zoho, Outlook, Yahoo, iCloud, a domain of
+your own. `label`, `address` it sends as, `host`, `port`, `secure` (TLS from
+the first byte, rather than STARTTLS), `username`, `is_default`, `created_at`.
+
+**`secret` is ciphertext.** The password - an app password, for every
+provider that offers one - is encrypted by the operating system before it is
+written, as `googleConnection` is, and no channel hands it back to the
+window. If the OS cannot encrypt, the account is not saved.
+
+**`imap_host` is the switch for seeing replies** (migration 51), null until
+the person turns it on for that account; `imap_port` goes with it. On,
+Caulder asks that inbox every ten minutes for the headers of what has
+arrived since the oldest message still listened for - who from, when, what
+it answers; never a subject or the text - and reports each answer the way
+the script's are reported. `imap_checked_at` is the last look, and
+`imap_error` what went wrong with it in a sentence, null when it went. The
+same password is used; nothing new is stored about the inbox, and nothing in
+it is changed.
+
+Off, an account only sends: no reply is watched for and no follow-up is
+taken. Either way a message scheduled for later, and a follow-up, is sent by
+Caulder when it is due, which means Caulder has to be running.
+`emails.account_id` says which account a message went from - null is the
+script, which is every message from before.
 
 ## campaigns
 
@@ -416,6 +617,54 @@ accountant would recognise. See PLAN.md, phase 3.
 - **Paid is derived from `payments`, never typed.** An invoice is paid when
   the payments cover the total and stops being paid if one is removed;
   `paid_on` follows. "Mark paid" records a payment for the remainder.
+- **Tax** (migration 60, `shared/tax.ts`): each line keeps its rate
+  (`tax_rate`, a percentage, null for none) and each quote or invoice keeps
+  how it was taxed when it was made - `tax_treatment` (`standard`,
+  `india-intra`, `india-inter`, `canada`, `reverse`, `export`, or null for
+  none), `tax_inclusive` (prices said with the tax in) and `tax_region` (the
+  client's state or province then) - so a change to the company's settings
+  never rewrites a document already sent. The tax itself is worked out when
+  read: on all the lines at each rate, rounded once a rate to whole units.
+  `quotes.valid_until` is the day a quote stops being good, or null.
+- **What a company charges** is on `companies`: `tax_on`, `tax_rate` (a new
+  line's rate), `tax_inclusive`, `tax_region` (India's state or Canada's
+  province, when the tax number does not say), `tax_number`, and the
+  defaults for every client - `payment_terms` (days to pay) and
+  `hourly_rate`. **A client's own** are on `leads`: `tax_number`,
+  `tax_country`, `tax_region`, `payment_terms`, `hourly_rate`, set apart from
+  the contact's form so nothing that saves a contact can clear them.
+- **How its invoices look** is `companies.invoice_look` (migration 61): one
+  JSON value - `layout`, `ink`, `footer`, `logo` (whether the chosen file is
+  printed; the file is `invoice-logo-<company id>` beside the attachments),
+  and the person's own `folder` a copy of each invoice goes into, with
+  `foldering` (`flat`, `year`, `month`, `client`) and `naming`. Read by
+  `shared/invoicelook.ts`; null, or anything it cannot read, is the look
+  every invoice had before.
+- **The company's own tax rules** are `companies.tax_rules` (migration 62):
+  JSON of what it changed from its country's - the tax's name, its rates,
+  what its number is called, the titles, the words a document must carry
+  when it is not registered, the registration threshold (`thresholdAmount`
+  as a sum), the tax clients withhold and its rate, when the financial year
+  starts, the numbers usually printed. Only what differs is kept, so a
+  corrected default reaches a company that changed nothing
+  (`shared/taxrules.ts`). `companies.tax_scheme` is `composition` for India's
+  scheme - no tax charged, a bill of supply - and null otherwise.
+- **Tax a client withheld** is `payments.withheld` (migration 62): India's
+  TDS, paid in the company's name. It pays the invoice as money in does, so
+  an invoice is paid when `amount + withheld` covers it; money in and the
+  runway count `amount` alone.
+- **A run keeps its day** (`invoices.repeat_day`, migration 59): the day of
+  the month it was set on, so a retainer issued on the 31st is drafted on the
+  31st again after February's 28th, rather than on the 28th for good.
+- **A retainer is `invoices.repeats`** (migration 54), and only the newest
+  invoice of a run carries it. When the next is due to be written -
+  `issued_on` so many months on, and the invoice sent - `draftRepeats`
+  (`repositories/money.ts`) makes a draft from it and moves `repeats` to the
+  draft. Nothing is drafted from a draft, so a run has at most one waiting;
+  nothing is ever sent by it. It runs when Today and Money are read.
+- **Whether an invoice was chased is not stored.** `Invoice.reminded` is
+  read from `emails`: those sent to its contact with its number in the
+  subject (`remindersFor`, `shared/chase.ts`).
 - **Overdue is not a status.** It is a sent invoice past `due_on`, worked out
   when read, so nothing runs at midnight and nothing goes stale.
 - **A quote cascades to its lines; an invoice does not cascade to its quote.**
@@ -434,9 +683,10 @@ accountant would recognise. See PLAN.md, phase 3.
 
 **A running cost is not a table.** It is read off the brain pages that
 already say what something costs and when it renews: a `tool` page (`cost`,
-`cycle`, `renewsOn`), a `domain` page (`cost` a year, `renewsOn`) and a
-`running-cost` page in Money plan (`amount`, `cycle`, `dueOn`, `category`,
-`payee`) for rent, salaries and the rest. `shared/costs.ts` says which field
+`cycle`, `renewsOn`), a `domain` page (`cost` a year, `renewsOn`, `years`
+paid for) and a `running-cost` page in Money plan (`amount`, `cycle`,
+`years`, `dueOn`, `category`, `payee`) for rent, salaries and the rest. Each
+may say the `account` it was bought with. `shared/costs.ts` says which field
 is which. Archived pages are not costs. So a server bill is written down
 once, beside its login and its notes, and the brain's search, export and Map
 carry it.
@@ -527,6 +777,14 @@ Indexed on `(company_id, category, name)`, `(lead_id, created_at DESC)` and
 `(company_id, expires_on)`.
 
 ## people, openings
+
+**Dormant since migration 52 (11 October 2026).** People and hiring was taken
+out - a one-person company has no team - and nothing in Caulder reads or
+writes these two tables now. They are still here, with whatever was in them,
+because `tasks.person_id` refers to `people`: a column with a reference
+cannot be dropped, and a table another still refers to cannot go without
+every later write to `tasks` failing. Export everything writes them out as
+`people.csv` and `roles.csv`. What follows is how they were used.
 
 Who works here and on what terms, and who might. See PLAN.md, phase 10.
 
@@ -659,66 +917,38 @@ so it has a clock and a length a task has never had.
   repeated sync update rather than duplicate.
 - `task_id` nulls rather than cascades: deleting the task leaves the hour you
   set aside standing.
-- **`page_id`** (on `blocks` and `block_series`, migration 30) is the page the
-  time was set aside for from Life - a course's study hours, a hobby's
-  evenings. It nulls when the page goes: the hours happened either way. What a
+- **`lead_id`, `billable`, `invoice_id`** (migration 60, part thirteen): the
+  client the time is for, whether it is billed by the hour, and the invoice
+  that billed it. Set apart from the block's own form; both references null
+  when what they point at goes, so deleting a draft gives the hours back.
+- **`page_id`** (on `blocks` and `block_series`, migration 30) is a page the
+  time was set aside for. Nothing sets it now - it was for a course's study
+  hours and a hobby's evenings, which went with migration 49 - and it nulls
+  when the page goes: the hours happened either way. What a
   page's time "got" is the sum of its past blocks not skipped, worked out when
   read.
 
 ## block_series, terms
 
-Most of a student's week is the same week again. **Occurrences are written as
-ordinary blocks**, not computed when read, so moving one Tuesday is editing a
-block and the Google sync needs no idea repeats exist.
+Most of a week is the same week again. **Occurrences are written as ordinary
+blocks**, not computed when read, so moving one Tuesday is editing a block and
+the Google sync needs no idea repeats exist.
 
 - `block_series` — `title`, `kind`, `starts_at`, `minutes`, `weekdays` (ISO
-  numbers, `'1,3,5'`), `from_day`, `until_day`, `is_habit`, `term_id`. Only a
-  habit is counted for a streak, and streaks count scheduled occurrences, not
-  calendar days.
-- `terms` — `name`, `from_day`, `until_day`. A new semester is one action.
-- **`blocks.series_id` and `block_series.term_id` both null rather than
-  cascade.** Ending a repeat clears the future and leaves the past; ending a
-  term does not delete the timetable it held. Last semester happened.
-
-## habits, habit_checks
-
-The small things done most days, ticked on Today (PLAN.md, part four).
-`habits` - `name`, `area` (college, company, personal, health, or none),
-`weekdays` (ISO numbers, `'1,3,5'`), `position`, `archived_at`;
-`habit_checks` - one row per `(habit_id, day)` done.
-
-- **Nothing about a streak is stored.** The run of days, the best run and the
-  last twelve weeks are worked out from the ticks when read, counting only
-  the days the habit is for: a Monday-Wednesday-Friday habit is not broken by
-  a Tuesday. Today not ticked yet does not break it either - the day is not
-  over.
-- **Archived, not deleted**, keeps the ticks; deleting takes them.
-- Not `block_series.is_habit`: that was a repeat's hours, counted by a screen
-  since removed. A habit here has no time of day.
-
-## vision_tiles
-
-The vision board on top of Life (PLAN.md, part four, phase 17): pictures and
-words for what the year is for. `words` (a caption, or the whole tile),
-`picture` (a `BLOB`) with `picture_type`, `width` and `height`, `goal_id` (a
-page in the Goals section, `SET NULL` when it goes), `area`, `position`.
-
-- **A picture is kept in the database**, so a backup carries it and there is
-  no folder of files to lose track of. It arrives already made smaller - at
-  most 1,400 pixels on its long side, WebP, 1.5 MB at the very most - and is
-  checked by its first bytes before it is kept, whatever the window said it
-  was. It goes back to the window as a `data:` URL, the one image source the
-  window's CSP allows besides its own files.
-- **A tile has a picture, words, or both**, never neither: a `CHECK` says so,
-  and another that `picture` and `picture_type` come together.
-- **Yours alone.** Not a page, so never synced to a co-founder, never in the
-  brain's files, the data room, the handbook or the dossier.
-
-**Your level is not a table.** XP, levels, achievements and the week across
-the four areas are worked out when read (`services/progress.ts`) from
-`tasks.completed_at`, kept `blocks`, `calls`, won `deals`, paid `invoices`,
-journal entries, `habit_checks` and the revision where a goal was marked
-done. Undo any of those and the points go with it.
+  numbers, `'1,3,5'`), `from_day`, `until_day`, `is_habit`, `term_id`. `is_habit`
+  is no longer read: migration 49 set it to 0 everywhere. **`kind`** on a
+  block and on a repeat is one of `focus`, `meeting`, `call`, `admin`, `away`,
+  or whatever was typed; migration 53 made `away` of the four a student's day
+  had.
+- **`terms`** — `name`, `from_day`, `until_day` — **is no longer read or
+  written** (phase 32): it named the span a timetable of classes ran for, and
+  the Calendar's *A usual week* puts repeats in until a day without naming
+  anything. `block_series.term_id` is null on every repeat made since.
+- **`blocks.series_id` nulls rather than cascades.** Ending a repeat clears
+  the future and leaves the past.
+- **`every_weeks`** (migration 55) is 1, or 2 for a repeat every other week:
+  the occurrences written are the weeks counted from the week of `from_day`
+  that are even.
 
 ## notes
 
@@ -732,19 +962,11 @@ The brain (PLAN.md, phase 6). A page is a `section`, a `template`, a
 `title`, a Markdown `body`, and `fields` - the template's fields as JSON.
 
 - **`section` is checked in `shared/brain.ts`, not by the table.** It was a
-  `CHECK` listing the company's fifteen until migration 30 rebuilt the table
-  for the founder's own four - `studies`, `hobbies`, `goals`, `journal` -
-  and it was rebuilt without one, so a new section never costs a rebuild
-  again.
-- **The founder's own sections never leave the machine**: the shared brain
-  neither sends nor accepts them, the brain file leaves them out, and so do
-  the data room, the handbook and the dossier. They are brain pages so that
-  they link, are searched and keep a history; they are shown under *You*
-  (Journal and Life), not in the brain.
-- **One journal entry a day**, by a unique index on
-  `(company_id, json_extract(fields, '$.day'))` for the `entry` template. The
-  day is set when the entry is made and kept through every edit; an entry is
-  made only when something is written, never by opening the journal.
+  `CHECK` until migration 30 rebuilt the table without one, so a new section
+  never costs a rebuild again. That rebuild was for four personal sections -
+  `studies`, `hobbies`, `goals`, `journal` - which migration 49 emptied and
+  `shared/brain.ts` no longer lists; `remembered`, where the line keeps what
+  it was told about the company, is the company's now.
 
 - **Fields are JSON, not columns.** The templates are defined in
   `shared/brain.ts` and change with it, and nothing queries a field by
@@ -766,49 +988,11 @@ The brain (PLAN.md, phase 6). A page is a `section`, a `template`, a
   person's saves fold together. `edited_by` is the "This is me" name of
   whoever wrote the version, and `brain_pages.updated_by` of whoever wrote
   the page last (both null before phase 12).
-- **`brain_revisions.concurrent`** marks a version written at the same time
-  as another by the other founder. The page shows so while its latest version
-  is marked; the next save is not, and the mark goes.
+- **`brain_revisions.concurrent`** marked a version written at the same time
+  as another by a second founder. Nothing writes it since founder sharing was
+  taken out (migration 49); the column stays.
 - Archiving keeps a page and takes it out of search and the home page;
   deleting takes its revisions with it.
-
-## brain_tombstones, and the shared brain
-
-Two founders sharing one brain through the Google script (PLAN.md, phase
-12). The script keeps a log in a spreadsheet in the owner's Drive - every
-change to a page a row, the page's revisions numbered there - and each
-Caulder reads it from where it got to and sends what changed here.
-
-On `companies`: `brain_key` (which brain in the log; null when not shared),
-`brain_name`, `brain_role` (`owner` when the brain is in this founder's
-script, `member` when it was joined by invitation), `brain_connection` (how
-to reach it - the owner's key, or the invitation - encrypted by the OS like
-`googleConnection`), `brain_cursor` (how far into the log this company has
-read), `brain_synced_at` and `brain_error`.
-
-On `brain_pages`: `sync_revision` (the log's revision this page matches;
-null for a page the log has never had) and `sync_dirty` (changed here since).
-
-`brain_tombstones`: `company_id`, `page_id`, `sync_revision`, `deleted_at` -
-a shared page deleted here, waiting to tell the log.
-
-- **Marking is the database's job.** A trigger marks a page dirty when its
-  content, section, template or archiving changes and `sync_revision` did
-  not change in the same statement; a change arriving from the log always
-  moves `sync_revision`, so it is never sent straight back. A new page with
-  no `sync_revision` is dirty from its first insert. No path that changes a
-  page can forget to.
-- **A tombstone only for a page the log has, in a company still here**:
-  deleting a company takes its pages without telling anyone, and a page that
-  never went up has nobody to tell.
-- **The rules on arrival**: a change to a page not changed here becomes the
-  page; a change to one that has changed here goes into its history, this
-  side's version is written on top, and both are marked `concurrent`; an edit
-  beats a delete, whichever side made which; secrets and pins never travel.
-  A company's one profile or cap table meeting the other side's is renamed
-  "(before sharing)" and made a plain page rather than lost.
-- **Not shared yet**: products, obligations, people, metrics, documents,
-  contacts and deals are rows of their own and stay on each machine.
 
 ## brain_links, map_positions
 
@@ -863,6 +1047,64 @@ FTS5 keys on one - and says what it is (`kind`, `ref_id`) and whose
   `companies`, so the cascade that follows finds nothing left to clean.
 - `search_map` is not keyed to `companies` with a foreign key on purpose: the
   cascade would remove the map rows before the index rows they point at.
+
+## vectors, embed_queue
+
+What the model on this machine made of each thing it read (PLAN.md, part
+five): one vector a page, a memory, a contact, a task or a note, 384 bytes
+each (`shared/understand.ts` says how).
+
+- `vectors` is keyed on `(kind, ref, model)`. `ref` is the row's id, and for
+  a memory its page's id with the hash of its line after `#`, since memories
+  are lines, not rows. `model` is kept with each, so a new model reads
+  everything again rather than comparing two kinds of vector. `text_hash` is
+  what it was made from, so unchanged text is never read twice. `source_id`
+  is the row the text came from, and `company_id` cascades.
+- `embed_queue` is what is waiting to be read, `(kind, ref_id)` once however
+  often the row changed. **Triggers fill it**, on insert and on the columns
+  that are read, for `brain_pages`, `leads`, `tasks` and `notes` - a trigger
+  cannot run a model, so it queues. Deleting a row deletes its vectors at
+  once, by `source_id`.
+- **An archived page is not read**: a queued page that has been archived has
+  its vectors removed when it comes round.
+
+## said_again
+
+A memory the model found said again, in other words, by a newer one on the
+same page (PLAN.md, part five, phase 21). The line is known by `page_id` and
+the hash of its text (`line_hash`, as in `vectors.ref`); `newer_hash` is the
+line that said it again, and `score` how alike they were.
+
+- **The page is never written to.** The mark is read in beside it
+  (`services/memories.ts`), and the line shows as *earlier*.
+- **`undone`** is *Not the same*: the mark stays, so the same pair is not
+  marked again, but it no longer counts.
+- Deleting the page deletes its marks; a line edited has a new hash, and its
+  old mark no longer finds it.
+
+## sheet_links, sheet_rows
+
+A company's contacts kept as a Google Sheet in the person's own Drive, through
+their own script (PLAN.md, part seven; `shared/sheet.ts` says what a row is
+and which side is right, `services/sheetsync.ts` reads and writes).
+
+- **`sheet_links`** — one row a company that keeps one, and none for one that
+  does not: that is the switch. `url` is where the spreadsheet is, as the
+  script reported it; main checks it is a Google spreadsheet's address before
+  opening it, and the window never sees it. `synced_at`, `count`, `changed`
+  and `made` say how the last pass went; `problems` is a JSON list of
+  sentences about rows that could not be taken in; `error` is why a pass
+  failed, cleared by the next that works.
+- **`sheet_rows`** — what Caulder last wrote for each contact: `base`, the
+  cells the sheet may change, as JSON. A cell that differs from it on the
+  next read was edited in the sheet and is taken in; one that matches was
+  not, and Caulder's stands. Replaced whole on every pass.
+- Both go with their company, and a `sheet_rows` row with its contact — so a
+  contact deleted here is simply not in the next write, and its row leaves
+  the sheet. The other way round never happens: a row deleted from the sheet
+  comes back.
+- Stopping deletes both rows' worth and nothing else. The spreadsheet stays
+  in Drive, as it was last written.
 
 ## google_tombstones, google_sync
 

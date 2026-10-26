@@ -219,8 +219,7 @@ test("settings says where the data actually lives", async () => {
 
   await page.getByRole("button", { name: "Settings" }).click();
   // No cloud behind this, so the location is stated rather than hidden.
-  await expect(page.getByText(/The database is at/)).toBeVisible();
-  await expect(page.getByText(/with Caulder closed/)).toBeVisible();
+  await expect(page.getByText(/The database:/)).toBeVisible();
 });
 
 test("a refusal from main arrives as its sentence, not as Electron's wrapper", async () => {
@@ -239,10 +238,9 @@ test("a refusal from main arrives as its sentence, not as Electron's wrapper", a
       }
     };
     const { activeCompanyId } = await window.caulder.companies.list();
-    await window.caulder.words.add({ word: "Oakridge", area: "company" }).catch(() => undefined);
     return {
       // An Error a repository throws.
-      plain: await read(() => window.caulder.words.add({ word: "OAKRIDGE", area: "college" })),
+      plain: await read(() => window.caulder.tasks.reschedule("a-task-that-is-not-there", "2026-09-10")),
       // A ZodError from a schema in main - the one that came back as JSON.
       schema: await read(() =>
         window.caulder.tasks.quick(activeCompanyId ?? "", { title: "x".repeat(250), day: "2026-09-10" }),
@@ -253,7 +251,7 @@ test("a refusal from main arrives as its sentence, not as Electron's wrapper", a
   });
 
   expect(messages).toEqual({
-    plain: '"OAKRIDGE" is already a word for Company. Remove it first to move it.',
+    plain: "That task no longer exists.",
     schema: "Keep the title under 200 characters.",
     boundary: "Missing company id.",
   });

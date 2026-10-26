@@ -1,4 +1,15 @@
-import type { EmailRecord, MailState, SendEmailInput } from "./mail";
+import type { SupportAnswer } from "./support";
+import type { EmailRecord, MailState, SendEmailInput, TemplateStats } from "./mail";
+import type { ProfileKind } from "./profiles";
+import type { SheetState } from "./sheet";
+import type { Fact, FactInput, PaidFromInput } from "./domain";
+import type { WeekReview, WeekThing, WeekThingsInput } from "./week";
+import type { ClientBilling, CompanyBilling, CompanyBillingChanges } from "./billing";
+import type { TaxRules, TaxRulesChanges } from "./taxrules";
+import type { InvoiceLook } from "./invoicelook";
+import type { HoursToBill } from "./hours";
+import type { AccountantPack, AccountantPeriod } from "./accountant";
+import type { Health } from "./health";
 import type {
   BrainExport,
   BrainHome,
@@ -10,9 +21,13 @@ import type {
   PageSaveInput,
 } from "./brain";
 import type { SearchHit } from "./search";
+import type { TopicCopied } from "./topic";
 import type { CallContext, CallInput, CallRecord, CallScript, CallTone } from "./calls";
 import type { CashBalanceInput, CostsOverview } from "./costs";
-import type { AskAnswer, AskInput, AskState, ConnectInput, ContextSize } from "./ask";
+import type { AskAnswer, AskInput, AskPreview, AskScope, AskState, ConnectInput, ContextSize } from "./ask";
+import type { AiLineResult, LineInput } from "./ailine";
+import type { BriefState, Draft, NoticedDraft, SortDraft } from "./propose";
+import type { Home, Sorted } from "./rules";
 import type {
   CompanyDocument,
   DeadlinesOverview,
@@ -29,24 +44,21 @@ import type {
   ProductInput,
 } from "./products";
 import type { LinkKind, LinkTarget } from "./links";
+import type { Learned } from "./quickadd";
+import type { AnswerInput, NameInput, NameKept, SeenInput, TuneState } from "./tune";
+import type { Lesson, LessonInput } from "./lessons";
+import type { NudgeSettings } from "./nudges";
+import type { LooseEnds, Related, UnderstandState } from "./understand";
+import type { Example } from "./opinion";
+import type { Answer, LineContext, MoveInput, Question, TaskSnapshot } from "./lines";
+import type { MailAccount, MailAccountInput } from "./mailaccounts";
 import type { PageTasks } from "./steps";
-import type { ImportOutcome, InvitationPreview, ShareState } from "./share";
 import type { HandbookInput, HandbookOutcome, RoomChoices, RoomInput, RoomOutcome } from "./dataroom";
-import type { DayRecord, GoalRow, HobbyRow, JournalDay, JournalMonth, PageTime, StudiesOverview, TimeInput } from "./life";
-import type { Mood } from "./brain";
-import type { HabitInput, HabitsOverview } from "./habits";
-import type { VisionInput, VisionPicture, VisionTile } from "./vision";
-import type { Progress } from "./progress";
 import type { MetricDetail, MetricInput, MetricsOverview, ValueInput } from "./metrics";
-import type {
-  CandidateStage,
-  HireInput,
-  OpeningInput,
-  PeopleOverview,
-  PersonDetail,
-  PersonInput,
-} from "./people";
-import type { MapGraph, MapPosition } from "./map";
+import type { LinkOutcome, MapGraph, MapPosition } from "./map";
+import type { Memory } from "./memories";
+import type { WidgetLevel } from "./widget";
+import type { RememberInput, Remembered } from "./memories";
 import type {
   AccentId,
   Activity,
@@ -65,7 +77,6 @@ import type {
   Task,
   TaskInput,
   QuickInput,
-  AreaWord,
   Today,
   Board,
   GoalPeriod,
@@ -74,7 +85,6 @@ import type {
   DayPlan,
   WeekPlan,
   BlockInput,
-  Term,
   Note,
   GoogleState,
   MoneyOverview,
@@ -91,7 +101,7 @@ import type {
   EmailTemplate,
   TemplateInput,
 } from "./email";
-import type { BackupFile, ExportEverything } from "./data";
+import type { BackupFile, DriveBackup, DriveBackups, ExportEverything, SyncedFolder, UpdateState } from "./data";
 import type {
   ChosenFile,
   ColumnMapping,
@@ -121,6 +131,19 @@ export const CHANNELS = {
   notifySet: "notify:set",
 
   appVersion: "app:version",
+  appTour: "app:tour",
+  appStartup: "app:startup",
+  appSetStartup: "app:set-startup",
+  appStartupApps: "app:startup-apps",
+  appTourDone: "app:tour-done",
+  appProblemReport: "app:problem-report",
+  appOpenIssue: "app:open-issue",
+  appSupport: "app:support",
+  appSupportAnswer: "app:support-answer",
+  appLicences: "app:licences",
+  updatesState: "updates:state",
+  updatesCheck: "updates:check",
+  updatesInstall: "updates:install",
   appReportError: "app:report-error",
 
   companiesList: "companies:list",
@@ -163,6 +186,18 @@ export const CHANNELS = {
   askSetContext: "ask:set-context",
   askRefreshModels: "ask:refresh-models",
   askQuestion: "ask:question",
+  askSetScope: "ask:set-scope",
+  askSetLine: "ask:set-line",
+  askPreview: "ask:preview",
+  askLine: "ask:line",
+  askBrief: "ask:brief",
+  askProposeBrief: "ask:propose-brief",
+  askProposeTidy: "ask:propose-tidy",
+  askProposeNoticed: "ask:propose-noticed",
+  askProposeSort: "ask:propose-sort",
+  brainRulesOn: "brain:rules-on",
+  brainSortPlan: "brain:sort-plan",
+  brainSortApply: "brain:sort-apply",
   productsCatalogue: "products:catalogue",
   productsDetail: "products:detail",
   productsPickable: "products:pickable",
@@ -186,10 +221,16 @@ export const CHANNELS = {
   importBatches: "import:batches",
   importUndo: "import:undo",
   importTemplate: "import:template",
+  importGoogle: "import:google",
 
   todayGet: "today:get",
+  todayOverdue: "today:overdue",
+  todayColdAfterDays: "today:cold-after-days",
+  todaySetColdAfterDays: "today:set-cold-after-days",
 
   companiesSetCurrency: "companies:set-currency",
+  companiesSetCountry: "companies:set-country",
+  companiesSetTimezone: "companies:set-timezone",
   moneyGet: "money:get",
   moneyForLead: "money:for-lead",
   quoteSave: "quotes:save",
@@ -200,12 +241,14 @@ export const CHANNELS = {
   invoiceStatus: "invoices:status",
   invoiceMarkPaid: "invoices:mark-paid",
   invoicePdf: "invoices:pdf",
+  quotePdf: "quotes:pdf",
   invoiceDelete: "invoices:delete",
   paymentAdd: "payments:add",
   paymentDelete: "payments:delete",
   spendEntryAdd: "spend:entry-add",
   spendEntryDelete: "spend:entry-delete",
   outreachWhatsApp: "outreach:whatsapp",
+  outreachProfile: "outreach:profile",
   outreachEmail: "outreach:email",
   outreachEmailSent: "outreach:email-sent",
   outreachFollowUpDays: "outreach:follow-up-days",
@@ -220,11 +263,7 @@ export const CHANNELS = {
   blocksEndSeries: "blocks:end-series",
   blocksOutcome: "blocks:outcome",
   blocksUpdateSeries: "blocks:update-series",
-  blocksSetHabit: "blocks:set-habit",
 
-  termsList: "terms:list",
-  termsCreate: "terms:create",
-  termsDelete: "terms:delete",
 
   brainHome: "brain:home",
   brainSection: "brain:section",
@@ -242,12 +281,25 @@ export const CHANNELS = {
   brainExport: "brain:export",
   brainDossier: "brain:dossier",
   brainSearch: "brain:search",
+  brainTopic: "brain:topic",
   brainLinkTargets: "brain:link-targets",
   brainBacklinks: "brain:backlinks",
   brainMap: "brain:map",
+  brainMemories: "brain:memories",
+  brainEditMemory: "brain:edit-memory",
+  brainForgetMemory: "brain:forget-memory",
+  brainRemember: "brain:remember",
   brainLocalMap: "brain:local-map",
   brainKeepPositions: "brain:keep-positions",
   brainLetGo: "brain:let-go",
+  brainConnect: "brain:connect",
+  brainDisconnect: "brain:disconnect",
+  brainTitles: "brain:titles",
+  sheetState: "sheet:state",
+  sheetLink: "sheet:link",
+  sheetSync: "sheet:sync",
+  sheetUnlink: "sheet:unlink",
+  sheetOpen: "sheet:open",
   brainSteps: "brain:steps",
   brainMakeTasks: "brain:make-tasks",
   brainDecisions: "brain:decisions",
@@ -261,46 +313,10 @@ export const CHANNELS = {
   metricsUnrecord: "metrics:unrecord",
   meGet: "me:get",
   meSet: "me:set",
-  shareState: "share:state",
-  shareStart: "share:start",
-  shareCopyInvite: "share:copy-invite",
-  sharePreview: "share:preview",
-  shareJoin: "share:join",
-  shareSync: "share:sync",
-  shareStop: "share:stop",
-  shareExport: "share:export",
-  shareImport: "share:import",
   roomChoices: "room:choices",
   roomWrite: "room:write",
   roomHandbook: "room:handbook",
   roomReveal: "room:reveal",
-  lifeEntry: "life:entry",
-  lifeFind: "life:find",
-  lifeMood: "life:mood",
-  lifeMonth: "life:month",
-  lifeToday: "life:today",
-  lifeDay: "life:day",
-  lifeStudies: "life:studies",
-  lifeHobbies: "life:hobbies",
-  lifeGoals: "life:goals",
-  lifeTime: "life:time",
-  lifeMakeTime: "life:make-time",
-  lifeStopTime: "life:stop-time",
-  lifeLinkedPage: "life:linked-page",
-  lifeJot: "life:jot",
-  lifeLogTime: "life:log-time",
-  habitsList: "habits:list",
-  habitsAdd: "habits:add",
-  habitsUpdate: "habits:update",
-  habitsArchive: "habits:archive",
-  habitsRemove: "habits:remove",
-  habitsTick: "habits:tick",
-  visionList: "vision:list",
-  visionAdd: "vision:add",
-  visionUpdate: "vision:update",
-  visionMove: "vision:move",
-  visionRemove: "vision:remove",
-  progressGet: "progress:get",
   notesList: "notes:list",
   notesCreate: "notes:create",
   notesUpdate: "notes:update",
@@ -324,6 +340,13 @@ export const CHANNELS = {
   trayKeep: "tray:keep",
   traySetKeep: "tray:set-keep",
 
+  widgetGet: "widget:get",
+  widgetShow: "widget:show",
+  widgetLevel: "widget:level",
+  widgetFit: "widget:fit",
+  widgetDrag: "widget:drag",
+  widgetOpenApp: "widget:open-app",
+
 
   documentsList: "documents:list",
   documentsAdd: "documents:add",
@@ -339,17 +362,6 @@ export const CHANNELS = {
   deadlinesUndo: "deadlines:undo",
   deadlinesAddPresets: "deadlines:add-presets",
   deadlinesHistory: "deadlines:history",
-  peopleOverview: "people:overview",
-  peopleDetail: "people:detail",
-  peopleCreate: "people:create",
-  peopleUpdate: "people:update",
-  peopleRemove: "people:remove",
-  peopleStage: "people:stage",
-  peopleHire: "people:hire",
-  peopleOnboard: "people:onboard",
-  openingsCreate: "openings:create",
-  openingsUpdate: "openings:update",
-  openingsRemove: "openings:remove",
 
 
   fieldsList: "fields:list",
@@ -366,9 +378,66 @@ export const CHANNELS = {
   tasksReschedule: "tasks:reschedule",
   tasksDelete: "tasks:delete",
 
-  wordsList: "words:list",
-  wordsAdd: "words:add",
-  wordsRemove: "words:remove",
+  tuneGet: "tune:get",
+  tuneLearned: "tune:learned",
+  tuneSeen: "tune:seen",
+  tuneKeep: "tune:keep",
+  tuneAnswer: "tune:answer",
+  tuneForget: "tune:forget",
+  tuneNames: "tune:names",
+  weekReview: "week:review",
+  weekThings: "week:things",
+  weekThingsSet: "week:things-set",
+  weekThingDone: "week:thing-done",
+  factsList: "facts:list",
+  factsAdd: "facts:add",
+  factsRemove: "facts:remove",
+  factsAway: "facts:away",
+  moneyPaidFrom: "money:paid-from",
+  billingCompany: "billing:company",
+  billingSetCompany: "billing:set-company",
+  billingClient: "billing:client",
+  billingSetClient: "billing:set-client",
+  billingTaxRules: "billing:tax-rules",
+  billingSetTaxRules: "billing:set-tax-rules",
+  billingInvoiceLook: "billing:invoice-look",
+  billingSetInvoiceLook: "billing:set-invoice-look",
+  billingInvoiceLogo: "billing:invoice-logo",
+  billingInvoiceFolder: "billing:invoice-folder",
+  billingInvoiceSample: "billing:invoice-sample",
+  moneyAccountantPack: "money:accountant-pack",
+  moneyHealth: "money:health",
+  hoursSetFor: "hours:set-for",
+  hoursToBill: "hours:to-bill",
+  hoursBill: "hours:bill",
+  tuneNameKeep: "tune:name-keep",
+  tuneNameForget: "tune:name-forget",
+  lessonsList: "lessons:list",
+  nudgesGet: "nudges:get",
+  nudgesSet: "nudges:set",
+  nudgesTest: "nudges:test",
+  understandState: "understand:state",
+  understandSet: "understand:set",
+  understandAgain: "understand:again",
+  understandRead: "understand:read",
+  understandNotTheSame: "understand:not-the-same",
+  understandRelated: "understand:related",
+  understandLoose: "understand:loose",
+  understandGather: "understand:gather",
+  understandLeave: "understand:leave",
+  linesContext: "lines:context",
+  linesMove: "lines:move",
+  linesCancel: "lines:cancel",
+  linesRestore: "lines:restore",
+  linesRename: "lines:rename",
+  linesAnswer: "lines:answer",
+  lessonsAdd: "lessons:add",
+  lessonsRemove: "lessons:remove",
+  mailAccountsList: "mail-accounts:list",
+  mailAccountsAdd: "mail-accounts:add",
+  mailAccountsRemove: "mail-accounts:remove",
+  mailAccountsDefault: "mail-accounts:default",
+  mailAccountsReplies: "mail-accounts:replies",
 
   boardGet: "board:get",
   stagesCreate: "stages:create",
@@ -378,6 +447,7 @@ export const CHANNELS = {
   stagesDelete: "stages:delete",
 
   templatesList: "templates:list",
+  templatesStats: "templates:stats",
   templatesCreate: "templates:create",
   templatesUpdate: "templates:update",
   templatesDelete: "templates:delete",
@@ -385,6 +455,9 @@ export const CHANNELS = {
 
 
   googleScript: "google:script",
+  googleSaveContact: "google:save-contact",
+  googleBackup: "google:backup",
+  googleBackups: "google:backups",
   googleCopyScript: "google:copy-script",
   mailState: "mail:state",
   mailForLead: "mail:for-lead",
@@ -394,6 +467,11 @@ export const CHANNELS = {
 
   dataBackups: "data:backups",
   dataBackupNow: "data:backup-now",
+  dataMirror: "data:mirror",
+  dataChooseMirror: "data:choose-mirror",
+  dataStopMirror: "data:stop-mirror",
+  dataSynced: "data:synced",
+  dataUseSynced: "data:use-synced",
   dataRestore: "data:restore",
   dataExportAll: "data:export-all",
   dataRevealFolder: "data:reveal-folder",
@@ -412,6 +490,31 @@ export type WindowApi = {
 
 export type AppApi = {
   version: () => Promise<string>;
+  /** Whether the first-run tour is still to be shown. */
+  tour: () => Promise<boolean>;
+  /** Finished or skipped: not shown again unless asked for from `?`. */
+  tourDone: () => Promise<void>;
+  /** Whether Caulder opens when Windows starts. A Store copy is switched in Windows, so `store` says so. */
+  startup: () => Promise<{ on: boolean; store: boolean }>;
+  setStartup: (on: boolean) => Promise<{ on: boolean; store: boolean }>;
+  /** Windows' Startup apps page. */
+  startupApps: () => Promise<void>;
+  /** A problem report to read before it goes anywhere: version, Windows, the end of the log with names taken out. */
+  problemReport: () => Promise<string>;
+  /** Opens a GitHub issue with the report filled in, for the person to send. */
+  openIssue: (text: string) => Promise<void>;
+  /** Whether Today asks for support now (part six). The first read only sets the day. */
+  support: () => Promise<{ ask: boolean }>;
+  /** *Not now* asks again in three months; *never* ends it. */
+  answerSupport: (answer: SupportAnswer) => Promise<void>;
+  /** Opens the licences of everything Caulder ships, written when it was built. */
+  licences: () => Promise<void>;
+  updates: () => Promise<UpdateState>;
+  checkForUpdates: () => Promise<UpdateState>;
+  /** Quits and puts the downloaded update in. */
+  installUpdate: () => Promise<void>;
+  /** Told whenever an update moves on: found, downloading, ready. Returns the way to stop listening. */
+  onUpdates: (fn: (state: UpdateState) => void) => () => void;
   /** A screen that failed to draw, sent to the log. Fire and forget. */
   reportError: (detail: string) => void;
 };
@@ -425,13 +528,16 @@ export type Workspace = {
   companies: Company[];
   /** The company chosen in the sidebar: what Contacts, Deals, Money and Brain show. */
   activeCompanyId: string | null;
-  /** Where your own things live - the journal, Life, habits - whichever company is chosen. */
+  /** Where the calendar's own things are kept, whichever company is chosen. */
   homeCompanyId: string | null;
 };
 
 export type CompaniesApi = {
   /** Display only; nothing is converted. */
   setCurrency: (id: string, currency: string) => Promise<Workspace>;
+  /** Where it is: its phone numbers and filing calendar follow. */
+  setCountry: (id: string, country: string) => Promise<Workspace>;
+  setTimezone: (id: string, timezone: string) => Promise<Workspace>;
   list: () => Promise<Workspace>;
   create: (input: CompanyInput) => Promise<Workspace>;
   rename: (id: string, name: string) => Promise<Workspace>;
@@ -531,8 +637,35 @@ export type AskApi = {
   disconnect: () => Promise<AskState>;
   setModel: (model: string) => Promise<AskState>;
   setContext: (size: ContextSize) => Promise<AskState>;
+  /** Whether your own pages may go with a question. Locked days never do. */
   refreshModels: () => Promise<AskState>;
   question: (companyId: string, input: AskInput) => Promise<AskAnswer>;
+  /** What goes with a question: what it needs, or the whole company every time. */
+  setScope: (scope: AskScope) => Promise<AskState>;
+  /** The quick line in or out of AI mode. Refused, in a sentence, with no AI connected. */
+  setLineMode: (on: boolean) => Promise<AskState>;
+  /** What would go with a question, worked out on this machine: nothing is sent for it. */
+  preview: (companyId: string, input: AskInput) => Promise<AskPreview>;
+  /** One line read by the AI: what it is, or - for a question - its answer. Writes nothing. */
+  line: (companyId: string, input: LineInput) => Promise<AiLineResult>;
+  /** The company in brief, as it goes with every question. */
+  brief: (companyId: string) => Promise<BriefState>;
+  /** Drafts, to be read and kept by hand - never written by the AI (shared/propose.ts). */
+  proposeBrief: (companyId: string) => Promise<Draft>;
+  proposeTidy: (companyId: string, pageId: string) => Promise<Draft>;
+  proposeNoticed: (companyId: string) => Promise<NoticedDraft>;
+  /** A page sorted, with the AI asked about the lines the rules here could not place. Moves nothing. */
+  proposeSort: (companyId: string, pageId: string) => Promise<SortDraft>;
+};
+
+/** The rules on a subject, as they are shown beside the thing they are about. */
+export type RulesShown = {
+  /** The page they are on, or null when nothing has been said on the subject yet. */
+  pageId: string | null;
+  title: string;
+  rules: { says: string; fact: string | null; day: string }[];
+  /** How many stand in all, when more than are shown. */
+  total: number;
 };
 
 /**
@@ -575,21 +708,20 @@ export type ImportApi = {
    */
   paste: (text: string) => Promise<ChosenFile>;
   preview: (companyId: string, fileId: string, mapping: ColumnMapping) => Promise<ImportPreview>;
-  /**
-   * Writes the preview. `campaignId` attributes every lead this CREATES to one
-   * campaign — batch-wide, because a spreadsheet of two hundred scraped
-   * schools is one push and asking two hundred times means it is never
-   * answered. Leads it merely updates keep whatever they came from.
-   */
-  commit: (
-    jobId: string,
-    resolutions: Record<number, Resolution>,
-    campaignId: string | null,
-  ) => Promise<ImportSummary>;
+  /** Writes the preview. */
+  commit: (jobId: string, resolutions: Record<number, Resolution>) => Promise<ImportSummary>;
   batches: (companyId: string) => Promise<ImportBatch[]>;
   undo: (batchId: string) => Promise<{ deleted: number; restored: number }>;
   /** Writes the template where the user chooses. Resolves to the path, or null if cancelled. */
   template: () => Promise<string | null>;
+  /**
+   * The Google address book, fetched once and handed to the same wizard.
+   *
+   * Only when asked for: there is no background read of your contacts. It
+   * reports what it left out and whether it reached the end, because a
+   * partial address book that says it is whole is how people go missing.
+   */
+  google: () => Promise<ContactsPull>;
 };
 
 /**
@@ -631,27 +763,6 @@ export type DeadlinesApi = {
   history: (id: string) => Promise<ObligationDone[]>;
 };
 
-/**
- * People and hiring. The list hands back the whole section; a change made
- * on somebody's page hands back that page, and a delete nothing, because
- * what was being looked at has gone.
- */
-export type PeopleApi = {
-  overview: (companyId: string) => Promise<PeopleOverview>;
-  detail: (personId: string) => Promise<PersonDetail>;
-  create: (companyId: string, input: PersonInput) => Promise<PersonDetail>;
-  update: (personId: string, input: PersonInput) => Promise<PersonDetail>;
-  remove: (personId: string) => Promise<void>;
-  /** Moves a candidate along. Hiring is its own step, because it asks what as. */
-  stage: (personId: string, stage: CandidateStage) => Promise<PeopleOverview>;
-  hire: (personId: string, input: HireInput) => Promise<PersonDetail>;
-  /** Runs a checklist as tasks: the default for their kind, or a playbook page's steps. */
-  onboard: (personId: string, playbookId: string | null) => Promise<PersonDetail>;
-  createOpening: (companyId: string, input: OpeningInput) => Promise<PeopleOverview>;
-  updateOpening: (id: string, input: OpeningInput) => Promise<PeopleOverview>;
-  removeOpening: (id: string) => Promise<PeopleOverview>;
-};
-
 export type FieldsApi = {
   list: (companyId: string) => Promise<CustomField[]>;
   create: (companyId: string, input: CustomFieldInput) => Promise<CustomField[]>;
@@ -670,6 +781,11 @@ export type FieldsApi = {
 export type OutreachApi = {
   /** Opens WhatsApp on this lead's own number; main builds the address. */
   whatsapp: (leadId: string, message: string) => Promise<void>;
+  /**
+   * Opens this contact's LinkedIn or Instagram, with the message on the
+   * clipboard to paste there; with no message, only their profile.
+   */
+  profile: (leadId: string, kind: ProfileKind, message: string) => Promise<void>;
   email: (leadId: string, subject: string, body: string) => Promise<void>;
   emailSent: (leadId: string, subject: string, body: string) => Promise<void>;
   /** The built-in follow-up: days after a stage move with nothing planned. 0 is never. */
@@ -685,8 +801,48 @@ export type OutreachApi = {
  * and a screen that patched those by hand would eventually disagree with the
  * database.
  */
+/**
+ * What a company charges and how it is paid, and the same of a client (part
+ * thirteen): tax, payment terms, an hourly rate (shared/billing.ts).
+ */
+export type BillingApi = {
+  company: (companyId: string) => Promise<CompanyBilling>;
+  setCompany: (companyId: string, input: CompanyBillingChanges) => Promise<CompanyBilling>;
+  /** The company's tax and invoicing rules: its changes, what applies, and its country's (shared/taxrules.ts). */
+  taxRules: (companyId: string) => Promise<{ changes: TaxRulesChanges; rules: TaxRules; defaults: TaxRules }>;
+  /** Saves them; only what differs from the country's is kept. */
+  setTaxRules: (companyId: string, changes: TaxRulesChanges) => Promise<{ changes: TaxRulesChanges; rules: TaxRules; defaults: TaxRules }>;
+  client: (companyId: string, leadId: string) => Promise<ClientBilling>;
+  setClient: (companyId: string, leadId: string, input: ClientBilling) => Promise<ClientBilling>;
+  /** How its invoices look and where their copies go (part fourteen, shared/invoicelook.ts). */
+  invoiceLook: (companyId: string) => Promise<InvoiceLook>;
+  /** Saves the look. The folder is only ever cleared here; it is chosen with `invoiceFolder`. */
+  setInvoiceLook: (companyId: string, look: InvoiceLook) => Promise<InvoiceLook>;
+  /** Asks for a PNG or JPEG and keeps it as the logo; with `remove`, takes it off. Null when cancelled. */
+  invoiceLogo: (companyId: string, remove?: boolean) => Promise<InvoiceLook | null>;
+  /** Asks for the folder copies go into. Null when cancelled. */
+  invoiceFolder: (companyId: string) => Promise<InvoiceLook | null>;
+  /** A made-up invoice in the company's look, opened as a PDF. */
+  invoiceSample: (companyId: string) => Promise<void>;
+};
+
+/** Time billed by the hour (part thirteen, phase 57). */
+export type HoursApi = {
+  /** Whom a block's time is for, and whether it is billed by the hour. */
+  setFor: (blockId: string, input: { leadId: string | null; billable: boolean }) => Promise<void>;
+  toBill: (companyId: string, leadId: string) => Promise<HoursToBill>;
+  /** The hours as a draft invoice, a line a block. */
+  bill: (companyId: string, leadId: string) => Promise<Invoice>;
+};
+
 export type MoneyApi = {
   get: (companyId: string) => Promise<MoneyOverview>;
+  /** A period's invoices, tax, payments and spend in a folder the person picks; null when they did not pick one (phase 56). */
+  accountantPack: (companyId: string, period: AccountantPeriod) => Promise<AccountantPack | null>;
+  /** How the company is doing with money: a year by month, the year's turnover against its threshold, the next filings (part fourteen). */
+  health: (companyId: string) => Promise<Health>;
+  /** "Got 2400 from harbour": their open invoice paid, or a payment against it (part twelve, phase 49). */
+  paidFrom: (companyId: string, input: PaidFromInput) => Promise<{ say: string }>;
   /** What a contact has been quoted and invoiced. */
   forLead: (leadId: string) => Promise<{ quotes: Quote[]; invoices: Invoice[] }>;
   saveQuote: (companyId: string, id: string | null, input: QuoteInput) => Promise<MoneyOverview>;
@@ -700,6 +856,8 @@ export type MoneyApi = {
   markPaid: (companyId: string, id: string) => Promise<MoneyOverview>;
   /** Writes the PDF, attaches it to the contact and opens it. */
   invoicePdf: (companyId: string, id: string) => Promise<void>;
+  /** The quote as a PDF in the company's look, filed on the contact and opened (part fourteen). */
+  quotePdf: (companyId: string, id: string) => Promise<void>;
   deleteInvoice: (companyId: string, id: string) => Promise<MoneyOverview>;
   addPayment: (companyId: string, invoiceId: string, input: PaymentInput) => Promise<MoneyOverview>;
   deletePayment: (companyId: string, id: string) => Promise<MoneyOverview>;
@@ -709,6 +867,12 @@ export type MoneyApi = {
 
 export type TodayApi = {
   get: (companyId: string) => Promise<Today>;
+  /** How many tasks are overdue, for the sidebar's badge - without building the whole of Today. */
+  overdue: (companyId: string) => Promise<number>;
+  /** Days without contact before an open deal is listed under Going quiet. Never set means 14. */
+  coldAfterDays: () => Promise<number>;
+  /** A whole number from 3 to 90; anything else is refused with the sentence to show. */
+  setColdAfterDays: (days: number) => Promise<number>;
 };
 
 /**
@@ -765,23 +929,6 @@ export type DayApi = {
     day: string,
     change: { title: string; startsAt: string; minutes: number; kind: string | null },
   ) => Promise<DayPlan>;
-  /** Marks a run as worth a streak. Only habits ever ask anything of you. */
-  setHabit: (
-    seriesId: string,
-    isHabit: boolean,
-    companyId: string,
-    day: string,
-  ) => Promise<DayPlan>;
-};
-
-export type TermsApi = {
-  list: (companyId: string) => Promise<Term[]>;
-  create: (
-    companyId: string,
-    input: { name: string; fromDay: string; untilDay: string },
-  ) => Promise<Term[]>;
-  /** Removes the label. The blocks it held stay: last semester happened. */
-  remove: (id: string, companyId: string) => Promise<Term[]>;
 };
 
 /**
@@ -810,19 +957,46 @@ export type BrainApi = {
   /** Asks for a folder; null when the person cancelled. */
   exportAll: (companyId: string, secrets: boolean) => Promise<BrainExport | null>;
   /** The few long documents written for an assistant. Asks for a folder; null when cancelled. */
-  dossier: (companyId: string, secrets: boolean) => Promise<BrainExport | null>;
+  /**
+   * Export for an AI. With `you`, *04 you* is written beside the company
+   * (phase 22); with `purpose`, what it is for leads the read-me, and the
+   * model on this machine says what to read first for it.
+   */
+  dossier: (companyId: string, secrets: boolean, options?: { you?: boolean; purpose?: string }) => Promise<BrainExport | null>;
   search: (companyId: string, text: string) => Promise<SearchHit[]>;
+  /** Everything about one topic, onto the clipboard for another AI. The words stay in main. */
+  topic: (companyId: string, text: string) => Promise<TopicCopied>;
   /** What `[[` offers for what has been typed after it. */
   linkTargets: (companyId: string, text: string) => Promise<LinkTarget[]>;
   /** The pages that link to a page or a contact. */
   backlinks: (kind: LinkKind, id: string) => Promise<BrainPageSummary[]>;
   map: (companyId: string, allContacts: boolean) => Promise<MapGraph>;
+  /** Every page of a company's brain by its title, for the line to know what a sentence is about. */
+  titles: (companyId: string) => Promise<{ id: string; title: string; section: string }[]>;
+  /** What the line was told to remember about a company, read back off its pages. */
+  memories: (companyId: string) => Promise<{ companyId: string; memories: Memory[]; trails: Record<string, string[]> }>;
+  /** One memory said differently, on its page; the page's memories as they now are. */
+  editMemory: (input: { pageId: string; raw: string; fact: string | null; says: string }) => Promise<Memory[]>;
+  /** One memory taken off its page. */
+  forgetMemory: (input: { pageId: string; raw: string }) => Promise<Memory[]>;
+  /** One dated line on the page it is about, in the company's brain; the page is started when there is none. */
+  remember: (input: RememberInput) => Promise<Remembered>;
+  /** The rules that stand on a subject of How we work, to show beside what they are about (shared/rules.ts). */
+  rulesOn: (companyId: string, subject: string) => Promise<RulesShown>;
+  /** Where each remembered line on a page would be better kept, by what this machine can check. Moves nothing. */
+  sortPlan: (companyId: string, pageId: string) => Promise<{ pageId: string; title: string; lines: Sorted[] }>;
+  /** The moves that were said yes to, made in one go. */
+  applySort: (companyId: string, input: { pageId: string; moves: { raw: string; to: Home }[] }) => Promise<{ moved: number }>;
   /** What is around one dot, one to three links out: two when not said. */
   localMap: (companyId: string, kind: LinkKind, id: string, depth?: number) => Promise<MapGraph>;
   /** Where the dots were left, and which are pinned. */
   keepPositions: (companyId: string, positions: MapPosition[]) => Promise<void>;
   /** Unpins every dot. */
   letGo: (companyId: string) => Promise<void>;
+  /** Links two dots by their keys, written into the page at one end. */
+  connect: (companyId: string, from: string, to: string) => Promise<LinkOutcome>;
+  /** Takes the link between two dots out of the page it is written in. */
+  disconnect: (companyId: string, one: string, other: string) => Promise<void>;
   /** A meeting's action items or a playbook's steps, and the tasks they have become. */
   steps: (pageId: string) => Promise<PageTasks>;
   /** A meeting: its open items not yet tasks. A playbook: every step, again, for a contact if one is named. */
@@ -832,24 +1006,25 @@ export type BrainApi = {
 };
 
 /**
- * Two founders: who this Caulder is, the shared brain, and the brain file.
- * The invitation is copied to the clipboard by main: the script's address
- * never reaches the window.
+ * A company's contacts kept as a Google Sheet, in the person's own Drive
+ * through their own script (shared/sheet.ts). Off until a company is linked.
  */
-export type ShareApi = {
-  me: () => Promise<string | null>;
-  setMe: (name: string) => Promise<string | null>;
-  state: (companyId: string) => Promise<ShareState>;
-  start: (companyId: string) => Promise<ShareState>;
-  copyInvitation: (companyId: string) => Promise<void>;
-  preview: (invitation: string) => Promise<InvitationPreview>;
-  join: (companyId: string, invitation: string) => Promise<ShareState>;
-  sync: (companyId: string) => Promise<ShareState>;
-  stop: (companyId: string) => Promise<ShareState>;
-  /** Asks where to save; null when cancelled. */
-  exportFile: (companyId: string) => Promise<{ pages: number } | null>;
-  /** Asks which file; null when cancelled. */
-  importFile: (companyId: string) => Promise<ImportOutcome | null>;
+export type SheetApi = {
+  state: (companyId: string) => Promise<SheetState>;
+  /** Makes the spreadsheet and brings the two in step for the first time. */
+  link: (companyId: string) => Promise<SheetState>;
+  /** Reads the sheet, takes in what changed there, and writes the list back. */
+  sync: (companyId: string) => Promise<SheetState>;
+  /** Stops keeping it. The spreadsheet stays in Drive. */
+  unlink: (companyId: string) => Promise<SheetState>;
+  /** Opens the spreadsheet in the browser; main holds its address. */
+  open: (companyId: string) => Promise<void>;
+};
+
+/** Who this Caulder is: the name Today greets, and an invoice is from. */
+export type MeApi = {
+  get: () => Promise<string | null>;
+  set: (name: string) => Promise<string | null>;
 };
 
 /**
@@ -865,60 +1040,6 @@ export type RoomApi = {
   handbook: (companyId: string, input: HandbookInput) => Promise<HandbookOutcome | null>;
   /** Shows the last one written, in its folder. */
   reveal: (companyId: string, which: "room" | "handbook") => Promise<void>;
-};
-
-/**
- * The founder's own half of the brain: the journal, the day as Caulder saw
- * it, studies, hobbies and goals, and time set aside for a page.
- */
-export type LifeApi = {
-  /** The entry for a day - today when null - made if there is none. */
-  entry: (companyId: string, day: string | null) => Promise<BrainPage>;
-  /** The entry for a day if there is one; opening the journal does not make one. */
-  find: (companyId: string, day: string) => Promise<BrainPage | null>;
-  mood: (pageId: string, mood: Mood | null) => Promise<BrainPage>;
-  month: (companyId: string, month: string | null) => Promise<JournalMonth>;
-  today: (companyId: string) => Promise<{ day: string; entry: JournalDay | null }>;
-  day: (companyId: string, day: string) => Promise<DayRecord>;
-  studies: (companyId: string) => Promise<StudiesOverview>;
-  hobbies: (companyId: string) => Promise<HobbyRow[]>;
-  goals: (companyId: string) => Promise<GoalRow[]>;
-  time: (pageId: string) => Promise<PageTime>;
-  makeTime: (pageId: string, input: TimeInput) => Promise<PageTime>;
-  stopTime: (seriesId: string) => Promise<PageTime>;
-  /** An exam from its course, class notes from theirs: a new page linked back. */
-  linkedPage: (fromPageId: string, template: string) => Promise<BrainPage>;
-  /** A line into today's journal, under its Today heading; the entry is made if there is none. */
-  jot: (companyId: string, text: string) => Promise<BrainPage>;
-  /** Time given to a page just now - a hobby, a course - kept on the Calendar as having happened. */
-  logTime: (pageId: string, minutes: number) => Promise<PageTime>;
-};
-
-/** Habits: ticked on Today, their streaks and weeks worked out from the ticks. */
-export type HabitsApi = {
-  list: (companyId: string, archived?: boolean) => Promise<HabitsOverview>;
-  add: (companyId: string, input: HabitInput) => Promise<HabitsOverview>;
-  update: (id: string, input: HabitInput) => Promise<HabitsOverview>;
-  archive: (id: string, archived: boolean) => Promise<HabitsOverview>;
-  remove: (id: string) => Promise<HabitsOverview>;
-  /** A day ticked, or the tick taken back. Today when no day is given. */
-  tick: (id: string, day: string | null, done: boolean) => Promise<HabitsOverview>;
-};
-
-/** The vision board: each call answers with the whole board, in its order. */
-export type VisionApi = {
-  list: (companyId: string) => Promise<VisionTile[]>;
-  /** A tile of words, a picture, or both. The picture is made smaller before it is sent. */
-  add: (companyId: string, input: VisionInput, picture: VisionPicture | null) => Promise<VisionTile[]>;
-  update: (id: string, input: VisionInput) => Promise<VisionTile[]>;
-  /** To a place on the board, counting from 0; the rest close up. */
-  move: (id: string, index: number) => Promise<VisionTile[]>;
-  remove: (id: string) => Promise<VisionTile[]>;
-};
-
-/** Your level, the week across the four areas, and achievements - all worked out, none of it kept. */
-export type ProgressApi = {
-  get: (companyId: string) => Promise<Progress>;
 };
 
 /** Metrics: the derived ones and the ones written down, each with a year of history. */
@@ -976,6 +1097,15 @@ export type GoogleApi = {
    * probably just fixed whatever was wrong.
    */
   setAuto: (companyId: string, on: boolean) => Promise<GoogleState>;
+  /**
+   * One contact into Google Contacts, which a phone's address book syncs
+   * with. Saving it again updates it. Rejects with what to do when the script
+   * is not connected, or has no People service.
+   */
+  saveContact: (leadId: string) => Promise<{ made: boolean }>;
+  /** A fresh backup, copied to the "Caulder backups" folder in the person's own Drive. */
+  backupToDrive: () => Promise<DriveBackup>;
+  driveBackups: () => Promise<DriveBackups>;
   /** Saves the Apps Script file to paste into Google. Null when cancelled. */
   saveScript: () => Promise<string | null>;
   /** Puts the whole Apps Script file on the clipboard, ready to paste. */
@@ -1026,6 +1156,41 @@ export type CaptureApi = {
   setKeepInTray: (on: boolean) => Promise<void>;
 };
 
+/**
+ * The desk widget: the day, resting on the desktop.
+ *
+ * `set` answers with the state rather than void for the same reason
+ * `capture.set` does - the desktop level is a Win32 call that some machines
+ * refuse, and a level you believe you are at and are not is worse than being
+ * told. `reason` is non-null exactly when the desktop was asked for and
+ * Windows would not give it.
+ */
+export type WidgetApi = {
+  get: () => Promise<WidgetState>;
+  /** Opens or closes it, and remembers which for next launch. */
+  show: (on: boolean) => Promise<WidgetState>;
+  setLevel: (level: WidgetLevel) => Promise<WidgetState>;
+  /** The page saying how tall it is, so the window is never taller than what is in it. */
+  fit: (height: number) => Promise<void>;
+  /** Told when the pill grows into the panel, and when it shrinks back. */
+  onOpen: (fn: (open: boolean) => void) => () => void;
+  /** A press being dragged: main follows the cursor. Answers whether it moved, so a click can be told apart. */
+  drag: (phase: "start" | "move" | "end") => Promise<boolean>;
+  /** Opens Caulder on Today. */
+  openApp: () => Promise<void>;
+};
+
+export type WidgetState = { on: boolean; level: WidgetLevel; reason: string | null };
+
+/** What a pull from Google Contacts came back with. See services/gcontacts.ts. */
+export type ContactsPull = {
+  file: ChosenFile;
+  /** People with no name at all - Google keeps contacts that are only an email. */
+  skipped: number;
+  /** False when the address book was longer than the script would read in one go. */
+  complete: boolean;
+};
+
 export type TasksApi = {
   forLead: (leadId: string) => Promise<Task[]>;
   create: (companyId: string, input: TaskInput) => Promise<Task>;
@@ -1037,7 +1202,7 @@ export type TasksApi = {
   quick: (
     companyId: string,
     input: QuickInput,
-  ) => Promise<{ task: Task | null; blocked: boolean; repeats: number }>;
+  ) => Promise<{ task: Task | null; blocked: boolean; repeats: number; followUp: Task | null }>;
   update: (id: string, input: TaskInput) => Promise<Task>;
   complete: (id: string) => Promise<Task>;
   reopen: (id: string) => Promise<Task>;
@@ -1045,16 +1210,122 @@ export type TasksApi = {
   remove: (id: string) => Promise<void>;
 };
 
+/** The week, read from what is kept, and its three things (part eight, phase 35). */
+export type WeekApi = {
+  /** The week a day is in: what happened, what slipped, and the three. */
+  review: (companyId: string, day: string) => Promise<WeekReview>;
+  /** This week's three, for the head of Today. */
+  things: (companyId: string) => Promise<WeekThing[]>;
+  setThings: (companyId: string, input: WeekThingsInput) => Promise<WeekThing[]>;
+  markThing: (id: string, done: boolean) => Promise<void>;
+};
+
+/** What stays true about a contact, said to the line (part twelve, phase 49). */
+export type FactsApi = {
+  list: (leadId: string) => Promise<Fact[]>;
+  /** Kept on the contact; a birthday makes a task that comes back every year with it. */
+  add: (companyId: string, input: FactInput) => Promise<{ facts: Fact[]; task: Task | null }>;
+  remove: (id: string) => Promise<void>;
+  /** Facts that end and have not yet, for a task planned for them before then. */
+  away: (companyId: string, today: string) => Promise<{ leadId: string; text: string; until: string }[]>;
+};
+
 /**
- * Your words: what the quick-add line knows about this particular life.
- *
- * Global, so none of these take a company id. Each change returns the whole
- * list, alphabetical, because that is what the screen is about to draw.
+ * Tune: what the quick-add line guessed at, and the answers given about it
+ * (shared/tune.ts). Global: a slip is a slip in every company.
  */
-export type WordsApi = {
-  list: () => Promise<AreaWord[]>;
-  add: (input: { word: string; area: string }) => Promise<AreaWord[]>;
-  remove: (id: string) => Promise<AreaWord[]>;
+/**
+ * What the line learnt from being moved (shared/lessons.ts). Global, like Tune.
+ */
+/**
+ * The notifications Caulder sends by itself (shared/nudges.ts): the journal
+ * and the morning brief, each at an hour or off, and a test to prove Windows
+ * lets them through.
+ */
+/**
+ * What the quick line needs to mean what is already there, and the edits and
+ * answers it gives (services/lines.ts, shared/lines.ts).
+ */
+export type LinesApi = {
+  context: (companyId: string, today: string) => Promise<LineContext>;
+  /** A task to a new day, and its hour with it. */
+  move: (taskId: string, to: MoveInput) => Promise<{ task: Task; time: string | null }>;
+  /** A task and its hour gone; what they were, for Undo. */
+  cancel: (taskId: string) => Promise<TaskSnapshot>;
+  restore: (companyId: string, snapshot: TaskSnapshot) => Promise<Task>;
+  rename: (taskId: string, title: string) => Promise<Task>;
+  answer: (companyId: string, question: Question) => Promise<Answer>;
+};
+
+export type NudgesApi = {
+  get: () => Promise<NudgeSettings>;
+  set: (settings: NudgeSettings) => Promise<NudgeSettings>;
+  /** False when this machine cannot show notifications at all. */
+  test: () => Promise<boolean>;
+  /** A notification clicked: where it was about. */
+  onGo: (fn: (place: "today") => void) => () => void;
+};
+
+/** Understanding, on this machine (PLAN.md, part five): the switch, and how far reading has got. */
+export type UnderstandApi = {
+  state: () => Promise<UnderstandState>;
+  set: (on: boolean) => Promise<UnderstandState>;
+  /** Read everything again, from the start. */
+  again: () => Promise<UnderstandState>;
+  /**
+   * What a line's neighbours in meaning were filed as, for the line's second
+   * opinion (shared/opinion.ts). None when understanding is off or the model
+   * is not here, and the line reads by its rules alone.
+   */
+  read: (companyId: string, text: string) => Promise<Example[]>;
+  /** *Not the same*: a memory the model marked said again is current again. */
+  notTheSame: (memory: { pageId: string; raw: string }) => Promise<void>;
+  /** What is near a page in meaning and not linked to it yet (phase 21). */
+  related: (pageId: string) => Promise<Related[]>;
+  /** Loose memories that sound like one of your pages, offered as a move (phase 21). */
+  loose: (companyId: string) => Promise<LooseEnds>;
+  /** The move, said yes to. */
+  gather: (move: { to: string; lines: { pageId: string; raw: string }[] }) => Promise<void>;
+  /** *Not these*: never offered again. */
+  leave: (lines: { pageId: string; raw: string }[]) => Promise<void>;
+};
+
+export type LessonsApi = {
+  list: () => Promise<Lesson[]>;
+  /** A line moved to another part of life, or another kind, before it was kept. */
+  add: (input: LessonInput) => Promise<Lesson[]>;
+  remove: (id: string) => Promise<Lesson[]>;
+};
+
+/**
+ * Mail accounts that are not the Google script (shared/mailaccounts.ts). The
+ * password goes in once, on add, and no call hands it back.
+ */
+export type MailAccountsApi = {
+  list: () => Promise<MailAccount[]>;
+  /** Tried against the server first; nothing is saved if it will not sign in. */
+  add: (input: MailAccountInput) => Promise<MailAccount[]>;
+  remove: (id: string) => Promise<MailAccount[]>;
+  setDefault: (id: string) => Promise<MailAccount[]>;
+  /** Whether this account's inbox is asked who replied. On, it is tried first, and refused in a sentence if it cannot be opened. */
+  readReplies: (id: string, on: boolean) => Promise<MailAccount[]>;
+};
+
+export type TuneApi = {
+  /** The questions worth asking, and the answers that can be taken back. */
+  get: () => Promise<TuneState>;
+  /** What the line reads without comment, and what it never touches. */
+  learned: () => Promise<Learned>;
+  /** What a line that was just added had in it. Counted, nothing more. */
+  seen: (input: SeenInput) => Promise<void>;
+  /** "Keep as typed", pressed under the line. */
+  keep: (input: { typed: string; as: string }) => Promise<Learned>;
+  answer: (input: AnswerInput) => Promise<TuneState>;
+  forget: (id: string) => Promise<TuneState>;
+  /** Who a word means in this company, kept from an answer the line was given (part twelve, phase 48). */
+  names: (companyId: string) => Promise<NameKept[]>;
+  keepName: (companyId: string, input: NameInput) => Promise<NameKept[]>;
+  forgetName: (id: string) => Promise<void>;
 };
 
 /**
@@ -1085,6 +1356,8 @@ export type EmailApi = {
   createTemplate: (companyId: string, input: TemplateInput) => Promise<EmailTemplate[]>;
   updateTemplate: (id: string, input: TemplateInput) => Promise<EmailTemplate[]>;
   deleteTemplate: (id: string) => Promise<EmailTemplate[]>;
+  /** How each template has done: sent, and answered. */
+  templateStats: (companyId: string) => Promise<TemplateStats[]>;
 };
 
 /**
@@ -1109,7 +1382,17 @@ export type DataApi = {
   exportAll: (companyId: string) => Promise<ExportEverything | null>;
   /** Opens one of Caulder's own folders. Named, not a path, for the same reason. */
   revealFolder: (which: DataFolder) => Promise<void>;
-  paths: () => Promise<{ database: string; backups: string; logs: string }>;
+  /** `store`: a Microsoft Store copy, whose data Windows removes when it is uninstalled. */
+  paths: () => Promise<{ database: string; backups: string; logs: string; store: boolean }>;
+  /** The folder every backup is also copied to, or null. */
+  mirror: () => Promise<string | null>;
+  /** Asks for a folder, copies a backup there at once, and keeps copying. Null if cancelled. */
+  chooseMirror: () => Promise<string | null>;
+  stopMirror: () => Promise<null>;
+  /** Folders OneDrive, Dropbox or Google Drive keep in step here, each with where the copies would go (phase 24). */
+  synced: () => Promise<SyncedFolder[]>;
+  /** Copies backups into that service's folder, named rather than given as a path; one is copied at once. */
+  useSynced: (id: SyncedFolder["id"]) => Promise<string>;
 };
 
 export type CaulderApi = {
@@ -1127,26 +1410,31 @@ export type CaulderApi = {
   today: TodayApi;
   outreach: OutreachApi;
   money: MoneyApi;
+  billing: BillingApi;
+  hours: HoursApi;
   day: DayApi;
-  terms: TermsApi;
   notes: NotesApi;
   brain: BrainApi;
   google: GoogleApi;
   mail: MailApi;
   capture: CaptureApi;
+  widget: WidgetApi;
   documents: DocumentsApi;
   deadlines: DeadlinesApi;
-  people: PeopleApi;
   metrics: MetricsApi;
-  share: ShareApi;
+  me: MeApi;
+  sheet: SheetApi;
   room: RoomApi;
-  life: LifeApi;
-  habits: HabitsApi;
-  vision: VisionApi;
-  progress: ProgressApi;
   fields: FieldsApi;
   tasks: TasksApi;
-  words: WordsApi;
+  tune: TuneApi;
+  facts: FactsApi;
+  week: WeekApi;
+  lessons: LessonsApi;
+  nudges: NudgesApi;
+  understand: UnderstandApi;
+  lines: LinesApi;
+  mailAccounts: MailAccountsApi;
   board: BoardApi;
   email: EmailApi;
   data: DataApi;

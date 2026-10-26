@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { Download, FolderOpen, RotateCcw, Save } from "lucide-react";
-import type { BackupFile } from "@shared/data";
+import { Bug, Cloud, CloudUpload, Download, FolderOpen, RotateCcw, Save } from "lucide-react";
+import type { BackupFile, DriveBackups } from "@shared/data";
 import { formatDateTime } from "@/lib/format";
 import { messageOf } from "@/lib/errors";
+import { ErrorLine } from "@/components/ErrorLine";
 
 /**
  * Backup, restore and getting everything out.
@@ -20,19 +21,26 @@ export function DataSafety({
   companyName: string;
 }) {
   const [backups, setBackups] = useState<BackupFile[]>([]);
-  const [paths, setPaths] = useState<{ database: string; backups: string; logs: string } | null>(
+  /** The folder every backup is also copied to - one that syncs somewhere else - or null. */
+  const [mirror, setMirror] = useState<string | null>(null);
+  const [paths, setPaths] = useState<{ database: string; backups: string; logs: string; store: boolean } | null>(
     null,
   );
   const [confirming, setConfirming] = useState<string | null>(null);
+  /** A problem report being read before it goes anywhere. */
+  const [report, setReport] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** Bumped by each upload to Drive, so a list of what is there can be asked again. */
+  const [sentToDrive, setSentToDrive] = useState(0);
 
   const load = useCallback(() => {
-    Promise.all([window.caulder.data.backups(), window.caulder.data.paths()])
-      .then(([list, where]) => {
+    Promise.all([window.caulder.data.backups(), window.caulder.data.paths(), window.caulder.data.mirror()])
+      .then(([list, where, folder]) => {
         setBackups(list);
         setPaths(where);
+        setMirror(folder);
       })
       .catch((cause: unknown) =>
         setError(messageOf(cause)),
@@ -54,12 +62,10 @@ export function DataSafety({
   }
 
   return (
-    <section className="card">
+    <section className="card datasafety">
       <h2 className="card__title">Your data</h2>
       <p className="card__hint">
-        Everything lives in one file on this machine. Nothing is sent anywhere,
-        which also means nothing is kept anywhere else &mdash; so a copy off this
-        computer is worth having.
+        Everything is in one file on this computer. Keep a copy somewhere else.
       </p>
 
       {error && (
@@ -68,129 +74,204 @@ export function DataSafety({
         </p>
       )}
 
-      <div className="import__start">
-        <button
-          type="button"
-          className="btn btn--primary"
-          disabled={busy}
-          onClick={() =>
-            void run(async () => {
-              const outcome = await window.caulder.data.exportAll(companyId);
-              if (outcome) {
-                setMessage(
-                  `${outcome.rows} rows and a copy of the database written to ${outcome.folder}`,
-                );
-                load();
+      <div className="datasafety__split">
+        <div className="datasafety__part">
+          <div className="import__start">
+            <button
+              type="button"
+              className="btn btn--primary"
+              disabled={busy}
+              onClick={() =>
+                void run(async () => {
+                  const outcome = await window.caulder.data.exportAll(companyId);
+                  if (outcome) {
+                    setMessage(
+                      `${outcome.rows} rows and a copy of the database written to ${outcome.folder}`,
+                    );
+                    load();
+                  }
+                })
               }
-            })
-          }
-        >
-          <Download size={15} aria-hidden />
-          Export everything
-        </button>
+            >
+              <Download size={15} aria-hidden />
+              Export everything
+            </button>
 
-        <button
-          type="button"
-          className="btn"
-          disabled={busy}
-          onClick={() =>
-            void run(async () => {
-              const taken = await window.caulder.data.backupNow();
-              setMessage(`Copied to ${taken.name}`);
-              load();
-            })
-          }
-        >
-          <Save size={15} aria-hidden />
-          Back up now
-        </button>
+            <button
+              type="button"
+              className="btn"
+              disabled={busy}
+              onClick={() =>
+                void run(async () => {
+                  const taken = await window.caulder.data.backupNow();
+                  setMessage(
+                    taken.mirrored?.error
+                      ? `Copied to ${taken.name} here, but not to ${taken.mirrored.folder}: ${taken.mirrored.error}`
+                      : taken.mirrored
+                        ? `Copied to ${taken.name}, here and in ${taken.mirrored.folder}`
+                        : `Copied to ${taken.name}`,
+                  );
+                  load();
+                })
+              }
+            >
+              <Save size={15} aria-hidden />
+              Back up now
+            </button>
 
-        {paths && (
-          <button
-            type="button"
-            className="btn"
-            disabled={busy}
-            onClick={() => void window.caulder.data.revealFolder("backups")}
-          >
-            <FolderOpen size={15} aria-hidden />
-            Open the backups folder
-          </button>
-        )}
+            {/* Always offered: without Google connected it says what to connect,
+                which is more use than a button that is not there. */}
+            <button
+              type="button"
+              className="btn"
+              disabled={busy}
+              onClick={() =>
+                void run(async () => {
+                  const sent = await window.caulder.google.backupToDrive();
+                  setMessage(
+                    `Backed up here and to "Caulder backups" in your Google Drive, as ${sent.name}. The newest ${sent.kept} are kept there.`,
+                  );
+                  setSentToDrive((count) => count + 1);
+                  load();
+                })
+              }
+            >
+              <CloudUpload size={15} aria-hidden />
+              Back up to Google Drive
+            </button>
+
+            {paths && (
+              <button
+                type="button"
+                className="btn"
+                disabled={busy}
+                onClick={() => void window.caulder.data.revealFolder("backups")}
+              >
+                <FolderOpen size={15} aria-hidden />
+                Open the backups folder
+              </button>
+            )}
+          </div>
+
+          {message && <p className="card__hint">{message}</p>}
+
+          <h3 className="today__groupTitle datasafety__heading">Another copy, somewhere else</h3>
+          <p className={`card__hint${mirror ? "" : " card__hint--warn"}`}>
+            {mirror
+              ? `Every backup is also copied to ${mirror}, and the ten newest are kept there too.`
+              : paths?.store
+            ? "Uninstalling Caulder removes everything it keeps on this computer, backups too - Windows does that for every Store app. Choose a folder that syncs - OneDrive, Google Drive, Dropbox - and every backup is copied there as well."
+            : "A backup on this computer does not survive this computer. Choose a folder that syncs - OneDrive, Google Drive, Dropbox - and every backup is copied there too."}
+          </p>
+          <div className="actions">
+            <button
+              type="button"
+              className="btn"
+              disabled={busy}
+              onClick={() =>
+                void run(async () => {
+                  const folder = await window.caulder.data.chooseMirror();
+                  if (folder) {
+                    setMirror(folder);
+                    setMessage(`A backup is in ${folder} now, and every one after it will be.`);
+                    load();
+                  }
+                })
+              }
+            >
+              <CloudUpload size={15} aria-hidden />
+              {mirror ? "Choose another folder" : "Choose a folder"}
+            </button>
+            {mirror && (
+              <button
+                type="button"
+                className="btn btn--ghost"
+                disabled={busy}
+                onClick={() =>
+                  void run(async () => {
+                    setMirror(await window.caulder.data.stopMirror());
+                    setMessage("Backups stay on this computer only. What is already in the folder is left there.");
+                  })
+                }
+              >
+                Stop copying there
+              </button>
+            )}
+          </div>
+
+        </div>
+        <div className="datasafety__part">
+          <h3 className="today__groupTitle datasafety__heading datasafety__heading--copies">
+            Backups <span className="today__count">{backups.length}</span>
+          </h3>
+          <p className="card__hint">
+            One every launch; the last ten are kept. A restore can be undone.
+          </p>
+
+          {backups.length === 0 ? (
+            <p className="card__hint">No copies yet. One is taken on the next launch.</p>
+          ) : (
+            <ul className="batches">
+              {backups.map((backup) => (
+                <li key={backup.path} className="batch">
+                  <div className="batch__what">
+                    <span className="batch__name">{formatDateTime(backup.takenAt)}</span>
+                    <span className="batch__meta">
+                      {backup.name} &middot; {formatSize(backup.size)}
+                    </span>
+                  </div>
+
+                  {confirming === backup.path ? (
+                    <span className="detail__confirm">
+                      <span className="card__hint">Caulder will reload.</span>
+                      <button
+                        type="button"
+                        className="btn btn--sm btn--danger"
+                        disabled={busy}
+                        onClick={() =>
+                          void run(async () => {
+                            setConfirming(null);
+                            await window.caulder.data.restore(backup.name);
+                          })
+                        }
+                      >
+                        Restore
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn--sm"
+                        onClick={() => setConfirming(null)}
+                      >
+                        Cancel
+                      </button>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn btn--sm"
+                      disabled={busy}
+                      onClick={() => setConfirming(backup.path)}
+                    >
+                      <RotateCcw size={13} aria-hidden />
+                      Restore
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <DriveCopies companyId={companyId} sent={sentToDrive} />
+
+          {paths && (
+            <p className="card__hint datasafety__where">
+              The database: <code>{paths.database}</code>
+            </p>
+          )}
+        </div>
       </div>
 
-      {message && <p className="card__hint">{message}</p>}
-
-      <h3 className="today__groupTitle datasafety__heading">
-        Backups <span className="today__count">{backups.length}</span>
-      </h3>
-      <p className="card__hint">
-        One is taken every time Caulder starts, and the ten most recent are kept.
-        Restoring replaces everything with that copy &mdash; but the current
-        state is saved aside first, so restoring the wrong one is itself
-        undoable.
-      </p>
-
-      {backups.length === 0 ? (
-        <p className="card__hint">No copies yet. One is taken on the next launch.</p>
-      ) : (
-        <ul className="batches">
-          {backups.map((backup) => (
-            <li key={backup.path} className="batch">
-              <div className="batch__what">
-                <span className="batch__name">{formatDateTime(backup.takenAt)}</span>
-                <span className="batch__meta">
-                  {backup.name} &middot; {formatSize(backup.size)}
-                </span>
-              </div>
-
-              {confirming === backup.path ? (
-                <span className="detail__confirm">
-                  <span className="card__hint">Caulder will reload.</span>
-                  <button
-                    type="button"
-                    className="btn btn--sm btn--danger"
-                    disabled={busy}
-                    onClick={() =>
-                      void run(async () => {
-                        setConfirming(null);
-                        await window.caulder.data.restore(backup.name);
-                      })
-                    }
-                  >
-                    Restore
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn--sm"
-                    onClick={() => setConfirming(null)}
-                  >
-                    Cancel
-                  </button>
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  className="btn btn--sm"
-                  disabled={busy}
-                  onClick={() => setConfirming(backup.path)}
-                >
-                  <RotateCcw size={13} aria-hidden />
-                  Restore
-                </button>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {paths && (
-        <p className="card__hint datasafety__where">
-          The database is at <code>{paths.database}</code>. Copy that file
-          somewhere else now and again, with Caulder closed.
-        </p>
-      )}
-
-      <div className="actions">
+      <div className="actions datasafety__log">
         <span className="card__hint">
           When something goes wrong, Caulder writes it to a log.
         </span>
@@ -205,10 +286,138 @@ export function DataSafety({
           <FolderOpen size={14} aria-hidden />
           Open the log folder
         </button>
+        <button
+          type="button"
+          className="btn btn--sm btn--ghost"
+          disabled={busy}
+          onClick={() => void run(async () => setReport(await window.caulder.app.problemReport()))}
+        >
+          <Bug size={14} aria-hidden />
+          Report a problem
+        </button>
       </div>
+
+      {report !== null && (
+        <div className="problemreport">
+          <p className="card__hint">
+            Personal details are taken out. Nothing is sent until you send it.
+          </p>
+          <textarea
+            className="textarea problemreport__text"
+            aria-label="The problem report"
+            value={report}
+            onChange={(event) => setReport(event.target.value)}
+            rows={10}
+          />
+          <div className="actions">
+            <button type="button" className="btn btn--sm" onClick={() => void navigator.clipboard.writeText(report).then(() => setMessage("The report is copied."))}>
+              Copy it
+            </button>
+            <button type="button" className="btn btn--sm btn--primary" onClick={() => void window.caulder.app.openIssue(report)}>
+              Open it as an issue on GitHub
+            </button>
+            <button type="button" className="btn btn--sm btn--ghost" onClick={() => setReport(null)}>
+              Close
+            </button>
+          </div>
+        </div>
+      )}
 
       <p className="card__hint">Exports are per company. This one is {companyName}.</p>
     </section>
+  );
+}
+
+/**
+ * What is in the "Caulder backups" folder in Drive, when Google is connected.
+ *
+ * Asked for with a button rather than on opening Settings: it is a request to
+ * the person's own script over the network, and Settings should open the same
+ * offline as on. Listing only - bringing one back is a download from Drive
+ * into the backups folder, where it is restored like any other copy, so there
+ * is one way to restore rather than two.
+ */
+function DriveCopies({ companyId, sent }: { companyId: string; sent: number }) {
+  const [connected, setConnected] = useState(false);
+  const [drive, setDrive] = useState<DriveBackups | null>(null);
+  const [asking, setAsking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    // Offline: only whether a script is stored. Failing to read it just
+    // leaves the section away, as it would be without Google.
+    window.caulder.google.state(companyId).then(
+      (state) => live && setConnected(state.connected),
+      () => live && setConnected(false),
+    );
+    return () => {
+      live = false;
+    };
+  }, [companyId]);
+
+  const ask = useCallback(async () => {
+    setAsking(true);
+    setError(null);
+    try {
+      setDrive(await window.caulder.google.driveBackups());
+    } catch (cause) {
+      setError(messageOf(cause));
+    } finally {
+      setAsking(false);
+    }
+  }, []);
+
+  // A list already on screen is asked again after an upload, so it does not
+  // sit there missing the copy just sent. One that was never asked for stays
+  // unasked.
+  const shown = drive !== null;
+  // Keyed on the upload count alone: the list arriving must not ask again.
+  useEffect(() => {
+    if (sent > 0 && shown) void ask();
+  }, [sent]);
+
+  if (!connected) return null;
+
+  return (
+    <>
+      <h3 className="today__groupTitle datasafety__heading">
+        On Google Drive
+        {drive && <span className="today__count">{drive.backups.length}</span>}
+      </h3>
+      <p className="card__hint">
+        In &ldquo;{drive?.folder ?? "Caulder backups"}&rdquo; on Drive. To restore one, download it into the backups folder.
+      </p>
+
+      <ErrorLine>{error}</ErrorLine>
+
+      <div className="actions">
+        <button type="button" className="btn btn--sm" disabled={asking} onClick={() => void ask()}>
+          <Cloud size={13} aria-hidden />
+          {asking ? "Asking Drive" : drive ? "Look again" : "Show backups on Drive"}
+        </button>
+      </div>
+
+      {drive &&
+        (drive.backups.length === 0 ? (
+          <p className="card__hint">
+            Nothing in &ldquo;{drive.folder}&rdquo; yet. Back up to Google Drive to put the first copy there.
+          </p>
+        ) : (
+          <ul className="batches" aria-label="Backups on Google Drive">
+            {drive.backups.map((backup) => (
+              <li key={`${backup.name}-${backup.at}`} className="batch">
+                <div className="batch__what">
+                  <span className="batch__name">{formatDateTime(backup.at)}</span>
+                  <span className="batch__meta">
+                    {backup.name} &middot; {formatSize(backup.size)}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ))}
+    </>
   );
 }
 

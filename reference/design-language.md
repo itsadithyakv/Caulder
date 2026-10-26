@@ -8,10 +8,11 @@ on a token system with one source of truth.
 1. **`src/styles/tokens.css` is the only place a colour is defined.** Nothing
    else declares a `:root` colour token. A value a module needs becomes a scale
    step, never a literal. Enforced by `src/styles/tokens.test.ts`.
-2. **Surfaces are quiet; the data carries the contrast.** A card is white with
-   a hairline, a control is white with a darker one, and colour is spent on
-   what means something: the accent on the one primary action, the semantic
-   colours on status.
+2. **Surfaces are quiet; the data carries the contrast.** A section is a
+   sheet with a hairline, a control has a darker edge, and colour is spent
+   on what means something: the accent on the one primary action, the
+   semantic colours on status. The margin's rose rule and the stuck-on
+   notes are the exceptions (see "The face").
 3. **Only what floats has a shadow.** Menus, dialogs and a card being dragged.
    Elevation never encodes meaning; status is carried by colour *and* label,
    always both.
@@ -26,8 +27,12 @@ on a token system with one source of truth.
 contract:
 
 ```
-tokens → base → motion → primitives → shell → workspace → leads → import → today → pipeline → money → email → day → personal → brain
+tokens → base → motion → primitives → shell → workspace → leads → import → today → pipeline → money → email → day → personal → brain → … → sketch
 ```
+
+`sketch.css` is last on purpose: it is the face's hand-made layer, and every
+rule in it is scoped to `[data-face="notebook"]`, so it restyles blocks other
+files own without restating their roots (`blocks.test.ts`).
 
 Later layers may adjust layout. They may not redefine colour, radius, spacing
 or type.
@@ -41,11 +46,10 @@ screen had two soft edges, and a screen of forty controls was eighty blurred
 lines competing with the text. It was replaced by the approach MongoDB's
 design system takes, which does the same separating with one sharp line.
 
-- **The page is white; the chrome is the faintest grey.** The title bar and
-  the sidebar sit on `--bg-subtle` (`#f9fbfa`) with a hairline between them and
-  the work, so the window has an edge without a shadow anywhere.
-- **Ink is a navy-black**, `#001e2b`, with two lighter steps, rather than a
-  cool grey-blue. Contrast does the work relief used to.
+- **The base tokens below are the flat white look this began as**: a white
+  page, the chrome on the faintest grey, navy-black ink. The face the app
+  wears, the notebook, overrides every neutral (see "The face"); what follows
+  about lines, halos and squareness holds in both.
 - **Three weights of line.** `--border` for a card's edge, `--border-strong`
   for a control's, and `--border-input` for a field you type into, which is the
   darkest because the edge is the affordance that says *type here*.
@@ -76,10 +80,10 @@ small choice about how to show one thing: Day or Week, the theme. `.tabs--line`
 is a row of underlined tabs, for sections of a screen: Invoices, Quotes and
 Spend, and the kinds of entry in a contact's history.
 
-**Rows are white with an edge.** A task, an invoice, a template or a company in
-Settings is a white row with a hairline inside a white card. They were grey
-tiles pressed into the card, which put a second background behind every line
-of text.
+**Rows are ruled lines.** A task, an invoice, a template or a page in a list
+has a faint line under it and a wash on hover, not a box of its own. They
+were grey tiles pressed into the card once, then white boxes inside a white
+card; both put a second shape behind every line of text.
 
 ## The table
 
@@ -128,35 +132,90 @@ Dark follows MongoDB's own: a `#001e2b` page, `#112733` cards, light grey ink,
 and borders a step above the card rather than below it, so an edge still reads
 where a shadow would have vanished.
 
-## The face: coffee
+## The face: the notebook
 
-The app is **coffee**: a cafe-au-lait ground with espresso ink in light, an
-espresso ground with cream ink in dark, rounder radii throughout, and the
-coffee accent. It is flat, with its lines drawn in the ink's brown. It began
-as the face of a personal workspace and became the whole app's when the
-company switcher moved to the company screens: the founder liked it, and a
-day that is one person's should not change colour when a company is chosen.
-`data-face="personal"` and `data-accent="coffee"` are set on `<html>` in
-`index.html`, so the first paint is already coffee - the attribute keeps its
-old name. The neutral "work" face is gone.
+The app is **a notebook**: an off-white page, faintly ruled in blue, with
+white sheets laid on it, espresso ink and the coffee accent; in dark, the
+same notebook by lamplight. Gilroy throughout (decided 5 October) - the
+notebook is in the paper, not in a typeface.
 
-It replaced a warm *wash* over the work palette, and the reason is worth
-keeping. The wash was mixed from `--warn` — the amber that means "going cold" —
-which is a semantic colour used as decoration, the one thing this file forbids.
-And it warmed only the ground: the ink stayed navy and the accent stayed sky
-blue, so the screen was a warm room with cold furniture in it, which is what
-read as muddy. **A face changes every neutral together or it does not read as a
-choice.**
+- **The page is ruled.** The body carries a fine grain (`--paper-grain`) and
+  blue ruling a hair's breadth wide every `--rule-gap` (`--rule-line`, at
+  about a tenth of its strength - felt more than seen). The frame and the
+  scrolling pane are clear over it, so the sheet stays still while the work
+  scrolls across it.
+- **A section is a sheet laid on the page.** `.card` is `--surface`, a shade
+  whiter than the page, with a hairline edge, so its text never sits on a
+  line and the ruling shows in the gaps between sheets. Rows inside a sheet
+  are separated by a faint line (`--soft-line`), not boxed.
+- **The sidebar is the margin**: grain but no ruling, so what is written in
+  it never sits on a line, set off by the notebook's double rule in faint
+  rose (`--margin-rule`), drawn in a pen that wanders and carried up through
+  the title bar so it runs the window's full height. It is the one line drawn
+  for its look rather than its meaning, and never a status colour.
+- **What floats** - a dialog, the palette, the tour, the first run - is
+  `.card--float`: a sheet with `--shadow-float`.
+- **Text written straight on the page never has a line through it.** A
+  screen's title, Today's hello, the offers under the line, a tab row, a
+  group's heading in Settings each lie on a patch of the page itself - its
+  colour and grain, without the ruling - feathered at the edges by a mask, so
+  the lines fade out under the words. A glow on the letters (`text-shadow`)
+  was tried first and was too weak; a blur smoothed away the grain and left
+  a paler smudge. Brain's own list is a sheet. The list of what needs a patch
+  was found by walking every screen for text with nothing painted between it
+  and the page; a new piece of loose text goes on it in `sketch.css`.
 
-The personal blocks sit after the theme blocks at the same specificity, so a
-token the light personal block sets and a dark one forgets would *win* in dark
-mode. `tokens.test.ts` asserts every themed token is redeclared in both dark
-personal blocks, that those two agree, and that nothing in them reaches for a
-status colour.
+It replaced the coffee face on 14 October 2026, a cafe-au-lait ground with
+rounded cards, which the owner did not love: every part of the screen was a
+box, and the line to type in was a box inside a box. Five other looks were
+tried on the real app first and the notebook chosen. Its first version had
+no boxes at all - sections were a ruled line and a heading - and the owner
+then asked for containers back, "so that text is still visible and the lines
+in the background still exist". `data-face="notebook"` and
+`data-accent="coffee"` are set on `<html>` in `index.html`.
 
-Contrast on `--surface`: ink 12.8:1, ink-2 8.7:1, ink-3 5.8:1 in light; 14.2,
-9.3 and 5.5 in dark. The tightest pairing is ink-3 on a sunken input in light,
-at 4.7:1 — that is where placeholders live.
+### Things stuck on
+
+`src/styles/sketch.css`, scoped to `[data-face="notebook"]`:
+
+- **Sticky notes and paper**, each tilted by a degree or less: the sample
+  notice is a yellow note with tape; *Right now* is a blue strip; the month's
+  figures on Money are four notes; Today's side panels are notes pinned up; a
+  contact's *Next steps* is a note; the calendar's unplanned tasks are small
+  notes waiting for an hour; the company in brief is a ruled index card; a
+  paid invoice is stamped PAID; deals are cards taped to a kraft board.
+- **A few drawn touches**: the tab you are on is underlined with a scribble,
+  where you are in the sidebar is run over with a highlighter (`--highlight`),
+  buttons and fields have corners a pen would make (`--radius-hand`,
+  `--radius-hand-sm`), the box to tick is a drawn ring (`--radius-blob`). The
+  doodles are masks (`--doodle-*`) painted in a token.
+- **What you work in stays square.** A board card squares up under the
+  pointer and while its menu is open - a tilted card is a layer of its own,
+  and its Move menu was caught under the card below until it did - and the
+  Next steps note squares up while you type in it. Dialogs carry no tape:
+  they scroll, and it would be cut off.
+- **Every colour is a token**: the notes (`--note-yellow`, `-blue`, `-green`,
+  `-pink`), `--kraft`, `--tape`, `--index-card`, `--rule-line`. ink-3 holds
+  4.6:1 or better on every note in light and dark.
+- **Handwritten type was tried and taken out** the same day: Ink Free read as
+  cursive, Segoe Print and then a bundled Patrick Hand were readable but the
+  owner asked for "normal fonts, not handwritten ones". Nothing of them is
+  left - no font file, no licence, no token.
+
+An earlier lesson still holds: **a face changes every neutral together or it
+does not read as a choice.** A warm wash over a cold palette, the attempt
+before coffee, read as muddy, and it borrowed `--warn` as decoration.
+
+The face blocks sit after the theme blocks at the same specificity, so a
+token the light block sets and a dark one forgets would *win* in dark mode.
+`tokens.test.ts` asserts every themed token is redeclared in both dark face
+blocks, that those two agree, and that nothing in them reaches for a status
+colour.
+
+Contrast on `--surface`, the sheets: ink 17:1, ink-2 9.9:1, ink-3 6.2:1 in
+light; in dark the sheet is a step lighter than the page and ink-3 holds
+5.9:1. On the page itself ink-3 is 5.8:1, and on the sunken tint 5.5:1; a
+field's edge, `--border-input`, is 3.8:1 on a sheet.
 
 ## Accents
 
@@ -328,8 +387,8 @@ anyone not reading the ring; at nought it draws no arc at all.
 Six dot colours, one per kind of thing, in `tokens.css` as `--map-page`,
 `--map-contact`, `--map-product`, `--map-person`, `--map-document` and
 `--map-decision`. They were chosen by search in OKLCH - six hues spread round
-the wheel, lightness set per theme - and `map.test.ts` holds them to the same
-two gates as the area colours: every pair at least 15 apart in OKLab, and 3:1
+the wheel, lightness set per theme - and `map.test.ts` holds them to two
+gates: every pair at least 15 apart in OKLab, and 3:1
 against every surface a dot can sit on, in both themes. None borrows the
 accent, which changes with the workspace.
 
@@ -427,7 +486,7 @@ There is no native `<select>` left in the app. The closed one could be styled;
 the open one is drawn by Windows — a grey box with a black border and a solid
 blue bar — and nothing reaches it. So two controls replace it:
 
-- **Chips** when every option fits on screen at once: task kind and area, block
+- **Chips** when every option fits on screen at once: task kind, block
   kind, length and priority, the goal period. A list you have to open to read is
   one you read every time; a row of chips is learnt once and then hit without
   looking.
@@ -442,24 +501,61 @@ blue bar — and nothing reaches it. So two controls replace it:
 A focused picker counts as typing for the single-letter shortcuts, or pressing
 D to reach "Deep work" would leave for the Day screen.
 
-## Areas of life
+## One edge, all the way round
 
-Four fixed hues — college blue, company vermilion, personal plum, health green —
-drawn as a small dot beside a word. **Never a dot without its word.**
+**No container has one edge coloured or thicker than the rest.** No bar down
+the left of a card, a row or a callout, drawn as a border or as an inset
+shadow. It is the look of something generated, and it says nothing that the
+same thin edge in the accent, or a tint behind, does not say more quietly.
+A chosen row takes the accent on its whole edge and the accent's tint; a
+part that matters takes a tinted edge. `tokens.test.ts` fails on a thick
+border on one side or an inset bar in any stylesheet. Two exceptions: a
+quotation in written text, whose bar is how a quotation is set, and the
+notebook's margin, which is the page's margin rather than any container's
+edge.
 
-They were picked by search and checked with the data-viz palette validator on
-every surface a dot can land on, every pair against every other, because any
-two areas can sit side by side. The worst pair is 21.1 apart in light and
-22.7 in dark (full colour vision needs 15), and every dot clears 3:1. Under
-simulated colour blindness the worst pair is 8.0 and 7.6: inside the band that
-is legal only with a second channel, which is what the word is — so the word
-is a requirement, not decoration.
+## What the AI is doing, said where it is done
 
-The first version was chosen by eye and failed: company followed the accent,
-which on the personal face is coffee, and sat 5.6 from a caramel "personal".
-**An area never borrows the accent**, because a colour that changes with the
-workspace cannot be checked against the others. `areas.test.ts` holds both
-gates.
+**A switch that sends something off the computer looks on when it is on.**
+The mark at the start of the quick line is AI mode: quiet until pressed, and
+then the accent on its whole edge with the accent's tint behind - the same
+"chosen" every chip has. The line under the reading says who will read it
+before Enter, and who did and what went after. A draft from the AI is a
+draft on the screen - a box that can be typed in, or the page beside the
+page - with **Keep** and **Throw it away**, and under it one sentence of
+what was sent to make it. Nothing the AI wrote is ever shown as though it
+were already kept.
+
+## Asked once, in one place
+
+**What is not set up is offered in one place: Finish setting up, on
+Today.** Your name, a copy elsewhere, Google, an AI. Not again on Brain home,
+on a contact's page, or in a card that exists only to say what it would do
+once something is connected - such a card is left out until it has
+something to show. A screen whose empty state is a paragraph about the app
+is a screen explaining itself.
+
+**One colour.** A new company is coffee, the app's own, until somebody
+picks another. The filled button is the one main action on a screen; an
+action repeated down a list - Call, Mark paid - is a plain button.
+
+**Dates in a sentence keep their capitals.** "On Wed, 21 Oct", never "on
+wed, 21 oct": only today, tomorrow and yesterday are written in lower case
+inside a sentence (`inSentence` in `src/lib/format.ts`). A timezone is the
+place, "Kolkata", never "Asia/Calcutta".
+
+## A block's kind
+
+Five, each with its own fill on the Calendar: Deep work takes the accent,
+Meeting the information blue, Call the amber, Admin a grey, Away the green
+(`--block-focus`, `--block-meeting`, `--block-call`, `--block-admin`,
+`--block-away` in `tokens.css`). A kind typed by hand, and a block with none,
+is the lighter grey of `--block-unsorted`. The colour is never alone: the kind
+is on the block's form and in the day's totals by name.
+
+A task had an area once - college, company, personal, health - drawn as a
+dot of one of four fixed hues beside its word. It went on 11 October 2026
+(PLAN.md, phase 32) with its tokens and the test that held them apart.
 
 ## The mark
 

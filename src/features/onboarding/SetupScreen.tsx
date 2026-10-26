@@ -3,6 +3,7 @@ import type { RouteId } from "@/app/routes";
 import { Card } from "@/components/Card";
 import { GoogleCard } from "@/features/settings/GoogleCard";
 import { AiCard } from "@/features/settings/AiCard";
+import { SafeCopy } from "./SafeCopy";
 
 /**
  * What to connect, once, after the company is made.
@@ -30,13 +31,14 @@ export function SetupScreen({
     <div className="setup anim-stagger">
       <Card title={`Caulder is yours, ${companyName}`}>
         <p className="setup__lead">
-          Everything in Caulder already works: your day, your contacts, your deals and your money all live in one
-          file on this computer, with nothing to sign in to and nothing sent anywhere.
+          Caulder already works. Your day, your contacts, your deals and your money live in one file
+          on this computer &mdash; nothing to sign in to, nothing sent anywhere.
         </p>
         <p className="setup__lead">
-          Two things are worth connecting, because they belong to somebody else: <strong>Google</strong>, so your
-          day and your tasks are on your phone and email goes from your own Gmail, and an <strong>AI</strong>, so
-          you can ask the brain questions. Both are optional, both are about five minutes, and both can wait.
+          First, a copy of it somewhere other than this computer. Then two things that belong to somebody
+          else, which is the only reason they take any setting up: <strong>Google</strong>, for your
+          calendar, tasks and email, and an <strong>AI</strong>, to ask the brain questions. Both
+          optional, both can wait.
         </p>
         <div className="actions">
           <button type="button" className="btn btn--sm btn--ghost" onClick={onDone}>
@@ -46,44 +48,48 @@ export function SetupScreen({
         </div>
       </Card>
 
+      {/* First, because it is the one thing here that protects what is
+          already yours: a copy of it somewhere other than this computer. */}
       <section className="setup__step">
         <h2 className="setup__title">
           <span className="setup__num">1</span>
-          Google: your calendar, your tasks, your email
-          <span className="badge badge--neutral">Optional</span>
+          A copy somewhere else
+          <span className="badge badge--neutral">Recommended &middot; 1 min</span>
         </h2>
-        <p className="setup__lead">
-          Caulder never signs in to Google. Instead you paste a script into your own Google account and Caulder
-          talks to that - which is what lets it touch your calendar and send from your Gmail without asking you to
-          trust it with your account. The steps below are in the order Google&rsquo;s own menus say them.
-        </p>
-        <GoogleCard startOpen />
+        <SafeCopy />
       </section>
 
       <section className="setup__step">
         <h2 className="setup__title">
           <span className="setup__num">2</span>
+          Google: your calendar, tasks, email, contacts and backups
+          <span className="badge badge--neutral">Optional &middot; 5 min</span>
+        </h2>
+        <GoogleCard startOpen />
+      </section>
+
+      <section className="setup__step">
+        <h2 className="setup__title">
+          <span className="setup__num">3</span>
           An AI, to ask the brain
-          <span className="badge badge--neutral">Optional</span>
+          <span className="badge badge--neutral">Optional &middot; 2 min</span>
         </h2>
         <p className="setup__lead">
-          Ask questions about your own company - <em>which deals should I chase</em>, <em>how long does the money
-          last</em>, <em>what do people object to on calls</em> - answered from everything Caulder holds. Google
-          Gemini is free with a Google account and is the one to start with; a paid key for a frontier model, or a
-          model running on this computer, works the same way.
+          <em>Which deals should I chase</em>, <em>how long does the money last</em> &mdash; answered
+          from everything Caulder holds. Gemini is free with a Google account; a paid key, or a model
+          running on this computer, works the same way.
         </p>
         <AiCard title="Which AI answers" />
       </section>
 
       <section className="setup__step">
         <h2 className="setup__title">
-          <span className="setup__num">3</span>
+          <span className="setup__num">4</span>
           Your contacts
         </h2>
         <Card title="Bring the list you already have">
           <p className="card__hint">
-            Caulder is about a list you have already built. A spreadsheet is matched column by column, with a
-            preview and an undo; a list pasted from anywhere is read the same way.
+            From a spreadsheet or a pasted list.
           </p>
           <div className="actions">
             <button type="button" className="btn" onClick={() => onGoTo("import")}>
@@ -100,15 +106,12 @@ export function SetupScreen({
 
       <section className="setup__step">
         <h2 className="setup__title">
-          <span className="setup__num">4</span>
+          <span className="setup__num">5</span>
           What the company knows
         </h2>
         <Card title="Write down the things you keep looking up">
           <p className="card__hint">
-            The brain has a list of twelve things worth writing down first - your one-liner, your registration
-            numbers, the bank account invoices print, this quarter&rsquo;s goals - and it ticks itself off as you
-            write them. Call scripts live there too, and what you pay for every month, which is what makes
-            renewals turn up on Today and the runway add up.
+            Twelve things worth writing down first, and what you pay for each month.
           </p>
           <div className="actions">
             <button type="button" className="btn" onClick={() => onGoTo("brain")}>

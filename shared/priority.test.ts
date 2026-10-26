@@ -22,13 +22,13 @@ function at(
 }
 
 describe("what a block is worth by default", () => {
-  it("treats a lecture and a meeting as things you turn up to", () => {
-    expect(priorityOf("class", null)).toBe("must");
+  it("treats a call and a meeting as things you turn up to", () => {
+    expect(priorityOf("call", null)).toBe("must");
     expect(priorityOf("meeting", null)).toBe("must");
   });
 
-  it("treats a break as the thing that gives way", () => {
-    expect(priorityOf("break", null)).toBe("spare");
+  it("treats time away as the thing that gives way", () => {
+    expect(priorityOf("away", null)).toBe("spare");
   });
 
   it("puts anything unrecognised in the safe middle", () => {
@@ -37,11 +37,11 @@ describe("what a block is worth by default", () => {
   });
 
   it("lets an explicit choice beat the default", () => {
-    expect(priorityOf("break", "must")).toBe("must");
+    expect(priorityOf("away", "must")).toBe("must");
   });
 
   it("ignores a stored value that is not a priority", () => {
-    expect(priorityOf("class", "urgent-ish")).toBe("must");
+    expect(priorityOf("call", "urgent-ish")).toBe("must");
   });
 });
 
@@ -55,7 +55,7 @@ describe("what clashes with what", () => {
 
   it("marks the lesser one as losing", () => {
     const clashes = clashesIn([
-      at("gym", "09:00", 60, "break"),
+      at("gym", "09:00", 60, "away"),
       at("client", "09:30", 60, "meeting"),
     ]);
     expect(clashes.get("gym")?.losesTo).toEqual(["client"]);
@@ -63,10 +63,10 @@ describe("what clashes with what", () => {
   });
 
   it("refuses to rank two things of equal weight", () => {
-    // The whole point. A lecture and a client meeting are both "must", and
+    // The whole point. A call and a client meeting are both "must", and
     // Caulder does not know which matters more to you today.
     const clashes = clashesIn([
-      at("lecture", "09:00", 60, "class"),
+      at("lecture", "09:00", 60, "call"),
       at("client", "09:30", 60, "meeting"),
     ]);
     expect(clashes.get("lecture")?.tiesWith).toEqual(["client"]);
@@ -77,8 +77,8 @@ describe("what clashes with what", () => {
 
 describe("what to be doing now", () => {
   const day = [
-    at("lecture", "09:00", 60, "class"),
-    at("gym", "09:30", 30, "break"),
+    at("lecture", "09:00", 60, "call"),
+    at("gym", "09:30", 30, "away"),
     at("client", "14:00", 60, "meeting"),
   ];
 
@@ -90,7 +90,7 @@ describe("what to be doing now", () => {
 
   it("names both when they are equal, rather than choosing", () => {
     const advice = whatNow(
-      [at("lecture", "09:00", 60, "class"), at("client", "09:00", 60, "meeting")],
+      [at("lecture", "09:00", 60, "call"), at("client", "09:00", 60, "meeting")],
       minutesOf("09:30"),
     );
     expect(advice.at).toHaveLength(2);

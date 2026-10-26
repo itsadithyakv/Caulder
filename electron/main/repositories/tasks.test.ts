@@ -2,8 +2,9 @@ import { beforeEach, describe, expect, it } from "vitest";
 import Database from "better-sqlite3";
 import { migrate } from "../db/migrations";
 import { createCompany } from "./companies";
-import { createTask, findTask, updateTask } from "./tasks";
-import { taskInput } from "@shared/domain";
+import { completeTask, createTask, findTask, reopenTask, updateTask } from "./tasks";
+import { createBlock } from "./blocks";
+import { blockInput, taskInput } from "@shared/domain";
 
 /**
  * What a task keeps, read back out of a real database.
@@ -48,11 +49,42 @@ describe("priority", () => {
   });
 });
 
-describe("area", () => {
-  it("is kept alongside it", () => {
-    const made = createTask(db, companyId, input({ area: "college", priority: "must" }));
-    const read = findTask(db, made.id);
-    expect(read?.area).toBe("college");
-    expect(read?.priority).toBe("must");
+describe("a task that comes back (part twelve, phase 47)", () => {
+  const open = () =>
+    (db.prepare(`SELECT id, due_on, repeats FROM tasks WHERE status = 'open' ORDER BY due_on`).all() as { id: string; due_on: string; repeats: string | null }[]);
+
+  it("makes the next one when it is ticked off, a month on, and only one", () => {
+    const rent = createTask(db, companyId, input({ title: "Pay rent", dueOn: "2026-10-01", repeats: "monthly" }));
+    expect(findTask(db, rent.id)?.repeats).toBe("monthly");
+    completeTask(db, rent.id);
+    expect(open()).toEqual([expect.objectContaining({ due_on: "2026-11-01", repeats: "monthly" })]);
+
+    // Ticked, put back and ticked again: still one November rent.
+    reopenTask(db, rent.id);
+    completeTask(db, rent.id);
+    expect(open().filter((each) => each.due_on === "2026-11-01")).toHaveLength(1);
+  });
+
+  it("keeps the hour it had on the Calendar", () => {
+    const sync = createTask(db, companyId, input({ title: "Team sync", dueOn: "2026-10-14", repeats: "fortnightly" }));
+    createBlock(db, companyId, blockInput.parse({ day: "2026-10-14", startsAt: "10:00", minutes: 30, title: "Team sync", taskId: sync.id }));
+    completeTask(db, sync.id);
+    const [next] = open();
+    expect(next?.due_on).toBe("2026-10-28");
+    expect(db.prepare(`SELECT day, starts_at, minutes FROM blocks WHERE task_id = ?`).get(next?.id)).toEqual({ day: "2026-10-28", starts_at: "10:00", minutes: 30 });
+  });
+
+  it("is not stopped by a form that does not show the repeat, and can be stopped by one that does", () => {
+    const made = createTask(db, companyId, input({ title: "GST return", dueOn: "2026-10-20", repeats: "monthly" }));
+    updateTask(db, made.id, input({ title: "GST return (Oct)", dueOn: "2026-10-20" }));
+    expect(findTask(db, made.id)?.repeats).toBe("monthly");
+    updateTask(db, made.id, input({ title: "GST return (Oct)", dueOn: "2026-10-20", repeats: null }));
+    expect(findTask(db, made.id)?.repeats).toBeNull();
+  });
+
+  it("does nothing more for a task that does not repeat", () => {
+    const once = createTask(db, companyId, input({ title: "Hand in the form" }));
+    completeTask(db, once.id);
+    expect(open()).toEqual([]);
   });
 });

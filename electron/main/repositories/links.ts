@@ -1,9 +1,9 @@
 import type { Db } from "../db/connection";
+import { isHomeWorkspace } from "./companies";
 import type { BrainSectionId } from "@shared/brain";
 import { keyOf, type LinkKind, type LinkRef, type LinkTarget, type LinkedName } from "@shared/links";
 import { mapKindOf, type MapGraph, type MapLink, type MapNode, type MapPosition } from "@shared/map";
 import { DOCUMENT_CATEGORY_LABEL, type DocumentCategory } from "@shared/deadlines";
-import { PERSON_KIND_LABEL, type PersonKind } from "@shared/people";
 
 /**
  * Links, and the Map built from them (PLAN.md, phases 7 and 16).
@@ -48,30 +48,46 @@ export function replaceLinks(
     db.prepare(`DELETE FROM brain_links WHERE from_page = ?`).run(pageId);
     for (const target of targets) {
       const key = keyOf(target);
-      // Only to something that exists in this company, and never to itself.
+      // Only to something that exists where this page can reach (`reachFrom`), and never to itself.
       if (!known[key] || (target.kind === "page" && target.id === pageId)) continue;
       insert.run(companyId, pageId, target.kind, target.id, target.label, before.get(key) ?? now);
     }
   })();
 }
 
+/**
+ * The workspaces a page may link into. A company's page links within the
+ * company - its brain can be shared, and must never point into your own
+ * things. A page of yours, in your home, reaches every company as well:
+ * the journal is where you write about Rahul from the company and Amma alike.
+ */
+function reachFrom(db: Db, companyId: string): string[] {
+  if (!isHomeWorkspace(db, companyId)) return [companyId];
+  const others = db
+    .prepare(`SELECT id FROM companies WHERE id <> ? AND is_archived = 0 ORDER BY created_at`)
+    .all(companyId) as { id: string }[];
+  return [companyId, ...others.map((row) => row.id)];
+}
+
+const within = (ids: readonly string[]) => `company_id IN (${ids.map(() => "?").join(", ")})`;
+
 /** Where each kind of thing is found, and its name there. */
 const NAMED: Record<LinkKind, string> = {
-  page: `SELECT id, title AS name, section FROM brain_pages WHERE id = ? AND company_id = ?`,
-  contact: `SELECT id, name, NULL AS section FROM leads WHERE id = ? AND company_id = ?`,
-  product: `SELECT id, name, NULL AS section FROM products WHERE id = ? AND company_id = ?`,
-  person: `SELECT id, name, NULL AS section FROM people WHERE id = ? AND company_id = ?`,
-  document: `SELECT id, name, NULL AS section FROM documents WHERE id = ? AND company_id = ?`,
+  page: `SELECT id, title AS name, section FROM brain_pages WHERE id = ? AND `,
+  contact: `SELECT id, name, NULL AS section FROM leads WHERE id = ? AND `,
+  product: `SELECT id, name, NULL AS section FROM products WHERE id = ? AND `,
+  document: `SELECT id, name, NULL AS section FROM documents WHERE id = ? AND `,
 };
 
-/** The current name of each target that still exists in this company. */
+/** The current name of each target that still exists where this company's pages can reach. */
 export function resolveNames(
   db: Db,
   companyId: string,
   refs: readonly LinkRef[],
 ): Record<string, LinkedName> {
   const out: Record<string, LinkedName> = {};
-  const found = (kind: LinkKind, id: string) => db.prepare(NAMED[kind]).get(id, companyId) as TargetRow | undefined;
+  const reach = reachFrom(db, companyId);
+  const found = (kind: LinkKind, id: string) => db.prepare(NAMED[kind] + within(reach)).get(id, ...reach) as TargetRow | undefined;
   for (const ref of refs) {
     const row = found(ref.kind, ref.id);
     if (row) out[keyOf(ref)] = { name: row.name, kind: mapKindOf(ref.kind, row.section) };
@@ -94,7 +110,7 @@ export function backlinkIds(db: Db, ref: LinkRef): string[] {
 }
 
 /**
- * What `[[` offers: pages, contacts, products, people and documents whose
+ * What `[[` offers: pages, contacts, products and documents whose
  * name contains what was typed, those starting with it first. Archived pages
  * are left out - a link is a thing you mean to follow.
  */
@@ -102,58 +118,46 @@ export function linkCandidates(db: Db, companyId: string, text: string, limit = 
   const query = text.trim();
   const like = `%${query.replace(/[\\%_]/g, "\\$&")}%`;
   const starts = `${query.replace(/[\\%_]/g, "\\$&")}%`;
+  const reach = reachFrom(db, companyId);
+  const where = within(reach);
 
   const pages = db
     .prepare(
       `SELECT id, title AS name, section FROM brain_pages
-       WHERE company_id = ? AND is_archived = 0 AND title LIKE ? ESCAPE '\\'
+       WHERE ${where} AND is_archived = 0 AND title LIKE ? ESCAPE '\\'
        ORDER BY (title LIKE ? ESCAPE '\\') DESC, updated_at DESC LIMIT ?`,
     )
-    .all(companyId, like, starts, limit) as TargetRow[];
+    .all(...reach, like, starts, limit) as TargetRow[];
 
   const contacts = db
     .prepare(
       `SELECT id, name, city AS section FROM leads
-       WHERE company_id = ? AND (name LIKE ? ESCAPE '\\' OR contact_person LIKE ? ESCAPE '\\')
+       WHERE ${where} AND (name LIKE ? ESCAPE '\\' OR contact_person LIKE ? ESCAPE '\\')
        ORDER BY (name LIKE ? ESCAPE '\\') DESC, updated_at DESC LIMIT ?`,
     )
-    .all(companyId, like, like, starts, limit) as { id: string; name: string; section: string | null }[];
+    .all(...reach, like, like, starts, limit) as { id: string; name: string; section: string | null }[];
 
   const products = db
     .prepare(
       `SELECT id, name, unit AS detail FROM products
-       WHERE company_id = ? AND name LIKE ? ESCAPE '\\'
+       WHERE ${where} AND name LIKE ? ESCAPE '\\'
        ORDER BY (name LIKE ? ESCAPE '\\') DESC, name LIMIT ?`,
     )
-    .all(companyId, like, starts, limit) as { id: string; name: string; detail: string | null }[];
-
-  const people = db
-    .prepare(
-      `SELECT id, name, kind, role FROM people
-       WHERE company_id = ? AND name LIKE ? ESCAPE '\\'
-       ORDER BY (name LIKE ? ESCAPE '\\') DESC, name LIMIT ?`,
-    )
-    .all(companyId, like, starts, limit) as { id: string; name: string; kind: PersonKind; role: string | null }[];
+    .all(...reach, like, starts, limit) as { id: string; name: string; detail: string | null }[];
 
   const documents = db
     .prepare(
       `SELECT id, name, category FROM documents
-       WHERE company_id = ? AND name LIKE ? ESCAPE '\\'
+       WHERE ${where} AND name LIKE ? ESCAPE '\\'
        ORDER BY (name LIKE ? ESCAPE '\\') DESC, updated_at DESC LIMIT ?`,
     )
-    .all(companyId, like, starts, limit) as { id: string; name: string; category: DocumentCategory }[];
+    .all(...reach, like, starts, limit) as { id: string; name: string; category: DocumentCategory }[];
 
   const lower = query.toLowerCase();
   const ranked: LinkTarget[] = [
     ...pages.map((row) => ({ kind: "page" as const, id: row.id, name: row.name, detail: row.section ?? "" })),
     ...contacts.map((row) => ({ kind: "contact" as const, id: row.id, name: row.name, detail: row.section ?? "" })),
     ...products.map((row) => ({ kind: "product" as const, id: row.id, name: row.name, detail: row.detail ? `Per ${row.detail}` : "" })),
-    ...people.map((row) => ({
-      kind: "person" as const,
-      id: row.id,
-      name: row.name,
-      detail: row.role ?? PERSON_KIND_LABEL[row.kind] ?? "",
-    })),
     ...documents.map((row) => ({
       kind: "document" as const,
       id: row.id,
@@ -229,15 +233,6 @@ export function buildGraph(db: Db, companyId: string, options: { allContacts: bo
     .all(companyId) as { from_page: string; to_kind: LinkKind; to_id: string; created_at: string }[];
   const linkedTo = new Set(written.map((row) => `${row.to_kind}:${row.to_id}`));
 
-  const people = db
-    .prepare(`SELECT id, name, kind, lead_id, created_at FROM people WHERE company_id = ?`)
-    .all(companyId) as { id: string; name: string; kind: string; lead_id: string | null; created_at: string }[];
-  for (const row of people) {
-    // A candidate is on the map only when a page is about them.
-    if (row.kind === "candidate" && !linkedTo.has(`person:${row.id}`)) continue;
-    add("person", { id: row.id, name: row.name, section: null, created_at: row.created_at });
-  }
-
   const documents = db
     .prepare(`SELECT id, name, category, lead_id, page_id, created_at FROM documents WHERE company_id = ?`)
     .all(companyId) as { id: string; name: string; category: DocumentCategory; lead_id: string | null; page_id: string | null; created_at: string }[];
@@ -246,12 +241,15 @@ export function buildGraph(db: Db, companyId: string, options: { allContacts: bo
     add("document", { id: row.id, name: row.name, section: null, created_at: row.created_at });
   }
 
-  const known: { source: string; target: string; createdAt: string }[] = [];
+  // Written ones first, so a line both written and known is kept as written - and can be taken out.
+  const known: { source: string; target: string; createdAt: string; written?: boolean }[] = [];
   for (const row of written) {
-    known.push({ source: `page:${row.from_page}`, target: `${row.to_kind}:${row.to_id}`, createdAt: row.created_at });
-  }
-  for (const row of people) {
-    if (row.lead_id) known.push({ source: `person:${row.id}`, target: `contact:${row.lead_id}`, createdAt: row.created_at });
+    known.push({
+      source: `page:${row.from_page}`,
+      target: `${row.to_kind}:${row.to_id}`,
+      createdAt: row.created_at,
+      written: true,
+    });
   }
   for (const row of documents) {
     if (row.lead_id) known.push({ source: `document:${row.id}`, target: `contact:${row.lead_id}`, createdAt: row.created_at });
@@ -292,7 +290,7 @@ export function buildGraph(db: Db, companyId: string, options: { allContacts: bo
     seen.add(pair);
     source.degree += 1;
     target.degree += 1;
-    links.push({ source: source.key, target: target.key, createdAt: link.createdAt });
+    links.push({ source: source.key, target: target.key, createdAt: link.createdAt, written: link.written === true });
   }
 
   return { nodes: [...byKey.values()], links };
@@ -306,7 +304,7 @@ export function savePositions(db: Db, companyId: string, positions: readonly Map
   );
   db.transaction(() => {
     for (const position of positions) {
-      if (!/^(page|contact|product|person|document):[0-9a-f-]{36}$/.test(position.key)) continue;
+      if (!/^(page|contact|product|document):[0-9a-f-]{36}$/.test(position.key)) continue;
       if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) continue;
       upsert.run(companyId, position.key, position.x, position.y, position.pinned ? 1 : 0);
     }

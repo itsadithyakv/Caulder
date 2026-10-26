@@ -84,6 +84,15 @@ describe("running costs", () => {
     expect(versions.n).toBeGreaterThanOrEqual(1);
   });
 
+  it("renews a domain paid for five years at the five years' price, five years on", () => {
+    const domain = costPage("domain", "unifloe.app", { cost: 4000, years: 5, renewsOn: "2026-09-17", account: "me@gmail.com" });
+    const overview = buildCosts(db, company.id, now);
+    expect(overview.costs[0]).toMatchObject({ monthly: 333, each: 20000, years: 5, account: "me@gmail.com" });
+    renewCost(db, company.id, domain.id, now);
+    expect(getPage(db, domain.id).fields.renewsOn).toBe("2031-09-17");
+    expect(buildMoney(db, company.id, now).spend.map((entry) => [entry.what, entry.amount])).toEqual([["unifloe.app", 20000]]);
+  });
+
   it("refuses to renew what has no date, or is not a cost of this company", () => {
     const undated = costPage("tool", "Figma", { cost: 1000, cycle: "monthly" });
     expect(() => renewCost(db, company.id, undated.id, now)).toThrow("no date to move on");
@@ -111,7 +120,7 @@ describe("runway", () => {
       ["2026-05-10", 999999], // too old to count
       ["2026-09-10", 999999], // this month, not whole yet
     ] as const) {
-      addSpend(db, company.id, { spentOn, amount, what: "Ads", campaignId: null });
+      addSpend(db, company.id, { spentOn, amount, what: "Ads" });
     }
     const school = createLead(db, company.id, leadInput.parse({ name: "Oakridge" }));
     const invoice = saveInvoice(db, company.id, null, {
@@ -122,7 +131,7 @@ describe("runway", () => {
       lines: [{ description: "Workshop", quantity: 1, unitPrice: 30000 }],
     });
     setInvoiceStatus(db, company.id, invoice.id, "sent");
-    addPayment(db, company.id, invoice.id, { amount: 30000, paidOn: "2026-07-20", note: null });
+    addPayment(db, company.id, invoice.id, { amount: 30000, paidOn: "2026-07-20", note: null, withheld: 0 });
 
     expect(buildCosts(db, company.id, now).runway).toMatchObject({ cash: null, months: null, burn: 30000, basis: 3 });
 

@@ -1,4 +1,12 @@
 appId: app.paperkite.caulder
+# Where the installed app looks for newer releases (electron-updater), and
+# where `npm run release` puts them: the installer, its blockmap and
+# latest.yml, on the repository's Releases page. A private repository would
+# need a token in every copy, so releases are meant for a public one.
+publish:
+  provider: github
+  owner: itsadithyakv
+  repo: Caulder
 productName: Caulder
 directories:
   output: release
@@ -6,18 +14,47 @@ directories:
 files:
   - out/**
   - package.json
-# A .node binary cannot be loaded from inside an asar. better-sqlite3 is the
-# only native module now, and it is detected and unpacked automatically.
+  # onnxruntime-node carries every platform's runtime (about 290 MB). Only
+  # Windows x64 ships, and on the CPU: DirectML and the shader compiler are
+  # for a GPU, never asked for, and loaded only when one is (checked by
+  # running the model without them).
+  - "!**/node_modules/onnxruntime-node/bin/napi-v*/darwin/**"
+  - "!**/node_modules/onnxruntime-node/bin/napi-v*/linux/**"
+  - "!**/node_modules/onnxruntime-node/bin/napi-v*/win32/arm64/**"
+  - "!**/node_modules/onnxruntime-node/bin/napi-v*/win32/x64/{DirectML.dll,dxcompiler.dll,dxil.dll}"
+  # better-sqlite3 carries a prebuilt binary for every platform too (14 MB of
+  # macOS and Linux). Only win32-x64 can load here (phase 25); smoke:packaged
+  # reads and writes through it, so a wrong pattern shows there.
+  - "!**/node_modules/better-sqlite3/prebuilds/{darwin,linux,linuxmusl}-*.node"
+  - "!**/node_modules/better-sqlite3/prebuilds/win32-arm64.node"
+# A .node binary cannot be loaded from inside an asar. better-sqlite3 is
+# detected and unpacked automatically; koffi resolves its own binary by path
+# relative to itself, so the whole package has to come out rather than only
+# the .node inside it. onnxruntime-node the same, for its onnxruntime.dll.
 asarUnpack:
   - "**/*.node"
+  - "**/node_modules/koffi/**"
+  - "**/node_modules/@koromix/**"
+  - "**/node_modules/onnxruntime-node/**"
+  - "**/node_modules/onnxruntime-common/**"
 
 extraResources:
   - from: resources/appsscript
     to: appsscript
+  # The model understanding reads with (npm run fetch-model), beside the
+  # executable: the runtime opens it by path, and 23 MB compresses to nothing.
+  - from: resources/model
+    to: model
   # Outside the asar, beside the executable: the tray loads tray.png and its
   # @Nx siblings by path, and a path inside the archive does not load.
   - from: resources/tray
     to: tray
+  # The licences of everything shipped, written by scripts/notices.mjs after
+  # each build (part six); About Caulder opens it.
+  - from: out/notices
+    to: notices
+    filter:
+      - third-party-notices.txt
 win:
   # 1024x1024, the mark on transparency as drawn - no tile. scripts/logo.py
   # makes it from assets/caulderLogo.png; electron-builder derives the .ico.
@@ -25,6 +62,30 @@ win:
   target:
     - target: nsis
       arch: [x64]
+# The Microsoft Store package: npm run package:store. The identity is the one
+# Partner Center reserved for Caulder (Product management > Product identity),
+# and must match it exactly or the upload is refused. It is built unsigned:
+# the Store signs a package itself once it passes certification. The tiles
+# are resources/appx, made by scripts/logo.py. electron-builder's target is
+# called appx, but makeappx packs whatever the name ends in, and an .msix is
+# what the Store asks for now (from 1.0.0; 0.5.0 was an .appx).
+appx:
+  identityName: AdithyaKV.Caulder
+  publisher: CN=30ED0224-8255-4781-8ACD-EE3EF146115F
+  publisherDisplayName: PaperKite
+  applicationId: Caulder
+  displayName: Caulder
+  backgroundColor: transparent
+  # Windows 10 1809 and later, which is what Electron and MSIX both need; tested on 11 (24H2).
+  minVersion: 10.0.17763.0
+  maxVersionTested: 10.0.26100.0
+  languages:
+    - en-US
+  artifactName: Caulder-${version}-${arch}.msix
+  # Opens when Windows starts (electron/main/startup.ts): a Store copy cannot
+  # register itself, so the package declares the startup task. Windows'
+  # Startup apps page turns it off.
+  customExtensionsPath: resources/appx-startup.xml
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true

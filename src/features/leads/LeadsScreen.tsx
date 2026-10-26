@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Plus, Search, Trash2, Users, X, Upload } from "lucide-react";
+import { ListChecks, Mail, Plus, Search, Trash2, Users, X, Upload } from "lucide-react";
 import {
   LEAD_SORT_DEFAULT_DIRECTION,
   type LeadInput,
@@ -14,6 +14,9 @@ import { EMPTY_FILTERS, useLeads, type Filters } from "./useLeads";
 import { LeadsTable } from "./LeadsTable";
 import { LeadDetail } from "./LeadDetail";
 import { LeadForm } from "./LeadForm";
+import { SendMany } from "./SendMany";
+import { WorkThrough } from "./WorkThrough";
+import { REACHED, REACHED_LABEL, type Reached } from "@shared/reached";
 import { Select } from "@/components/Select";
 
 /**
@@ -25,6 +28,7 @@ type Mode = { kind: "list" } | { kind: "detail"; id: string } | { kind: "new" };
 
 export function LeadsScreen({
   openLeadId,
+  onTitle,
   onConsumeOpenLead,
   searchNonce = 0,
   newLeadNonce = 0,
@@ -35,6 +39,8 @@ export function LeadsScreen({
 }: {
   /** Set when Today sends the user straight to one lead. */
   openLeadId?: string | null;
+  /** The open contact's name, for the page's title; null when the list is showing. */
+  onTitle?: (title: string | null) => void;
   onConsumeOpenLead?: () => void;
   /**
    * Bumped by the `/` and `N` shortcuts. A counter rather than a boolean,
@@ -60,6 +66,10 @@ export function LeadsScreen({
   const [picked, setPicked] = useState<ReadonlySet<string>>(() => new Set());
   /** Where the last tick was, so shift-click knows what range to fill in. */
   const [anchor, setAnchor] = useState<number | null>(null);
+  /** Whether one message is being written to everybody ticked. */
+  const [writing, setWriting] = useState(false);
+  /** The same, one at a time, where Caulder cannot send: WhatsApp, LinkedIn, Instagram. */
+  const [walking, setWalking] = useState(false);
 
   const { leads, loading, error, reload, patch, remove } = useLeads(companyId, filters);
 
@@ -80,10 +90,17 @@ export function LeadsScreen({
   useEffect(() => {
     setPicked(new Set());
     setAnchor(null);
-  }, [companyId, filters.search, filters.stageId, filters.relationship]);
+    setWriting(false);
+    setWalking(false);
+  }, [companyId, filters.search, filters.stageId, filters.relationship, filters.reached]);
 
   // Today can hand over a lead to open. Cleared once acted on, so coming back
   // to Leads later lands on the list rather than reopening it.
+  // The page is titled by the contact only while one is open.
+  useEffect(() => {
+    if (mode.kind !== "detail") onTitle?.(null);
+  }, [mode.kind, onTitle]);
+
   useEffect(() => {
     if (!openLeadId) return;
     setMode({ kind: "detail", id: openLeadId });
@@ -243,6 +260,7 @@ export function LeadsScreen({
   if (mode.kind === "detail") {
     return (
       <LeadDetail
+        onNamed={onTitle}
         key={mode.id}
         leadId={mode.id}
         stages={stages}
@@ -260,7 +278,10 @@ export function LeadsScreen({
   }
 
   const filtering =
-    filters.search.trim().length > 0 || filters.stageId !== undefined || filters.relationship !== undefined;
+    filters.search.trim().length > 0 ||
+    filters.stageId !== undefined ||
+    filters.relationship !== undefined ||
+    filters.reached !== undefined;
 
   return (
     <div className="leads">
@@ -272,7 +293,7 @@ export function LeadsScreen({
         onImport={onGoToImport}
       />
 
-      {picked.size > 0 && (
+      {picked.size > 0 && !writing && !walking && (
         <BulkBar
           count={picked.size}
           stages={stages}
@@ -280,6 +301,32 @@ export function LeadsScreen({
           onMove={movePicked}
           onDelete={deletePicked}
           onClear={clearPicked}
+          onWrite={() => setWriting(true)}
+          onWalk={() => setWalking(true)}
+        />
+      )}
+
+      {/* The same message where it cannot be sent for you: one contact at a time. */}
+      {walking && picked.size > 0 && (
+        <WorkThrough
+          leads={leads.filter((lead) => picked.has(lead.id))}
+          onClose={() => {
+            setWalking(false);
+            clearPicked();
+          }}
+          onChanged={reload}
+        />
+      )}
+
+      {/* One message to everybody ticked, each with their own name in it. */}
+      {writing && picked.size > 0 && (
+        <SendMany
+          leads={leads.filter((lead) => picked.has(lead.id))}
+          onClose={() => {
+            setWriting(false);
+            clearPicked();
+          }}
+          onSent={reload}
         />
       )}
 
@@ -413,6 +460,17 @@ function Toolbar({
         ]}
       />
 
+      {/* Read from each contact's history: with a stage and Write to them, a second
+          message to everybody who said nothing to the first. */}
+      <Select
+        compact
+        className="leads__filter"
+        aria-label="Filter by whether they answered"
+        value={filters.reached ?? ""}
+        onChange={(raw) => onChange({ ...filters, reached: raw === "" ? undefined : (raw as Reached) })}
+        options={[{ value: "", label: "Written to or not" }, ...REACHED.map((id) => ({ value: id as string, label: REACHED_LABEL[id] }))]}
+      />
+
       {/* No sort control here. The column headings are the sort control, which
           is where somebody looks for one and where every CRM puts it. */}
 
@@ -449,6 +507,8 @@ function BulkBar({
   onMove,
   onDelete,
   onClear,
+  onWrite,
+  onWalk,
 }: {
   count: number;
   stages: PipelineStage[];
@@ -456,6 +516,10 @@ function BulkBar({
   onMove: (stageId: string | null) => void;
   onDelete: () => void;
   onClear: () => void;
+  /** One message to all of them. */
+  onWrite: () => void;
+  /** The same, one at a time, on WhatsApp, LinkedIn or Instagram. */
+  onWalk: () => void;
 }) {
   const [confirming, setConfirming] = useState(false);
   const noun = count === 1 ? "contact" : "contacts";
@@ -469,6 +533,16 @@ function BulkBar({
       <span className="bulkbar__count">
         {count} {noun} selected
       </span>
+
+      <button type="button" className="btn btn--sm btn--primary" onClick={onWrite} disabled={busy}>
+        <Mail size={14} aria-hidden />
+        Write to them
+      </button>
+
+      <button type="button" className="btn btn--sm" onClick={onWalk} disabled={busy}>
+        <ListChecks size={14} aria-hidden />
+        Work through them
+      </button>
 
       {/* Stays on its own label rather than showing a stage, because it is an
           action to take, not the current state of anything. */}

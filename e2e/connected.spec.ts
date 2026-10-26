@@ -41,7 +41,7 @@ test.beforeAll(async () => {
   await page.evaluate(async () => {
     const company = (await window.caulder.companies.list()).activeCompanyId as string;
     await window.caulder.products.create(company, { name: "Attendance workshop", unit: "workshop" } as never);
-    await window.caulder.people.create(company, { name: "Asha Rao", kind: "founder", role: "CEO" } as never);
+    await window.caulder.leads.create(company, { name: "Asha Rao", city: "Pune" } as never);
     // A page nothing links to: an orphan, for the Display panel.
     const loose = await window.caulder.brain.create(company, "ideas", "idea");
     await window.caulder.brain.save(loose.id, { title: "Parent app", body: "Later.", fields: {}, secrets: {}, baseRevision: loose.revision });
@@ -53,7 +53,7 @@ test.afterAll(async () => {
   rmSync(userDataDir, { recursive: true, force: true });
 });
 
-test("[[ links a product and a person, and each opens where it lives", async () => {
+test("[[ links a product and a contact, and each opens where it lives", async () => {
   await openBrainSection(page, "Customers and market");
   await page.getByRole("button", { name: "New page" }).click();
   await page.getByRole("menuitem", { name: /^Persona/ }).click();
@@ -61,11 +61,11 @@ test("[[ links a product and a person, and each opens where it lives", async () 
   const text = page.getByLabel("Page", { exact: true });
   await text.fill("");
   await text.pressSequentially("They buy the [[Attend");
-  const picker = page.getByRole("listbox", { name: "Link to" });
+  const picker = page.getByRole("listbox", { name: "Suggestions" });
   await expect(picker.getByRole("option", { name: /Attendance workshop/ })).toContainText("Product");
   await text.press("Enter");
   await text.pressSequentially(" after a call from [[Asha");
-  await expect(picker.getByRole("option", { name: /Asha Rao/ })).toContainText("Person · CEO");
+  await expect(picker.getByRole("option", { name: /Asha Rao/ })).toContainText("Contact");
   await text.press("Enter");
   await page.getByRole("button", { name: "Save", exact: true }).click();
 
@@ -78,7 +78,7 @@ test("[[ links a product and a person, and each opens where it lives", async () 
   await expect(page.getByRole("heading", { name: "Money", level: 1 })).toBeVisible();
   await expect(page.locator(".brainlinks").getByRole("button", { name: /Principals/ })).toBeVisible();
 
-  // The person opens in People, and knows it too.
+  // The contact opens in Contacts, and knows it too.
   await page.locator(".brainlinks").getByRole("button", { name: /Principals/ }).click();
   await page.locator(".prose").getByRole("button", { name: "Asha Rao" }).click();
   await expect(page.getByRole("heading", { name: "Asha Rao" })).toBeVisible();
@@ -90,7 +90,9 @@ test("the Map draws all of it, and its Display panel changes what it shows", asy
   await page.getByLabel("Brain sections").getByRole("button", { name: "Map" }).click();
   const kinds = page.getByRole("group", { name: "Show on the map" });
   await expect(kinds.getByRole("button", { name: /^Products/ })).toBeVisible();
-  await expect(kinds.getByRole("button", { name: /^People/ })).toBeVisible();
+  await expect(kinds.getByRole("button", { name: /^Contacts/ })).toBeVisible();
+  // There is no team, so there is no kind of dot for one.
+  await expect(kinds.getByRole("button", { name: /^People/ })).toHaveCount(0);
   const canvas = page.getByRole("img", { name: /^The map:/ });
   await expect(canvas).toHaveAccessibleName(/The map: 4 dots and 2 links/);
   await page.waitForTimeout(1200);

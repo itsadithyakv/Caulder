@@ -3,29 +3,22 @@ import { Download, Sparkles } from "lucide-react";
 import { Card } from "@/components/Card";
 import { ErrorLine } from "@/components/ErrorLine";
 import { messageOf } from "@/lib/errors";
-import { SharingCard } from "@/features/sharing/SharingCard";
 import { HandOverCard } from "@/features/dataroom/HandOverCard";
 
 /**
- * Everything that takes the brain out of this Caulder, in one place: sharing
- * it with a co-founder, handing it to an investor or somebody joining, and
- * exporting it. Done now and then, so it has a page on the rail rather than
+ * Everything that takes the brain out of this Caulder, in one place: handing
+ * it to an investor or somebody joining, and exporting it. Done now and then, so it has a page on the rail rather than
  * cards on Brain home.
  */
 export function BrainShare({
   companyId,
   version,
-  onGoToSettings,
-  onChanged,
 }: {
   companyId: string;
   version: number;
-  onGoToSettings: () => void;
-  onChanged: () => void;
 }) {
   return (
     <div className="brainshare">
-      <SharingCard companyId={companyId} onGoToSettings={onGoToSettings} onChanged={onChanged} />
       <HandOverCard companyId={companyId} version={version} />
       <ExportCard companyId={companyId} />
     </div>
@@ -34,6 +27,8 @@ export function BrainShare({
 
 function ExportCard({ companyId }: { companyId: string }) {
   const [secrets, setSecrets] = useState(false);
+  /** What it is for, which leads the read-me and, with understanding on, says what to read first. */
+  const [purpose, setPurpose] = useState("");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +41,7 @@ function ExportCard({ companyId }: { companyId: string }) {
       const result =
         kind === "pages"
           ? await window.caulder.brain.exportAll(companyId, secrets)
-          : await window.caulder.brain.dossier(companyId, secrets);
+          : await window.caulder.brain.dossier(companyId, secrets, { purpose: purpose.trim() || undefined });
       if (result) setDone(`${result.files} files written to ${result.folder}`);
     } catch (cause) {
       setError(messageOf(cause));
@@ -58,7 +53,7 @@ function ExportCard({ companyId }: { companyId: string }) {
   return (
     <Card
       title="Take it with you"
-      hint="Every page as a Markdown file, or the whole company - brain, contacts, calls, deals and money - as four long documents to give an AI assistant."
+      hint="Pages as Markdown, or the whole company as documents for an AI."
     >
       <label className="checkline">
         <input
@@ -73,6 +68,18 @@ function ExportCard({ companyId }: { companyId: string }) {
           <span className="checkline__title">Include registration and account numbers in full</span>
           <span className="card__hint">Off, they are written masked, the way the pages show them.</span>
         </span>
+      </label>
+      <label className="field">
+        <span className="field__label">What is it for? (optional)</span>
+        <input
+          className="input"
+          value={purpose}
+          maxLength={200}
+          disabled={busy}
+          placeholder="A pitch to a cafe chain, planning next quarter"
+          onChange={(event) => setPurpose(event.target.value)}
+        />
+        <span className="field__hint">Told to the assistant first.</span>
       </label>
       <div className="actions">
         <button type="button" className="btn btn--sm" onClick={() => void run("pages")} disabled={busy}>

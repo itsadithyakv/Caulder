@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { MailSender } from "./mailaccounts";
 
 /**
  * Email that Caulder sends through the Google script.
@@ -51,7 +52,35 @@ export type MailState = {
   address: string | null;
   /** Sends Gmail still allows today, as the script last reported it. */
   remaining: number | null;
+  /** Everywhere a message can go from: the script when it is ready, then each other account. */
+  senders: MailSender[];
 };
+
+/**
+ * How a template has done: how many messages started from it went, how many
+ * of those went through Gmail - the only ones a reply can be seen on - and
+ * how many of those were answered.
+ */
+export type TemplateStats = { templateId: string; sent: number; watched: number; replied: number };
+
+/** A rate is only said past this many watched sends: three replies to four emails is not seventy-five per cent of anything. */
+export const RATE_FROM = 20;
+
+/** "12 sent, 3 answered" - and the rate, once there are enough to mean one. */
+export function sayStats(stats: TemplateStats | undefined): string | null {
+  if (!stats || stats.sent === 0) return null;
+  const sent = `${stats.sent} sent`;
+  if (stats.watched === 0) return `${sent}, from an account that cannot see replies`;
+  const answered = `${stats.replied} answered`;
+  const rate = stats.watched >= RATE_FROM ? ` (${Math.round((stats.replied / stats.watched) * 100)}% of ${stats.watched})` : "";
+  return `${sent}, ${answered}${rate}`;
+}
+
+/**
+ * The most contacts one message is written to in one go. Past this it is no
+ * longer writing to people, and a personal Gmail account is watched for it.
+ */
+export const BATCH_MOST = 50;
 
 /** Longest a follow-up may wait, in days. The script holds the same limit. */
 export const FOLLOW_UP_MAX_DAYS = 60;
@@ -60,10 +89,14 @@ export const FOLLOW_UP_MAX_DAYS = 60;
 export const SCHEDULE_MAX_DAYS = 60;
 
 /** How long after sending a thread is watched for a reply, in days. */
-const WATCH_DAYS = 30;
+export const WATCH_DAYS = 30;
 
 export const sendEmailInput = z.object({
   leadId: z.string().min(1, "Missing contact."),
+  /** Which account it goes from; null or left out is the Google script. */
+  accountId: z.string().min(1).nullable().default(null),
+  /** The template it was started from, so the template can say how it has done; null when written from scratch. */
+  templateId: z.string().min(1).nullable().default(null),
   subject: z
     .string()
     .trim()
@@ -89,6 +122,12 @@ export const sendEmailInput = z.object({
       templateId: z.string().min(1, "Pick the template the follow-up uses."),
     })
     .nullable(),
+  /**
+   * An invoice or a quote to go with it, as its PDF (part fourteen). Named,
+   * never sent: main prints the file itself, so the window never hands over
+   * bytes to mail. Only with a message sent now - a held one keeps no files.
+   */
+  attach: z.object({ kind: z.enum(["invoice", "quote"]), id: z.string().min(1) }).nullable().default(null),
 });
 
 export type SendEmailInput = z.input<typeof sendEmailInput>;

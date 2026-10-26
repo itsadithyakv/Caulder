@@ -1,28 +1,30 @@
-import { useCallback, useEffect, useState } from "react";
-import { Archive, ArchiveRestore, ArrowLeft, History, Pencil, Pin, PinOff, Trash2 } from "lucide-react";
-import { ENTRY_TEMPLATE, isMood, sectionOf, templateOf, type BrainPage, type PageSaveInput } from "@shared/brain";
+import { Suspense, lazy, useCallback, useEffect, useState } from "react";
+import { Archive, ArchiveRestore, ArrowLeft, FolderInput, History, Pencil, Pin, PinOff, Sparkles, Trash2 } from "lucide-react";
+import { memoriesOf } from "@shared/memories";
+import { serviceOf, type AskState } from "@shared/ask";
+import { tidiedBy, type Draft } from "@shared/propose";
+import { sectionOf, templateOf, type BrainPage, type PageSaveInput } from "@shared/brain";
 import { toggleTick } from "@shared/markdown";
 import { refreshLabels, type LinkRef } from "@shared/links";
 import { ErrorLine } from "@/components/ErrorLine";
 import { MenuButton } from "@/components/MenuButton";
 import { useOpenRef } from "@/lib/navigate";
 import { messageOf } from "@/lib/errors";
-import { relativeDay } from "@/lib/format";
+import { inSentence, relativeDay } from "@/lib/format";
 import { Markdown } from "./Markdown";
 import { FieldEditor, FieldFacts, draftFrom, type FieldDraft, type SecretDraft } from "./PageFields";
 import { PageHistory } from "./PageHistory";
 import { SECTION_ICON } from "./sections";
-import { LinkedTextarea } from "./LinkedTextarea";
+// The editor is CodeMirror, the largest thing in the app, and only a page
+// being written needs it: loaded then, not with every screen at start-up.
+const LinkedEditor = lazy(() => import("./LinkedEditor").then((loaded) => ({ default: loaded.LinkedEditor })));
 import { BrainLinks } from "./BrainLinks";
 import { PageTasks } from "./PageTasks";
-import { MoodPicker } from "@/features/life/MoodPicker";
-import { DayRecordCard } from "@/features/life/DayRecordCard";
-import { TimeCard } from "@/features/life/TimeCard";
+import { Tidied } from "./Proposals";
+import { Sorting } from "./Sorting";
 
-/** Pages that time can be set aside for on the Calendar. */
-const TIMED = new Set(["course", "exam", "hobby", "life-goal"]);
 /** Sections whose `- [ ]` steps become tasks. */
-const STEPPED = new Set(["meetings", "playbooks", "studies", "hobbies", "goals"]);
+const STEPPED = new Set(["meetings", "playbooks"]);
 
 /**
  * One page of the brain: its fields, its text, what links here (phase 7) and
@@ -34,7 +36,6 @@ const STEPPED = new Set(["meetings", "playbooks", "studies", "hobbies", "goals"]
  * ticked while it is being followed, and each tick saves at once.
  */
 export function PageView({
-  companyId,
   pageId,
   startEditing,
   version,
@@ -45,7 +46,7 @@ export function PageView({
   onOpenPage,
   onOpenContact,
 }: {
-  companyId: string;
+  /** The page says which workspace it is in, so nothing here is told: a memory opened from a company's brain is still yours. */
   pageId: string;
   startEditing: boolean;
   /** Bumped when anything in the brain changes, so Linked here is read again. */
@@ -68,7 +69,23 @@ export function PageView({
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<null | "delete" | "leave">(null);
   const [history, setHistory] = useState(false);
+  /** The AI that is connected, when one is: it can be asked to tidy this page. */
+  const [ai, setAi] = useState<AskState | null>(null);
+  /** The page tidied, as a draft beside the page: kept whole or thrown away (shared/propose.ts). */
+  const [tidied, setTidied] = useState<Draft | null>(null);
+  const [tidying, setTidying] = useState(false);
+  /** The page's remembered lines being offered better homes (Sorting.tsx). */
+  const [sorting, setSorting] = useState(false);
   const openRef = useOpenRef();
+
+  useEffect(() => {
+    window.caulder.ask.state().then(setAi, () => undefined);
+  }, []);
+  // A draft belongs to the page it was made from.
+  useEffect(() => {
+    setTidied(null);
+    setSorting(false);
+  }, [pageId]);
 
   const fill = useCallback((next: BrainPage) => {
     setPage(next);
@@ -181,17 +198,27 @@ export function PageView({
     }
   }
 
-  async function madeFrom(templateId: string) {
-    setBusy(true);
+
+  /** Only this page goes, and nothing changes until the tidied one is kept. */
+  async function tidy() {
+    setTidying(true);
     setError(null);
     try {
-      const made = await window.caulder.life.linkedPage(page!.id, templateId);
-      onChanged();
-      onOpenPage(made.id);
+      setTidied(await window.caulder.ask.proposeTidy(page!.companyId, page!.id));
     } catch (cause) {
       setError(messageOf(cause));
-      setBusy(false);
+    } finally {
+      setTidying(false);
     }
+  }
+
+  /** Kept whole, as a version like any other - so the page as it was is in History - and marked as tidied. */
+  function keepTidied(draft: Draft) {
+    const body = `${draft.text.trimEnd()}\n\n${tidiedBy(draft.sent.service, new Date().toLocaleDateString("en-CA"))}\n`;
+    void run(
+      () => window.caulder.brain.save(page!.id, { title: page!.title, body, fields: page!.fields, secrets: {}, baseRevision: page!.revision }),
+      () => setTidied(null),
+    );
   }
 
   function openLink(ref: LinkRef) {
@@ -260,6 +287,27 @@ export function PageView({
                 align="right"
                 disabled={busy}
                 items={[
+                  // Only where there is something to sort: three remembered lines or more.
+                  ...(!page.isArchived && memoriesOf({ id: page.id, title: page.title, section: page.section, body: page.body }).length >= 3
+                    ? [
+                        {
+                          label: "Sort this page",
+                          hint: "Moves each line to where it belongs.",
+                          icon: <FolderInput size={14} aria-hidden />,
+                          onSelect: () => setSorting(true),
+                        },
+                      ]
+                    : []),
+                  ...(ai?.connected && !page.isArchived
+                    ? [
+                        {
+                          label: tidying ? "Tidying…" : "Tidy with the AI",
+                          hint: `Sends this page, and only this page, to ${serviceOf(ai.service)?.label ?? "the AI"}. Nothing changes until you keep it.`,
+                          icon: <Sparkles size={14} aria-hidden />,
+                          onSelect: () => void tidy(),
+                        },
+                      ]
+                    : []),
                   ...(page.isArchived
                     ? []
                     : [
@@ -311,18 +359,24 @@ export function PageView({
 
       <ErrorLine>{error}</ErrorLine>
 
-      {/* Two founders changed it at once: both versions are kept, and this says so until somebody saves. */}
-      {page.editedTogether && !editing && (
-        <div className="hintbar hintbar--together" role="status">
-          <p className="hintbar__text">
-            Edited at the same time by both of you. This is {page.updatedBy ? `${page.updatedBy}'s` : "the latest"} version;
-            the other is in the history. Save once the words are right, and this goes.
-          </p>
-          <button type="button" className="btn btn--sm" onClick={() => setHistory(true)}>
-            Compare them
-          </button>
-        </div>
+      {tidying && (
+        <p className="card__hint" role="status">
+          {serviceOf(ai?.service)?.label ?? "The AI"} is tidying this page…
+        </p>
       )}
+      {sorting && !editing && (
+        <Sorting
+          companyId={page.companyId}
+          pageId={page.id}
+          ai={ai}
+          onClose={() => setSorting(false)}
+          onMoved={() => {
+            setSorting(false);
+            void run(() => window.caulder.brain.page(page.id));
+          }}
+        />
+      )}
+      {tidied && !editing && <Tidied page={page} draft={tidied} busy={busy} onKeep={() => keepTidied(tidied)} onDiscard={() => setTidied(null)} />}
 
       <section className="card bpage__card">
         <div className="bpage__meta">
@@ -333,7 +387,7 @@ export function PageView({
           {page.isArchived && <span className="badge badge--neutral">Archived</span>}
           {page.isPinned && <span className="badge badge--accent">Pinned</span>}
           <span className="bpage__updated">
-            Updated {relativeDay(page.updatedAt).toLowerCase()}
+            Updated {inSentence(relativeDay(page.updatedAt))}
             {page.updatedBy ? ` by ${page.updatedBy}` : ""}
           </span>
         </div>
@@ -385,22 +439,28 @@ export function PageView({
             />
 
             <div className="field">
-              <label className="field__label" htmlFor="brain-body">
+              <span className="field__label" aria-hidden>
                 Page
-              </label>
-              <LinkedTextarea
-                id="brain-body"
-                companyId={companyId}
+              </span>
+              <Suspense fallback={null}>
+              <LinkedEditor
+                label="Page"
+                companyId={page.companyId}
                 exclude={page.id}
-                className="textarea bpage__body"
+                className="bpage__body"
                 value={body}
                 disabled={busy}
                 onChange={setBody}
+                names={page.links}
+                onOpenLink={openLink}
+                hint={
+                  <>
+                    <kbd>@</kbd> links a page or contact · <kbd>/</kbd> for headings, lists and steps · select words to
+                    format them · <kbd>Ctrl</kbd> + <kbd>S</kbd> saves
+                  </>
+                }
               />
-              <span className="field__hint">
-                ## starts a heading, - starts a list, - [ ] a step to tick, **two stars** for bold, [[ a link. Ctrl + S
-                saves.
-              </span>
+              </Suspense>
             </div>
 
             <div className="leadform__actions">
@@ -415,15 +475,7 @@ export function PageView({
         ) : (
           <>
             <h2 className="bpage__title anim-spring">{page.title}</h2>
-            {page.template === ENTRY_TEMPLATE ? (
-              <MoodPicker
-                value={isMood(page.fields["mood"]) ? page.fields["mood"] : null}
-                busy={busy}
-                onPick={(mood) => void run(() => window.caulder.life.mood(page.id, mood))}
-              />
-            ) : (
-              <FieldFacts template={template} page={page} />
-            )}
+            <FieldFacts template={template} page={page} />
             {page.body.trim().length > 0 ? (
               <Markdown
                 source={page.body}
@@ -438,33 +490,14 @@ export function PageView({
         )}
       </section>
 
-      {/* A course's exams and notes are made from it, and link back. */}
-      {!editing && page.template === "course" && (
-        <div className="actions bpage__more">
-          <button type="button" className="btn btn--sm" disabled={busy} onClick={() => void madeFrom("exam")}>
-            Add an exam for it
-          </button>
-          <button type="button" className="btn btn--sm" disabled={busy} onClick={() => void madeFrom("class-notes")}>
-            Write class notes for it
-          </button>
-        </div>
-      )}
-
-      {/* The day as Caulder saw it, beside the entry about it. */}
-      {!editing && page.template === ENTRY_TEMPLATE && typeof page.fields["day"] === "string" && (
-        <DayRecordCard companyId={companyId} day={page.fields["day"]} onOpenPage={onOpenPage} onOpenContact={onOpenContact} />
-      )}
-
-      {!editing && TIMED.has(page.template) && <TimeCard page={page} onChanged={onChanged} />}
-
       {/* A meeting's action items, a playbook's steps, and the steps on your own pages, as tasks. */}
       {!editing && STEPPED.has(page.section) && (
-        <PageTasks pageId={page.id} revision={page.revision} section={page.section} template={page.template} onChanged={onChanged} />
+        <PageTasks pageId={page.id} revision={page.revision} section={page.section} onChanged={onChanged} />
       )}
 
       {!editing && (
         <BrainLinks
-          companyId={companyId}
+          companyId={page.companyId}
           kind="page"
           id={page.id}
           version={version}

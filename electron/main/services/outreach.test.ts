@@ -87,3 +87,21 @@ describe("handing a number to the dialler", () => {
     expect(opened).toEqual([]);
   });
 });
+
+describe("a company's country", () => {
+  it("dials a bare British number with the UK's code, and drops its trunk zero", () => {
+    const london = createCompany(db, { name: "Northwind", accent: "blue", timezone: "Europe/London", country: "GB" }).id;
+    const made = createLead(db, london, leadInput.parse({ name: "Harbour School", phone: "07700 900123" }));
+    openWhatsApp(db, made.id, "");
+    openDialler(db, made.id, "phone");
+    expect(opened).toEqual(["https://wa.me/447700900123", "tel:+447700900123"]);
+  });
+
+  it("leaves a number that says its own country alone, whatever the company's", () => {
+    const newYork = createCompany(db, { name: "Acme", accent: "blue", timezone: "America/New_York", country: "US" }).id;
+    const made = createLead(db, newYork, leadInput.parse({ name: "Mumbai office", phone: "+91 90199 59088" }));
+    openWhatsApp(db, made.id, "");
+    expect(opened).toEqual(["https://wa.me/919019959088"]);
+  });
+});
+

@@ -22,8 +22,9 @@ describe("the sections and templates", () => {
       // Every section offers a kind of page, except the four whose things
       // became rows: products (phase 8, on Money), documents (phase 9),
       // people (phase 10) and metrics (phase 11), listed in their section.
-      // What is left there is written as blank pages.
-      if (!["products", "documents", "people", "metrics"].includes(section.id)) {
+      // What is left there is written as blank pages. Remembered's pages are
+      // started by the line on Today, one for what each memory is about.
+      if (!["products", "documents", "people", "metrics", "remembered"].includes(section.id)) {
         expect(section.templates.length).toBeGreaterThan(0);
       }
       for (const id of section.templates) expect(templateOf(id).section).toBe(section.id);
@@ -122,22 +123,24 @@ describe("write these down first", () => {
     fields,
     secretKeys,
   });
-  const NOBODY = { count: 0, withOwns: 0, withEquity: 0 };
-  const done = (pages: ChecklistPage[], pricedProducts = 0, founders = NOBODY) =>
-    evaluateChecklist(pages, "2026-09-17", { pricedProducts, founders })
+  const done = (pages: ChecklistPage[], pricedProducts = 0) =>
+    evaluateChecklist(pages, "2026-09-17", { pricedProducts })
       .filter((item) => item.done)
       .map((item) => item.id);
 
-  it("has twelve items and none done on a new company", () => {
-    const items = evaluateChecklist([], "2026-09-17", { pricedProducts: 0, founders: NOBODY });
-    expect(items).toHaveLength(12);
+  it("has ten items in four steps, none done on a new company, and none about a team", () => {
+    const items = evaluateChecklist([], "2026-09-17", { pricedProducts: 0 });
+    expect(items).toHaveLength(10);
     expect(items.every((item) => !item.done)).toBe(true);
+    expect(items.map((item) => item.step)).toEqual(["basics", "basics", "basics", "selling", "selling", "selling", "money", "money", "plan", "plan"]);
+    expect(items.map((item) => item.id)).not.toContain("founders");
+    expect(items.map((item) => item.id)).not.toContain("equity");
   });
 
   it("reads the first product from the catalogue, not from a page, and opens it there", () => {
     // Products stopped being pages in phase 8; the item goes to Money.
     expect(done([], 1)).toEqual(["product"]);
-    const item = evaluateChecklist([], "2026-09-17", { pricedProducts: 1, founders: NOBODY }).find(
+    const item = evaluateChecklist([], "2026-09-17", { pricedProducts: 1 }).find(
       (entry) => entry.id === "product",
     );
     expect(item).toMatchObject({ goes: "catalogue", done: true });
@@ -147,22 +150,6 @@ describe("write these down first", () => {
     expect(done([page("profile", {}, ["pan"])])).toEqual(["numbers"]);
   });
 
-  it("wants what each founder owns and their equity, for every founder, read from People", () => {
-    // Founders stopped being pages in phase 10; the items open the People section.
-    expect(done([], 0, { count: 2, withOwns: 2, withEquity: 1 })).toEqual(["founders"]);
-    expect(done([], 0, { count: 1, withOwns: 1, withEquity: 1 })).toEqual(["founders", "equity"]);
-    const items = evaluateChecklist([], "2026-09-17", {
-      pricedProducts: 0,
-      founders: { count: 2, withOwns: 1, withEquity: 0 },
-    });
-    expect(items.find((item) => item.id === "founders")).toMatchObject({
-      done: false,
-      progress: "2 written",
-      goes: "section",
-      section: "people",
-    });
-  });
-
   it("wants a bank account that prints on invoices and has its number", () => {
     expect(done([page("bank", { onInvoices: true })])).toEqual([]);
     expect(done([page("bank", { onInvoices: true }, ["number"])])).toEqual(["bank"]);
@@ -170,10 +157,7 @@ describe("write these down first", () => {
 
   it("wants three goals for this quarter, and says how many so far", () => {
     const goal = (quarter: string) => page("goal", { quarter });
-    const items = evaluateChecklist([goal("2026-Q3"), goal("2026-Q2")], "2026-09-17", {
-      pricedProducts: 0,
-      founders: NOBODY,
-    });
+    const items = evaluateChecklist([goal("2026-Q3"), goal("2026-Q2")], "2026-09-17", { pricedProducts: 0 });
     expect(items.find((item) => item.id === "goals")).toMatchObject({ done: false, progress: "1 of 3" });
     expect(done([goal("2026-Q3"), goal("2026-Q3"), goal("2026-Q3")])).toEqual(["goals"]);
   });

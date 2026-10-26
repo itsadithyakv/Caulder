@@ -6,8 +6,11 @@ import { PRIORITIES, PRIORITY_LABEL, priorityOf } from "@shared/priority";
 import { REMIND_CHOICES, leadLabel } from "@shared/remind";
 import { Chips, Select } from "@/components/Select";
 import { shiftDay, weekdayOf } from "@shared/dates";
+import { clashingWith } from "@shared/day";
+import { formatDuration, formatTime } from "@/lib/format";
 import type { Block, BlockInput, Task } from "@shared/domain";
 import { Portal } from "@/components/Portal";
+import { BlockClient } from "./BlockClient";
 
 /**
  * Putting something in an hour, or changing what is already there.
@@ -33,6 +36,8 @@ type Props = {
   day: string;
   startsAt: string;
   block: Block | null;
+  /** What else is on that day, so a time that clashes is said before it is kept. */
+  others?: readonly Block[];
   tasks: readonly Task[];
   /**
    * What the workspace does about reminders, so the default option can say
@@ -55,6 +60,12 @@ type Props = {
   onSkip?: () => Promise<void>;
   /** Offered instead when the block is one of a repeat. */
   onEndSeries?: () => Promise<void>;
+  /**
+   * Saves the change to this one and every later one of its repeat. Only
+   * the name, the time, the length and the kind carry to the rest - they are
+   * what a repeat is - and the ones already past are left as they were.
+   */
+  onSaveSeries?: (input: BlockInput) => Promise<void>;
   /** A block set aside for a brain page - a course, a hobby - opens it. */
   onOpenPage?: (pageId: string) => void;
 };
@@ -63,6 +74,7 @@ export function BlockForm({
   day,
   startsAt,
   block,
+  others = [],
   tasks,
   workspaceLead,
   forTask,
@@ -71,6 +83,7 @@ export function BlockForm({
   onDelete,
   onSkip,
   onEndSeries,
+  onSaveSeries,
   onOpenPage,
 }: Props) {
   const [title, setTitle] = useState(block?.title ?? forTask?.title ?? "");
@@ -92,7 +105,8 @@ export function BlockForm({
   );
   const [taskId, setTaskId] = useState(block?.taskId ?? forTask?.id ?? "");
   const [notes, setNotes] = useState(block?.notes ?? "");
-  // Most of a student's week is the same week again, so the repeat is on
+  const [forClient, setForClient] = useState({ leadId: "", billable: false });
+  // Most of a week is the same week again, so the repeat is on
   // the form rather than behind a second step. It only appears for a new
   // block: changing the rule of one that already exists means rewriting
   // occurrences somebody may have edited, which is a different feature.
@@ -114,7 +128,8 @@ export function BlockForm({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  async function submit(event: React.FormEvent) {
+  /** Saves this one, or with `series` this one and the rest of its repeat. */
+  async function submit(event: React.FormEvent, series = false) {
     event.preventDefault();
     setError(null);
 
@@ -128,6 +143,7 @@ export function BlockForm({
       taskId: taskId.length > 0 ? taskId : null,
       priority,
       remindMinutes: remind === "" ? null : Number(remind),
+      forClient: !block && forClient.leadId ? forClient : null,
       repeat: repeats && !block ? { weekdays, until } : null,
     });
 
@@ -138,7 +154,7 @@ export function BlockForm({
 
     setBusy(true);
     try {
-      await onSave(parsed.data);
+      await (series && onSaveSeries ? onSaveSeries(parsed.data) : onSave(parsed.data));
     } finally {
       setBusy(false);
     }
@@ -205,6 +221,21 @@ export function BlockForm({
             />
           </div>
 
+          {(() => {
+            // Said, not refused: two things can be meant to overlap.
+            const clashing = time ? clashingWith({ id: block?.id ?? null, startsAt: time, minutes }, others) : [];
+            if (clashing.length === 0) return null;
+            return (
+              <p className="blockform__clash" role="alert">
+                Overlaps{" "}
+                {clashing
+                  .map((each) => `${each.title} (${formatTime(each.startsAt)} for ${formatDuration(each.minutes)})`)
+                  .join(" and ")}
+                .
+              </p>
+            );
+          })()}
+
           <div className="field">
             <span className="field__label">Kind</span>
             <Chips
@@ -252,8 +283,7 @@ export function BlockForm({
             />
             {workspaceLead === null && (
               <span className="field__hint">
-                Reminders are off for this workspace, so nothing will be said
-                whichever of these is chosen. Settings turns them on.
+                Reminders are off in Settings.
               </span>
             )}
           </div>
@@ -274,6 +304,8 @@ export function BlockForm({
               />
             </div>
           )}
+
+          {block ? <BlockClient block={block} /> : <BlockClient value={forClient} onChange={setForClient} />}
 
           {!block && (
             <div className="repeat">
@@ -326,8 +358,7 @@ export function BlockForm({
                   </label>
 
                   <p className="card__hint">
-                    Every one is written as its own block, so moving a single week
-                    later is just dragging that one.
+                    Each week can be moved on its own.
                   </p>
                 </>
               )}
@@ -374,6 +405,19 @@ export function BlockForm({
             <button type="button" className="btn btn--sm" onClick={onClose}>
               Cancel
             </button>
+            {onSaveSeries && (
+              // Beside Save rather than in place of it: one call moved for
+              // one week is as ordinary as the whole run moving to ten.
+              <button
+                type="button"
+                className="btn btn--sm"
+                onClick={(event) => void submit(event, true)}
+                disabled={busy}
+                title="The name, time, length and kind, for this one and every one after it. The ones already past stay as they were."
+              >
+                Save every one from here
+              </button>
+            )}
             <button type="submit" className="btn btn--sm btn--primary" disabled={busy}>
               {block ? "Save" : "Add it"}
             </button>

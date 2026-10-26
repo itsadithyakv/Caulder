@@ -25,7 +25,7 @@ export function PreviewStep({
   preview: ImportPreview;
   busy: boolean;
   onBack: () => void;
-  onCommit: (resolutions: Record<number, Resolution>, campaignId: string | null) => void;
+  onCommit: (resolutions: Record<number, Resolution>) => void;
 }) {
   // Skip is the default: doing nothing to an existing lead is the safe choice.
   const [resolutions, setResolutions] = useState<Record<number, Resolution>>({});
@@ -121,8 +121,7 @@ export function PreviewStep({
             <AlertTriangle size={15} aria-hidden /> {groups.errors.length} cannot be read
           </h2>
           <p className="card__hint">
-            These rows are left out. Fix them in the spreadsheet and import again
-            if you need them.
+            These rows are left out.
           </p>
           <ul className="dupes">
             {groups.errors.map((row) => (
@@ -189,7 +188,7 @@ export function PreviewStep({
         <button
           type="button"
           className="btn btn--primary"
-          onClick={() => onCommit(resolutions, null)}
+          onClick={() => onCommit(resolutions)}
           disabled={busy || (willAdd === 0 && willMerge === 0)}
         >
           Import {willAdd} {willAdd === 1 ? "contact" : "contacts"}

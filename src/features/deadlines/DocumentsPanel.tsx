@@ -134,7 +134,7 @@ export function DocumentsPanel({
         !recording && (
           <EmptyState
             title="No documents yet"
-            body="The incorporation certificate, the GST certificate, the PAN card, contracts, the deck. Add each once and it can be found in a minute, by you or by whoever does the accounts."
+            body="The incorporation certificate, the tax registration, contracts, the deck. Add each once and it can be found in a minute, by you or by whoever does the accounts."
           />
         )
       ) : (

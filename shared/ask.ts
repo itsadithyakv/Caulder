@@ -21,10 +21,10 @@ export const CONTEXT_LABEL: Record<ContextSize, string> = {
 };
 
 export const CONTEXT_HINT: Record<ContextSize, string> = {
-  small: "About 15,000 tokens. For a model on this computer, or a free tier with a tight limit.",
+  small: "About 15,000 tokens. For a model on this computer, or a tight free tier.",
   medium: "About 50,000 tokens.",
-  large: "About 120,000 tokens: a whole company, for most. Contacts are trimmed to fit past that.",
-  whole: "Up to about 800,000 tokens, for models with a million-token window. Can be slow and costly.",
+  large: "About 120,000 tokens: a whole company. Contacts are trimmed past that.",
+  whole: "Up to 800,000 tokens, for million-token models. Slow, and costly if paid.",
 };
 
 /** Characters sent for each size, and how many contacts are written in full when the list is cut. */
@@ -64,7 +64,9 @@ export const AI_SERVICES = [
     api: "gemini",
     baseUrl: "https://generativelanguage.googleapis.com/v1beta",
     key: "required",
-    keyHint: "AIza…",
+    // Not how it starts: Google changed that once already (AIza…, then AQ.…), and a key that
+    // does not look like the hint looks wrong to the person holding it.
+    keyHint: "Paste the key",
     link: { url: "https://aistudio.google.com/apikey", label: "Open Google AI Studio" },
     tagline: "Free, with a Google account. The one to start with.",
     free: true,
@@ -72,10 +74,10 @@ export const AI_SERVICES = [
     steps: [
       "Press **Open Google AI Studio** and sign in with any Google account.",
       "Press **Create API key**. If it asks for a project, take the one it offers or let it make one.",
-      "Copy the key - it starts with *AIza* - paste it below and press **Connect**.",
+      "Copy the key, paste it below and press **Connect**.",
     ],
     privacy:
-      "Free, with limits: a handful of questions a minute and a daily cap, which is plenty for asking about one company. On the free tier Google may use what is sent to improve its products, and what is sent includes your contacts' details. Turning on billing for the key in AI Studio stops that.",
+      "Free: a few questions a minute, and a daily cap. On the free tier Google may train on what is sent, which includes your contacts' details - turning on billing for the key in AI Studio stops that.",
   },
   {
     id: "openai",
@@ -215,9 +217,36 @@ export type AskState = {
   /** What the service said it offers, when last asked. */
   models: AiModelOption[];
   context: ContextSize;
+  /** What goes with a question: what it needs, or the whole company every time. */
+  scope: AskScope;
+  /** Whether the quick line is in AI mode: read by this service rather than by the rules on this machine. */
+  line: boolean;
   /** Whether this machine will encrypt a key at all. */
   canEncrypt: boolean;
 };
+
+/**
+ * What goes with a question (PLAN.md, part ten, phase 37): the company in
+ * brief and the parts of the records the question is about - or, when that
+ * is chosen or asked for, the whole company, within the size above.
+ */
+export const ASK_SCOPES = ["needed", "all"] as const;
+export type AskScope = (typeof ASK_SCOPES)[number];
+
+export const SCOPE_LABEL: Record<AskScope, string> = {
+  needed: "What the question needs",
+  all: "The whole company, every time",
+};
+
+export const SCOPE_HINT: Record<AskScope, string> = {
+  needed:
+    "The company in brief, and the contacts, pages and figures the question is about. A fraction of the tokens. Ask for “everything” when a question needs it all.",
+  all: "Every contact and every page with every question, up to the size above. Slower, and on a free tier fewer questions a day.",
+};
+
+export function isScope(value: unknown): value is AskScope {
+  return typeof value === "string" && (ASK_SCOPES as readonly string[]).includes(value);
+}
 
 export const connectInput = z
   .object({
@@ -255,6 +284,8 @@ export const askInput = z.object({
   question: z.string().trim().min(1, "Ask something.").max(4000, "Keep the question under 4,000 characters."),
   /** The conversation so far, oldest first, so a follow-up can say "and them?". */
   history: z.array(turn).max(20).default([]),
+  /** Send the whole company with this one, whatever it asks: "ask again with everything". */
+  whole: z.boolean().default(false),
 });
 export type AskInput = z.input<typeof askInput>;
 
@@ -269,6 +300,10 @@ export type AskAnswer = {
   /** What went with the question. */
   sent: {
     documents: string[];
+    /** The same, in the words it is said in: "the company in brief", a contact's name, "Money now". */
+    parts: string[];
+    /** Whether the whole company went, rather than what the question needed. */
+    whole: boolean;
     characters: number;
     /** How many contacts were written out in full, and how many were left out to fit. */
     contacts: number;
@@ -277,6 +312,9 @@ export type AskAnswer = {
   references: AskReference[];
   usage: { input: number; output: number; cached: number };
 };
+
+/** What would go with a question, said before it is sent. */
+export type AskPreview = { parts: string[]; characters: number; whole: boolean };
 
 /* ---- Which model to start on ------------------------------------------- */
 

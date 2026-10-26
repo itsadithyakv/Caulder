@@ -109,7 +109,7 @@ We work with organisations like {{lead.name}} on [the problem you solve]. I'd li
 - How is [the problem] handled at {{lead.name}} at present?
 - Where does the current approach fall short?
 - Who is responsible for decisions in this area?
-- Is this something you are planning to review this [term / quarter / year]?
+- Is this something you are planning to review this [quarter / year]?
 - What would a good outcome look like for you?
 
 ## The pitch
@@ -241,7 +241,7 @@ Sounds like it. What does "handled" look like - how much time does it take each 
 
 ### "It's not a priority."
 
-Understood. What is the priority this [term / quarter]? Is there a link?
+Understood. What is the priority this [quarter]? Is there a link?
 
 ### "I need to talk to others."
 

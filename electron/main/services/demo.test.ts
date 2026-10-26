@@ -59,7 +59,7 @@ describe("what the sample puts on the screen", () => {
   it("leaves a timeline that reads like a lead somebody has worked", () => {
     seedDemo(db, company.id, NOW);
     const lead = listLeads(db, { companyId: company.id }).find((l) =>
-      l.name.startsWith("Oakridge"),
+      l.name.startsWith("Harbour Coffee"),
     );
     if (!lead) throw new Error("expected the sample");
 

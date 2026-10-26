@@ -96,7 +96,6 @@ test("a fuller lead shows its details and lands in the first stage", async () =>
   await page.getByLabel("Name").fill("Bengaluru Public School");
   await page.getByLabel("Contact person").fill("Priya");
   await page.getByLabel("Email").fill("hello@bps.example.com");
-  // Exact, or this also matches the Alt phone field.
   await page.getByLabel("Phone", { exact: true }).fill("9480004094");
   await page.getByLabel("City").fill("Bengaluru");
   await page.getByLabel("Value").fill("45000");
@@ -149,7 +148,7 @@ test("logging a call moves the last-contacted date; a note does not", async () =
   await expect(page.getByRole("main").getByText("Never", { exact: true })).toBeVisible();
 
   // A call is.
-  await page.getByRole("tab", { name: "Call" }).click();
+  await page.getByRole("tab", { name: "Call or meeting" }).click();
   await page.getByLabel("Call details").fill("Spoke to the principal.");
   await page.getByRole("button", { name: "Log call" }).click();
   await expect(page.getByText("Spoke to the principal.")).toBeVisible();
@@ -203,8 +202,9 @@ test("a lead can be deleted, and its history goes with it", async () => {
   await openLeads(page);
 
   await page.locator(".leadrow__name", { hasText: /JNS Public School/ }).click();
-  // Exact: the contact's deal has its own "Delete the deal" button.
-  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  // Deleting is one click further in, under More, and then said again.
+  await page.getByRole("button", { name: "More" }).click();
+  await page.getByRole("menuitem", { name: /Delete/ }).click();
   await page.getByRole("button", { name: "Delete", exact: true }).last().click();
 
   await expect(page.locator(".leads__count")).toHaveText("1 contact");

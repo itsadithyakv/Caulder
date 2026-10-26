@@ -323,9 +323,9 @@
 
 .block--focus    { background: var(--block-focus); }
 .block--meeting  { background: var(--block-meeting); }
+.block--call     { background: var(--block-call); }
 .block--admin    { background: var(--block-admin); }
-.block--break    { background: var(--block-break); }
-.block--personal { background: var(--block-personal); }
+.block--away     { background: var(--block-away); }
 
 /* Outranked by something happening at the same time. Dimmed rather than
  * hidden: it is still on your day, it is just not the answer. */
@@ -478,8 +478,8 @@
 .spent__dot--focus    { background: var(--block-focus-edge); }
 .spent__dot--meeting  { background: var(--block-meeting-edge); }
 .spent__dot--admin    { background: var(--block-admin-edge); }
-.spent__dot--break    { background: var(--block-break-edge); }
-.spent__dot--personal { background: var(--block-personal-edge); }
+.spent__dot--call     { background: var(--block-call-edge); }
+.spent__dot--away     { background: var(--block-away-edge); }
 
 .spent__label {
   flex: 1;
@@ -550,3 +550,102 @@
 .timetable__len   { width: 90px; }
 .timetable__kind  { width: 130px; }
 
+/* The page a block's time was set aside for, said under the form's title. */
+.blockform__page {
+  margin: calc(var(--space-2) * -1) 0 var(--space-3);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+/* Two things at once: a warning, tinted, with the same thin edge all the way round. */
+.clashes {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--warn);
+  border-radius: var(--radius-md);
+  background: var(--warn-soft);
+  color: var(--ink);
+  font-size: var(--text-sm);
+}
+
+.clashes__icon {
+  flex: none;
+  color: var(--warn);
+}
+
+.clashes__text {
+  flex: 1 1 20rem;
+  margin: 0;
+}
+
+.clashes > .btn {
+  margin-left: auto;
+}
+
+.blockform__clash {
+  margin: 0;
+  color: var(--warn);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+/* ---- The week, at the head of the Calendar's week (phase 35) -----------
+ * What happened, a line each; what slipped, one line; the three for the week
+ * after, three short fields side by side. */
+.weekreview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.weekreview__happened {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-2) var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.weekreview__happened strong {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.weekreview__who {
+  display: block;
+  overflow: hidden;
+  color: var(--ink-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weekreview__slipped,
+.weekreview__three {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.weekreview__done {
+  color: var(--ink-3);
+  text-decoration: line-through;
+}
+
+.weekreview__next {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.weekreview__inputs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-2);
+}

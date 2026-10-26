@@ -1,0 +1,520 @@
+[
+ {
+  "group": "time",
+  "line": "shoot at casa lumen half 5 tmrw",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-23",
+   "time": "17:30",
+   "contact": "casa"
+  }
+ },
+ {
+  "group": "time",
+  "line": "call rita 1645",
+  "want": {
+   "kind": "task",
+   "time": "16:45",
+   "contact": "casa"
+  }
+ },
+ {
+  "group": "time",
+  "line": "edit the pinewood set by friday",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-23",
+   "contact": "pine"
+  }
+ },
+ {
+  "group": "time",
+  "line": "send tom the invoice on the 3rd",
+  "want": {
+   "kind": "task",
+   "day": "2026-11-03",
+   "contact": "fern"
+  }
+ },
+ {
+  "group": "time",
+  "line": "email kemi first thing monday",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-26",
+   "time": "10:00",
+   "contact": "oduya"
+  }
+ },
+ {
+  "group": "time",
+  "line": "location scout after lunch tomorrow",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-23",
+   "time": "15:00"
+  }
+ },
+ {
+  "group": "time",
+  "line": "call arjun at 11 tomorrow",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-23",
+   "time": "11:00",
+   "contact": "pine"
+  }
+ },
+ {
+  "group": "time",
+  "line": "backup drives every friday 6pm",
+  "want": {
+   "time": "18:00",
+   "repeat": "weekly:5"
+  }
+ },
+ {
+  "group": "time",
+  "line": "pay studio rent the 1st of every month",
+  "want": {
+   "kind": "task",
+   "repeat": "monthly:1"
+  }
+ },
+ {
+  "group": "time",
+  "line": "invoice mercado verde in 10 days",
+  "want": {
+   "kind": "task",
+   "day": "2026-11-01",
+   "contact": "mercado"
+  }
+ },
+ {
+  "group": "time",
+  "line": "renew insurance 15/11",
+  "want": {
+   "kind": "task",
+   "day": "2026-11-15"
+  }
+ },
+ {
+  "group": "time",
+  "line": "renew insurance nov 15",
+  "want": {
+   "kind": "task",
+   "day": "2026-11-15"
+  }
+ },
+ {
+  "group": "time",
+  "line": "coffee with tom sat 10",
+  "want": {
+   "day": "2026-10-24",
+   "time": "10:00",
+   "contact": "fern"
+  }
+ },
+ {
+  "group": "time",
+  "line": "retouching session 2-4 tmrw",
+  "want": {
+   "day": "2026-10-23",
+   "time": "14:00",
+   "minutes": 120
+  }
+ },
+ {
+  "group": "time",
+  "line": "portfolio review mon 3pm for 90 mins",
+  "want": {
+   "day": "2026-10-26",
+   "time": "15:00",
+   "minutes": 90
+  }
+ },
+ {
+  "group": "time",
+  "line": "call kemi in 45 mins",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-22",
+   "time": "16:15",
+   "contact": "oduya"
+  }
+ },
+ {
+  "group": "time",
+  "line": "follow up with rita in a fortnight",
+  "want": {
+   "kind": "task",
+   "day": "2026-11-05",
+   "contact": "casa"
+  }
+ },
+ {
+  "group": "time",
+  "line": "team call every other wednesday 10am",
+  "want": {
+   "time": "10:00",
+   "repeat": "fortnightly:3"
+  }
+ },
+ {
+  "group": "time",
+  "line": "remind me friday at five to send rita the proofs",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-23",
+   "time": "17:00",
+   "contact": "casa",
+   "title": "send rita the proofs"
+  }
+ },
+ {
+  "group": "time",
+  "line": "photo walk sunday 7am",
+  "want": {
+   "day": "2026-10-25",
+   "time": "07:00"
+  }
+ },
+ {
+  "group": "texting",
+  "line": "cll arjun tmrw @ 2",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-23",
+   "time": "14:00",
+   "contact": "pine"
+  }
+ },
+ {
+  "group": "texting",
+  "line": "msg rita re contract 2moro",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-23",
+   "contact": "casa"
+  }
+ },
+ {
+  "group": "texting",
+  "line": "EMAIL TOM THE GALLERY LINK",
+  "want": {
+   "kind": "task",
+   "contact": "fern"
+  }
+ },
+ {
+  "group": "texting",
+  "line": "2nite pack the camera bag",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-22"
+  }
+ },
+ {
+  "group": "texting",
+  "line": "tom call fri",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-23",
+   "contact": "fern"
+  }
+ },
+ {
+  "group": "texting",
+  "line": "call ritaa tomorrow",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-23",
+   "contact": "casa"
+  }
+ },
+ {
+  "group": "texting",
+  "line": "call pinewod hotel monday",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-26",
+   "contact": "pine"
+  }
+ },
+ {
+  "group": "texting",
+  "line": "can u add a shoot with oduya events on saturday at noon",
+  "want": {
+   "day": "2026-10-24",
+   "time": "12:00",
+   "contact": "oduya"
+  }
+ },
+ {
+  "group": "texting",
+  "line": "ok so need to send arjun the quote by mon",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-26",
+   "contact": "pine"
+  }
+ },
+ {
+  "group": "texting",
+  "line": "email tom tmrw and call rita sat",
+  "want": {
+   "kind": "split",
+   "parts": 2
+  }
+ },
+ {
+  "group": "edit",
+  "line": "move rita call to 5",
+  "want": {
+   "kind": "edit",
+   "do": "move",
+   "task": "b1",
+   "time": "17:00"
+  }
+ },
+ {
+  "group": "edit",
+  "line": "push the pinewood shoot to monday",
+  "want": {
+   "kind": "edit",
+   "do": "move",
+   "task": "b2",
+   "day": "2026-10-26"
+  }
+ },
+ {
+  "group": "edit",
+  "line": "cancel the tom invoice",
+  "want": {
+   "kind": "edit",
+   "do": "cancel",
+   "task": "b3"
+  }
+ },
+ {
+  "group": "edit",
+  "line": "done send tom the invoice",
+  "want": {
+   "kind": "edit",
+   "do": "done",
+   "task": "b3"
+  }
+ },
+ {
+  "group": "edit",
+  "line": "what's on friday",
+  "want": {
+   "kind": "question",
+   "ask": "day",
+   "day": "2026-10-23"
+  }
+ },
+ {
+  "group": "edit",
+  "line": "am i free tomorrow at 3",
+  "want": {
+   "kind": "question",
+   "ask": "free",
+   "day": "2026-10-23",
+   "time": "15:00"
+  }
+ },
+ {
+  "group": "edit",
+  "line": "when did i last speak to kemi",
+  "want": {
+   "kind": "question",
+   "ask": "last"
+  }
+ },
+ {
+  "group": "edit",
+  "line": "what's arjun's number",
+  "want": {
+   "kind": "question",
+   "ask": "contact"
+  }
+ },
+ {
+  "group": "fact",
+  "line": "rita prefers calls in the morning",
+  "want": {
+   "kind": "contact",
+   "logged": "fact",
+   "contact": "casa"
+  }
+ },
+ {
+  "group": "fact",
+  "line": "kemi's birthday is 9 march",
+  "want": {
+   "kind": "contact",
+   "logged": "fact",
+   "contact": "oduya"
+  }
+ },
+ {
+  "group": "fact",
+  "line": "tom is away until the 2nd",
+  "want": {
+   "kind": "contact",
+   "logged": "fact",
+   "contact": "fern"
+  }
+ },
+ {
+  "group": "fact",
+  "line": "mercado verde pays on 30 day terms",
+  "want": {
+   "kind": "contact",
+   "logged": "fact",
+   "contact": "mercado"
+  }
+ },
+ {
+  "group": "fact",
+  "line": "pinewood's manager is called leah",
+  "want": {
+   "kind": "contact",
+   "logged": "fact",
+   "contact": "pine"
+  }
+ },
+ {
+  "group": "fact",
+  "line": "remember: we never shoot weddings",
+  "want": {
+   "kind": "memory"
+  }
+ },
+ {
+  "group": "fact",
+  "line": "our day rate is 900",
+  "want": {
+   "kind": "memory"
+  }
+ },
+ {
+  "group": "contact",
+  "line": "met kemi at the expo, she wants a quote",
+  "want": {
+   "kind": "contact",
+   "contact": "oduya"
+  }
+ },
+ {
+  "group": "contact",
+  "line": "rita signed the contract",
+  "want": {
+   "kind": "contact",
+   "contact": "casa"
+  }
+ },
+ {
+  "group": "contact",
+  "line": "tried calling arjun, no answer, try again monday",
+  "want": {
+   "kind": "contact",
+   "contact": "pine",
+   "then": "2026-10-26"
+  }
+ },
+ {
+  "group": "contact",
+  "line": "sent tom the proofs",
+  "want": {
+   "kind": "contact",
+   "contact": "fern"
+  }
+ },
+ {
+  "group": "contact",
+  "line": "whatsapp'd rita the moodboard",
+  "want": {
+   "kind": "contact",
+   "contact": "casa"
+  }
+ },
+ {
+  "group": "money",
+  "line": "lens rental 85",
+  "want": {
+   "amount": 85
+  }
+ },
+ {
+  "group": "money",
+  "line": "taxi 14 yesterday",
+  "want": {
+   "amount": 14
+  }
+ },
+ {
+  "group": "money",
+  "line": "paid 1.5k for the new flash",
+  "want": {
+   "amount": 1500
+  }
+ },
+ {
+  "group": "money",
+  "line": "€60 domain renewal",
+  "want": {
+   "amount": 60
+  }
+ },
+ {
+  "group": "money",
+  "line": "got 900 from pinewood",
+  "want": {
+   "kind": "command",
+   "ask": "paid",
+   "contact": "pine",
+   "amount": 900
+  }
+ },
+ {
+  "group": "money",
+  "line": "netflix 12 monthly",
+  "want": {
+   "kind": "command",
+   "ask": "cost",
+   "amount": 12
+  }
+ },
+ {
+  "group": "other",
+  "line": "idea: a print zine of the best shots",
+  "want": {
+   "kind": "idea"
+  }
+ },
+ {
+  "group": "other",
+  "line": "note: lisbon light is best at 6pm in october",
+  "want": {
+   "kind": "note"
+  }
+ },
+ {
+  "group": "other",
+  "line": "arjun's email is arjun@pinewood.example",
+  "want": {
+   "kind": "command",
+   "ask": "update",
+   "contact": "pine"
+  }
+ },
+ {
+  "group": "other",
+  "line": "remind me to back up the sd cards",
+  "want": {
+   "kind": "task"
+  }
+ }
+]

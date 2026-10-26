@@ -9,7 +9,7 @@ import {
 } from "@shared/brain";
 import { today as todayIn } from "@shared/dates";
 import { Select } from "@/components/Select";
-import { formatDay, formatValue } from "@/lib/format";
+import { formatDay, formatValue, numberText } from "@/lib/format";
 import { messageOf } from "@/lib/errors";
 import { useWorkspace } from "@/lib/workspace";
 
@@ -54,7 +54,7 @@ function shown(field: BrainField, value: unknown, currency: string | undefined):
     case "money":
       return typeof value === "number" ? formatValue(value, currency) : String(value);
     case "number":
-      return typeof value === "number" ? value.toLocaleString() : String(value);
+      return typeof value === "number" ? numberText(value, 3) : String(value);
     default:
       return String(value);
   }

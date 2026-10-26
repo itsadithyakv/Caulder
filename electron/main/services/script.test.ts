@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { runInNewContext } from "node:vm";
+import { SCRIPT_VERSION } from "@shared/script";
 
 /**
  * The Apps Script itself, run here.
@@ -61,12 +62,13 @@ type Script = {
   tick: () => void;
 };
 
-function harness() {
+function harness(extra: Record<string, unknown> = {}) {
   const clock = { now: Date.parse("2026-09-17T09:00:00.000Z") };
   const props = new Map<string, string>();
   const threads = new Map<string, Message[]>();
   const messages = new Map<string, Message>();
   const outbox: Message[] = [];
+  const sentFiles: unknown[] = [];
   const triggers: { handler: string; minutes: number }[] = [];
   const settings = { quota: 100, replyAllTo: null as string | null };
   let counter = 0;
@@ -135,7 +137,11 @@ function harness() {
   const context = {
     Date: FakeDate,
     Logger: { log: () => undefined },
-    Utilities: { getUuid: () => `uuid-${(counter += 1)}` },
+    Utilities: {
+      getUuid: () => `uuid-${(counter += 1)}`,
+      base64Decode: (data: string) => [...Buffer.from(data, "base64")],
+      newBlob: (bytes: number[], type: string, name: string) => ({ name, type, size: bytes.length }),
+    },
     PropertiesService: {
       getScriptProperties: () => ({
         getProperty: (key: string) => props.get(key) ?? null,
@@ -170,8 +176,11 @@ function harness() {
     MailApp: { getRemainingDailyQuota: () => settings.quota },
     GmailApp: {
       getAliases: () => ["hello@unifloe.in"],
-      createDraft: (to: string, subject: string, body: string) => ({
-        send: () => wrap(store({ from: ME, to, subject, body })),
+      createDraft: (to: string, subject: string, body: string, options?: { attachments?: unknown[] }) => ({
+        send: () => {
+          if (options?.attachments) sentFiles.push(...options.attachments);
+          return wrap(store({ from: ME, to, subject, body }));
+        },
       }),
       getThreadById: (id: string) => (threads.has(id) ? thread(id) : null),
       getMessageById: (id: string) => wrap(messages.get(id)!),
@@ -181,6 +190,8 @@ function harness() {
       getAllOwnedCalendars: () => [],
     },
     Tasks: { Tasklists: { list: () => ({ items: [] }) } },
+    // Services a test stands in for itself: People and Drive, which not every script has.
+    ...extra,
   };
 
   runInNewContext(SOURCE, context);
@@ -203,7 +214,7 @@ function harness() {
     message.headers = headers;
   }
 
-  return { clock, script, post, outbox, triggers, settings, props, answer };
+  return { clock, script, post, outbox, triggers, settings, props, answer, sentFiles };
 }
 
 let h: ReturnType<typeof harness>;
@@ -237,7 +248,10 @@ describe("setting up", () => {
 
   it("says its version and who email goes out as", () => {
     const hello = h.post("hello").data;
-    expect(hello.version).toBe(3);
+    // Read from shared/script.ts rather than written here: the app refuses to
+    // talk to a script older than it expects, and a number typed twice is a
+    // number that goes stale on one side.
+    expect(hello.version).toBe(SCRIPT_VERSION);
     expect(hello.mail).toEqual({ address: ME, remaining: 100 });
     expect(hello.mailError).toBeNull();
   });
@@ -413,5 +427,319 @@ describe("cancelling and forgetting", () => {
   it("reports the day's remaining sends with every status", () => {
     send();
     expect(h.post("emailStatus", { ids: [], ack: [] }).data.remaining).toBe(99);
+  });
+});
+
+
+describe("contacts and backups", () => {
+  type Person = { resourceName?: string; etag?: string; names: { givenName: string; familyName: string }[]; organizations: { name: string }[] };
+
+  /** Google Contacts, as far as the script is concerned. */
+  function people() {
+    const kept = new Map<string, Person>();
+    let made = 0;
+    return {
+      kept,
+      People: {
+        People: {
+          get: (name: string) => {
+            if (name === "people/me") return { resourceName: name };
+            const found = kept.get(name);
+            if (!found) throw new Error("Requested entity was not found.");
+            return { ...found, etag: "etag-1" };
+          },
+          createContact: (body: Person) => {
+            const resourceName = `people/c${(made += 1)}`;
+            kept.set(resourceName, { ...body, resourceName });
+            return { resourceName };
+          },
+          updateContact: (body: Person, name: string) => {
+            kept.set(name, { ...body, resourceName: name });
+            return { resourceName: name };
+          },
+          // One person per page, whatever pageSize says. Google pages at 200
+          // and nobody writes 200 fixtures; what needs proving is that the
+          // script follows the token rather than reading one page and
+          // calling it the address book.
+          Connections: {
+            list: (_who: string, options: { pageToken?: string }) => {
+              const all = [...kept.values()];
+              const at = options.pageToken ? Number(options.pageToken) : 0;
+              const page = all.slice(at, at + 1);
+              const next = at + 1 < all.length ? String(at + 1) : null;
+              return { connections: page, nextPageToken: next };
+            },
+          },
+        },
+      },
+    };
+  }
+
+  /** A Drive with one folder's worth of files in it. */
+  function drive() {
+    const files: { name: string; at: number; trashed: boolean }[] = [];
+    const asFile = (file: (typeof files)[number]) => ({
+      getName: () => file.name,
+      getSize: () => 3,
+      getDateCreated: () => ({ getTime: () => file.at }),
+      setTrashed: (value: boolean) => void (file.trashed = value),
+    });
+    const iterate = <T,>(items: T[]) => {
+      let at = 0;
+      return { hasNext: () => at < items.length, next: () => items[(at += 1) - 1]! };
+    };
+    const folder = {
+      createFile: (blob: { name: string }) => {
+        const file = { name: blob.name, at: files.length + 1, trashed: false };
+        files.push(file);
+        return asFile(file);
+      },
+      getFiles: () => iterate(files.filter((file) => !file.trashed).map(asFile)),
+    };
+    return {
+      files,
+      DriveApp: { getRootFolder: () => ({ getName: () => "My Drive" }), getFoldersByName: () => iterate([folder]), createFolder: () => folder },
+      Utilities: {
+        getUuid: () => "uuid",
+        base64Decode: (data: string) => [...Buffer.from(data, "base64")],
+        newBlob: (_bytes: number[], _type: string, name: string) => ({ name }),
+      },
+    };
+  }
+
+  const loose = (reply: unknown) => reply as { ok: boolean; error?: string; data: Record<string, unknown> };
+  const rahul = { name: "MS PUC", person: "Rahul Nair", phone: "98765 43210", email: "rahul@mspuc.in" };
+
+  it("answers everything else without the People service, and says what saving a contact needs", () => {
+    expect(loose(h.post("hello")).data["contacts"]).toBe(false);
+    const refused = loose(h.post("saveContact", { contact: rahul }));
+    expect(refused.ok).toBe(false);
+    expect(refused.error).toContain("add the People API");
+  });
+
+  it("refuses to read the address book without the People service, and says what is missing", () => {
+    const refused = loose(h.post("pullContacts", {}));
+    expect(refused.ok).toBe(false);
+    expect(refused.error).toContain("add the People API");
+  });
+
+  it("reads the address book to the end rather than one page of it", () => {
+    const google = people();
+    const with_ = harness(google);
+    with_.script.setUp();
+    // Three, served one to a page by the stub, so a script that read only the
+    // first page would answer with one.
+    for (const name of ["Asha Rao", "Ravi Kumar", "Meera Iyer"]) {
+      const [givenName, familyName] = name.split(" ");
+      google.kept.set(`people/${givenName}`, {
+        resourceName: `people/${givenName}`,
+        names: [{ givenName: givenName ?? "", familyName: familyName ?? "" }],
+        organizations: [],
+      });
+    }
+
+    const pulled = loose(with_.post("pullContacts", {}));
+    expect(pulled.ok).toBe(true);
+    expect(pulled.data["contacts"]).toHaveLength(3);
+    expect(pulled.data["complete"]).toBe(true);
+  });
+
+  // The lesson pullTasks has an essay about, on the one list a person is
+  // certain to have more than a hundred of. Stopping is fine; saying it
+  // finished when it did not is what loses people.
+  it("says so when it stopped before the end", () => {
+    const google = people();
+    const with_ = harness(google);
+    with_.script.setUp();
+    for (let i = 0; i < 40; i += 1) {
+      google.kept.set(`people/c${i}`, {
+        resourceName: `people/c${i}`,
+        names: [{ givenName: `Person${i}`, familyName: "Test" }],
+        organizations: [],
+      });
+    }
+
+    const pulled = loose(with_.post("pullContacts", {}));
+    expect(pulled.data["complete"]).toBe(false);
+    // Everything it did read is still handed over - a short answer is worth
+    // more than none, as long as it is labelled.
+    expect(pulled.data["contacts"]).toHaveLength(25);
+  });
+
+  it("files a person under their own name, at the company", () => {
+    const google = people();
+    const with_ = harness(google);
+    with_.script.setUp();
+    expect(loose(with_.post("hello")).data["contacts"]).toBe(true);
+
+    const saved = loose(with_.post("saveContact", { contact: rahul }));
+    expect(saved.data).toEqual({ resourceName: "people/c1", made: true });
+    expect(google.kept.get("people/c1")).toMatchObject({
+      names: [{ givenName: "Rahul", familyName: "Nair" }],
+      organizations: [{ name: "MS PUC" }],
+    });
+  });
+
+  it("updates the contact it made rather than making a second, and makes it again if it was deleted", () => {
+    const google = people();
+    const with_ = harness(google);
+    with_.script.setUp();
+    with_.post("saveContact", { contact: rahul });
+
+    const again = loose(with_.post("saveContact", { contact: { ...rahul, person: "Rahul K Nair" }, resourceName: "people/c1" }));
+    expect(again.data).toEqual({ resourceName: "people/c1", made: false });
+    expect(google.kept.size).toBe(1);
+
+    google.kept.clear();
+    const remade = loose(with_.post("saveContact", { contact: rahul, resourceName: "people/c1" }));
+    expect(remade.data).toMatchObject({ made: true });
+  });
+
+  it("keeps the newest ten backups in Drive, and bins the rest", () => {
+    const google = drive();
+    const with_ = harness(google);
+    with_.script.setUp();
+    for (let i = 1; i <= 12; i += 1) {
+      const put = loose(with_.post("backupPut", { name: `caulder-${String(i).padStart(2, "0")}.db`, data: "YWJj" }));
+      expect(put.ok).toBe(true);
+    }
+    expect(google.files.filter((file) => !file.trashed).map((file) => file.name)).toEqual(
+      Array.from({ length: 10 }, (_each, i) => `caulder-${String(i + 3).padStart(2, "0")}.db`),
+    );
+    expect((loose(with_.post("backupList")).data["backups"] as unknown[]).length).toBe(10);
+  });
+
+  it("refuses a name that is not a backup file's", () => {
+    const with_ = harness(drive());
+    with_.script.setUp();
+    const refused = loose(with_.post("backupPut", { name: "../../evil.db", data: "YWJj" }));
+    expect(refused.ok).toBe(false);
+    expect(refused.error).toContain("not a backup file");
+  });
+});
+
+describe("contacts in a Google Sheet", () => {
+  const loose = (reply: unknown) => reply as { ok: boolean; error?: string; data: Record<string, unknown> };
+
+  /** Spreadsheets, as far as the script is concerned: a grid each, and whether it is in the bin. */
+  function sheets() {
+    const books = new Map<string, { name: string; cells: string[][]; trashed: boolean; hidden: number[]; frozen: number }>();
+    let made = 0;
+    const open = (id: string) => {
+      const book = books.get(id);
+      if (!book) throw new Error("Document is missing.");
+      const tab = {
+        setName: () => undefined,
+        getLastRow: () => book.cells.length,
+        clearContents: () => void (book.cells = []),
+        setFrozenRows: (rows: number) => void (book.frozen = rows),
+        hideColumns: (column: number) => void book.hidden.push(column),
+        getRange: (row: number, _column: number, rows: number, width: number) => {
+          const range = {
+            getDisplayValues: () => book.cells.slice(row - 1, row - 1 + rows).map((cells) => Array.from({ length: width }, (_each, at) => cells[at] ?? "")),
+            setNumberFormat: () => range,
+            setFontWeight: () => range,
+            setValues: (values: string[][]) => {
+              values.forEach((cells, at) => (book.cells[row - 1 + at] = [...cells]));
+              return range;
+            },
+          };
+          return range;
+        },
+      };
+      return { getId: () => id, getUrl: () => `https://docs.google.com/spreadsheets/d/${id}/edit`, getSheetByName: () => tab, getSheets: () => [tab] };
+    };
+    return {
+      books,
+      SpreadsheetApp: {
+        getActiveSpreadsheet: () => null,
+        create: (name: string) => {
+          const id = `sheet${(made += 1)}`;
+          books.set(id, { name, cells: [], trashed: false, hidden: [], frozen: 0 });
+          return open(id);
+        },
+        openById: open,
+      },
+      DriveApp: {
+        getRootFolder: () => ({ getName: () => "My Drive" }),
+        getFileById: (id: string) => ({ isTrashed: () => books.get(id)?.trashed ?? true }),
+      },
+    };
+  }
+
+  const header = ["Caulder ID", "Name", "Phone"];
+  const rows = [
+    ["c1", "Harbour Coffee", "'+1 415 555 0100"],
+    ["c2", "Nordlys Design", ""],
+  ];
+
+  it("makes one spreadsheet a company, named for it, and reads it empty the first time", () => {
+    const google = sheets();
+    const with_ = harness(google);
+    with_.script.setUp();
+    const read = loose(with_.post("sheetRead", { company: "co-1", name: "Northwind", columns: 3 }));
+    expect(read.data).toMatchObject({ id: "sheet1", url: "https://docs.google.com/spreadsheets/d/sheet1/edit", rows: [] });
+    expect(google.books.get("sheet1")?.name).toBe("Caulder contacts - Northwind");
+    // Asked again, it is the same one - and another company has its own.
+    expect(loose(with_.post("sheetRead", { company: "co-1", name: "Northwind", columns: 3 })).data["id"]).toBe("sheet1");
+    expect(loose(with_.post("sheetRead", { company: "co-2", name: "Second", columns: 3 })).data["id"]).toBe("sheet2");
+  });
+
+  it("writes the list over what was there, under a heading that stays put, with its id out of sight", () => {
+    const google = sheets();
+    const with_ = harness(google);
+    with_.script.setUp();
+    const wrote = loose(with_.post("sheetWrite", { company: "co-1", name: "Northwind", header, rows }));
+    expect(wrote.data).toMatchObject({ id: "sheet1", count: 2 });
+    const book = google.books.get("sheet1")!;
+    expect(book.cells).toEqual([header, ...rows]);
+    expect(book.frozen).toBe(1);
+    expect(book.hidden).toEqual([1]);
+
+    // A shorter list leaves nothing of the longer one behind.
+    with_.post("sheetWrite", { company: "co-1", name: "Northwind", header, rows: [rows[1]] });
+    expect(google.books.get("sheet1")!.cells).toEqual([header, rows[1]]);
+    expect(loose(with_.post("sheetRead", { company: "co-1", name: "Northwind", columns: 3 })).data["rows"]).toEqual([rows[1]]);
+  });
+
+  it("makes a new one when the old one was moved to the bin", () => {
+    const google = sheets();
+    const with_ = harness(google);
+    with_.script.setUp();
+    with_.post("sheetWrite", { company: "co-1", name: "Northwind", header, rows });
+    google.books.get("sheet1")!.trashed = true;
+    expect(loose(with_.post("sheetRead", { company: "co-1", name: "Northwind", columns: 3 })).data).toMatchObject({ id: "sheet2", rows: [] });
+  });
+
+  it("refuses a request that does not say whose contacts, or has no headings, or the wrong key", () => {
+    const with_ = harness(sheets());
+    with_.script.setUp();
+    expect(loose(with_.post("sheetRead", { company: "../etc", columns: 3 })).error).toContain("which company");
+    expect(loose(with_.post("sheetWrite", { company: "co-1", header: [], rows })).error).toContain("no headings");
+    expect(loose(with_.post("sheetRead", { company: "co-1", columns: 3 }, "wrong")).error).toContain("key is not right");
+  });
+
+  it("no longer answers to an invitation, or to anything about a shared brain", () => {
+    const with_ = harness(sheets());
+    with_.script.setUp();
+    const out = with_.script.doPost({ postData: { contents: JSON.stringify({ action: "brainPull", invite: "anything" }) } });
+    expect(JSON.parse(out.text)).toMatchObject({ ok: false, error: "That key is not right." });
+    expect(loose(with_.post("brainPull", {})).error).toContain("does not do");
+  });
+});
+
+describe("a file with a message (version 8)", () => {
+  const pdf = { name: "INV-0001.pdf", mimeType: "application/pdf", data: Buffer.from("%PDF-1.4 sample").toString("base64") };
+
+  it("sends an invoice's PDF with a message sent now", () => {
+    expect(send({ attachments: [pdf] }).ok).toBe(true);
+    expect(h.sentFiles).toEqual([{ name: "INV-0001.pdf", type: "application/pdf", size: 15 }]);
+  });
+
+  it("refuses to hold a message with a file for later", () => {
+    const later = new Date(h.clock.now + 3 * 60 * 60 * 1000).toISOString();
+    const reply = send({ attachments: [pdf], sendAt: later });
+    expect(reply.ok).toBe(false);
+    expect(reply.error).toMatch(/sent at once/);
   });
 });

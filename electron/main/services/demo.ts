@@ -7,9 +7,7 @@ import { addPayment, saveInvoice, saveQuote, setInvoiceStatus, setQuoteStatus } 
 import { listStages } from "../repositories/companies";
 import { leadInput, taskInput, type PipelineStage } from "@shared/domain";
 import { shiftDay, today as todayIn } from "@shared/dates";
-import { linkToken } from "@shared/links";
 import { createPage } from "../repositories/brain";
-import { entryTitle, makeTime } from "./life";
 
 /**
  * Sample data, so a new company is not six empty screens.
@@ -53,87 +51,95 @@ type Seed = {
   task?: { title: string; kind: "call" | "email" | "follow_up" | "meeting"; inDays: number };
 };
 
+/**
+ * A one-person studio with clients anywhere (phase 24): it builds small apps
+ * and sites, and sells in dollars. Not the author's own schools in Bengaluru -
+ * a founder in Berlin or Ohio should recognise their own week in it.
+ */
 const SEEDS: Seed[] = [
   {
-    name: "Oakridge International School",
-    contactPerson: "Asha Menon",
-    email: "asha@oakridge.example.in",
-    phone: "9480004094",
-    city: "Bengaluru",
-    value: 250000,
+    name: "Harbour Coffee Roasters",
+    contactPerson: "Maya Ellis",
+    email: "maya@harbourcoffee.example.com",
+    phone: "+1 415 555 0142",
+    city: "San Francisco",
+    value: 4800,
     stage: 3,
     spokeDaysAgo: 2,
-    note: "Asha was interested in the attendance module. Wants to see it against their existing register before deciding.",
-    task: { title: "Send the attendance walkthrough", kind: "email", inDays: 0 },
+    note: "Maya liked the loyalty app mock-ups. Wants to see it next to their paper punch cards before deciding.",
+    task: { title: "Send the loyalty app walkthrough", kind: "email", inDays: 0 },
   },
   {
-    name: "TRIO World School",
-    contactPerson: "Nandini R",
-    email: "admissions@trio.example.com",
-    phone: "9141924141",
-    city: "Bengaluru",
-    value: 120000,
+    name: "Nordlys Design",
+    contactPerson: "Jonas Berg",
+    email: "jonas@nordlys.example.no",
+    phone: "+47 912 34 567",
+    city: "Oslo",
+    value: 2400,
     stage: 2,
     spokeDaysAgo: 6,
-    note: "Asked what happens to last year's data on migration. Said budget is decided in March.",
+    note: "Asked whether the old site's articles move across. Said budgets are set in March.",
     // Overdue on purpose: Today is not worth opening if nothing is ever late.
     task: { title: "Call back about the March budget", kind: "call", inDays: -2 },
   },
   {
-    name: "Bengaluru Public School",
-    contactPerson: "R Krishnan",
-    phone: "9880012345",
-    city: "Bengaluru",
-    value: 90000,
+    name: "Kettle & Crumb Bakery",
+    contactPerson: "Priya Nair",
+    phone: "+44 20 7946 0321",
+    city: "London",
+    value: 1800,
     stage: 1,
     spokeDaysAgo: 1,
-    task: { title: "Call the principal", kind: "call", inDays: 0 },
+    task: { title: "Call Priya about the order form", kind: "call", inDays: 0 },
   },
   {
-    name: "GIG International School",
-    contactPerson: "Meera Rao",
-    email: "meera@gig.example.edu",
-    phone: "9845098450",
-    city: "Mysuru",
-    value: 80000,
+    name: "Studio Palma",
+    contactPerson: "Lucía Ortega",
+    email: "lucia@studiopalma.example.es",
+    phone: "+34 612 345 678",
+    city: "Madrid",
+    value: 1500,
     stage: 1,
-    task: { title: "Follow up on the brochure", kind: "follow_up", inDays: 1 },
+    // Contacted, so spoken to: a contacted contact who was never contacted is a sample that contradicts itself.
+    spokeDaysAgo: 5,
+    note: "Lucía wants the portfolio site live before the spring fair.",
+    task: { title: "Follow up on the portfolio site", kind: "follow_up", inDays: 1 },
   },
   {
-    name: "Cambridge Public School",
-    email: "office@cambridge.example.in",
-    city: "Bengaluru",
+    name: "Greenline Physio",
+    email: "hello@greenline.example.ca",
+    city: "Toronto",
     stage: 0,
   },
   {
     // No task and nothing recent: this is the one that shows up under
     // "Going quiet", which is the section a spreadsheet cannot produce.
-    name: "Vishweshwarayya Vidya Kendra",
-    email: "office@vvk.example.in",
+    name: "Brightside Tutoring",
+    email: "office@brightside.example.in",
     city: "Bengaluru",
-    value: 45000,
+    value: 900,
     stage: 1,
     spokeDaysAgo: 24,
-    note: "Left a message with reception. Nobody has come back.",
+    note: "Left a message through their contact form. Nobody has come back.",
   },
   {
-    name: "Prajna Vahini School",
-    contactPerson: "S Bhat",
-    phone: "9480040338",
-    city: "Bengaluru",
-    value: 60000,
+    name: "Fieldnote Books",
+    contactPerson: "Sam Okafor",
+    phone: "+234 803 123 4567",
+    city: "Lagos",
+    value: 1200,
     stage: "won",
     spokeDaysAgo: 9,
-    note: "Signed. Rollout starts after the term break.",
+    note: "Signed. The shop goes live after their stocktake.",
   },
   {
-    name: "Sunrise Academy",
-    contactPerson: "P Sharma",
-    email: "p.sharma@sunrise.example.in",
-    city: "Mysuru",
+    name: "Atlas Fitness",
+    contactPerson: "Dana Kim",
+    email: "dana@atlasfitness.example.com",
+    city: "Austin",
     stage: "lost",
     spokeDaysAgo: 15,
-    note: "Went with a competitor on price. Worth another look next year.",
+    note: "Went with a template on price. Worth another look next year.",
   },
 ];
 
@@ -152,13 +158,13 @@ const SEEDS: Seed[] = [
  * A lost deal also stops partway rather than reaching the last open stage. A
  * funnel where every deal gets a proposal has no shape to show.
  */
-/** One student founder's Tuesday, on whichever day the sample is looked at. */
+/** One founder's Tuesday, on whichever day the sample is looked at. */
 const SAMPLE_BLOCKS: { startsAt: string; minutes: number; title: string; kind: string }[] = [
-  { startsAt: "09:00", minutes: 120, title: "Data structures lecture", kind: "class" },
-  { startsAt: "11:30", minutes: 60, title: "Reading for Friday", kind: "study" },
-  { startsAt: "14:00", minutes: 30, title: "Call with Bengaluru Public School", kind: "meeting" },
-  { startsAt: "15:00", minutes: 90, title: "Proposal for Oakridge", kind: "focus" },
-  { startsAt: "18:00", minutes: 60, title: "Gym", kind: "personal" },
+  { startsAt: "09:00", minutes: 90, title: "Build the onboarding screens", kind: "focus" },
+  { startsAt: "11:00", minutes: 60, title: "Invoices and the month's books", kind: "admin" },
+  { startsAt: "14:00", minutes: 30, title: "Call with Kettle & Crumb", kind: "call" },
+  { startsAt: "15:00", minutes: 90, title: "Proposal for Harbour Coffee", kind: "focus" },
+  { startsAt: "18:00", minutes: 60, title: "Gym", kind: "away" },
 ];
 
 function walkTo(stages: PipelineStage[], target: PipelineStage): PipelineStage[] {
@@ -315,27 +321,27 @@ export function seedDemo(db: Db, companyId: string, now: Date = new Date()): str
           | { id: string }
           | undefined
       )?.id;
-    const won = leadNamed("Prajna Vahini School");
-    const meeting = leadNamed("Oakridge International School");
-    const contacted = leadNamed("GIG International School");
+    const won = leadNamed("Fieldnote Books");
+    const meeting = leadNamed("Harbour Coffee Roasters");
+    const contacted = leadNamed("Studio Palma");
     if (won) {
       const paid = saveInvoice(db, companyId, null, {
         leadId: won,
         issuedOn: shiftDay(day, -12),
         dueOn: shiftDay(day, 2),
         notes: null,
-        lines: [{ description: "Attendance module, annual", quantity: 1, unitPrice: 60000 }],
+        lines: [{ description: "Online shop, set up", quantity: 1, unitPrice: 1200 }],
       });
       setInvoiceStatus(db, companyId, paid.id, "sent");
-      addPayment(db, companyId, paid.id, { amount: 60000, paidOn: shiftDay(day, -3), note: null });
+      addPayment(db, companyId, paid.id, { amount: 1200, paidOn: shiftDay(day, -3), note: null });
     }
     if (meeting) {
       const open = saveInvoice(db, companyId, null, {
         leadId: meeting,
         issuedOn: shiftDay(day, -2),
         dueOn: shiftDay(day, 12),
-        notes: "Half up front, half on go-live.",
-        lines: [{ description: "Pilot, one term", quantity: 1, unitPrice: 125000 }],
+        notes: "Half up front, half on launch.",
+        lines: [{ description: "Loyalty app, first half", quantity: 1, unitPrice: 2400 }],
       });
       setInvoiceStatus(db, companyId, open.id, "sent");
     }
@@ -345,87 +351,32 @@ export function seedDemo(db: Db, companyId: string, now: Date = new Date()): str
         issuedOn: shiftDay(day, -1),
         notes: null,
         lines: [
-          { description: "Attendance module, annual", quantity: 1, unitPrice: 60000 },
-          { description: "Onboarding day", quantity: 1, unitPrice: 20000 },
+          { description: "Portfolio site", quantity: 1, unitPrice: 1200 },
+          { description: "Copywriting, one day", quantity: 1, unitPrice: 300 },
         ],
       });
       setQuoteStatus(db, companyId, quote.id, "sent");
     }
 
-    // And the half of a student founder's life that is not the company: a
-    // course with an exam coming, a hobby with evenings set aside for it, a
-    // goal part of the way there, and two days of the journal - so the
-    // brain's own sections, Today's journal card and the Calendar's evenings
-    // have something in them too.
-    const at = now.toISOString();
-    const course = createPage(
-      db,
-      companyId,
-      {
-        section: "studies",
-        template: "course",
-        title: "Data structures",
-        body: `## What it covers\n\nTrees, graphs, and how fast things get as they grow.\n\n## Assignments\n\n- [ ] Problem set 3 (by ${shiftDay(day, 6)})\n- [ ] Read chapter 5\n`,
-        fields: { code: "CS2101", term: "Semester 3", credits: 4, status: "taking" },
-      },
-      at,
-    );
+    // What the company remembers: a few dated lines on the page the line
+    // keeps them on, so Memories and the line's answers have something to say.
     createPage(
       db,
       companyId,
       {
-        section: "studies",
-        template: "exam",
-        title: "Data structures midterm",
-        body: `For ${linkToken("Data structures", { kind: "page", id: course })}.\n\n## To revise\n\n- [ ] Trees and heaps\n- [ ] Graph search\n`,
-        fields: { examOn: shiftDay(day, 12), at: "09:30, LT-2" },
+        section: "remembered",
+        template: "page",
+        title: "Things to remember",
+        body:
+          [
+            `- **Payment terms: half up front, the rest on delivery** · our payment terms are half up front, the rest on delivery _(${shiftDay(day, -20)})_`,
+            `- Harbour Coffee pay on the 5th of the month _(${shiftDay(day, -9)})_`,
+            `- Nordlys want everything in one PDF, not a link _(${shiftDay(day, -3)})_`,
+          ].join("\n") + "\n",
+        fields: {},
       },
-      at,
+      now.toISOString(),
     );
-    const hobby = createPage(
-      db,
-      companyId,
-      {
-        section: "hobbies",
-        template: "hobby",
-        title: "Guitar",
-        body: "## Why I do it\n\nIt is the one hour nothing else gets into.\n",
-        fields: { status: "doing-it", hoursWanted: 3, goal: "Five songs, start to finish" },
-      },
-      at,
-    );
-    makeTime(db, hobby, { weekdays: [2, 5], startsAt: "20:00", minutes: 45, until: shiftDay(day, 56) }, now);
-    createPage(
-      db,
-      companyId,
-      {
-        section: "goals",
-        template: "life-goal",
-        title: "Read 12 books this year",
-        body: "## Why it matters\n\nA founder who reads is a founder who borrows other people's mistakes.\n",
-        fields: { area: "personal", target: 12, progress: 4, unit: "books", byOn: `${day.slice(0, 4)}-12-31` },
-      },
-      at,
-    );
-    const entries: [number, string, string][] = [
-      [2, "okay", "Two lectures and a quiet afternoon. Oakridge still has not written back."],
-      [1, "good", "Prajna Vahini paid. Played for forty minutes after dinner without looking at the phone."],
-    ];
-    for (const [ago, mood, words] of entries) {
-      const on = shiftDay(day, -ago);
-      createPage(
-        db,
-        companyId,
-        {
-          section: "journal",
-          template: "entry",
-          title: entryTitle(on),
-          body: `## Today\n\n${words}\n\n## Grateful for\n\n\n## Tomorrow\n\n`,
-          fields: { day: on, mood },
-        },
-        at,
-      );
-    }
 
     return batchId;
   })();

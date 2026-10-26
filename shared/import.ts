@@ -19,6 +19,8 @@ const OPTIONAL_COLUMNS = [
   "Source",
   "Value",
   "Website",
+  "LinkedIn",
+  "Instagram",
   "Notes",
 ] as const;
 
@@ -51,6 +53,8 @@ const ALIASES: Record<TemplateColumn, string[]> = {
   Source: ["source", "lead source", "listing", "referred by"],
   Value: ["value", "deal value", "amount", "worth", "budget"],
   Website: ["website", "site", "url", "web"],
+  LinkedIn: ["linkedin", "linkedin url", "linkedin profile", "profile url", "linked in"],
+  Instagram: ["instagram", "instagram handle", "insta", "ig", "ig handle"],
   Notes: ["notes", "note", "remarks", "comments", "description"],
 };
 
@@ -114,6 +118,9 @@ export type ImportValues = {
   pin: string | null;
   source: string | null;
   website: string | null;
+  /** Profiles, each as an address in full; absent from imports made before they existed. */
+  linkedin: string | null;
+  instagram: string | null;
   value: number | null;
   notes: string | null;
 };

@@ -119,7 +119,7 @@ export function HandOverCard({ companyId, version }: { companyId: string; versio
   return (
     <Card
       title="Hand it over"
-      hint="A data room for an investor, zipped with an index; or a handbook for somebody joining, as one PDF."
+      hint="A data room as a zip, or a handbook as a PDF."
     >
       {!mode && (
         <div className="actions">
@@ -190,7 +190,7 @@ export function HandOverCard({ companyId, version }: { companyId: string; versio
             {allowed.map((extra) => (
               <Option
                 key={extra}
-                label={mode === "handbook" && extra === "people" ? "Who is who" : mode === "handbook" && extra === "products" ? "What we sell" : ROOM_EXTRA_LABEL[extra]}
+                label={mode === "handbook" && extra === "products" ? "What we sell" : ROOM_EXTRA_LABEL[extra]}
                 count={choices.extras[extra] > 0 ? String(choices.extras[extra]) : "Nothing yet"}
                 checked={extras.has(extra)}
                 disabled={busy || choices.extras[extra] === 0}

@@ -20,8 +20,7 @@ export const SHORTCUTS: { group: string; items: Shortcut[] }[] = [
     items: [
       { keys: "T", describes: "Today" },
       { keys: "D", describes: "The calendar" },
-      { keys: "J", describes: "The journal, on today" },
-      { keys: "Y", describes: "Your life: studies, hobbies, goals" },
+      { keys: "R", describes: "What the company remembers" },
       { keys: "L", describes: "Contacts" },
       { keys: "P", describes: "Deals" },
       { keys: "M", describes: "Money" },
@@ -58,8 +57,7 @@ export const QUICK_WINDOW_SHORTCUTS: { group: string; items: Shortcut[] } = {
 const ROUTE_KEYS: Record<string, RouteId> = {
   t: "today",
   d: "day",
-  j: "journal",
-  y: "life",
+  r: "memories",
   l: "leads",
   p: "pipeline",
   m: "money",
@@ -113,7 +111,12 @@ export function useShortcuts(handlers: {
       // convention everywhere else and muscle memory beats consistency here.
       // It works from inside a field too: it types nothing, and "find that
       // page" is a thought people have mid-sentence.
+      //
+      // Except where something nearer has already taken it: in a page's editor
+      // Ctrl+K starts a link, and without this check one press would type
+      // `[[` AND open search over it - the same rule Escape keeps above.
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        if (event.defaultPrevented) return;
         event.preventDefault();
         handlers.onSearchAll();
         return;

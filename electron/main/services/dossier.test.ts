@@ -87,7 +87,7 @@ describe("the dossier", () => {
       "00 Unifloe - read me first.md",
       "01 Unifloe - the company.md",
       "02 Unifloe - customers and sales.md",
-      "03 Unifloe - people and running the company.md",
+      "03 Unifloe - running the company.md",
     ]);
     const [readme] = docs;
     expect(readme?.text).toContain("# Unifloe: read me first");
@@ -170,6 +170,25 @@ describe("the dossier", () => {
       expect(result.files).toBe(4);
       expect(readdirSync(result.folder)).toHaveLength(4);
       expect(readFileSync(join(result.folder, "02 Unifloe - customers and sales.md"), "utf8")).toContain("## The funnel");
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  it("takes 04 you beside it when chosen, and says what it is for at the top (phase 22)", () => {
+    const parent = mkdtempSync(join(tmpdir(), "caulder-dossier-"));
+    try {
+      const you = { file: "04 you.md", title: "You", text: "# You\n\n## About me\n" };
+      const result = exportDossier(db, companyId, "Unifloe", parent, { secrets: false }, now, {
+        you,
+        purpose: { said: "A pitch to a school chain", first: ["Pricing", "Oakridge School"] },
+      });
+      expect(result.files).toBe(5);
+      expect(readFileSync(join(result.folder, "04 you.md"), "utf8")).toContain("## About me");
+      const readMe = readdirSync(result.folder).find((name) => name.startsWith("00"))!;
+      const text = readFileSync(join(result.folder, readMe), "utf8");
+      expect(text).toContain("## What this is for\n\nA pitch to a school chain");
+      expect(text).toContain("- Pricing\n- Oakridge School");
     } finally {
       rmSync(parent, { recursive: true, force: true });
     }

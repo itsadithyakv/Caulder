@@ -1,0 +1,735 @@
+[
+ {
+  "group": "time",
+  "line": "call priya half 3 tmrw",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-13",
+   "time": "15:30",
+   "contact": "kettle"
+  }
+ },
+ {
+  "group": "time",
+  "line": "call maya quarter past 4 thursday",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-15",
+   "time": "16:15",
+   "contact": "harbour"
+  }
+ },
+ {
+  "group": "time",
+  "line": "send the deck by eod",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-12"
+  }
+ },
+ {
+  "group": "time",
+  "line": "email jonas first thing tomorrow",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-13",
+   "time": "09:00",
+   "contact": "nord"
+  }
+ },
+ {
+  "group": "time",
+  "line": "review contract after lunch",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-12",
+   "time": "14:00"
+  }
+ },
+ {
+  "group": "time",
+  "line": "call sam tonight",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-12",
+   "contact": "field"
+  }
+ },
+ {
+  "group": "time",
+  "line": "follow up with priya in 2 hours",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-12",
+   "time": "12:00",
+   "contact": "kettle"
+  }
+ },
+ {
+  "group": "time",
+  "line": "check in with maya in 20 mins",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-12",
+   "time": "10:20",
+   "contact": "harbour"
+  }
+ },
+ {
+  "group": "time",
+  "line": "standup 0930 tomorrow",
+  "want": {
+   "day": "2026-10-13",
+   "time": "09:30"
+  }
+ },
+ {
+  "group": "time",
+  "line": "call jonas 15:30 fri",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-16",
+   "time": "15:30",
+   "minutes": 30,
+   "contact": "nord"
+  }
+ },
+ {
+  "group": "time",
+  "line": "call jonas 3.30pm fri",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-16",
+   "time": "15:30",
+   "contact": "nord"
+  }
+ },
+ {
+  "group": "time",
+  "line": "meeting with maya 3-4pm wed",
+  "want": {
+   "day": "2026-10-14",
+   "time": "15:00",
+   "minutes": 60,
+   "contact": "harbour"
+  }
+ },
+ {
+  "group": "time",
+  "line": "workshop from 2 to 5 thursday",
+  "want": {
+   "day": "2026-10-15",
+   "time": "14:00",
+   "minutes": 180
+  }
+ },
+ {
+  "group": "time",
+  "line": "design review fri 11 for 45 min",
+  "want": {
+   "day": "2026-10-16",
+   "time": "11:00",
+   "minutes": 45
+  }
+ },
+ {
+  "group": "time",
+  "line": "pay gst by end of the month",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-31"
+  }
+ },
+ {
+  "group": "time",
+  "line": "invoice harbour on the 5th",
+  "want": {
+   "kind": "task",
+   "day": "2026-11-05",
+   "contact": "harbour"
+  }
+ },
+ {
+  "group": "time",
+  "line": "renew domain 21/10",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-21"
+  }
+ },
+ {
+  "group": "time",
+  "line": "renew domain oct 21",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-21"
+  }
+ },
+ {
+  "group": "time",
+  "line": "renew domain 21st october",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-21"
+  }
+ },
+ {
+  "group": "time",
+  "line": "plan q4 this weekend",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-17"
+  }
+ },
+ {
+  "group": "time",
+  "line": "call priya 3ish tomorrow",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-13",
+   "time": "15:00",
+   "contact": "kettle"
+  }
+ },
+ {
+  "group": "time",
+  "line": "lunch with sam noon friday",
+  "want": {
+   "day": "2026-10-16",
+   "time": "12:00",
+   "contact": "field"
+  }
+ },
+ {
+  "group": "time",
+  "line": "call maya in a week",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-19",
+   "contact": "harbour"
+  }
+ },
+ {
+  "group": "time",
+  "line": "chase oakridge in 3 days",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-15",
+   "contact": "oak"
+  }
+ },
+ {
+  "group": "time",
+  "line": "send report every friday",
+  "want": {
+   "kind": "task",
+   "repeat": "weekly:5"
+  }
+ },
+ {
+  "group": "time",
+  "line": "standup every weekday 9:30",
+  "want": {
+   "time": "09:30",
+   "repeat": "weekdays"
+  }
+ },
+ {
+  "group": "time",
+  "line": "pay rent on the 1st of every month",
+  "want": {
+   "kind": "task",
+   "repeat": "monthly:1"
+  }
+ },
+ {
+  "group": "time",
+  "line": "review metrics every other monday",
+  "want": {
+   "kind": "task",
+   "repeat": "fortnightly:1"
+  }
+ },
+ {
+  "group": "time",
+  "line": "call priya next tuesday at 11",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-20",
+   "time": "11:00",
+   "contact": "kettle"
+  }
+ },
+ {
+  "group": "time",
+  "line": "call priya this tuesday at 11",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-13",
+   "time": "11:00",
+   "contact": "kettle"
+  }
+ },
+ {
+  "group": "texting",
+  "line": "pls cll priya tmw",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-13",
+   "contact": "kettle"
+  }
+ },
+ {
+  "group": "texting",
+  "line": "call priya @4 tmrw",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-13",
+   "time": "16:00",
+   "contact": "kettle"
+  }
+ },
+ {
+  "group": "texting",
+  "line": "mtg w/ maya 2day 3",
+  "want": {
+   "day": "2026-10-12",
+   "time": "15:00",
+   "contact": "harbour"
+  }
+ },
+ {
+  "group": "texting",
+  "line": "email sam 2nite",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-12",
+   "contact": "field"
+  }
+ },
+ {
+  "group": "texting",
+  "line": "CALL PRIYA TMRW 4PM",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-13",
+   "time": "16:00",
+   "contact": "kettle"
+  }
+ },
+ {
+  "group": "texting",
+  "line": "!! pay gst asap",
+  "want": {
+   "kind": "task"
+  }
+ },
+ {
+  "group": "texting",
+  "line": "📞 priya 4pm",
+  "want": {
+   "kind": "task",
+   "time": "16:00",
+   "contact": "kettle"
+  }
+ },
+ {
+  "group": "texting",
+  "line": "remind me tomorrow at four to call priya",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-13",
+   "time": "16:00",
+   "contact": "kettle",
+   "title": "call priya"
+  }
+ },
+ {
+  "group": "texting",
+  "line": "can you add a meeting with maya on friday at three",
+  "want": {
+   "day": "2026-10-16",
+   "time": "15:00",
+   "contact": "harbour"
+  }
+ },
+ {
+  "group": "texting",
+  "line": "hey so i need to call jonas thursday about the logo",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-15",
+   "contact": "nord"
+  }
+ },
+ {
+  "group": "texting",
+  "line": "call priya tmrw and email maya the deck fri",
+  "want": {
+   "kind": "split",
+   "parts": 2
+  }
+ },
+ {
+  "group": "texting",
+  "line": "tomorrow 4pm call priya",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-13",
+   "time": "16:00",
+   "contact": "kettle"
+  }
+ },
+ {
+  "group": "texting",
+  "line": "priya call tmrw",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-13",
+   "contact": "kettle"
+  }
+ },
+ {
+  "group": "texting",
+  "line": "call priyaa tmrw",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-13",
+   "contact": "kettle"
+  }
+ },
+ {
+  "group": "texting",
+  "line": "call kettle and crumb tmrw",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-13",
+   "contact": "kettle"
+  }
+ },
+ {
+  "group": "texting",
+  "line": "call harbor coffee fri",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-16",
+   "contact": "harbour"
+  }
+ },
+ {
+  "group": "texting",
+  "line": "ring maya re invoice thurs",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-15",
+   "contact": "harbour"
+  }
+ },
+ {
+  "group": "texting",
+  "line": "wednesay 10am dentist",
+  "want": {
+   "day": "2026-10-14",
+   "time": "10:00"
+  }
+ },
+ {
+  "group": "texting",
+  "line": "call priya tomorow evening",
+  "want": {
+   "kind": "task",
+   "day": "2026-10-13",
+   "contact": "kettle"
+  }
+ },
+ {
+  "group": "texting",
+  "line": "sync w jonas mon 11",
+  "want": {
+   "time": "11:00",
+   "contact": "nord"
+  }
+ },
+ {
+  "group": "edit",
+  "line": "move my 3pm to 4",
+  "want": {
+   "kind": "edit",
+   "do": "move",
+   "task": "t1",
+   "time": "16:00"
+  }
+ },
+ {
+  "group": "edit",
+  "line": "push the harbour call to thursday",
+  "want": {
+   "kind": "edit",
+   "do": "move",
+   "task": "t1",
+   "day": "2026-10-15"
+  }
+ },
+ {
+  "group": "edit",
+  "line": "cancel gym tomorrow",
+  "want": {
+   "kind": "edit",
+   "do": "cancel",
+   "task": "t2"
+  }
+ },
+ {
+  "group": "edit",
+  "line": "done call priya",
+  "want": {
+   "kind": "edit",
+   "do": "done",
+   "task": "t3"
+  }
+ },
+ {
+  "group": "edit",
+  "line": "what's on tomorrow",
+  "want": {
+   "kind": "question",
+   "ask": "day",
+   "day": "2026-10-13"
+  }
+ },
+ {
+  "group": "edit",
+  "line": "am i free friday at 3",
+  "want": {
+   "kind": "question",
+   "ask": "free",
+   "day": "2026-10-16",
+   "time": "15:00"
+  }
+ },
+ {
+  "group": "edit",
+  "line": "when did i last talk to maya",
+  "want": {
+   "kind": "question",
+   "ask": "last"
+  }
+ },
+ {
+  "group": "edit",
+  "line": "what's priya's email",
+  "want": {
+   "kind": "question",
+   "ask": "contact"
+  }
+ },
+ {
+  "group": "fact",
+  "line": "priya's daughter is called aarav",
+  "want": {
+   "kind": "contact",
+   "logged": "fact",
+   "contact": "kettle"
+  }
+ },
+ {
+  "group": "fact",
+  "line": "maya prefers whatsapp over email",
+  "want": {
+   "kind": "contact",
+   "logged": "fact",
+   "contact": "harbour"
+  }
+ },
+ {
+  "group": "fact",
+  "line": "harbour gst no 29ABCDE1234F1Z5",
+  "want": {
+   "kind": "contact",
+   "logged": "fact",
+   "contact": "harbour"
+  }
+ },
+ {
+  "group": "fact",
+  "line": "remember priya bday 3 may",
+  "want": {
+   "kind": "contact",
+   "logged": "fact",
+   "contact": "kettle"
+  }
+ },
+ {
+  "group": "fact",
+  "line": "our bank ifsc is HDFC0001234",
+  "want": {
+   "kind": "note"
+  }
+ },
+ {
+  "group": "fact",
+  "line": "we charge 1500 a day for workshops",
+  "want": {
+   "kind": "memory"
+  }
+ },
+ {
+  "group": "fact",
+  "line": "jonas is on leave till the 20th",
+  "want": {
+   "kind": "contact",
+   "logged": "fact",
+   "contact": "nord"
+  }
+ },
+ {
+  "group": "fact",
+  "line": "fyi oakridge's term starts in jan",
+  "want": {
+   "kind": "contact",
+   "logged": "fact",
+   "contact": "oak"
+  }
+ },
+ {
+  "group": "fact",
+  "line": "note to self: never quote under 800",
+  "want": {
+   "kind": "note"
+  }
+ },
+ {
+  "group": "fact",
+  "line": "sam's address is 12 king st, lagos",
+  "want": {
+   "kind": "contact",
+   "logged": "fact",
+   "contact": "field"
+  }
+ },
+ {
+  "group": "contact",
+  "line": "spoke to maya, she wants 2 more screens",
+  "want": {
+   "kind": "contact",
+   "contact": "harbour"
+  }
+ },
+ {
+  "group": "contact",
+  "line": "had coffee w priya re order form",
+  "want": {
+   "kind": "contact",
+   "contact": "kettle"
+  }
+ },
+ {
+  "group": "contact",
+  "line": "maya replied yes to the proposal",
+  "want": {
+   "kind": "contact",
+   "contact": "harbour"
+  }
+ },
+ {
+  "group": "contact",
+  "line": "left vm for jonas",
+  "want": {
+   "kind": "contact",
+   "contact": "nord"
+  }
+ },
+ {
+  "group": "contact",
+  "line": "called priya - no answer, try again thursday",
+  "want": {
+   "kind": "contact",
+   "contact": "kettle",
+   "then": "2026-10-15"
+  }
+ },
+ {
+  "group": "contact",
+  "line": "sent sam the invoice",
+  "want": {
+   "kind": "contact",
+   "contact": "field"
+  }
+ },
+ {
+  "group": "contact",
+  "line": "met oakridge, they want a quote by friday",
+  "want": {
+   "kind": "contact",
+   "contact": "oak"
+  }
+ },
+ {
+  "group": "contact",
+  "line": "jonas said no for now",
+  "want": {
+   "kind": "contact",
+   "contact": "nord"
+  }
+ },
+ {
+  "group": "money",
+  "line": "figma 1200",
+  "want": {
+   "amount": 1200
+  }
+ },
+ {
+  "group": "money",
+  "line": "uber 340 yesterday",
+  "want": {
+   "amount": 340
+  }
+ },
+ {
+  "group": "money",
+  "line": "paid 5k for hosting",
+  "want": {
+   "amount": 5000
+  }
+ },
+ {
+  "group": "money",
+  "line": "₹1.2k chai and snacks",
+  "want": {
+   "amount": 1200
+  }
+ },
+ {
+  "group": "money",
+  "line": "$49 notion",
+  "want": {
+   "amount": 49
+  }
+ },
+ {
+  "group": "money",
+  "line": "spent 2,400 on ads",
+  "want": {
+   "amount": 2400
+  }
+ },
+ {
+  "group": "money",
+  "line": "got 2400 from harbour",
+  "want": {
+   "kind": "command",
+   "ask": "paid",
+   "contact": "harbour",
+   "amount": 2400
+  }
+ },
+ {
+  "group": "money",
+  "line": "lunch w sam 850",
+  "want": {
+   "amount": 850,
+   "contact": "field"
+  }
+ }
+]

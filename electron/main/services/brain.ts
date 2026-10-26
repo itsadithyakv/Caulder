@@ -1,7 +1,7 @@
+import { companyBilling } from "../repositories/billing";
 import type { Db } from "../db/connection";
 import {
   ENTITY_TYPES,
-  ENTRY_TEMPLATE,
   cleanFields,
   cleanSecret,
   evaluateChecklist,
@@ -39,14 +39,12 @@ import {
   setPagePinned,
   type StoredFields,
 } from "../repositories/brain";
-import { withHome } from "../repositories/companies";
+import { companyCountry, withHome } from "../repositories/companies";
 import { searchEverything } from "../repositories/search";
-import { linkLabelsOnly } from "@shared/links";
+import { linkLabelsOnly, withoutPeopleLinks } from "@shared/links";
 import type { DecisionEntry } from "@shared/brain";
 import { deleteNote } from "../repositories/notes";
 import { isSealed, openSecret, sealSecret } from "./secrets";
-import { appendToEntry, journalEntry } from "./life";
-import { linkToken } from "@shared/links";
 
 /**
  * The company brain, as main sees it: making pages, saving them with their
@@ -58,6 +56,27 @@ function pageOr(db: Db, id: string): BrainPage {
   const page = findPage(db, id);
   if (!page) throw new Error("That page no longer exists.");
   return page;
+}
+
+/**
+ * Links to somebody on the team, put back to their words in every page that
+ * has one. People and hiring went in migration 52, which cannot rewrite text;
+ * this does, once, at the next start - and finds nothing to do on every start
+ * after. Returns how many pages were changed.
+ */
+export function forgetPeopleLinks(db: Db): number {
+  const pages = db.prepare(`SELECT id, body FROM brain_pages WHERE body LIKE '%|person:%'`).all() as { id: string; body: string }[];
+  const write = db.prepare(`UPDATE brain_pages SET body = ? WHERE id = ?`);
+  let changed = 0;
+  db.transaction(() => {
+    for (const page of pages) {
+      const body = withoutPeopleLinks(page.body);
+      if (body === page.body) continue;
+      write.run(body, page.id);
+      changed += 1;
+    }
+  })();
+  return changed;
 }
 
 export function getPage(db: Db, id: string): BrainPage {
@@ -82,9 +101,6 @@ export function newPage(
 
   const template = templateOf(id);
   const at = now.toISOString();
-
-  // The journal has one entry a day: making one opens today's.
-  if (template.id === ENTRY_TEMPLATE) return journalEntry(db, companyId, null, now);
 
   if (template.single) {
     const existing = findSingle(db, companyId, template.id);
@@ -117,8 +133,6 @@ export function savePage(db: Db, id: string, raw: unknown, now: Date): BrainPage
 
   const template = templateOf(row.template);
   const next: StoredFields = { ...cleanFields(template, input.fields) };
-  // A journal entry's day is set when it is made and kept through every edit.
-  if (template.id === ENTRY_TEMPLATE && row.stored["day"] !== undefined) next["day"] = row.stored["day"];
 
   for (const field of template.fields) {
     if (field.kind !== "secret") continue;
@@ -205,25 +219,26 @@ export function brainHome(db: Db, companyId: string, now: Date): BrainHome {
     return typeof value === "string" && value.length > 0 ? value : null;
   };
 
+  // In India, India's own short names: a founder there reads "PAN" faster than "Tax ID".
+  const INDIA_NAMES: Record<string, string> = { cin: "CIN", pan: "PAN", tan: "TAN", gstin: "GSTIN", udyam: "Udyam" };
+  const india = companyCountry(db, companyId) === "IN";
   const numbers: { label: string; value: string }[] = [];
   for (const field of templateOf("profile").fields) {
-    if (!["cin", "pan", "tan", "gstin", "udyam"].includes(field.key)) continue;
+    if (!(field.key in INDIA_NAMES)) continue;
     const shown = field.kind === "secret" ? profile?.secrets[field.key] : text(field.key);
-    if (shown) numbers.push({ label: field.label, value: shown });
+    if (shown) numbers.push({ label: india ? (INDIA_NAMES[field.key] ?? field.label) : field.label, value: shown });
   }
 
   const entity = text("entityType");
 
   // The rail counts what a section holds. Three hold more than pages: Tax has
-  // the filing calendar, Documents is the documents themselves, and People
-  // the people and the roles being hired for.
+  // the filing calendar, Documents is the documents themselves, and Metrics
+  // the numbers.
   const counts = countBySection(db, companyId);
   const rows = (sql: string) => (db.prepare(sql).get(companyId) as { n: number }).n;
   counts.tax += rows(`SELECT COUNT(*) AS n FROM obligations WHERE company_id = ?`);
   counts.documents += rows(`SELECT COUNT(*) AS n FROM documents WHERE company_id = ?`);
   counts.metrics += rows(`SELECT COUNT(*) AS n FROM metrics WHERE company_id = ?`);
-  counts.people +=
-    rows(`SELECT COUNT(*) AS n FROM people WHERE company_id = ?`) + rows(`SELECT COUNT(*) AS n FROM openings WHERE company_id = ?`);
 
   return {
     company: {
@@ -234,14 +249,6 @@ export function brainHome(db: Db, companyId: string, now: Date): BrainHome {
       numbers,
     },
     checklist: evaluateChecklist(checklistPages(db, companyId), todayIn(company.timezone, now), {
-      founders: db
-        .prepare(
-          `SELECT COUNT(*) AS count,
-                  COUNT(NULLIF(TRIM(COALESCE(owns, '')), '')) AS withOwns,
-                  COUNT(CASE WHEN equity > 0 THEN 1 END) AS withEquity
-             FROM people WHERE company_id = ? AND kind = 'founder'`,
-        )
-        .get(companyId) as { count: number; withOwns: number; withEquity: number },
       pricedProducts: (
         db
           .prepare(
@@ -339,8 +346,7 @@ export function search(db: Db, companyId: string, text: unknown): SearchHit[] {
 
 /**
  * A caught note, filed as a page. The page is written before the note goes,
- * in one transaction, so filing never loses the thought. Filed into the
- * journal, it joins the entry for the day it was caught.
+ * in one transaction, so filing never loses the thought.
  */
 export function fileNote(db: Db, noteId: unknown, section: unknown, now: Date): BrainPage {
   if (typeof noteId !== "string") throw new Error("Missing note id.");
@@ -350,13 +356,6 @@ export function fileNote(db: Db, noteId: unknown, section: unknown, now: Date): 
     | undefined;
   if (!note) throw new Error("That note no longer exists.");
 
-  if (section === "journal") {
-    return db.transaction(() => {
-      const entry = appendToEntry(db, note.company_id, note.day, note.body, now);
-      deleteNote(db, note.id);
-      return entry;
-    })();
-  }
 
   const first = note.body.split("\n").find((line) => line.trim().length > 0)?.trim() ?? "Note";
   const title = first.length > 80 ? `${first.slice(0, 77).trimEnd()}…` : first;
@@ -370,36 +369,26 @@ export function fileNote(db: Db, noteId: unknown, section: unknown, now: Date): 
   return pageOr(db, pageId);
 }
 
-/**
- * A page made from another and linked back to it: an exam from its course,
- * class notes from theirs. The link is what the course reads its exams by.
- */
-export function newLinkedPage(db: Db, fromId: unknown, templateId: unknown, now: Date): BrainPage {
-  if (typeof fromId !== "string") throw new Error("Missing the page it is for.");
-  const from = findPageRow(db, fromId);
-  if (!from) throw new Error("That page no longer exists.");
-  const template = templateOf(typeof templateId === "string" ? templateId : "page");
-  if (template.section !== from.section || template.single || template.id === ENTRY_TEMPLATE) {
-    throw new Error("That kind of page cannot be made from this one.");
-  }
-  const title = `${template.title}: ${from.title}`.slice(0, 160);
-  const body = `For ${linkToken(from.title, { kind: "page", id: from.id })}.\n\n${template.body}`;
-  const id = createPage(db, from.company_id, { section: template.section, template: template.id, title, body }, now.toISOString());
-  return pageOr(db, id);
-}
-
 /** What an invoice prints about the company that sends it. */
 type InvoiceIssuer = {
   name: string;
   address: string | null;
   gstin: string | null;
+  /** What the tax number is called where the company is: GSTIN in India. */
+  taxLabel: string;
   email: string | null;
   phone: string | null;
   payTo: string[];
 };
 
+function taxNumberOf(db: Db, companyId: string): string | null {
+  return (db.prepare(`SELECT tax_number FROM companies WHERE id = ?`).get(companyId) as { tax_number: string | null } | undefined)?.tax_number ?? null;
+}
+
 export function invoiceIssuer(db: Db, companyId: string, fallbackName: string): InvoiceIssuer {
   const profile = pagesOf(db, companyId, "profile")[0]?.stored ?? {};
+  // An invoice speaks the language of where the company is: India's names in India.
+  const india = companyCountry(db, companyId) === "IN";
   const text = (fields: StoredFields, key: string): string | null => {
     const value = fields[key];
     return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
@@ -418,14 +407,17 @@ export function invoiceIssuer(db: Db, companyId: string, fallbackName: string): 
     line("Bank", text(bank, "bankName"));
     line("Account name", text(bank, "holder"));
     line("Account number", number);
-    line("IFSC", text(bank, "ifsc"));
-    line("UPI", text(bank, "upi"));
+    line(india ? "IFSC" : "Bank code", text(bank, "ifsc"));
+    line(india ? "UPI" : "Pay by", text(bank, "upi"));
   }
 
   return {
     name: text(profile, "legalName") ?? fallbackName,
     address: text(profile, "registeredAddress") ?? text(profile, "workingAddress"),
-    gstin: text(profile, "gstin"),
+    // The number set with the company's tax, else the one on its profile; called what it is called there.
+    gstin: taxNumberOf(db, companyId) ?? text(profile, "gstin"),
+    // As the company's own rules call it (shared/taxrules.ts): GSTIN in India unless changed.
+    taxLabel: companyBilling(db, companyId).rules.numberLabel,
     email: text(profile, "email"),
     phone: text(profile, "phone"),
     payTo,

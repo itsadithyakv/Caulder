@@ -4,12 +4,59 @@
  * No date library. Both existing projects use native Intl and a couple of
  * small helpers, and the arithmetic here is day differences, which does not
  * justify a dependency.
+ *
+ * **Money and dates read the way they do where the company is** (phase 24),
+ * not the way this computer's language setting says: ₹1,85,000 and 26 Sept
+ * for a company in India, $185,000 and Sep 26 in the United States, 13:05 in
+ * Germany. The words stay English. `setRegion` is called by the workspace
+ * before anything draws; every formatter here, and `numberText` and
+ * `dateFormatter` for the screens that build their own, read it.
  */
 
-const numberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
+let locale: string | undefined;
 
-/** One formatter per currency, built once. Intl formatters are not cheap. */
-const currencyFormats = new Map<string, Intl.NumberFormat>();
+/** Every formatter made, by locale and options: Intl formatters are not cheap. */
+const made = new Map<string, Intl.NumberFormat | Intl.DateTimeFormat>();
+
+/**
+ * The locale everything is formatted in: `en-IN` for a company in India
+ * (`localeFor` in shared/countries.ts), or undefined - this computer's own -
+ * when no country has been said. Cheap to call on every draw.
+ */
+export function setRegion(next: string | undefined): void {
+  locale = next;
+}
+
+/** The region's locale, for a formatter in shared/ that takes one (`describeDue`). */
+export function region(): string | undefined {
+  return locale;
+}
+
+function numberFormatter(options: Intl.NumberFormatOptions): Intl.NumberFormat {
+  const key = `n|${locale ?? ""}|${JSON.stringify(options)}`;
+  let format = made.get(key) as Intl.NumberFormat | undefined;
+  if (!format) {
+    format = new Intl.NumberFormat(locale, options);
+    made.set(key, format);
+  }
+  return format;
+}
+
+/** A date formatter in the company's region, for a screen that needs its own options. */
+export function dateFormatter(options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  const key = `d|${locale ?? ""}|${JSON.stringify(options)}`;
+  let format = made.get(key) as Intl.DateTimeFormat | undefined;
+  if (!format) {
+    format = new Intl.DateTimeFormat(locale, options);
+    made.set(key, format);
+  }
+  return format;
+}
+
+/** A count or an amount, grouped the region's way: 1,85,000 in India, 185,000 elsewhere. */
+export function numberText(value: number, maximumFractionDigits = 0): string {
+  return numberFormatter({ maximumFractionDigits }).format(value);
+}
 
 /**
  * Whole currency units, grouped.
@@ -24,37 +71,21 @@ const currencyFormats = new Map<string, Intl.NumberFormat>();
  * converted on, and being wrong about it forever after.
  */
 export function formatValue(value: number, currency?: string): string {
-  if (!currency) return numberFormat.format(value);
-
-  let format = currencyFormats.get(currency);
-  if (!format) {
-    try {
-      format = new Intl.NumberFormat(undefined, {
-        style: "currency",
-        currency,
-        maximumFractionDigits: 0,
-      });
-    } catch {
-      // An unknown code is not a reason to show nothing.
-      format = numberFormat;
-    }
-    currencyFormats.set(currency, format);
+  if (!currency) return numberText(value);
+  try {
+    return numberFormatter({ style: "currency", currency, maximumFractionDigits: 0 }).format(value);
+  } catch {
+    // An unknown code is not a reason to show nothing.
+    return numberText(value);
   }
-
-  return format.format(value);
 }
 
-const clockFormat = new Intl.DateTimeFormat(undefined, {
-  hour: "numeric",
-  minute: "2-digit",
-});
-
 /**
- * `HH:MM` as the reader's own clock, so 13:00 shows as 1 pm where that is what
+ * `HH:MM` as the region's clock, so 13:00 shows as 1 pm where that is what
  * people say and stays 13:00 where it is not. The stored value never changes.
  */
 export function formatTime(time: string): string {
-  return clockFormat.format(new Date(`2000-01-01T${time}:00`));
+  return dateFormatter({ hour: "numeric", minute: "2-digit" }).format(new Date(`2000-01-01T${time}:00`));
 }
 
 /**
@@ -70,19 +101,10 @@ export function formatDuration(minutes: number): string {
   return rest === 0 ? `${hours}h` : `${hours}h ${rest}m`;
 }
 
-const dateFormat = new Intl.DateTimeFormat(undefined, {
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-});
-
-const timeFormat = new Intl.DateTimeFormat(undefined, {
-  hour: "numeric",
-  minute: "2-digit",
-});
+const DATE: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric" };
 
 export function formatDate(iso: string): string {
-  return dateFormat.format(new Date(iso));
+  return dateFormatter(DATE).format(new Date(iso));
 }
 
 /**
@@ -92,20 +114,27 @@ export function formatDate(iso: string): string {
  */
 export function formatDay(day: string): string {
   const [year, month, date] = day.split("-").map(Number);
-  return dateFormat.format(new Date(year ?? 1970, (month ?? 1) - 1, date ?? 1));
+  return dateFormatter(DATE).format(new Date(year ?? 1970, (month ?? 1) - 1, date ?? 1));
 }
 
-const monthFormat = new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" });
+/**
+ * A calendar day in full: "Thursday, 15 October". A stored day is midnight
+ * UTC, so it is written in UTC: in the Americas the local clock would make it
+ * the evening before (phase 24).
+ */
+export function formatLongDay(day: string): string {
+  return dateFormatter({ weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(`${day}T00:00:00Z`));
+}
 
 /** A calendar day's month and year: "July 2027". Built from parts, like formatDay. */
 export function formatMonth(day: string): string {
   const [year, month] = day.split("-").map(Number);
-  return monthFormat.format(new Date(year ?? 1970, (month ?? 1) - 1, 1));
+  return dateFormatter({ month: "long", year: "numeric" }).format(new Date(year ?? 1970, (month ?? 1) - 1, 1));
 }
 
 export function formatDateTime(iso: string): string {
   const date = new Date(iso);
-  return `${dateFormat.format(date)} at ${timeFormat.format(date)}`;
+  return `${dateFormatter(DATE).format(date)} at ${dateFormatter({ hour: "numeric", minute: "2-digit" }).format(date)}`;
 }
 
 /** Whole days between two instants, counted by local calendar day. */
@@ -119,6 +148,15 @@ function daysBetween(from: Date, to: Date): number {
  * "Today", "Yesterday", "5 days ago", then a date once that stops being the
  * useful way to say it.
  */
+/**
+ * A day as it is said inside a sentence: "today", "tomorrow" and
+ * "yesterday" in lower case, and anything else - a weekday, a date - as it
+ * is written, because "on wed, 21 oct" is not English.
+ */
+export function inSentence(day: string): string {
+  return day.replace(/^(?:Today|Tomorrow|Yesterday)\b/, (word) => word.toLowerCase());
+}
+
 export function relativeDay(iso: string, now: Date = new Date()): string {
   const then = new Date(iso);
   const days = daysBetween(then, now);

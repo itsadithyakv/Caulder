@@ -67,7 +67,7 @@ export function SearchPalette({
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <div className="card palette anim-spring" role="dialog" aria-modal="true" aria-label="Search everything">
+      <div className="card card--float palette anim-spring" role="dialog" aria-modal="true" aria-label="Search everything">
         <div className="palette__box">
           <Search size={18} className="palette__icon" aria-hidden />
           <input

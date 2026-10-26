@@ -10,8 +10,8 @@ const SIZE = { width: 560, height: 260 };
 const BOTTOM = { x: 0, y: 0, width: 1920, height: 1040 };
 
 describe("which key to claim", () => {
-  it("claims Ctrl+Alt+A when nobody has chosen", () => {
-    expect(shortcutToClaim(null)).toBe("Ctrl+Alt+A");
+  it("claims Ctrl+Q when nobody has chosen", () => {
+    expect(shortcutToClaim(null)).toBe("Ctrl+Q");
   });
 
   it("keeps a key that was turned off turned off, across restarts", () => {
@@ -71,8 +71,17 @@ describe("the tray itself", () => {
     expect(items).toContainEqual({ separator: true });
   });
 
-  it("says what the key does when hovered, and only when there is one", () => {
+  it("offers opening when Windows starts, ticked as it is - or Windows' own page for a Store copy", () => {
+    expect(trayItems(null, { on: true, store: false })).toContainEqual({ label: "Open when Windows starts", action: "startup", checked: true });
+    expect(trayItems(null, { on: false, store: false })).toContainEqual({ label: "Open when Windows starts", action: "startup", checked: false });
+    expect(trayItems(null, { on: true, store: true })).toContainEqual({ label: "Startup apps…", action: "startup-apps" });
+    // A build run from the project offers nothing it cannot do.
+    expect(trayItems(null, null).some((item) => "action" in item && item.action === "startup")).toBe(false);
+  });
+
+    it("says what the key does when hovered, and only when there is one", () => {
     expect(trayTooltip("Ctrl+Alt+A")).toBe("Caulder - Ctrl+Alt+A adds a task from anywhere");
+    expect(trayTooltip("Ctrl+Super+A")).toBe("Caulder - Ctrl+Win+A adds a task from anywhere");
     expect(trayTooltip(null)).toBe("Caulder");
   });
 });

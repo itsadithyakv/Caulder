@@ -17,17 +17,19 @@ off unless switched on.
 
 ## What is in here
 
-Five of these files describe **shipped behaviour**. Anything dated — status,
-progress, what is coming next — belongs in [../PLAN.md](../PLAN.md) or in Git history, not
-here. New material goes into a section of one of those files rather than into a
-new one. The sixth, the product review, is the exception: an opinion at a
-point in time, dated, and meant to be argued with.
+Six of these files describe **shipped behaviour**. Anything dated — status,
+progress, what is coming next — belongs in [../PLAN.md](../PLAN.md),
+[../STATUS.md](../STATUS.md) or Git history, not here. New material goes into a
+section of one of those files rather than into a new one. The seventh, the
+product review, is the exception: an opinion at a point in time, dated, and
+meant to be argued with.
 
 | File | Owns |
 | --- | --- |
 | [architecture.md](architecture.md) | The stack, the two processes, how they talk, and why each choice was made |
 | [data-model.md](data-model.md) | Every table and column, and the rules the schema enforces |
 | [features.md](features.md) | What the app actually does, screen by screen |
+| [feature-map.md](feature-map.md) | Where each feature lives in the code, what it touches, and the one existing way to do common things |
 | [design-language.md](design-language.md) | Tokens, the flat look and its rules, both themes |
 | [operations.md](operations.md) | Building, running, packaging, backups, where files live |
 | [product-review.md](product-review.md) | What it is for, how well it does it, and what should change |

@@ -11,7 +11,7 @@
   display: grid;
   /* The work gets the room; what to notice sits beside it rather than under
    * it. One column below 1200, where two would crush both. */
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.65fr) minmax(300px, 1fr);
   gap: var(--space-4);
   align-items: start;
 }
@@ -38,20 +38,227 @@
   gap: var(--space-4);
 }
 
-.today__actions {
+/* Hello and the day, in one line: the hello and the date at one size, then
+ * how much is waiting. The work is the point of the screen, so the header is
+ * not its biggest thing. */
+.today__head {
   display: flex;
+  flex-direction: column;
+}
+
+.today__day {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+}
+
+.today__greeting {
+  color: var(--ink);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  line-height: var(--leading-tight);
+  letter-spacing: -0.01em;
+}
+
+.today__date {
+  color: var(--ink-2);
+  font-size: var(--text-lg);
+  font-weight: 400;
+  line-height: var(--leading-tight);
+}
+
+.today__summary {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+/* Finish setting up, in one line under the quick line: what is left, each a
+ * link to the guide with a cross to wave it away, and Skip all at the end. It
+ * is an offer, so it takes the size of a hint rather than a card - the work
+ * below it is what the screen is for.
+ * features/onboarding/SetupNudge.tsx. */
+.setupnudge {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  /* Tucked up under the line it belongs with, not a full gap away. */
+  margin: calc(var(--space-2) * -1) 0 0;
+  padding: 0 var(--space-1);
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+.setupnudge__title {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.setupnudge__items {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.setupnudge__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.setupnudge__item + .setupnudge__item::before {
+  content: "\00b7";
+  margin-right: var(--space-2);
+  color: var(--ink-3);
+}
+
+.setupnudge__go {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 24px;
+  padding: 0 var(--space-1);
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: none;
+  color: var(--accent-strong);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.setupnudge__go:hover {
+  text-decoration: underline;
+}
+
+/* Small, but never smaller than a fingertip's worth: 24px square. */
+.setupnudge__skip {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.setupnudge__skip:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.setupnudge__go:focus-visible,
+.setupnudge__skip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.setupnudge__all {
+  margin-left: auto;
+}
+
+/* The ask for support, at the foot of the day (part six): the size of a
+ * hint, with a line above it so it reads as apart from the work.
+ * features/today/SupportAsk.tsx. */
+.supportask {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin-top: var(--space-5);
+  padding: var(--space-3) var(--space-1) 0;
+  border-top: 1px solid var(--border);
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+.supportask__mark {
+  flex: none;
+  color: var(--accent-strong);
+}
+
+.supportask__said {
+  margin: 0;
+  flex: 1 1 24rem;
+}
+
+.supportask__go {
+  min-height: 24px;
+  padding: 0 var(--space-1);
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: none;
+  color: var(--accent-strong);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.supportask__go:hover {
+  text-decoration: underline;
+}
+
+.supportask__never {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.supportask__never:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.supportask__go:focus-visible,
+.supportask__never:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.supportask--thanks {
   gap: var(--space-2);
 }
 
-/* Overdue is the one card allowed to announce itself, and it does it with its
- * edge rather than a full tint: a red card would shout over everything else on
- * the page. The heading and the count say what the edge means. */
+/* Nothing due is good news, said briefly: not a card-sized hole. */
+.today__clear .empty {
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  text-align: left;
+}
+
+/* Overdue is the one section allowed to announce itself, and it does it with
+ * its heading and its edge rather than a tint: a red sheet would shout over
+ * everything else on the page. */
 .card--alert {
-  border-color: color-mix(in srgb, var(--danger) 30%, var(--surface));
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--surface));
+}
+
+.card--alert .card__title {
+  color: var(--danger);
 }
 
 .today__group + .today__group {
-  margin-top: var(--space-5);
+  margin-top: var(--space-4);
 }
 
 .today__groupTitle {
@@ -77,13 +284,17 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ---- Task rows --------------------------------------------------------- */
+/* ---- Task rows ---------------------------------------------------------
+ * A list, not a stack of cards: rows divided by a hairline, each one line -
+ * the tick, the title, and after it in quiet type only what the heading
+ * above has not already said. A long title wraps and takes the note with
+ * it; the tick stays level with the first line.
+ * ---------------------------------------------------------------------- */
 
 .tasks {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  margin: var(--space-4) 0 0;
+  margin: var(--space-3) 0 0;
   padding: 0;
   list-style: none;
 }
@@ -92,24 +303,45 @@
   margin-top: 0;
 }
 
+/* Over a list of tasks the heading sits close: the rows carry their own air. */
+.today__group:has(> .tasks) > .today__groupTitle {
+  margin-bottom: var(--space-1);
+}
+
 .taskrow {
+  position: relative;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: var(--space-3);
   align-items: start;
-  padding: var(--space-3) var(--space-4);
+  margin: 0 calc(var(--space-2) * -1);
+  padding: 7px var(--space-2);
   border-radius: var(--radius-sm);
-  background: var(--surface);
-  border: 1px solid var(--border);
+  transition: background var(--dur-fast) var(--ease);
 }
 
-@media (max-width: 760px) {
-  .taskrow {
-    grid-template-columns: auto minmax(0, 1fr);
-  }
-  .taskrow__actions {
-    grid-column: 2;
-  }
+/* Between rows, a hairline that starts where the titles do. */
+.taskrow + .taskrow::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: var(--space-2);
+  left: calc(var(--space-2) + 22px + var(--space-3));
+  height: 1px;
+  background: var(--soft-line);
+}
+
+.taskrow:hover,
+.taskrow:focus-within {
+  background: var(--surface-hover);
+}
+
+/* Not drawn against a lit row, above or below it. */
+.taskrow:hover::before,
+.taskrow:focus-within::before,
+.taskrow:hover + .taskrow::before,
+.taskrow:focus-within + .taskrow::before {
+  opacity: 0;
 }
 
 /* The tick is the primary action, so it is the only outlined control in the
@@ -117,19 +349,23 @@
 .taskrow__tick {
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
-  border: 1px solid var(--border-strong);
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  border: 1.5px solid var(--border-strong);
   border-radius: 50%;
   background: var(--surface);
-  color: var(--ink-3);
+  color: transparent;
   cursor: pointer;
   transition:
     color var(--dur-fast) var(--ease),
-    border-color var(--dur-fast) var(--ease);
+    border-color var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease);
 }
 
-.taskrow__tick:hover:not(:disabled) {
+/* The check shows itself only when it is about to be pressed. */
+.taskrow__tick:hover:not(:disabled),
+.taskrow__tick:focus-visible {
   color: var(--ok);
   border-color: var(--ok);
 }
@@ -142,38 +378,46 @@
 .taskrow__body {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
   min-width: 0;
 }
 
-.taskrow__head {
+.taskrow__line {
   display: flex;
-  align-items: center;
-  gap: var(--space-2);
   flex-wrap: wrap;
-}
-
-.taskrow__kind {
-  flex: none;
-  color: var(--ink-3);
+  align-items: baseline;
+  column-gap: var(--space-3);
+  row-gap: 1px;
+  margin: 0;
+  line-height: 24px;
 }
 
 .taskrow__title {
   color: var(--ink);
-  font-weight: 700;
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
 
-.taskrow__kindLabel {
-  font-size: var(--text-xs);
+/* What the heading has not said, one small thing after another. */
+.taskrow__meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 6px;
+  color: var(--ink-3);
+  font-size: var(--text-sm);
 }
 
-.taskrow__meta {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-  font-size: var(--text-sm);
+.taskrow__meta > * + *::before {
+  content: "·";
+  margin-right: 6px;
+  color: var(--ink-3);
+  font-weight: 400;
+}
+
+.taskrow__must {
+  color: var(--accent-strong);
+  font-weight: 700;
 }
 
 .taskrow__lead {
@@ -207,16 +451,66 @@
 }
 
 .taskrow__notes {
+  margin: 0;
   color: var(--ink-2);
   font-size: var(--text-sm);
   white-space: pre-wrap;
 }
 
 .taskrow__actions {
+  position: relative;
   display: flex;
   align-items: center;
+  align-self: stretch;
   gap: var(--space-1);
-  flex-wrap: wrap;
+}
+
+.taskrow__more {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+@media (max-width: 760px) {
+  .taskrow {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .taskrow__actions {
+    grid-column: 2;
+    flex-wrap: wrap;
+  }
+}
+
+/* A row shows its tick and, for a call, Call. Moving it or deleting it is
+ * asked for less, so those come up over the end of the row when it is
+ * pointed at or has the keyboard - there to use, but not a column held open
+ * on every row, which is what made titles wrap early. Over whatever is
+ * beneath, on the row's own lit colour, just before Call when there is one. */
+@media (hover: hover) and (min-width: 761px) {
+  .taskrow__more {
+    position: absolute;
+    top: 50%;
+    right: calc(100% + var(--space-1));
+    padding-left: var(--space-4);
+    background: linear-gradient(to right, transparent, var(--surface-hover) var(--space-4));
+    opacity: 0;
+    translate: 0 -50%;
+    transition: opacity var(--dur-fast) var(--ease);
+  }
+
+  /* With nothing else in the actions, they sit at the row's own end. */
+  .taskrow__actions:not(:has(.taskrow__call)) .taskrow__more {
+    right: 0;
+  }
+
+  .taskrow:hover .taskrow__more,
+  .taskrow:focus-within .taskrow__more {
+    opacity: 1;
+  }
+}
+
+.taskrow__call {
+  white-space: nowrap;
 }
 
 /* ---- Going quiet ------------------------------------------------------- */
@@ -294,6 +588,16 @@
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: var(--space-4) var(--space-5);
   align-items: start;
+}
+
+/* A row being changed: the form in the row's own place in the list, so the
+ * eye stays where it was rather than going back up to the top of the screen. */
+.taskedit {
+  padding: var(--space-2) 0 var(--space-4);
+}
+
+.taskedit > .leadform {
+  margin-top: 0;
 }
 
 /* ---- Tasks on a lead --------------------------------------------------- */
@@ -377,10 +681,6 @@
   border: 1px solid var(--border);
 }
 
-/* A paused rule says so by going quiet rather than by disappearing: it is
- * still yours, it is just not running. */
-.rule--off { opacity: 0.55; }
-
 .rule__text {
   flex: 1;
   min-width: 0;
@@ -419,64 +719,44 @@
   list-style: none;
 }
 
-.agenda__row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  border: 1px solid var(--border);
-}
-
-.agenda__time {
-  color: var(--ink-2);
-  font-size: var(--text-sm);
-  font-variant-numeric: tabular-nums;
-  flex: none;
-  min-width: 7ch;
-}
-
-.agenda__title {
-  flex: 1;
-  color: var(--ink);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.agenda__len {
-  flex: none;
-  color: var(--ink-3);
-  font-size: var(--text-xs);
-}
-
 /* ---- The now line -------------------------------------------------------
  * One line answering the question the app is opened to ask. It sits above
  * everything because it outranks everything: what is owed later cannot matter
  * more than what is happening at this minute.
  * ------------------------------------------------------------------------ */
 
-.nowline {
+/* Your name, typed where it was offered. */
+.setupnudge__name {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2);
+}
+
+.setupnudge__name .input {
+  width: 170px;
+  padding-block: var(--space-1);
+}
+
+.nowline {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
   flex-wrap: wrap;
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  border: 1px solid var(--face-edge);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
 }
 
 .nowline__main,
 .nowline__free {
   margin: 0;
-  flex: 1;
-  min-width: 240px;
   color: var(--ink);
-  font-size: var(--text-md);
+  font-size: var(--text-base);
+}
+
+/* Open the day, at the end of the line. */
+.nowline > .btn {
+  margin-left: auto;
 }
 
 .nowline__label {
@@ -488,38 +768,9 @@
 
 .nowline__meta {
   margin: 0;
-  width: 100%;
   color: var(--ink-3);
   font-size: var(--text-sm);
 }
-
-/* ---- Area of life ------------------------------------------------------
- * A dot and a word. The dot carries the hue, the word stays in body ink, so a
- * list of twelve tasks across four areas reads as a list and not a paint
- * chart.
- * ---------------------------------------------------------------------- */
-
-.area {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--ink-2);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.area::before {
-  content: "";
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--area-personal);
-}
-
-.area--college::before { background: var(--area-college); }
-.area--company::before { background: var(--area-company); }
-.area--health::before { background: var(--area-health); }
 
 /* ---- The quick-add line ------------------------------------------------
  * The biggest input on the screen, because it is the one used most. The
@@ -529,9 +780,16 @@
  * ---------------------------------------------------------------------- */
 
 .today__quick {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-2) var(--space-3);
+}
+
+/* The full form sits beside the line it is the long way round for, at the
+ * line's own height - not adrift at the foot of the card. */
+.today__form {
+  min-height: 58px;
 }
 
 .today__quick > .quickadd {
@@ -540,6 +798,7 @@
 }
 
 .quickadd {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -556,15 +815,77 @@
   transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 
+/* The mark at the start of the line is a switch: pressed, lines are read by the
+ * AI that is connected. Quiet until pressed, and plainly on when it is. */
+.quickadd__mode {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  margin-left: calc(var(--space-1) * -1);
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+
+.quickadd__mode:hover {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+
+.quickadd__mode:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.quickadd__mode--on,
+.quickadd__mode--on:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
+/* What AI mode is doing with this line: who read it, and what went. */
+.quickadd__ai {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+/* What the AI answered, when the line was a question for it. */
+.quickadd__answer {
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.quickadd__answerActions {
+  display: flex;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+}
+
+/* A question answered in words, in the row the question is asked in. */
+.quickadd__reply {
+  flex: 1 1 14rem;
+  min-width: 10rem;
+  max-width: 22rem;
+  padding-block: var(--space-1);
+}
+
 .quickadd__row:focus-within {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-halo);
 }
 
-.quickadd__icon {
-  flex-shrink: 0;
-  color: var(--accent-strong);
-}
+/* ---- The answers, under the line they were asked from ------------------- */
 
 .quickadd__input {
   flex: 1;
@@ -573,11 +894,13 @@
   background: transparent;
   border: 0;
   color: var(--ink);
-  font-size: var(--text-lg);
+  font-size: var(--text-md);
 }
 
+/* An example, not an entry: quieter than anything typed, so an empty line looks empty. */
 .quickadd__input::placeholder {
   color: var(--ink-3);
+  opacity: 0.6;
 }
 
 .quickadd__input:focus-visible {
@@ -623,33 +946,6 @@
   color: var(--ink-3);
 }
 
-/* The area in the reading is a button - the guess most worth correcting -
-   but it keeps the dot-and-label look of every other area in the app, and
-   only admits to being a button on hover. */
-.quickadd__area {
-  padding: 2px var(--space-2);
-  margin: -2px 0;
-  background: transparent;
-  border: 0;
-  border-radius: var(--radius-sm);
-  font-family: inherit;
-  cursor: pointer;
-}
-
-.quickadd__area:hover {
-  background: var(--surface-hover);
-  color: var(--ink);
-}
-
-/* Faint until wanted: enough to say "this changes" without shouting it. */
-.quickadd__areaIcon {
-  opacity: 0.5;
-}
-
-.quickadd__area:hover .quickadd__areaIcon {
-  opacity: 1;
-}
-
 /* What the reading needs to say out loud: a slip it corrected, a repeat it
    cannot do. Quiet, but a line of its own so it is not missed. */
 .quickadd__aside {
@@ -682,6 +978,153 @@
 .quickadd__answers {
   display: flex;
   flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* The rest of the line: the note it will keep, and the second task it will
+ * make. Quieter than the reading above it - that is the task; this is what
+ * comes with it. */
+.quickadd__more {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+}
+
+.quickadd__then,
+.quickadd__noted {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.quickadd__thenLabel {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* What was read as something else, with the way to take that back beside it.
+ * A link-weight button: it is a correction to a correction, not a call to
+ * action, and should not compete with the answers under it. */
+.quickadd__keep {
+  margin-left: var(--space-2);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-style: normal;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.quickadd__keep:hover { text-decoration: underline; }
+
+/* Asked for: the offer taken, said as taken. */
+.quickadd__keep--on::before {
+  content: "✓ ";
+}
+
+/* ---- What Tab would add -------------------------------------------------
+ * The input and a copy of what was typed sit on top of each other in the same
+ * type, so the offered rest starts exactly where the typing ends. The copy is
+ * invisible; only the rest shows, quieter than anything typed.
+ */
+.quickadd__field {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.quickadd__ghost {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding: var(--space-2) 0;
+  overflow: hidden;
+  color: var(--ink-3);
+  font-size: var(--text-md);
+  white-space: pre;
+  pointer-events: none;
+}
+
+.quickadd__typed {
+  visibility: hidden;
+}
+
+.quickadd__tab {
+  margin-left: var(--space-2);
+  font-size: var(--text-xs);
+  opacity: 0.8;
+}
+
+/* ---- An answer, or several tasks, under the line ------------------------ */
+.quickadd__answer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.quickadd__lead {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.quickadd__found {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0 0 0 calc(14px + var(--space-2));
+  list-style: none;
+  color: var(--ink-2);
+}
+
+.quickadd__found li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.quickadd__foundDetail {
+  color: var(--ink-3);
+}
+
+/* ---- Tune (Settings) ---------------------------------------------------
+ * One question, set off the way the line's own questions are, so the two
+ * read as the same voice asking.
+ * ---------------------------------------------------------------------- */
+
+.tune {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-hover);
+  border: 1px solid var(--border);
+}
+
+.tune__question {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-base);
+}
+
+.tune__answers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-2);
 }
 
@@ -722,4 +1165,49 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+}
+
+/* Reach out: the ways somebody can be written to, as small marks at the row's end. */
+.reach__ways {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink-3);
+}
+
+/* ---- The week's three, at the head of Today (phase 35) ----------------- */
+.weekthree {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.weekthree__label {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.weekthree__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.weekthree__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink);
+  font-size: var(--text-sm);
 }

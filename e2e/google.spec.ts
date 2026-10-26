@@ -73,11 +73,26 @@ test("the whole setup is written on the card, not linked to", async () => {
 
   // Five steps, and the three that look wrong until explained are all named:
   // adding two services by hand, running a function to be asked for
-  // permission, and a deployment set to "Anyone".
+  // permission, and a deployment set to "Anyone". The words are checked
+  // inside the steps themselves, because the pictures say them again.
+  const words = page.locator(".guide__words");
   await expect(page.locator(".guide li")).toHaveCount(5);
-  await expect(page.getByText("Google Calendar API")).toBeVisible();
-  await expect(page.getByText("Tasks API")).toBeVisible();
-  await expect(page.locator(".guide").getByText("Anyone")).toBeVisible();
+  await expect(words.getByText("Google Calendar API")).toBeVisible();
+  await expect(words.getByText("Tasks API")).toBeVisible();
+  await expect(words.getByText("Anyone")).toBeVisible();
+});
+
+test("each step in somebody else's console is drawn, with the thing to press ringed", async () => {
+  const page = await openApp();
+
+  await page.getByRole("button", { name: "How to set this up" }).click();
+
+  // Four of the five steps happen in Google's console; the fifth is the two
+  // boxes on this card. A ring on the alarming answer, because that is the
+  // step people stop at.
+  await expect(page.locator(".guide .shot")).toHaveCount(4);
+  await expect(page.locator(".shot__ring", { hasText: "Anyone" })).toBeVisible();
+  await expect(page.locator(".shot__ring", { hasText: "Advanced" })).toBeVisible();
 });
 
 test("a URL that is not an Apps Script deployment is refused, and nothing is kept", async () => {
@@ -99,6 +114,19 @@ test("a URL that is not an Apps Script deployment is refused, and nothing is kep
   // refused: the mistake would resurface later as a sync that never runs.
   const state = await page.evaluate((company) => window.caulder.google.state(company!), id);
   expect(state.connected).toBe(false);
+});
+
+test("Import does not offer Google Contacts until Google is connected", async () => {
+  const page = await openApp();
+
+  // The offer is gated on there being a link to pull through. Showing it
+  // regardless would be a button whose only outcome is an error, on the
+  // screen somebody goes to when they have no contacts yet.
+  await page.getByRole("button", { name: "Contacts", exact: true }).click();
+  await page.locator(".leads__toolbar").getByRole("button", { name: "Import", exact: true }).click();
+
+  await expect(page.getByRole("button", { name: "Choose a file" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Read my Google Contacts" })).toHaveCount(0);
 });
 
 test("a syncing attempt with nothing connected says so rather than hanging", async () => {

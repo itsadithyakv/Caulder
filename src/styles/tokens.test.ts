@@ -78,7 +78,8 @@ describe("theme-dependent tokens are overridden for dark", () => {
   const COLOUR_VALUE = /^(#[0-9a-f]{3,8}|rgba?\(|color-mix\()/i;
 
   const mustOverride = [...light.entries()]
-    .filter(([name, value]) => COLOUR_VALUE.test(value) && !name.startsWith("--shadow"))
+    // A --doc- colour is the paper's (an invoice's ink): it is the same whatever the window's theme.
+    .filter(([name, value]) => COLOUR_VALUE.test(value) && !name.startsWith("--shadow") && !name.startsWith("--doc-"))
     .map(([name]) => name);
 
   it.each(mustOverride)("%s has a dark value", (name) => {
@@ -112,17 +113,17 @@ describe("tokens.css is the only place colour is defined", () => {
   });
 });
 
-describe("the personal face is declared like every other colour", () => {
+describe("the notebook face is declared like every other colour", () => {
   // The personal blocks sit after the theme blocks at the same specificity, so
   // anything the light personal block sets and a dark one forgets WINS in dark
   // mode: a coffee-cream surface under cream text. The rule the base palette
   // follows, enforced for the face too.
-  const personalLight = declarations(blockAfter(tokensCss, ':root[data-face="personal"] {'));
+  const personalLight = declarations(blockAfter(tokensCss, ':root[data-face="notebook"] {'));
   const personalDarkSystem = declarations(
-    blockAfter(tokensCss, ':root[data-face="personal"]:not([data-theme="light"])'),
+    blockAfter(tokensCss, ':root[data-face="notebook"]:not([data-theme="light"])'),
   );
   const personalDarkExplicit = declarations(
-    blockAfter(tokensCss, ':root[data-face="personal"][data-theme="dark"]'),
+    blockAfter(tokensCss, ':root[data-face="notebook"][data-theme="dark"]'),
   );
 
   /** Radii are the same in both themes on purpose; everything else is colour. */
@@ -152,5 +153,51 @@ describe("the personal face is declared like every other colour", () => {
         expect(value).not.toMatch(/var\(--(warn|danger|ok)/);
       }
     }
+  });
+});
+
+describe("every variable a stylesheet reads", () => {
+  // The legend dots for a block's kind went grey on 11 October 2026: the tokens were
+  // renamed with the kinds and two rules went on reading the old names. A variable
+  // nobody defines is not an error to a browser; it is no colour at all.
+  it("is defined, in the tokens or beside where it is used", () => {
+    const sheets = readdirSync(STYLES_DIR)
+      .filter((name) => name.endsWith(".css"))
+      .map((name) => ({ name, css: readFileSync(join(STYLES_DIR, name), "utf8").replace(/\/\*[\s\S]*?\*\//g, "") }));
+    const defined = new Set(sheets.flatMap(({ css }) => [...css.matchAll(/(--[a-z0-9-]+)\s*:/g)].map((match) => match[1])));
+    // And what a component sets on its own element: `style={{ "--ring-to": ... }}`.
+    const SRC = join(STYLES_DIR, "..");
+    for (const file of readdirSync(SRC, { recursive: true, encoding: "utf8" }).filter((name) => name.endsWith(".tsx"))) {
+      for (const match of readFileSync(join(SRC, file), "utf8").matchAll(/["'`](--[a-z0-9-]+)["'`]/g)) defined.add(match[1]);
+    }
+    const undefinedOnes = sheets.flatMap(({ name, css }) =>
+      [...css.matchAll(/var\((--[a-z0-9-]+)\s*\)/g)].filter((match) => !defined.has(match[1])).map((match) => `${name}: ${match[1]}`),
+    );
+    // With a fallback - var(--x, 4px) - it is meant to be set from a component, and is not listed.
+    expect(undefinedOnes).toEqual([]);
+  });
+});
+
+describe("no container has one edge heavier or more coloured than the rest", () => {
+  // The owner's rule, 13 October 2026: a card with a thick coloured bar down one side is the look
+  // of something generated, and says nothing a tint or a full edge does not. A quotation's bar in
+  // written text is the one exception - it is how a quotation is set, not a container.
+  const QUOTES = /\.(?:prose__quote|cm-md-quote)\b/;
+  it("has no thick border on one side, and no inset bar, in any stylesheet", () => {
+    const found: string[] = [];
+    for (const name of readdirSync(STYLES_DIR).filter((each) => each.endsWith(".css"))) {
+      const css = readFileSync(join(STYLES_DIR, name), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+      for (const rule of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+        const selector = (rule[1] ?? "").trim();
+        const body = rule[2] ?? "";
+        if (QUOTES.test(selector)) continue;
+        // A drawn triangle is three borders, two of them transparent: not an edge.
+        if (/border-(?:top|bottom|left|right):\s*\d+px\s+solid\s+transparent/.test(body)) continue;
+        const side = /border-(?:left|right|inline-start|inline-end):\s*([2-9]|\d{2,})px\s+solid\s+(?!transparent)/.exec(body);
+        const bar = /box-shadow:[^;]*inset\s+-?[1-9]\d*px\s+0(?:px)?\s+0/.exec(body);
+        if (side || bar) found.push(`${name}: ${selector.split("\n").pop()}`);
+      }
+    }
+    expect(found).toEqual([]);
   });
 });

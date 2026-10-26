@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { layOut, spentByKind, elapsedMinutes } from "./day";
+import { clashingWith, doubleBooked, layOut, spentByKind, elapsedMinutes } from "./day";
 import { minutesOf, timeOf, shiftTime, overlaps, minutesLeftInDay } from "./dates";
 import type { Block } from "./domain";
 
@@ -40,6 +40,10 @@ function block(startsAt: string, minutes: number, kind: string | null = "focus")
     isDirty: false,
     createdAt: "",
     updatedAt: "",
+    leadId: null,
+    leadName: null,
+    billable: false,
+    invoiceId: null,
   };
 }
 
@@ -166,5 +170,31 @@ describe("how much has already gone", () => {
 
   it("counts everything once the cursor is past the end", () => {
     expect(elapsedMinutes(morning, 24 * 60)).toBe(120);
+  });
+});
+
+describe("two things at once", () => {
+  it("names every pair that overlaps, when they meet, and not what is back to back", () => {
+    const call = { ...block("14:00", 30), title: "Call with Kettle & Crumb" };
+    const proposal = { ...block("14:15", 90), title: "Proposal for Harbour" };
+    const after = { ...block("15:45", 30), title: "Invoices" };
+    const lunch = { ...block("12:00", 60), title: "Lunch" };
+    expect(doubleBooked([after, lunch, proposal, call])).toEqual([{ at: "14:15", titles: ["Call with Kettle & Crumb", "Proposal for Harbour"] }]);
+    // Three at once is every pair of them.
+    const third = { ...block("14:20", 10), title: "Standup" };
+    expect(doubleBooked([call, proposal, third]).map((clash) => clash.titles.join(" / "))).toEqual([
+      "Call with Kettle & Crumb / Proposal for Harbour",
+      "Call with Kettle & Crumb / Standup",
+      "Proposal for Harbour / Standup",
+    ]);
+    expect(doubleBooked([lunch, after])).toEqual([]);
+  });
+
+  it("says what a time being chosen would overlap, leaving out the block being changed", () => {
+    const call = { ...block("14:00", 30), title: "Call" };
+    const books = { ...block("11:00", 60), title: "Books" };
+    expect(clashingWith({ startsAt: "13:30", minutes: 60 }, [call, books]).map((each) => each.title)).toEqual(["Call"]);
+    expect(clashingWith({ startsAt: "13:00", minutes: 60 }, [call, books])).toEqual([]);
+    expect(clashingWith({ id: call.id, startsAt: "14:10", minutes: 30 }, [call, books])).toEqual([]);
   });
 });

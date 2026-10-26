@@ -1,3 +1,5 @@
+import { UpdatesCard } from "./UpdatesCard";
+import { AboutCard } from "./AboutCard";
 import { useEffect, useState, type ReactNode } from "react";
 import { Archive, Check, Pencil, Trash2, X } from "lucide-react";
 import { AccentPicker } from "@/components/AccentPicker";
@@ -9,12 +11,22 @@ import { StageEditor } from "./StageEditor";
 import { DataSafety } from "./DataSafety";
 import { FieldsCard, RemindersCard } from "./Workbench";
 import { GoogleCard } from "./GoogleCard";
+import { ContactsSheetCard } from "./ContactsSheetCard";
 import { AiCard } from "./AiCard";
-import { WordsCard } from "./WordsCard";
+import { TuneCard } from "./TuneCard";
+import { LessonsCard } from "./LessonsCard";
+import { MailAccountsCard } from "./MailAccountsCard";
 import { TemplatesCard } from "./TemplatesCard";
-import { ThisIsMeCard } from "@/features/sharing/ThisIsMeCard";
+import { ConnectionsCard } from "./Connected";
+import { DeskCard } from "./DeskCard";
+import { UnderstandCard } from "./UnderstandCard";
+import { ThisIsMeCard } from "./ThisIsMeCard";
+import { BillingCard } from "./BillingCard";
+import { InvoiceLookCard } from "./InvoiceLookCard";
 import { getTheme, setTheme, type ThemeChoice } from "@/lib/theme";
-import { CURRENCIES, DEFAULT_CAPTURE_SHORTCUT, type AccentId, type Company } from "@shared/domain";
+import { DEFAULT_CAPTURE_SHORTCUT, sayShortcut, type AccentId, type Company } from "@shared/domain";
+import { countryName } from "@shared/countries";
+import { countryChoices, currencyChoices, timezoneChoices } from "@/lib/places";
 import { Select } from "@/components/Select";
 import { messageOf } from "@/lib/errors";
 
@@ -25,16 +37,20 @@ const THEME_OPTIONS: { id: ThemeChoice; label: string }[] = [
 ];
 
 /**
- * Settings, in four groups: this company, how the planner reads you, what
- * sits on the desk, and the app itself. The rail on the left is the table of
- * contents.
+ * Settings, in four groups: this company, how the planner reads you, Google
+ * and an AI, and this computer. The row of links along the top is the table
+ * of contents, and stays in view, showing which group is being read.
+ *
+ * Each group is laid out on purpose rather than poured: a narrow column and a
+ * wide one, with the cards shared between them so the two end together, and
+ * a card that is a whole screen of its own - the AI's, your data - across the
+ * full width underneath, with its two halves side by side.
  */
 const GROUPS = [
-  { id: "workspace", label: "Workspace" },
-  { id: "planning", label: "Planning" },
-  { id: "connections", label: "Connections" },
-  { id: "desk", label: "Desk" },
-  { id: "app", label: "The app" },
+  { id: "workspace", label: "Workspace", note: "You, your companies and the board." },
+  { id: "planning", label: "Planning", note: "The quick line and reminders." },
+  { id: "connections", label: "Connections", note: "Google, mail and an AI." },
+  { id: "computer", label: "This computer", note: "Looks, updates and your data." },
 ] as const;
 
 type GroupId = (typeof GROUPS)[number]["id"];
@@ -48,8 +64,28 @@ export function SettingsScreen({
   onOpenSetup: () => void;
 }) {
   const { companies, activeCompany } = useWorkspace();
+  const [current, setCurrent] = useState<GroupId>("workspace");
+
+  // The group being read: the first one in the upper part of the window.
+  useEffect(() => {
+    const showing = new Map<string, boolean>();
+    const watch = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) showing.set(entry.target.id, entry.isIntersecting);
+        const first = GROUPS.find((group) => showing.get(`settings-${group.id}`));
+        if (first) setCurrent(first.id);
+      },
+      { rootMargin: "-90px 0px -55% 0px" },
+    );
+    for (const group of GROUPS) {
+      const element = document.getElementById(`settings-${group.id}`);
+      if (element) watch.observe(element);
+    }
+    return () => watch.disconnect();
+  }, []);
 
   function jump(id: GroupId) {
+    setCurrent(id);
     document.getElementById(`settings-${id}`)?.scrollIntoView({ block: "start" });
   }
 
@@ -60,7 +96,8 @@ export function SettingsScreen({
           <button
             key={group.id}
             type="button"
-            className="settings__jump"
+            className={`settings__jump${current === group.id ? " settings__jump--on" : ""}`}
+            aria-current={current === group.id ? "true" : undefined}
             onClick={() => jump(group.id)}
           >
             {group.label}
@@ -69,85 +106,120 @@ export function SettingsScreen({
       </nav>
 
       <div className="settings__groups">
-        <Group id="workspace" label="Workspace">
-          <ThisIsMeCard />
-          <Card
-            title="Companies"
-            actions={
-              <button type="button" className="btn btn--sm" onClick={onAddCompany}>
-                Add a company
-              </button>
-            }
-          >
-            <div className="companies">
-              {companies.map((company) => (
-                <CompanyRow
-                  key={company.id}
-                  company={company}
-                  canArchive={companies.length > 1}
-                />
-              ))}
-            </div>
-          </Card>
-
-          {/* The board reads straight from this list. */}
+        <Group id="workspace">
+          <Column title="You and your companies">
+            <ThisIsMeCard />
+            <Card
+              title="Companies"
+              actions={
+                <button type="button" className="btn btn--sm" onClick={onAddCompany}>
+                  Add a company
+                </button>
+              }
+            >
+              <div className="companies">
+                {/* Your home is you, not a company: it is kept apart, never listed or archived here. */}
+                {companies
+                  .filter((company) => company.kind !== "personal")
+                  .map((company, _index, listed) => (
+                    <CompanyRow key={company.id} company={company} canArchive={listed.length > 1} />
+                  ))}
+              </div>
+            </Card>
+          </Column>
+          {/* Everything about how contacts and deals are kept. The board reads straight from the stages. */}
           {activeCompany && (
-            <>
+            <Column title="Contacts and deals">
               <StageEditor key={activeCompany.id} companyId={activeCompany.id} />
+              <BillingCard key={`billing-${activeCompany.id}`} companyId={activeCompany.id} currency={activeCompany.currency} />
+              <InvoiceLookCard key={`invoices-${activeCompany.id}`} companyId={activeCompany.id} />
               <FieldsCard />
               <TemplatesCard key={`templates-${activeCompany.id}`} />
-            </>
+            </Column>
           )}
         </Group>
 
-        <Group id="planning" label="Planning">
-          <WordsCard />
-          <RemindersCard />
+        <Group id="planning">
+          <Column>
+            <WordsAndTune />
+          </Column>
+          <Column>
+            <RemindersCard />
+          </Column>
         </Group>
 
-        <Group id="connections" label="Connections">
-          <Card
-            title="The setup guide"
-            hint="Google and an AI, in order, with what each one is for. The same cards as here."
-          >
-            <div className="actions">
-              <button type="button" className="btn btn--sm" onClick={onOpenSetup}>
-                Open the setup guide
-              </button>
-            </div>
-          </Card>
-          <GoogleCard />
-          <AiCard />
+        <Group id="connections">
+          <Column>
+            <ConnectionsCard onOpenSetup={onOpenSetup} />
+          </Column>
+          <Column>
+            <GoogleCard />
+            <ContactsSheetCard />
+            <MailAccountsCard />
+          </Column>
+          <Band>
+            <AiCard />
+          </Band>
         </Group>
 
-        <Group id="desk" label="Desk">
-          <CaptureCard />
-        </Group>
-
-        <Group id="app" label="The app">
-          <AppearanceCard />
+        <Group id="computer">
+          <Column>
+            <WindowsCard />
+            <AppearanceCard />
+            <UpdatesCard />
+          </Column>
+          <Column>
+            <CaptureCard />
+            <DeskCard />
+            <UnderstandCard />
+          </Column>
           {activeCompany && (
-            <DataSafety
-              key={activeCompany.id}
-              companyId={activeCompany.id}
-              companyName={activeCompany.name}
-            />
+            <Band>
+              <DataSafety key={activeCompany.id} companyId={activeCompany.id} companyName={activeCompany.name} />
+            </Band>
           )}
+          {/* Last in Settings, as an About is: free, who made it, and how to help (part six). */}
+          <Band>
+            <AboutCard />
+          </Band>
         </Group>
       </div>
     </div>
   );
 }
 
-function Group({ id, label, children }: { id: GroupId; label: string; children: ReactNode }) {
+/**
+ * One group: its name and a line about it, then a narrow column and a wide
+ * one side by side - a single column when the window is narrow.
+ */
+function Group({ id, children }: { id: GroupId; children: ReactNode }) {
+  const group = GROUPS.find((each) => each.id === id);
   return (
     <section className="settings__group" id={`settings-${id}`} aria-labelledby={`settings-${id}-title`}>
-      <h2 className="settings__groupTitle" id={`settings-${id}-title`}>
-        {label}
-      </h2>
-      <div className="settings__cards">{children}</div>
+      <header className="settings__groupHead">
+        <h2 className="settings__groupTitle" id={`settings-${id}-title`}>
+          {group?.label}
+        </h2>
+        <p className="settings__groupNote">{group?.note}</p>
+      </header>
+      <div className="settings__grid">{children}</div>
     </section>
   );
+}
+
+/** Cards one under another. The last one stretches, so the columns beside each other end on one line. */
+function Column({ title, children }: { title?: string; children: ReactNode }) {
+  return (
+    <div className="settings__col">
+      {title && <h3 className="settings__colTitle">{title}</h3>}
+      {children}
+    </div>
+  );
+}
+
+/** A card across the whole group, under its columns. */
+function Band({ children }: { children: ReactNode }) {
+  return <div className="settings__band">{children}</div>;
 }
 
 function AppearanceCard() {
@@ -159,7 +231,7 @@ function AppearanceCard() {
   }
 
   return (
-    <Card title="Appearance" hint="Match system follows Windows. The other two override it.">
+    <Card title="Appearance">
       <div className="tabs settings__themes" role="tablist" aria-label="Theme">
         {THEME_OPTIONS.map((option) => (
           <button
@@ -174,12 +246,13 @@ function AppearanceCard() {
           </button>
         ))}
       </div>
+
     </Card>
   );
 }
 
 function CompanyRow({ company, canArchive }: { company: Company; canArchive: boolean }) {
-  const { rename, setAccent, setCurrency, archive, remove } = useWorkspace();
+  const { rename, setAccent, setCurrency, setCountry, setTimezone, archive, remove } = useWorkspace();
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(company.name);
@@ -255,7 +328,7 @@ function CompanyRow({ company, canArchive }: { company: Company; canArchive: boo
         ) : (
           <>
             <span className="company-row__name">{company.name}</span>
-            <span className="company-row__meta">{company.timezone}</span>
+            <span className="company-row__meta">{company.country ? countryName(company.country) : "Country not chosen"}</span>
             <button
               type="button"
               className="btn btn--sm btn--ghost btn--icon"
@@ -274,10 +347,24 @@ function CompanyRow({ company, canArchive }: { company: Company; canArchive: boo
           thing; this is which thing. */}
       <Select
         compact
+        aria-label={`Country for ${company.name}`}
+        value={company.country ?? ""}
+        onChange={(code) => (code ? void run(() => setCountry(company.id, code)) : undefined)}
+        options={[...(company.country ? [] : [{ value: "", label: "Choose a country" }]), ...countryChoices()]}
+      />
+      <Select
+        compact
         aria-label={`Currency for ${company.name}`}
         value={company.currency}
         onChange={(code) => void run(() => setCurrency(company.id, code))}
-        options={CURRENCIES.map((code) => ({ value: code as string, label: code as string }))}
+        options={currencyChoices(company.currency)}
+      />
+      <Select
+        compact
+        aria-label={`Timezone for ${company.name}`}
+        value={company.timezone}
+        onChange={(zone) => void run(() => setTimezone(company.id, zone))}
+        options={timezoneChoices(company.timezone)}
       />
 
       {/* Archiving the last company would leave the app with no workspace and
@@ -382,11 +469,77 @@ function CompanyRow({ company, canArchive }: { company: Company; canArchive: boo
  * to the combination first, and believing in a key you do not have is worse
  * than having none.
  */
+/**
+ * How Caulder sits on this computer: whether it opens when Windows starts,
+ * and whether closing the window leaves it in the tray. First under This
+ * computer, and on the tray icon's own menu too, since both are asked for
+ * from the desktop rather than from inside the app.
+ */
+function WindowsCard() {
+  const [keep, setKeep] = useState(true);
+  const [startup, setStartup] = useState<{ on: boolean; store: boolean } | null>(null);
+
+  useEffect(() => {
+    void window.caulder.capture.keepInTray().then(setKeep);
+    window.caulder.app.startup().then(setStartup, () => undefined);
+  }, []);
+
+  async function chooseKeep(on: boolean) {
+    setKeep(on);
+    await window.caulder.capture.setKeepInTray(on);
+  }
+
+  return (
+    <Card title="Windows">
+      {/* `field` carries the display; `checkline` only sets its direction. */}
+      <label className="field checkline">
+        <input
+          type="checkbox"
+          className="tickbox"
+          checked={keep}
+          onChange={(event) => void chooseKeep(event.target.checked)}
+          aria-label="Keep Caulder in the tray when its window is closed"
+        />
+        <span className="checkline__text">
+          <span className="checkline__title">Keep Caulder in the tray when its window is closed</span>
+          <span className="card__hint">
+            Quit from the tray icon&rsquo;s menu.
+          </span>
+        </span>
+      </label>
+
+      {startup && !startup.store && (
+        <label className="field checkline">
+          <input
+            type="checkbox"
+            className="tickbox"
+            checked={startup.on}
+            onChange={(event) => void window.caulder.app.setStartup(event.target.checked).then(setStartup)}
+            aria-label="Open Caulder when Windows starts"
+          />
+          <span className="checkline__text">
+            <span className="checkline__title">Open Caulder when Windows starts</span>
+            <span className="card__hint">{keep ? "In the tray, out of the way." : "With its window open."}</span>
+          </span>
+        </label>
+      )}
+      {startup?.store && (
+        <p className="card__hint">
+          Opens when Windows starts.{" "}
+          <button type="button" className="linkbtn" onClick={() => void window.caulder.app.startupApps()}>
+            Change it in Windows
+          </button>
+        </p>
+      )}
+
+    </Card>
+  );
+}
+
 function CaptureCard() {
   const [state, setState] = useState<{ accelerator: string; held: boolean; reason: string | null } | null>(null);
   const [draft, setDraft] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
-  const [keep, setKeep] = useState(true);
 
   async function load() {
     const now = await window.caulder.capture.get();
@@ -396,7 +549,6 @@ function CaptureCard() {
 
   useEffect(() => {
     void load();
-    void window.caulder.capture.keepInTray().then(setKeep);
   }, []);
 
   async function apply(next: string) {
@@ -406,17 +558,13 @@ function CaptureCard() {
     await load();
   }
 
-  async function chooseKeep(on: boolean) {
-    setKeep(on);
-    await window.caulder.capture.setKeepInTray(on);
-  }
 
   const held = state?.held ? state.accelerator : "";
 
   return (
     <Card
       title="Quick add from anywhere"
-      hint="A key that opens a small task window over whatever you are doing. The tray icon opens the same window."
+      hint="A key that opens a task window from any app."
     >
       <ErrorLine>{problem}</ErrorLine>
 
@@ -425,7 +573,7 @@ function CaptureCard() {
           className="input"
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
-          placeholder={DEFAULT_CAPTURE_SHORTCUT}
+          placeholder={sayShortcut(DEFAULT_CAPTURE_SHORTCUT)}
           aria-label="The quick-add key"
         />
         <button
@@ -445,7 +593,7 @@ function CaptureCard() {
               void apply(DEFAULT_CAPTURE_SHORTCUT);
             }}
           >
-            Use {DEFAULT_CAPTURE_SHORTCUT}
+            Use {sayShortcut(DEFAULT_CAPTURE_SHORTCUT)}
           </button>
         )}
         {held.length > 0 && (
@@ -467,25 +615,8 @@ function CaptureCard() {
           ? `${state.accelerator} is held. Press it anywhere to add a task.`
           : state?.reason && !problem
             ? state.reason
-            : "No key is set, so nothing is being taken from anything else. The tray icon still works."}
+            : "No key set. The tray icon still works."}
       </p>
-
-      {/* `field` carries the display; `checkline` only sets its direction. */}
-      <label className="field checkline">
-        <input
-          type="checkbox"
-          className="tickbox"
-          checked={keep}
-          onChange={(event) => void chooseKeep(event.target.checked)}
-          aria-label="Keep Caulder in the tray when its window is closed"
-        />
-        <span className="checkline__text">
-          <span className="checkline__title">Keep Caulder in the tray when its window is closed</span>
-          <span className="card__hint">
-            So the key and the reminders keep working. Quit from the icon&rsquo;s menu.
-          </span>
-        </span>
-      </label>
 
       <Explain label="What the window does">
         <p>
@@ -501,5 +632,15 @@ function CaptureCard() {
         </p>
       </Explain>
     </Card>
+  );
+}
+
+/** How the line reads: what it was unsure of, and what it learnt from being moved. */
+function WordsAndTune() {
+  return (
+    <>
+      <TuneCard />
+      <LessonsCard />
+    </>
   );
 }

@@ -5,7 +5,6 @@ import { createCompany } from "../repositories/companies";
 import { createLead } from "../repositories/leads";
 import { completeTask, findTask } from "../repositories/tasks";
 import { decisionLog, newPage, savePage } from "./brain";
-import { addPerson } from "./people";
 import { makeTasks, pageTasks } from "./steps";
 import { deadlinesBetween } from "./deadlines";
 import { leadInput, type Company } from "@shared/domain";
@@ -34,8 +33,7 @@ function page(section: string, template: string, title: string, body: string, fi
 }
 
 describe("a meeting's action items", () => {
-  it("become tasks once each, owned by who was @-named, due a week after the meeting unless they say", () => {
-    const asha = addPerson(db, company.id, { name: "Asha Rao", kind: "founder" }, now).person;
+  it("become tasks once each, naming who was @-named, due a week after the meeting unless they say", () => {
     const meeting = page(
       "meetings",
       "meeting",
@@ -57,12 +55,12 @@ describe("a meeting's action items", () => {
     expect(hall?.task).toBeNull();
 
     const task = findTask(db, proposal?.task?.id ?? "");
-    expect(task?.title).toBe("Send the proposal (Asha Rao)");
+    expect(task?.title).toBe("Send the proposal (Asha)");
     // Today's row says which page made it, and opens it.
     expect(task).toMatchObject({ pageId: meeting.id, pageTitle: "Founder check-in" });
+    // There is no team to look a name up in: it is kept in the task's words, as written.
     const owned = db.prepare(`SELECT person_id, page_id FROM tasks WHERE id = ?`).get(task?.id);
-    expect(owned).toEqual({ person_id: asha.id, page_id: meeting.id });
-    // Ravi is not on the team; his name is kept in the title all the same.
+    expect(owned).toEqual({ person_id: null, page_id: meeting.id });
     expect(findTask(db, website?.task?.id ?? "")?.title).toBe("Fix the website (Ravi)");
 
     // Made once: pressing again has nothing to do.

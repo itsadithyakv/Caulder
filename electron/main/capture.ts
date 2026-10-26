@@ -13,7 +13,7 @@ import { nearTray, trayShouldOpen } from "./popup";
  *
  * Two rules it lives by:
  *
- *  - **On from the start, and easy to turn off.** The key is Ctrl+Alt+A until
+ *  - **On from the start, and easy to turn off.** The key is Ctrl+Q until
  *    somebody picks another or none - and a key turned off stays off.
  *  - **A failed registration is reported, not swallowed.** Another app may
  *    already own the combination, and believing you have a key that does
@@ -198,7 +198,8 @@ function claim(accelerator: string): ShortcutResult {
  * that turns out to be taken must not cost you the one that worked.
  */
 export function setCaptureShortcut(accelerator: string): ShortcutResult {
-  const wantedKey = accelerator.trim();
+  // "Win" is how the key is said; Electron knows it as Super.
+  const wantedKey = accelerator.trim().replace(/\bwin(?:dows)?\b/gi, "Super");
   const previous = registered;
   if (previous) {
     globalShortcut.unregister(previous);

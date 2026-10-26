@@ -16,7 +16,6 @@ import {
   QUOTE_STATUS_LABEL,
   RELATIONSHIP_LABEL,
   TASK_KIND_LABEL,
-  documentNumber,
   type Activity,
   type Invoice,
   type Quote,
@@ -44,16 +43,8 @@ import {
   periodOf,
 } from "@shared/deadlines";
 import { shiftDay } from "@shared/dates";
-import { listOpenings, listPeople } from "../repositories/people";
+import { localeFor } from "@shared/countries";
 import { buildMetrics } from "./metrics";
-import {
-  CANDIDATE_STAGE_LABEL,
-  OPENING_STATUS_LABEL,
-  PAY_PERIOD_LABEL,
-  PERSON_KIND_LABEL,
-  describeVesting,
-  equitySplit,
-} from "@shared/people";
 import { safeName, stamp } from "./names";
 
 /**
@@ -73,7 +64,8 @@ type Page = ReturnType<typeof pagesOf>[number];
 /** Which document each section of the brain goes in. */
 const COMPANY_SECTIONS: readonly BrainSectionId[] = ["company", "plan", "products", "money", "tax", "legal", "tools"];
 const SALES_SECTIONS: readonly BrainSectionId[] = ["customers", "playbooks"];
-const RUNNING_SECTIONS: readonly BrainSectionId[] = ["people", "decisions", "meetings", "metrics", "documents", "ideas"];
+// "Remembered" is where the line keeps what it is told to - how the company runs, said in passing.
+const RUNNING_SECTIONS: readonly BrainSectionId[] = ["decisions", "meetings", "metrics", "documents", "ideas", "remembered"];
 
 /** How much of each contact's history is written out; older entries are counted, not listed. */
 const HISTORY_PER_CONTACT = 25;
@@ -88,8 +80,9 @@ const OUTCOME_WORDS: Record<CallOutcome, string> = {
   spoke: "spoke",
 };
 
-function moneyIn(currency: string): (value: number) => string {
-  const format = new Intl.NumberFormat(currency === "INR" ? "en-IN" : "en-US", { maximumFractionDigits: 0 });
+/** "INR 1,85,000": the code, then the number grouped the way it is where the company is. */
+function moneyIn(currency: string, country: string | null): (value: number) => string {
+  const format = new Intl.NumberFormat(localeFor(country) ?? (currency === "INR" ? "en-IN" : "en-US"), { maximumFractionDigits: 0 });
   return (value) => `${currency} ${format.format(value)}`;
 }
 
@@ -175,6 +168,8 @@ type DossierOptions = {
    * such as a question to Claude. The rest are counted, not written.
    */
   contacts?: ReadonlySet<string>;
+  /** Only these pages of the brain, when given: the ones a question is about (services/relevant.ts). */
+  pages?: ReadonlySet<string>;
 };
 
 export function buildDossier(
@@ -183,16 +178,19 @@ export function buildDossier(
   options: DossierOptions,
   now: Date = new Date(),
 ): DossierDocument[] {
-  const company = db.prepare(`SELECT name, currency, timezone FROM companies WHERE id = ?`).get(companyId) as
-    | { name: string; currency: string; timezone: string }
+  const company = db.prepare(`SELECT name, currency, country, timezone FROM companies WHERE id = ?`).get(companyId) as
+    | { name: string; currency: string; country: string | null; timezone: string }
     | undefined;
   if (!company) throw new Error("That company no longer exists.");
 
-  const money = moneyIn(company.currency);
-  const pages = pagesOf(db, companyId).filter((page) => page.is_archived === 0);
+  const money = moneyIn(company.currency, company.country);
+  // The company's pages only. Your own travel in the You document, under
+  // their own switch - never in here, whatever section they were filed in.
+  const everyPage = pagesOf(db, companyId).filter((page) => page.is_archived === 0);
+  const pages = options.pages ? everyPage.filter((page) => options.pages?.has(page.id)) : everyPage;
   const leads = listLeads(db, { companyId, sort: "name", direction: "asc" });
   const names: Names = {
-    titles: new Map(pages.map((page) => [page.id, page.title])),
+    titles: new Map(everyPage.map((page) => [page.id, page.title])),
     contacts: new Map(leads.map((lead) => [lead.id, lead.name])),
   };
   const overview = buildMoney(db, companyId, now);
@@ -260,9 +258,7 @@ export function buildDossier(
               ? "The filing calendar"
               : deadline.source === "page"
                 ? "Its page"
-                : deadline.source === "person"
-                  ? "People"
-                  : "Documents",
+                : "Documents",
             deadline.doneOn ? `Done ${deadline.doneOn}` : describeDeadline(deadline),
           ]),
         )),
@@ -307,83 +303,6 @@ export function buildDossier(
             document.notes ?? "",
           ]),
         )),
-  ];
-
-  // People: the team with their terms, the equity split, hiring, and who has left.
-  const people = listPeople(db, companyId, exported);
-  const openings = listOpenings(db, companyId);
-  const team = people.filter((person) => person.status === "current" || person.status === "starting");
-  const left = people.filter((person) => person.status === "past");
-  const candidates = people.filter((person) => person.status === "candidate");
-  const split = equitySplit(people);
-  const termsOf = (person: (typeof people)[number]) =>
-    [
-      person.pay !== null ? `${money(person.pay)}${person.payPer ? ` ${PAY_PERIOD_LABEL[person.payPer]}` : ""}` : null,
-      person.equity !== null
-        ? `${person.equity}% equity (${describeVesting(person.vestingMonths, person.cliffMonths)}${
-            person.vesting && person.vesting.vested < person.vesting.equity ? `; ${person.vesting.vested}% vested` : ""
-          })`
-        : null,
-    ]
-      .filter(Boolean)
-      .join("; ");
-
-  const peopleExtra: string[] = [
-    "### The team",
-    "",
-    ...(team.length === 0
-      ? ["*Nobody written down.*", ""]
-      : table(
-          ["Name", "Here as", "Role", "From", "Until", "Terms", "What they own"],
-          team.map((person) => [
-            person.name,
-            PERSON_KIND_LABEL[person.kind],
-            person.role ?? "",
-            person.startsOn ?? "",
-            person.endsOn ?? "",
-            termsOf(person),
-            person.owns ?? "",
-          ]),
-        )),
-    ...(split.holders.length === 0
-      ? []
-      : [
-          `**Equity given: ${split.given}%** - ${split.holders.map((holder) => `${holder.name} ${holder.equity}%`).join(", ")}.`,
-          "",
-        ]),
-    "### Hiring",
-    "",
-    ...(openings.length === 0 && candidates.length === 0
-      ? ["*Nobody being hired.*", ""]
-      : [
-          ...openings.flatMap((opening) => {
-            const theirs = candidates.filter((person) => person.openingId === opening.id);
-            return [
-              `- **${opening.title}** (${OPENING_STATUS_LABEL[opening.status].toLowerCase()}${opening.pay ? `, ${opening.pay}` : ""})${
-                theirs.length > 0
-                  ? `: ${theirs.map((person) => `${person.name} - ${CANDIDATE_STAGE_LABEL[person.stage ?? "applied"].toLowerCase()}`).join("; ")}`
-                  : ": no candidates yet"
-              }`,
-            ];
-          }),
-          ...candidates
-            .filter((person) => !openings.some((opening) => opening.id === person.openingId))
-            .map((person) => `- ${person.name}, not for a particular role - ${CANDIDATE_STAGE_LABEL[person.stage ?? "applied"].toLowerCase()}`),
-          "",
-        ]),
-    ...(left.length === 0
-      ? []
-      : [
-          "### People who have left",
-          "",
-          ...table(
-            ["Name", "Was", "Role", "From", "Until"],
-            left.map((person) => [person.name, PERSON_KIND_LABEL[person.kind], person.role ?? "", person.startsOn ?? "", person.endsOn ?? ""]),
-          ),
-        ]),
-    ...people
-      .filter((person) => person.notes)
-      .flatMap((person) => [`### Notes on ${person.name}`, "", shiftHeadings(person.notes ?? "", 3), ""]),
   ];
 
   // Metrics: each with where it is now, what it is compared with, and its year.
@@ -442,9 +361,6 @@ export function buildDossier(
     `- ${runwayLine}`,
     `- Running costs: ${money(costs.monthly)} a month across ${costs.costs.length} ${costs.costs.length === 1 ? "cost" : "costs"}.`,
     `- Contacts: ${leads.length}. Open deals: ${openDeals.length}, worth ${money(openValue)}.`,
-    `- People: ${team.length} on the team, ${openings.filter((opening) => opening.status === "open").length} open ${
-      openings.filter((opening) => opening.status === "open").length === 1 ? "role" : "roles"
-    }, ${candidates.filter((person) => person.stage !== "declined").length} candidates in play.`,
     `- Unpaid and overdue invoices: ${overview.overdue.length}. Open tasks: ${openTasks.length}.`,
     `- Deadlines: ${late.length} late, ${ahead.filter((deadline) => !deadline.doneOn && deadline.daysLeft <= 30).length} in the next 30 days.`,
     "",
@@ -459,7 +375,7 @@ export function buildDossier(
     "",
     "1. **The company** - who the company is, its plan, what it sells and for how much, its money: this month, running costs, runway, the budget; tax and what it files when, legal and the tools it pays for.",
     "2. **Customers and sales** - the funnel, every deal, every contact with its notes, calls and history, what customers have taught us, and the playbooks and call scripts.",
-    "3. **People and running the company** - the team with their terms and equity, hiring, decisions and why, meetings, metrics, documents, ideas, open tasks and loose notes.",
+    "3. **Running the company** - decisions and why, meetings, metrics, documents, ideas, open tasks and loose notes.",
     "",
     `Money is in ${company.currency}, in whole units. Dates are year-month-day. The company's timezone is ${company.timezone}. ${masked}`,
     "",
@@ -527,6 +443,35 @@ export function buildDossier(
             cost.nextOn ?? "",
           ]),
         )),
+    "### Invoices not yet paid",
+    "",
+    ...(() => {
+      const unpaid = overview.invoices.filter((invoice) => invoice.status === "sent");
+      if (unpaid.length === 0) return ["*None.*", ""];
+      return table(
+        ["Invoice", "Contact", "Deal", "Issued", "Due", "Total", "Paid"],
+        unpaid.map((invoice) => [
+          invoice.label,
+          invoice.leadName,
+          invoice.dealTitle ?? "",
+          invoice.issuedOn,
+          `${invoice.dueOn}${invoice.dueOn < exported ? " (overdue)" : ""}`,
+          money(invoice.total),
+          money(invoice.paid),
+        ]),
+      );
+    })(),
+    "### Spending in the last three months",
+    "",
+    ...(() => {
+      const since = new Date(now.getTime() - 92 * 86_400_000).toISOString().slice(0, 10);
+      const recent = overview.spend.filter((entry) => entry.spentOn >= since);
+      if (recent.length === 0) return ["*Nothing recorded.*", ""];
+      return table(
+        ["Date", "What", "Amount"],
+        recent.map((entry) => [entry.spentOn, entry.what, money(entry.amount)]),
+      );
+    })(),
     "## What we sell",
     "",
     ...(() => {
@@ -566,35 +511,6 @@ export function buildDossier(
           ...(product.notes ? [shiftHeadings(product.notes, 3), ""] : []),
         ]);
       return [...rows, ...books];
-    })(),
-    "### Invoices not yet paid",
-    "",
-    ...(() => {
-      const unpaid = overview.invoices.filter((invoice) => invoice.status === "sent");
-      if (unpaid.length === 0) return ["*None.*", ""];
-      return table(
-        ["Invoice", "Contact", "Deal", "Issued", "Due", "Total", "Paid"],
-        unpaid.map((invoice) => [
-          documentNumber("invoice", invoice.number),
-          invoice.leadName,
-          invoice.dealTitle ?? "",
-          invoice.issuedOn,
-          `${invoice.dueOn}${invoice.dueOn < exported ? " (overdue)" : ""}`,
-          money(invoice.total),
-          money(invoice.paid),
-        ]),
-      );
-    })(),
-    "### Spending in the last three months",
-    "",
-    ...(() => {
-      const since = new Date(now.getTime() - 92 * 86_400_000).toISOString().slice(0, 10);
-      const recent = overview.spend.filter((entry) => entry.spentOn >= since);
-      if (recent.length === 0) return ["*Nothing recorded.*", ""];
-      return table(
-        ["Date", "What", "Amount"],
-        recent.map((entry) => [entry.spentOn, entry.what, money(entry.amount)]),
-      );
     })(),
     ...sectionBlocks(pages, COMPANY_SECTIONS, options.secrets, names, { tax: taxExtra }),
   ];
@@ -660,6 +576,8 @@ export function buildDossier(
       ["City", [lead.city, lead.location].filter(Boolean).join(", ") || null],
       ["Source", lead.source],
       ["Website", lead.website],
+      ["LinkedIn", lead.linkedin],
+      ["Instagram", lead.instagram],
       ["Last spoke", lead.lastContactedAt?.slice(0, 10) ?? "Never"],
       ["Do not contact", lead.doNotContact ? "Yes" : null],
     ].filter((pair): pair is [string, string] => typeof pair[1] === "string" && pair[1].length > 0);
@@ -692,7 +610,7 @@ export function buildDossier(
       for (const doc of docs) {
         const invoice = "dueOn" in doc;
         inPlay.push(
-          `- ${documentNumber(invoice ? "invoice" : "quote", doc.number)}, ${doc.issuedOn}: ${money(doc.total)}, ${
+          `- ${doc.label}, ${doc.issuedOn}: ${money(doc.total)}, ${
             invoice ? INVOICE_STATUS_LABEL[(doc as Invoice).status] : QUOTE_STATUS_LABEL[(doc as Quote).status]
           }${doc.dealTitle && doc.dealTitle !== lead.name ? ` (${doc.dealTitle})` : ""}`,
         );
@@ -777,16 +695,15 @@ export function buildDossier(
     ...sectionBlocks(pages, SALES_SECTIONS, options.secrets, names),
   ];
 
-  /* ---- 03 People and running the company ---- */
+  /* ---- 03 Running the company ---- */
 
   const notes = listNotes(db, companyId, "", 500);
   const running: string[] = [
-    `# ${company.name}: people and running the company`,
+    `# ${company.name}: running the company`,
     "",
     `*Part of the ${company.name} dossier, exported ${exported}. ${masked}*`,
     "",
     ...sectionBlocks(pages, RUNNING_SECTIONS, options.secrets, names, {
-      people: peopleExtra,
       metrics: metricsExtra,
       documents: documentsExtra,
     }),
@@ -810,19 +727,34 @@ export function buildDossier(
     { file: `00 ${stem} - read me first.md`, title: "Read me first", text: readme.join("\n") },
     { file: `01 ${stem} - the company.md`, title: "The company", text: company1.join("\n") },
     { file: `02 ${stem} - customers and sales.md`, title: "Customers and sales", text: sales.join("\n") },
-    { file: `03 ${stem} - people and running the company.md`, title: "People and running the company", text: running.join("\n") },
+    { file: `03 ${stem} - running the company.md`, title: "Running the company", text: running.join("\n") },
   ];
 }
 
 /** Writes the dossier into a folder, and says how many files. */
+/** What goes with the dossier besides the company (phase 22): *04 you*, and what it is for. */
+type DossierExtras = {
+  /** The export of you, when it was chosen. */
+  you?: DossierDocument | null;
+  /** What it is for, and the pages and contacts nearest that: read first. */
+  purpose?: { said: string; first: readonly string[] } | null;
+};
+
 export function writeDossier(
   db: Db,
   companyId: string,
   folder: string,
   options: { secrets: boolean },
   now: Date = new Date(),
+  extras: DossierExtras = {},
 ): number {
   const documents = buildDossier(db, companyId, options, now);
+  const readMe = documents[0];
+  if (readMe && extras.purpose) {
+    const first = extras.purpose.first.length > 0 ? ["", "Read these first:", "", ...extras.purpose.first.map((title) => `- ${title}`)] : [];
+    readMe.text = [readMe.text, "", "## What this is for", "", extras.purpose.said, ...first, ""].join("\n");
+  }
+  if (extras.you) documents.push(extras.you);
   mkdirSync(folder, { recursive: true });
   for (const document of documents) writeFileSync(join(folder, document.file), document.text, "utf8");
   return documents.length;
@@ -835,7 +767,8 @@ export function exportDossier(
   parent: string,
   options: { secrets: boolean },
   now: Date = new Date(),
+  extras: DossierExtras = {},
 ): BrainExport {
   const folder = join(parent, `${safeName(companyName)} dossier ${stamp(now)}`);
-  return { folder, files: writeDossier(db, companyId, folder, options, now) };
+  return { folder, files: writeDossier(db, companyId, folder, options, now, extras) };
 }

@@ -12,6 +12,7 @@ import {
 import { planEvents, planTasks } from "@shared/gsync";
 import type { LocalBlock, LocalTask, RemoteEvent, RemoteTask } from "@shared/gsync";
 import { shiftDay, today as todayIn } from "@shared/dates";
+import { comeBack, findTask } from "../repositories/tasks";
 import type { GoogleSync } from "@shared/domain";
 
 /**
@@ -115,6 +116,8 @@ export type Hello = {
   email: string;
   calendars: { id: string; name: string }[];
   taskLists: { id: string; name: string }[];
+  /** Whether the script can see Google Tasks: false when the Tasks API is not under its Services (version 7 on). */
+  tasks?: boolean;
   /** Absent from the first version of the script, which could not send email. */
   version?: number;
   mail?: { address: string; remaining: number } | null;
@@ -185,6 +188,8 @@ export async function syncNow(db: Db, companyId: string, now = new Date()): Prom
   let pushed = 0;
   let pulled = 0;
   let conflicts = 0;
+  /** What Google would not take, said after the sync rather than lost in it. */
+  let problem: string | null = null;
 
   try {
     if (company.google_calendar_id) {
@@ -199,6 +204,11 @@ export async function syncNow(db: Db, companyId: string, now = new Date()): Prom
       pushed += counts.pushed;
       pulled += counts.pulled;
       conflicts += counts.conflicts;
+      if (counts.failed > 0) {
+        problem = `${counts.failed === 1 ? "One task" : `${counts.failed} tasks`} did not reach Google Tasks${
+          counts.firstError ? ` (${counts.firstError.replace(/^Error:\s*/, "")})` : ""
+        }. Caulder will try again at the next sync.`;
+      }
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -213,7 +223,7 @@ export async function syncNow(db: Db, companyId: string, now = new Date()): Prom
     pushed,
     pulled,
     conflicts,
-    lastError: null,
+    lastError: problem,
   };
   writeSync(db, companyId, state);
 
@@ -248,11 +258,16 @@ async function syncCalendar(
     isDirty: row.is_dirty === 1,
   }));
 
+  // A day more each side than the window: the script asks Google for whole UTC
+  // days, and the window is the company's days, so an evening block in New
+  // York on the window's last day - early next morning in UTC - was not
+  // returned, read as deleted, and pushed again as a second event on every
+  // sync (logic pass, 23 October 2026). Planning still uses the true window.
   const { events } = await callScript<{ events: RemoteEvent[] }>("pullEvents", {
     calendarId,
     timeZone: company.timezone,
-    from: window.from,
-    to: window.to,
+    from: shiftDay(window.from, -1),
+    to: shiftDay(window.to, 1),
   });
 
   const tombstones = listTombstones(db, companyId, "event");
@@ -338,6 +353,10 @@ async function syncCalendar(
   };
 }
 
+function timezoneOf(db: Db, companyId: string): string {
+  return (db.prepare(`SELECT timezone FROM companies WHERE id = ?`).get(companyId) as { timezone: string } | undefined)?.timezone ?? "UTC";
+}
+
 async function syncTasks(db: Db, companyId: string, taskListId: string) {
   const rows = db
     .prepare(
@@ -384,8 +403,10 @@ async function syncTasks(db: Db, companyId: string, taskListId: string) {
       );
     }
 
+    // Only what Google took: a task that failed stays marked, to go again next time.
+    const failed = new Set(result.failures.map((failure) => failure.taskId));
     for (const task of plan.update) {
-      db.prepare(`UPDATE tasks SET is_dirty = 0 WHERE id = ?`).run(task.id);
+      if (!failed.has(task.id)) db.prepare(`UPDATE tasks SET is_dirty = 0 WHERE id = ?`).run(task.id);
     }
 
     for (const entry of plan.adopt) {
@@ -400,8 +421,9 @@ async function syncTasks(db: Db, companyId: string, taskListId: string) {
         entry.title,
         entry.done ? "done" : "open",
         // Google allows a task with no date; Caulder does not. Today is the
-        // least surprising place to put one that arrives without a day.
-        entry.due ?? todayIn("UTC"),
+        // least surprising place to put one that arrives without a day - the
+        // company's today, not UTC's, or it arrives yesterday and late.
+        entry.due ?? todayIn(timezoneOf(db, companyId)),
         entry.notes,
         entry.done ? new Date().toISOString() : null,
         entry.id,
@@ -411,6 +433,7 @@ async function syncTasks(db: Db, companyId: string, taskListId: string) {
     }
 
     for (const { task, from } of plan.refresh) {
+      const before = findTask(db, task.id);
       db.prepare(
         `UPDATE tasks SET title = ?, notes = ?, status = ?, due_on = ?,
                           completed_at = ?, is_dirty = 0, updated_at = ?
@@ -420,10 +443,13 @@ async function syncTasks(db: Db, companyId: string, taskListId: string) {
         from.notes,
         from.done ? "done" : "open",
         from.due ?? task.dueOn,
-        from.done ? new Date().toISOString() : null,
+        // Done when it was done: a title changed in Google must not make an old tick this week's.
+        from.done ? (before?.completedAt ?? new Date().toISOString()) : null,
         new Date().toISOString(),
         task.id,
       );
+      // Ticked in Google: one that comes back comes back, as it does ticked here.
+      if (before && before.status !== "done" && from.done && before.repeats) comeBack(db, { ...before, dueOn: from.due ?? before.dueOn });
     }
 
     for (const task of plan.drop) {
@@ -434,10 +460,13 @@ async function syncTasks(db: Db, companyId: string, taskListId: string) {
   });
   apply();
 
+  const failedUpdates = plan.update.filter((task) => result.failures.some((failure) => failure.taskId === task.id)).length;
   return {
-    pushed: result.created.length + plan.update.length + plan.remove.length,
+    pushed: result.created.length + plan.update.length - failedUpdates + plan.remove.length,
     pulled: plan.adopt.length + plan.refresh.length + plan.drop.length,
     conflicts: plan.conflicts,
+    failed: result.failures.length,
+    firstError: result.failures[0]?.error ?? null,
   };
 }
 

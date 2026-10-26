@@ -9,23 +9,11 @@ import { relativeDay } from "@/lib/format";
 import { SECTION_ICON } from "./sections";
 import { DeadlinesPanel } from "@/features/deadlines/DeadlinesPanel";
 import { DocumentsPanel } from "@/features/deadlines/DocumentsPanel";
-import { PeoplePanel } from "@/features/people/PeoplePanel";
 import { MetricsPanel } from "@/features/metrics/MetricsPanel";
 import { DecisionLog } from "./DecisionLog";
-import { StudiesPanel } from "@/features/life/StudiesPanel";
-import { HobbiesPanel } from "@/features/life/HobbiesPanel";
-import { GoalsPanel } from "@/features/life/GoalsPanel";
 
-/**
- * The pages a section's panel already lists, left out of the list under it:
- * a course is in Studies' course list, a hobby in its bars, an entry in the
- * journal's month.
- */
-const LISTED_BY_PANEL: Partial<Record<BrainSectionId, readonly string[]>> = {
-  studies: ["course", "exam"],
-  hobbies: ["hobby"],
-  goals: ["life-goal"],
-};
+/** The pages a section's panel already lists, left out of the list under it. None do now. */
+const LISTED_BY_PANEL: Partial<Record<BrainSectionId, readonly string[]>> = {};
 
 /**
  * One section: what belongs in it, the kinds of page it offers, and the pages
@@ -35,7 +23,6 @@ const LISTED_BY_PANEL: Partial<Record<BrainSectionId, readonly string[]>> = {
 export function SectionView({
   companyId,
   section,
-  focus,
   version,
   onOpen,
   onCreate,
@@ -46,12 +33,11 @@ export function SectionView({
   companyId: string;
   section: BrainSectionId;
   /** Somebody to open straight away, in People. */
-  focus: string | null;
   /** Bumped when pages change elsewhere, so the list is read again. */
   version: number;
   /** `editing` opens a page just made, ready to write. */
   onOpen: (pageId: string, editing?: boolean) => void;
-  onOpenSection: (section: BrainSectionId, focus?: string) => void;
+  onOpenSection: (section: BrainSectionId) => void;
   onOpenContact: (leadId: string) => void;
   /** The filing calendar, the documents or the people changed, which the rail counts. */
   onChanged: () => void;
@@ -92,7 +78,6 @@ export function SectionView({
   const hasPanel =
     section === "tax" ||
     section === "documents" ||
-    section === "people" ||
     section === "metrics" ||
     section in LISTED_BY_PANEL;
   const listed = LISTED_BY_PANEL[section] ?? [];
@@ -192,16 +177,10 @@ export function SectionView({
           onChanged={onChanged}
         />
       )}
-      {section === "people" && (
-        <PeoplePanel companyId={companyId} focus={focus} onOpenContact={onOpenContact} onChanged={onChanged} />
-      )}
       {section === "metrics" && <MetricsPanel companyId={companyId} onChanged={onChanged} />}
       {section === "documents" && (
         <DocumentsPanel companyId={companyId} onOpenContact={onOpenContact} onChanged={onChanged} />
       )}
-      {section === "studies" && <StudiesPanel companyId={companyId} version={version} onOpen={onOpen} />}
-      {section === "hobbies" && <HobbiesPanel companyId={companyId} version={version} onOpen={onOpen} />}
-      {section === "goals" && <GoalsPanel companyId={companyId} version={version} onOpen={onOpen} />}
 
       {pages && pages.length === 0 ? (
         !hasPanel && (
@@ -213,7 +192,7 @@ export function SectionView({
       ) : (
         <>
           {hasPanel && shownPages.length > 0 && (
-            <h3 className="sectionview__pagesTitle">{section === "studies" ? "Notes and other pages" : "Pages"}</h3>
+            <h3 className="sectionview__pagesTitle">Pages</h3>
           )}
           {/* Decisions read as a log, newest first by the day decided. */}
           {section === "decisions" ? (

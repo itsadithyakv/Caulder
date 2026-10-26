@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { CircleDot, MoveRight } from "lucide-react";
+import { CircleDot } from "lucide-react";
 import type { BoardCard } from "@shared/domain";
-import { formatValue, relativeDay } from "@/lib/format";
+import { inSentence, relativeDay } from "@/lib/format";
 
 /**
  * One deal on the board.
@@ -15,6 +15,8 @@ export function BoardCardView({
   stageId,
   stages,
   busy,
+  money,
+  closed,
   onOpen,
   onMove,
   onDragStart,
@@ -24,6 +26,10 @@ export function BoardCardView({
   stageId: string | null;
   stages: { id: string; name: string }[];
   busy: boolean;
+  /** A sum in the company's currency, the way the column above it writes it. */
+  money: (value: number) => string;
+  /** Won or lost: a closed deal has no next step to want. */
+  closed: boolean;
   onOpen: () => void;
   onMove: (stageId: string | null) => void;
   onDragStart: () => void;
@@ -88,12 +94,12 @@ export function BoardCardView({
           )}
 
           {card.value !== null && (
-            <span className="boardcard__value">{formatValue(card.value)}</span>
+            <span className="boardcard__value">{money(card.value)}</span>
           )}
 
           {/* A lead with nothing planned is how one drifts, so the card says
               so rather than leaving it to be discovered on Today. */}
-          {card.hasNextStep ? (
+          {closed ? null : card.hasNextStep ? (
             <span className="boardcard__flag boardcard__flag--ok">
               <CircleDot size={11} aria-hidden />
               Next step set
@@ -106,7 +112,7 @@ export function BoardCardView({
           )}
 
           <span className="boardcard__when">
-            {card.lastContactedAt ? relativeDay(card.lastContactedAt) : "Never contacted"}
+            {card.lastContactedAt ? `Last spoke ${inSentence(relativeDay(card.lastContactedAt))}` : "Not spoken to yet"}
           </span>
         </div>
       </div>
@@ -117,11 +123,10 @@ export function BoardCardView({
         aria-haspopup="menu"
         aria-expanded={menuOpen}
         aria-label={`Move ${card.title} to another stage`}
-        title="Move to"
         disabled={busy}
         onClick={() => setMenuOpen((open) => !open)}
       >
-        <MoveRight size={14} aria-hidden />
+        Move
       </button>
 
       {menuOpen && (

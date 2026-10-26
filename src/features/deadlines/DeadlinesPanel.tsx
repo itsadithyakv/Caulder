@@ -87,7 +87,7 @@ export function DeadlinesPanel({
   const openSource = (deadline: Deadline) =>
     deadline.source === "page"
       ? onOpenPage(deadline.id)
-      : onOpenSection(sectionForDeadline(deadline.source), deadline.source === "person" ? deadline.id : undefined);
+      : onOpenSection(sectionForDeadline(deadline.source));
 
   return (
     <div className="deadlines">
@@ -95,7 +95,7 @@ export function DeadlinesPanel({
         <Card
           icon={<CalendarClock size={15} aria-hidden />}
           title="Coming up"
-          hint="Late, or inside its notice. Contracts, registrations and documents are read from their own dates."
+          hint="Late, or due soon."
         >
           <ul className="duelist" aria-label="Coming up">
             {shown.deadlines.map((deadline) => (
@@ -130,7 +130,7 @@ export function DeadlinesPanel({
 
       <Card
         title="The filing calendar"
-        hint="What the company files and pays, again and again. Every date is a starting point: check them with your accountant."
+        hint="What the company files and pays. Check the dates with your accountant."
         actions={
           mode === "idle" &&
           !none && (
@@ -337,16 +337,16 @@ function defaultPicks(offers: readonly PresetOffer[]): Set<string> {
   );
 }
 
-/** Where the picks came from: the profile's entity type and GST scheme, or what it does not say. */
+/** Where the picks came from: the profile's entity type and sales-tax scheme, or what it does not say. */
 function profileLine(overview: DeadlinesOverview, set: PresetSetId): string {
   if (set === "generic") return "The shape of a year. Once they are added, set each date to the one your country uses.";
   const entity = ENTITY_TYPES.find((option) => option.value === overview.profile.entityType)?.label;
   const gst = GST_STATUSES.find((option) => option.value === overview.profile.gstStatus)?.label;
-  const missing = [entity ? null : "what kind of company this is", gst ? null : "its GST status"].filter(Boolean);
+  const missing = [entity ? null : "what kind of company this is", gst ? null : "its sales tax, VAT or GST"].filter(Boolean);
   if (missing.length > 0) {
     return `The company profile does not say ${missing.join(" or ")}, so what depends on it is left for you to pick. Fill it in and these picks follow it.`;
   }
-  return `Picked for what the company profile says: ${entity}, GST ${gst?.toLowerCase()}.`;
+  return `Picked for what the company profile says: ${entity}; sales tax ${gst?.toLowerCase()}.`;
 }
 
 function PresetPicker({
@@ -580,7 +580,7 @@ function ObligationForm({
           maxLength={160}
           autoFocus
           disabled={busy}
-          placeholder="GSTR-1"
+          placeholder="VAT return"
           onChange={(event) => setTitle(event.target.value)}
         />
       </div>

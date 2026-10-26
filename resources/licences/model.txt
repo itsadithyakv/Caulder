@@ -1,0 +1,10 @@
+all-MiniLM-L6-v2 - the model Caulder's understanding reads with
+
+The model is all-MiniLM-L6-v2 by sentence-transformers
+(https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2), as
+converted to ONNX and quantised to int8 by Xenova
+(https://huggingface.co/Xenova/all-MiniLM-L6-v2), taken at revision
+751bff37182d3f1213fa05d7196b954e230abad9 (model.onnx from onnx/model_quantized.onnx, and vocab.txt).
+Caulder ships those two files unchanged, in the folder "model".
+
+Both are licensed under the Apache License, Version 2.0, whose terms follow.

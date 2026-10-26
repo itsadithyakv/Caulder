@@ -1,3 +1,6 @@
+import { Select } from "@/components/Select";
+import { currencyFor, guessCountry } from "@shared/countries";
+import { countryChoices, currencyChoices, timezoneChoices } from "@/lib/places";
 import { useState, type FormEvent } from "react";
 import { ImagePlus } from "lucide-react";
 import { AccentPicker } from "@/components/AccentPicker";
@@ -88,7 +91,12 @@ export function FirstRun({
 
   const [name, setName] = useState("");
   const [accent, setAccent] = useState<AccentId>(DEFAULT_ACCENT);
-  const [timezone] = useState(systemTimezone);
+  const [timezone, setTimezone] = useState(systemTimezone);
+  // Where the company is: a guess from this computer's language and clock,
+  // which the person corrects. Its money follows unless they choose other.
+  const [country, setCountry] = useState<string | null>(() => guessCountry(navigator.language, systemTimezone()));
+  const [currency, setCurrency] = useState<string | null>(null);
+  const money = currency ?? currencyFor(country) ?? "USD";
   const [mode, setMode] = useState<CompanyMode>("sales");
   const [logo, setLogo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -128,6 +136,10 @@ export function FirstRun({
       kind: "solo",
       mode,
       logo: sample ? null : logo,
+      // The sample is a studio with clients anywhere, priced in dollars. It
+      // sits where you are, so its dates and numbers read your way.
+      country: sample ? (country ?? "US") : country,
+      currency: sample ? "USD" : money,
     });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Check the details above.");
@@ -163,18 +175,19 @@ export function FirstRun({
           preview the new company rather than showing the colour of whichever
           company happens to be open behind this screen. */}
       <form
-        className="firstrun__card card anim-modal"
+        className="firstrun__card card card--float anim-modal"
         data-accent={accent}
         onSubmit={submit}
         noValidate
       >
         {!onCancel && <span className="brandmark firstrun__mark anim-mark" aria-hidden />}
         <h1 className="firstrun__title">
-          {onCancel ? "Add a company" : "Set up your company"}
+          {onCancel ? "Add a company" : "Your company, in one place"}
         </h1>
         <p className="firstrun__body">
-          Its contacts, deals, calendar and tasks all live here. A second company
-          gets its own, and the sidebar switches between them.
+          {onCancel
+            ? "Its contacts, deals, money and pages live here. The sidebar switches between companies; your calendar stays yours across all of them."
+            : "Caulder is where a one-person company is run: who you sell to, the deals, the money, the calendar and what the company knows. All of it in one file on this computer, with no account."}
         </p>
 
         <div className="field firstrun__wide">
@@ -199,6 +212,29 @@ export function FirstRun({
             </p>
           )}
         </div>
+
+        <div className="field">
+
+          <span className="field__label">Country</span>
+
+          <Select
+
+            aria-label="Country"
+
+            value={country ?? ""}
+
+            onChange={(code) => setCountry(code || null)}
+
+            disabled={busy}
+
+            options={[...(country ? [] : [{ value: "", label: "Choose where the company is" }]), ...countryChoices()]}
+
+          />
+
+          <p className="card__hint">Its money, its phone numbers and its tax dates start from here.</p>
+
+        </div>
+
 
         <details className="explain firstrun__more">
           <summary className="explain__summary">Funnel, logo, colour and timezone</summary>
@@ -266,14 +302,23 @@ export function FirstRun({
         </div>
 
         <div className="field">
-          <span className="field__label">Accent</span>
+          <span className="field__label">Colour</span>
           <AccentPicker value={accent} onChange={setAccent} disabled={busy} />
+          <p className="card__hint">The company's own, on its mark in the sidebar.</p>
+        </div>
+
+        <div className="field">
+          <span className="field__label" id="firstrun-currency">
+            Currency
+          </span>
+          <Select aria-label="Currency" value={money} onChange={setCurrency} disabled={busy} options={currencyChoices(money)} />
+          <p className="card__hint">What totals are shown in. Nothing is ever converted.</p>
         </div>
 
         <div className="field">
           <span className="field__label">Timezone</span>
-          <p className="firstrun__tz">{timezone}</p>
-          <p className="card__hint">From this computer. Due dates and quiet hours use it.</p>
+          <Select aria-label="Timezone" value={timezone} onChange={setTimezone} disabled={busy} options={timezoneChoices(timezone)} />
+          <p className="card__hint">From this computer to start with. Due dates and quiet hours use it.</p>
         </div>
           </div>
         </details>

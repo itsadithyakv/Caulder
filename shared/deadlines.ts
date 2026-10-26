@@ -230,13 +230,13 @@ export function openOccurrences(
 
 /* ---- Deadlines: everything with a date, in one list --------------------------- */
 
-export type DeadlineSource = "obligation" | "page" | "document" | "person";
+export type DeadlineSource = "obligation" | "page" | "document";
 
 export type Deadline = {
-  /** Unique across sources: "obligation:<id>:<due>", "page:<id>:<field>", "document:<id>", "person:<id>:<what>". */
+  /** Unique across sources: "obligation:<id>:<due>", "page:<id>:<field>", "document:<id>". */
   key: string;
   source: DeadlineSource;
-  /** The obligation, page, document or person it comes from. */
+  /** The obligation, page or document it comes from. */
   id: string;
   title: string;
   /** What falls due, in a word or two: "Filing", "Give notice", "Expires". */
@@ -252,8 +252,8 @@ export type Deadline = {
 };
 
 /** The brain section a deadline opens, for one that is not a page of its own. */
-export function sectionForDeadline(source: Exclude<DeadlineSource, "page">): "tax" | "documents" | "people" {
-  return source === "obligation" ? "tax" : source === "document" ? "documents" : "people";
+export function sectionForDeadline(source: Exclude<DeadlineSource, "page">): "tax" | "documents" {
+  return source === "obligation" ? "tax" : "documents";
 }
 
 /** "due today", "due in 3 days", "due tomorrow", "2 days late". */

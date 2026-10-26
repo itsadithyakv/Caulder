@@ -6,6 +6,7 @@ import {
   chatModels,
   connectInput,
   isContextSize,
+  isScope,
   modelInput,
   pickModel,
   serviceOf,
@@ -13,15 +14,17 @@ import {
   type AiService,
   type AiServiceId,
   type AskAnswer,
+  type AskPreview,
   type AskReference,
+  type AskScope,
   type AskState,
   type ContextSize,
 } from "@shared/ask";
 import { getSetting, setSetting } from "../repositories/settings";
-import { listLeads } from "../repositories/leads";
-import { searchEverything } from "../repositories/search";
 import { encryptionAvailable } from "./credentials";
-import { buildDossier, type DossierDocument } from "./dossier";
+import { relevantTo } from "./relevant";
+import type { Read } from "./understand";
+import { today as todayIn } from "@shared/dates";
 
 /**
  * Ask the brain, through whichever AI service the founder connects.
@@ -29,9 +32,10 @@ import { buildDossier, type DossierDocument } from "./dossier";
  * The second kind of request Caulder makes to anyone, and like the first it
  * is off until somebody sets it up. The connection - service, address and
  * key - is sealed by the operating system the way the Google key is, and the
- * key is never handed back to the window. What is sent is the dossier with
- * numbers masked - the same documents Export for an AI writes - and the
- * window is told exactly what went.
+ * key is never handed back to the window. What is sent is cut from the
+ * dossier with numbers masked - the documents Export for an AI writes - to
+ * what the question needs (services/relevant.ts), and the window is told
+ * exactly what went.
  *
  * Three request shapes cover the services: Gemini's, Anthropic's, and
  * OpenAI's, which OpenRouter, Groq, Ollama and most others also speak.
@@ -73,6 +77,30 @@ function contextOf(db: Db, service: AiService | null): ContextSize {
   return isContextSize(stored) ? stored : (service?.context ?? "large");
 }
 
+function scopeOf(db: Db): AskScope {
+  const stored = getSetting(db, "aiScope");
+  return isScope(stored) ? stored : "needed";
+}
+
+/**
+ * The connection, the model and the service, for anything that asks the AI
+ * something: a question, a line to read, a draft to propose. Throws the
+ * sentence the person reads when there is nothing to ask.
+ */
+export function asking(db: Db, what = "ask the brain"): { connection: Connection; service: AiService; model: string; label: string } {
+  const connection = readConnection(db);
+  if (!connection) throw new Error(`Connect an AI in Settings to ${what}.`);
+  const service = serviceOf(connection.service) as AiService;
+  const model = getSetting(db, "aiModel");
+  if (!model) throw new Error(`Pick a ${service.label} model in Settings.`);
+  return { connection, service, model, label: readModels(db).find((option) => option.id === model)?.label ?? model };
+}
+
+/** The most that goes with one request, by the size chosen. */
+export function budgetOf(db: Db, service: AiService): { characters: number; contacts: number } {
+  return CONTEXT_BUDGET[contextOf(db, service)];
+}
+
 export function askState(db: Db): AskState {
   const connection = readConnection(db);
   const service = connection ? serviceOf(connection.service) : null;
@@ -84,6 +112,9 @@ export function askState(db: Db): AskState {
     model: connection ? getSetting(db, "aiModel") || null : null,
     models: connection ? readModels(db) : [],
     context: contextOf(db, service),
+    scope: scopeOf(db),
+    // AI mode is only ever on with something connected to be in it.
+    line: connection !== null && getSetting(db, "aiLine") === "on",
     canEncrypt: encryptionAvailable(),
   };
 }
@@ -126,6 +157,7 @@ export function disconnect(db: Db): AskState {
   setSetting(db, "aiConnection", "");
   setSetting(db, "aiModels", "[]");
   setSetting(db, "aiModel", "");
+  setSetting(db, "aiLine", "");
   return askState(db);
 }
 
@@ -138,6 +170,19 @@ export function setModel(db: Db, raw: unknown): AskState {
 export function setContext(db: Db, size: unknown): AskState {
   if (!isContextSize(size)) throw new Error("That is not a size Caulder knows.");
   setSetting(db, "aiContext", size);
+  return askState(db);
+}
+
+export function setScope(db: Db, scope: unknown): AskState {
+  if (!isScope(scope)) throw new Error("That is not a choice Caulder knows.");
+  setSetting(db, "aiScope", scope);
+  return askState(db);
+}
+
+/** The quick line in or out of AI mode. In, only with an AI connected: it is that AI the lines go to. */
+export function setLineMode(db: Db, on: unknown): AskState {
+  if (on === true && !readConnection(db)) throw new Error("Connect an AI in Settings to use AI mode. Gemini is free.");
+  setSetting(db, "aiLine", on === true ? "on" : "");
   return askState(db);
 }
 
@@ -166,7 +211,30 @@ function headersFor(connection: Connection, api: AiService["api"]): Record<strin
 
 type ApiError = { error?: { message?: string; status?: string } | string; message?: string };
 
+/** The service said it was busy: worth one more try before the person is told. */
+class Busy extends Error {}
+/** How long to wait before asking a busy service once more. */
+const BUSY_WAIT_MS = 1200;
+
+/**
+ * One request, tried again once when the service says it is busy. A free
+ * tier is busy for a moment often enough that the first question after
+ * connecting would otherwise fail one time in a few - measured against
+ * Gemini on 13 October 2026 - and "try again shortly" is something Caulder
+ * can do itself. Never for a refusal: a wrong key or too many questions is
+ * said at once.
+ */
 async function request(connection: Connection, path: string, body?: unknown): Promise<unknown> {
+  try {
+    return await requestOnce(connection, path, body);
+  } catch (cause) {
+    if (!(cause instanceof Busy)) throw cause;
+    await new Promise((resolve) => setTimeout(resolve, BUSY_WAIT_MS));
+    return requestOnce(connection, path, body);
+  }
+}
+
+async function requestOnce(connection: Connection, path: string, body?: unknown): Promise<unknown> {
   const service = serviceOf(connection.service) as AiService;
   const stop = new AbortController();
   const timer = setTimeout(() => stop.abort(), TIMEOUT_MS);
@@ -214,7 +282,7 @@ async function request(connection: Connection, path: string, body?: unknown): Pr
       if (response.status === 404 && path !== "/models") {
         throw new Error(`${service.label} does not know that model. Pick another in Settings.`);
       }
-      if (response.status >= 500) throw new Error(`${service.label} is busy or having trouble. Try again shortly.`);
+      if (response.status >= 500) throw new Busy(`${service.label} is busy or having trouble. Try again shortly.`);
       throw new Error(`${service.label} could not answer${message ? `: ${message}` : ` (${response.status}).`}`);
     }
     if (parsed === null) throw new Error(`${service.label} sent back something that was not an answer.`);
@@ -251,18 +319,25 @@ async function listModels(connection: Connection): Promise<AiModelOption[]> {
 
 type Reply = { text: string; usage: AskAnswer["usage"] };
 
-async function complete(
+/**
+ * One request to whichever service is connected, in its own shape. `json`
+ * asks for an answer that is one JSON object - said in the instructions as
+ * well, since not every service has a switch for it.
+ */
+export async function complete(
   connection: Connection,
   model: string,
   system: string,
   context: string,
   history: { role: "user" | "assistant"; text: string }[],
   question: string,
+  json = false,
 ): Promise<Reply> {
   const service = serviceOf(connection.service) as AiService;
 
   if (service.api === "gemini") {
     const reply = (await request(connection, `/models/${encodeURIComponent(model)}:generateContent`, {
+      ...(json ? { generationConfig: { responseMimeType: "application/json" } } : {}),
       systemInstruction: { parts: [{ text: `${system}\n\n${context}` }] },
       contents: [
         ...history.map((turn) => ({ role: turn.role === "assistant" ? "model" : "user", parts: [{ text: turn.text }] })),
@@ -355,81 +430,53 @@ async function complete(
 
 /* ---- Asking ---------------------------------------------------------------- */
 
-function size(documents: readonly DossierDocument[]): number {
-  return documents.reduce((sum, document) => sum + document.text.length, 0);
-}
-
-/**
- * The contacts a question is about, for a dossier too long to send whole:
- * those named in it, those the search index finds for it, and then the ones
- * with the most recent activity, up to a limit.
- */
-function contactsFor(db: Db, companyId: string, question: string, most: number): Set<string> {
-  const leads = listLeads(db, { companyId, sort: "recent", direction: "desc" });
-  const wanted = new Set<string>();
-  const words = question.toLowerCase();
-  for (const lead of leads) {
-    if (wanted.size >= most) break;
-    if (lead.name.length >= 3 && words.includes(lead.name.toLowerCase())) wanted.add(lead.id);
-  }
-  for (const hit of searchEverything(db, companyId, question, 60)) {
-    if (wanted.size >= most) break;
-    if (hit.leadId) wanted.add(hit.leadId);
-  }
-  for (const lead of leads) {
-    if (wanted.size >= most) break;
-    wanted.add(lead.id);
-  }
-  return wanted;
-}
-
-/** Cuts documents that still do not fit, and says so where each was cut. */
-function fit(documents: DossierDocument[], budget: number): DossierDocument[] {
-  const share = Math.floor(budget / documents.length);
-  return documents.map((document) =>
-    document.text.length <= share
-      ? document
-      : { ...document, text: `${document.text.slice(0, share)}\n\n*(Cut here: the rest was too long to send.)*` },
-  );
-}
-
-function instructions(company: { name: string; currency: string }, day: string): string {
+function instructions(company: { name: string; currency: string }, day: string, whole: boolean): string {
   return [
     `You are the company brain of ${company.name}, answering the founder's questions inside Caulder, their own app for contacts, deals, money and company notes.`,
-    `Answer only from the documents given, which are what Caulder holds about ${company.name} as of ${day}. If they do not say, say so plainly, and say what would need writing down. Never invent numbers, names, dates or quotes.`,
+    whole
+      ? `Answer only from the documents given, which are what Caulder holds about ${company.name} as of ${day}. If they do not say, say so plainly, and say what would need writing down. Never invent numbers, names, dates or quotes.`
+      : `Answer only from the documents given: the company in brief, and the parts of what Caulder holds about ${company.name}, as of ${day}, that bear on this question. They are not everything Caulder holds. If the answer is not in them, say plainly that it was not in what was sent with this question, and that asking again with "everything" sends the whole company. Never invent numbers, names, dates or quotes.`,
     "Lead with the answer, then the detail that supports it. Keep it short: a few sentences, or a short list. Plain Markdown only; no tables unless asked.",
     `Money is in ${company.currency}. Registration and account numbers are masked; never guess them.`,
-    "When you draw on a page of the brain or on a contact, name it in double square brackets exactly as the documents title it - [[Company profile]], [[Oakridge International School]] - so the founder can open it.",
+    "When you draw on a page of the brain or on a contact, name it in double square brackets exactly as the documents title it - [[Company profile]], [[Acme Ltd]] - so the founder can open it.",
     "You cannot change anything in Caulder. When a change would help, say what to change and where.",
   ].join("\n\n");
 }
 
-export async function askBrain(db: Db, companyId: string, raw: unknown, now: Date = new Date()): Promise<AskAnswer> {
+export async function askBrain(
+  db: Db,
+  companyId: string,
+  raw: unknown,
+  now: Date = new Date(),
+  /** The model on this machine, when understanding is on: what goes is chosen by meaning as well as words (phase 22). */
+  read: Read | null = null,
+): Promise<AskAnswer> {
   const input = askInput.parse(raw);
-  const connection = readConnection(db);
-  if (!connection) throw new Error("Connect an AI in Settings to ask the brain.");
-  const service = serviceOf(connection.service) as AiService;
-  const model = getSetting(db, "aiModel");
-  if (!model) throw new Error(`Pick a ${service.label} model in Settings.`);
-  const company = db.prepare(`SELECT name, currency FROM companies WHERE id = ?`).get(companyId) as
-    | { name: string; currency: string }
+  const { connection, service, model, label } = asking(db);
+  const company = db.prepare(`SELECT name, currency, timezone FROM companies WHERE id = ?`).get(companyId) as
+    | { name: string; currency: string; timezone: string }
     | undefined;
   if (!company) throw new Error("That company no longer exists.");
-  const budget = CONTEXT_BUDGET[contextOf(db, service)];
+  const day = todayIn(company.timezone, now);
 
-  const allContacts = (db.prepare(`SELECT COUNT(*) AS n FROM leads WHERE company_id = ?`).get(companyId) as { n: number }).n;
-  let documents = buildDossier(db, companyId, { secrets: false }, now);
-  let contacts = allContacts;
-  if (size(documents) > budget.characters) {
-    const chosen = contactsFor(db, companyId, input.question, budget.contacts);
-    documents = buildDossier(db, companyId, { secrets: false, contacts: chosen }, now);
-    contacts = chosen.size;
-  }
-  if (size(documents) > budget.characters) documents = fit(documents, budget.characters);
+  const relevant = await relevantTo(db, companyId, input.question, {
+    earlier: input.history.filter((turn) => turn.role === "user").map((turn) => turn.text),
+    budget: budgetOf(db, service),
+    whole: input.whole || scopeOf(db) === "all",
+    read,
+    now,
+  });
+  const { documents } = relevant;
 
-  const day = now.toISOString().slice(0, 10);
   const context = documents.map((document) => `<document title="${document.title}">\n${document.text}\n</document>`).join("\n\n");
-  const reply = await complete(connection, model, instructions(company, day), context, input.history, input.question);
+  const reply = await complete(
+    connection,
+    model,
+    instructions(company, day, relevant.whole),
+    context,
+    input.history,
+    input.question,
+  );
   const text = reply.text.trim();
   if (text.length === 0) throw new Error(`${service.label} sent back an empty answer. Try asking another way, or another model.`);
 
@@ -448,14 +495,38 @@ export async function askBrain(db: Db, companyId: string, raw: unknown, now: Dat
   return {
     text,
     service: service.label,
-    model: readModels(db).find((option) => option.id === model)?.label ?? model,
+    model: label,
     sent: {
       documents: documents.map((document) => document.title),
+      parts: relevant.parts,
+      whole: relevant.whole,
       characters: context.length,
-      contacts,
-      leftOut: allContacts - contacts,
+      contacts: relevant.contacts,
+      leftOut: relevant.leftOut,
     },
     references,
     usage: reply.usage,
+  };
+}
+
+/**
+ * What would go with a question, worked out without asking anybody: said
+ * under the box before the question is sent (phase 37). Nothing leaves the
+ * machine for it.
+ */
+export async function previewAsk(db: Db, companyId: string, raw: unknown, now: Date = new Date(), read: Read | null = null): Promise<AskPreview> {
+  const input = askInput.parse(raw);
+  const { service } = asking(db);
+  const relevant = await relevantTo(db, companyId, input.question, {
+    earlier: input.history.filter((turn) => turn.role === "user").map((turn) => turn.text),
+    budget: budgetOf(db, service),
+    whole: input.whole || scopeOf(db) === "all",
+    read,
+    now,
+  });
+  return {
+    parts: relevant.parts,
+    characters: relevant.documents.reduce((sum, document) => sum + document.text.length, 0),
+    whole: relevant.whole,
   };
 }

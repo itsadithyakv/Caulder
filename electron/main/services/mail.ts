@@ -9,21 +9,29 @@ import {
   type RemoteEmail,
 } from "@shared/mail";
 import { render } from "@shared/render";
-import { MAIL_SINCE_VERSION, SCRIPT_VERSION } from "@shared/script";
+import { ATTACH_SINCE_VERSION, MAIL_SINCE_VERSION, SCRIPT_VERSION } from "@shared/script";
+import { documentPdf } from "./invoice";
 import { findTemplate } from "../repositories/email";
 import { findLead } from "../repositories/leads";
 import {
   applyReport,
+  dueAccountEmails,
+  dueAccountFollowUps,
   findEmail,
   forgettableEmailIds,
+  heldForBarred,
+  keepMessageId,
   listEmailsForLead,
   markForgotten,
   recordEmail,
+  settleAccountEmail,
   watchedEmailIds,
 } from "../repositories/mail";
 import { getSetting, setSetting } from "../repositories/settings";
 import { isConnected } from "./credentials";
 import { callScript, hello, type Hello } from "./gsync";
+import { accountReadsReplies, checkReplies, inboxInOrder, mailSenders, newMessageId, sendFromAccount } from "./mailaccounts";
+import { isFault, logProblem } from "../log";
 
 /**
  * Sending email through the script in the user's own Google account.
@@ -71,7 +79,7 @@ export function scriptInfo(db: Db): ScriptInfo | null {
   }
 }
 
-function notReady(reason: string): MailState {
+function notReady(reason: string): Omit<MailState, "senders"> {
   return { ready: false, reason, address: null, remaining: null };
 }
 
@@ -82,7 +90,20 @@ function notReady(reason: string): MailState {
  * contact's page does not wait on Google to draw. Only a connection made
  * before this build - which never stored the answer - asks once.
  */
+/**
+ * Where a message can go from, and whether it can go at all. The script is
+ * what sees replies, so it is first when it is ready; another account makes
+ * sending possible without it.
+ */
 export async function mailState(db: Db): Promise<MailState> {
+  const script = await scriptState(db);
+  const senders = mailSenders(db, script);
+  const first = senders[0];
+  if (script.ready || !first) return { ...script, senders };
+  return { ready: true, reason: null, address: first.address, remaining: null, senders };
+}
+
+async function scriptState(db: Db): Promise<Omit<MailState, "senders">> {
   if (!isConnected()) {
     return notReady("Connect Google in Settings to send from here and see replies.");
   }
@@ -153,6 +174,13 @@ function followUpFor(
   return { days: choice.days, body };
 }
 
+/** The template a message says it came from, when it is one of this company's; otherwise none. */
+function templateOf(db: Db, id: string | null, companyId: string): string | null {
+  if (!id) return null;
+  const template = findTemplate(db, id);
+  return template && template.companyId === companyId ? template.id : null;
+}
+
 export async function sendEmail(db: Db, raw: unknown, now: Date = new Date()): Promise<EmailRecord[]> {
   const input = sendEmailInput.parse(raw);
 
@@ -162,8 +190,19 @@ export async function sendEmail(db: Db, raw: unknown, now: Date = new Date()): P
   if (lead.doNotContact) throw new Error(`${lead.name} is marked do not contact.`);
   if (!lead.email) throw new Error(`${lead.name} has no email address.`);
 
-  const state = await mailState(db);
+  // An invoice or a quote to go with it, printed here from what was named - never bytes from the window.
+  if (input.attach && (input.sendAt || input.followUp)) throw new Error("A message with a file is sent now, without a follow-up.");
+  const file = input.attach ? await documentPdf(db, lead.companyId, input.attach) : null;
+  if (file && file.leadId !== lead.id) throw new Error("That document is for somebody else.");
+  const files = file ? [{ name: file.name, bytes: file.bytes }] : [];
+
+  if (input.accountId) return sendByAccount(db, { ...input, accountId: input.accountId, files }, lead, now);
+
+  const state = await scriptState(db);
   if (!state.ready) throw new Error(state.reason ?? "Email cannot be sent from here yet.");
+  if (files.length > 0 && (scriptInfo(db)?.version ?? 0) < ATTACH_SINCE_VERSION) {
+    throw new Error(`Your Google script cannot send files yet. Update it in Settings (version ${ATTACH_SINCE_VERSION}), or send this from another account.`);
+  }
 
   const sendAt = scheduleFor(input.sendAt, now);
   const followUp = input.followUp ? followUpFor(db, lead, input.followUp) : null;
@@ -178,6 +217,7 @@ export async function sendEmail(db: Db, raw: unknown, now: Date = new Date()): P
   }
 
   const id = randomUUID();
+  const templateId = templateOf(db, input.templateId, lead.companyId);
   const remote = await callScript<RemoteEmail>("sendEmail", {
     id,
     to: lead.email,
@@ -185,12 +225,14 @@ export async function sendEmail(db: Db, raw: unknown, now: Date = new Date()): P
     body: input.body,
     sendAt,
     followUp,
+    attachments: files.map((each) => ({ name: each.name, mimeType: "application/pdf", data: each.bytes.toString("base64") })),
   });
 
   recordEmail(
     db,
     {
       id,
+      templateId,
       companyId: lead.companyId,
       leadId: lead.id,
       to: lead.email,
@@ -206,12 +248,165 @@ export async function sendEmail(db: Db, raw: unknown, now: Date = new Date()): P
   return listEmailsForLead(db, lead.id);
 }
 
+/**
+ * From Zoho, Outlook or any other account: sent now while Caulder waits, or
+ * kept and sent by Caulder when it is due. A follow-up needs somebody to see
+ * whether they answered, so it is taken only from an account whose inbox is
+ * read - and refused in words otherwise, rather than quietly never going.
+ */
+async function sendByAccount(
+  db: Db,
+  input: {
+    accountId: string;
+    templateId: string | null;
+    subject: string;
+    body: string;
+    sendAt: string | null;
+    followUp: { days: number; templateId: string } | null;
+    files?: { name: string; bytes: Buffer }[];
+  },
+  lead: Lead,
+  now: Date,
+): Promise<EmailRecord[]> {
+  if (!db.prepare(`SELECT 1 FROM mail_accounts WHERE id = ?`).get(input.accountId)) throw new Error("That account is not connected any more.");
+  if (input.followUp && !accountReadsReplies(db, input.accountId)) {
+    throw new Error(
+      "A follow-up needs Caulder to see whether they replied. Switch on See replies for that account in Settings, send this from Gmail, or follow up by hand.",
+    );
+  }
+  const followUp = input.followUp ? followUpFor(db, lead, input.followUp) : null;
+  const to = lead.email as string;
+  const sendAt = scheduleFor(input.sendAt, now);
+  const id = randomUUID();
+  const messageId = newMessageId(db, input.accountId);
+  // Sent before anything is written: a message the server refused is not a message that was sent.
+  if (!sendAt) await sendFromAccount(db, input.accountId, { to, subject: input.subject, body: input.body, messageId, files: input.files ?? [] });
+  const at = new Date().toISOString();
+  const waiting = followUp ? { status: "waiting" as const, sentAt: null, error: null } : null;
+  recordEmail(
+    db,
+    {
+      id,
+      accountId: input.accountId,
+      templateId: templateOf(db, input.templateId, lead.companyId),
+      messageId,
+      companyId: lead.companyId,
+      leadId: lead.id,
+      to,
+      subject: input.subject,
+      body: input.body,
+      sendAt,
+      followUpDays: followUp?.days ?? null,
+      followUpBody: followUp?.body ?? null,
+    },
+    sendAt
+      ? { id, status: "scheduled", sentAt: null, repliedAt: null, error: null, followUp: waiting }
+      : { id, status: "sent", sentAt: at, repliedAt: null, error: null, followUp: waiting },
+    new Date(),
+  );
+  if (!sendAt) settleAccountEmail(db, id);
+  return listEmailsForLead(db, lead.id);
+}
+
+/**
+ * What is due from the other accounts, sent. Each one is written down as sent
+ * or failed on its own, so one refused address does not hold up the rest.
+ */
+export async function sendDueAccountMail(db: Db, now: Date = new Date()): Promise<number> {
+  // Stopped here too, not only skipped: skipped, it would sit as "scheduled"
+  // for ever. This part is local, so it costs nothing to do every minute.
+  await stopBarredMail(db, { own: true });
+  let sent = 0;
+  for (const email of dueAccountEmails(db, now.toISOString())) {
+    try {
+      const messageId = newMessageId(db, email.accountId);
+      await sendFromAccount(db, email.accountId, { ...email, messageId });
+      keepMessageId(db, email.id, messageId);
+      applyReport(db, { id: email.id, status: "sent", sentAt: new Date().toISOString(), repliedAt: null, error: null, followUp: null }, new Date());
+      sent += 1;
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      applyReport(db, { id: email.id, status: "failed", sentAt: null, repliedAt: null, error: reason, followUp: null }, new Date());
+    }
+    settleAccountEmail(db, email.id);
+  }
+  return sent + (await sendDueFollowUps(db, now));
+}
+
+/**
+ * Follow-ups to messages that went from an account, when their days are up
+ * and nobody has answered.
+ *
+ * **The inbox is looked at first, every time.** A follow-up to somebody who
+ * replied an hour ago is the one mistake this feature must not make, so
+ * nothing goes on the strength of a look ten minutes old - and when the
+ * inbox cannot be read, the follow-up waits rather than goes blind.
+ */
+async function sendDueFollowUps(db: Db, now: Date): Promise<number> {
+  if (dueAccountFollowUps(db, now.toISOString()).length === 0) return 0;
+  await checkReplies(db, now);
+  let sent = 0;
+  // Read again: whoever answered is no longer waiting for one.
+  for (const due of dueAccountFollowUps(db, now.toISOString())) {
+    if (!inboxInOrder(db, due.accountId)) continue;
+    const report = (followUp: { status: "sent" | "failed"; sentAt: string | null; error: string | null }) =>
+      applyReport(db, { id: due.id, status: "sent", sentAt: null, repliedAt: null, error: null, followUp }, new Date());
+    try {
+      await sendFromAccount(db, due.accountId, {
+        to: due.to,
+        subject: /^re:/i.test(due.subject) ? due.subject : `Re: ${due.subject}`,
+        body: due.body,
+        messageId: newMessageId(db, due.accountId),
+        inReplyTo: due.messageId,
+      });
+      report({ status: "sent", sentAt: new Date().toISOString(), error: null });
+      sent += 1;
+    } catch (error) {
+      report({ status: "failed", sentAt: null, error: error instanceof Error ? error.message : String(error) });
+    }
+  }
+  return sent;
+}
+
+/**
+ * Stops everything still waiting to go to contacts marked do not contact -
+ * one contact's, just after it was marked, or everybody's on a background
+ * pass. Each is stopped on its own, so a script that cannot be reached leaves
+ * its messages for the next pass without holding up Caulder's own. Returns
+ * how many were stopped.
+ */
+export async function stopBarredMail(db: Db, options: { leadId?: string; own?: boolean } = {}): Promise<number> {
+  let stopped = 0;
+  for (const id of heldForBarred(db, options)) {
+    try {
+      await cancelEmail(db, id);
+      stopped += 1;
+    } catch (error) {
+      if (isFault(error)) logProblem("email", error);
+    }
+  }
+  return stopped;
+}
+
 /** Stops a message that has not gone, or a follow-up that is still waiting. */
 export async function cancelEmail(db: Db, id: string): Promise<EmailRecord[]> {
   const email = findEmail(db, id);
   if (!email) throw new Error("That email no longer exists.");
   if (email.status !== "scheduled" && email.followUp?.status !== "waiting") {
     throw new Error("Nothing about that email is still waiting to be sent.");
+  }
+  // Kept by Caulder, not the script: cancelled here, and nowhere else to ask.
+  const own = db.prepare(`SELECT account_id FROM emails WHERE id = ?`).get(id) as { account_id: string | null } | undefined;
+  if (own?.account_id) {
+    // A message that has not gone is cancelled; one that has, and has a follow-up waiting, loses only the follow-up.
+    const followUp = email.followUp?.status === "waiting" ? { status: "cancelled" as const, sentAt: null, error: null } : null;
+    applyReport(
+      db,
+      { id, status: email.status === "scheduled" ? "cancelled" : email.status, sentAt: null, repliedAt: null, error: null, followUp },
+      new Date(),
+    );
+    settleAccountEmail(db, id);
+    return listEmailsForLead(db, email.leadId);
   }
 
   const remote = await callScript<RemoteEmail>("cancelEmail", { id });
@@ -227,6 +422,9 @@ export async function cancelEmail(db: Db, id: string): Promise<EmailRecord[]> {
  * on the way simply asks again next time.
  */
 export async function syncEmails(db: Db, now: Date = new Date()): Promise<number> {
+  // A contact marked do not contact while the script was out of reach still
+  // has mail waiting there; this is where that is stopped once it answers.
+  await stopBarredMail(db);
   const ids = watchedEmailIds(db);
   const forget = forgettableEmailIds(db);
   if (ids.length === 0 && forget.length === 0) return 0;

@@ -14,9 +14,15 @@ import type { BrainSectionId, FieldValue } from "./brain";
 export const RUNNING_COST_TEMPLATE = "running-cost";
 
 /** The templates a running cost is read from, and the field holding each part. */
-const SOURCES: Record<string, { amount: string; cycle: string | null; next: string; category: string | null }> = {
+/**
+ * `years`, where a page has it, is how many cycles are paid at once: a domain
+ * bought for five years, a licence for three. A domain's cost is a year's
+ * (its field says so), so a renewal pays a year times the years; a running
+ * cost's amount is each payment.
+ */
+const SOURCES: Record<string, { amount: string; cycle: string | null; next: string; category: string | null; perYear?: boolean }> = {
   tool: { amount: "cost", cycle: "cycle", next: "renewsOn", category: null },
-  domain: { amount: "cost", cycle: null, next: "renewsOn", category: null },
+  domain: { amount: "cost", cycle: null, next: "renewsOn", category: null, perYear: true },
   [RUNNING_COST_TEMPLATE]: { amount: "amount", cycle: "cycle", next: "dueOn", category: "category" },
 };
 
@@ -58,6 +64,14 @@ export type RunningCost = {
   category: string | null;
   /** What it costs a month, rounded; nothing for a one-off or an unknown. */
   monthly: number;
+  /** How many cycles one payment covers: 5 for a domain bought for five years. */
+  years: number;
+  /** What one payment is, when it renews. */
+  each: number | null;
+  /** The email it was bought with, where the page says: the one to sign in with when it renews. */
+  account: string | null;
+  /** Which of the company's products it serves, where the page says: Leaflet, Unifloe. */
+  product: string | null;
 };
 
 type PageLike = {
@@ -84,16 +98,24 @@ export function costOf(page: PageLike): RunningCost | null {
   const cycle = isCycle(cycleRaw) ? cycleRaw : null;
   const next = page.fields[source.next];
   const category = source.category ? page.fields[source.category] : page.template;
+  const yearsRaw = page.fields["years"];
+  const years = typeof yearsRaw === "number" && Number.isInteger(yearsRaw) && yearsRaw >= 1 && yearsRaw <= 10 ? yearsRaw : 1;
+  const paid = cycle === "free" ? 0 : amount;
+  const each = paid === null ? null : source.perYear ? paid * years : paid;
   return {
     pageId: page.id,
     title: page.title,
     template: page.template,
     section: page.section,
-    amount: cycle === "free" ? 0 : amount,
+    amount: paid,
     cycle,
     nextOn: typeof next === "string" && next.length > 0 ? next : null,
     category: typeof category === "string" && category.length > 0 ? category : null,
-    monthly: monthlyOf(cycle === "free" ? 0 : amount, cycle),
+    monthly: source.perYear ? monthlyOf(paid, cycle) : Math.round(monthlyOf(paid, cycle) / years),
+    years,
+    each,
+    account: typeof page.fields["account"] === "string" && page.fields["account"].trim() ? page.fields["account"].trim() : null,
+    product: typeof page.fields["product"] === "string" && page.fields["product"].trim() ? page.fields["product"].trim() : null,
   };
 }
 
@@ -102,10 +124,10 @@ export function nextField(template: string): string | null {
   return SOURCES[template]?.next ?? null;
 }
 
-/** The date after this one, a cycle on. A one-off has none. */
-export function nextAfter(day: string, cycle: CostCycle | null): string | null {
+/** The date after this one, a cycle on - or `years` of them, for one paid ahead. A one-off has none. */
+export function nextAfter(day: string, cycle: CostCycle | null, years = 1): string | null {
   const months = cycle === null ? null : MONTHS_IN[cycle];
-  return months === null ? null : addMonths(day, months);
+  return months === null ? null : addMonths(day, months * years);
 }
 
 /**

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { basename, extname, join, posix } from "node:path";
 import type { Db } from "../db/connection";
-import { BRAIN_SECTION_LIST, isPersonalSection, isSection, templateOf, type BrainSectionId } from "@shared/brain";
+import { BRAIN_SECTION_LIST, isSection, templateOf, type BrainSectionId } from "@shared/brain";
 import {
   DOCUMENT_CATEGORIES,
   DOCUMENT_CATEGORY_LABEL,
@@ -16,17 +16,16 @@ import {
   type RoomChoices,
   type RoomExtra,
 } from "@shared/dataroom";
-import { PERSON_KIND_LABEL } from "@shared/people";
 import { PRODUCT_STATUS_LABEL, describeRecurrence } from "@shared/products";
 import { today as todayIn } from "@shared/dates";
 import { pagesOf, type StoredFields } from "../repositories/brain";
 import { readMe } from "../repositories/me";
 import { describeValue } from "./brain";
-import { buildPeople } from "./people";
 import { buildCatalogue } from "./products";
 import { buildMetrics } from "./metrics";
 import { buildDeadlines } from "./deadlines";
 import { money } from "./invoice-html";
+import { localeFor } from "@shared/countries";
 import { documentHtml, escapeHtml, factsHtml, markdownHtml, tableHtml, type LinkResolver } from "./page-html";
 import { safeName } from "./names";
 import { ZipWriter } from "./zip";
@@ -55,12 +54,18 @@ function spellDay(day: string): string {
   return `${date} ${MONTHS[month - 1]} ${year}`;
 }
 
-type Company = { id: string; name: string; currency: string; timezone: string; logo: string | null };
+type Company = { id: string; name: string; currency: string; country: string | null; timezone: string; logo: string | null };
 
 type Page = ReturnType<typeof pagesOf>[number];
 
+/** The company's money, written the way it is where the company is (phase 24). */
+function moneyFor(company: Company): (value: number) => string {
+  const locale = localeFor(company.country);
+  return (value) => money(value, company.currency, locale);
+}
+
 function companyOf(db: Db, companyId: string): Company {
-  const row = db.prepare(`SELECT id, name, currency, timezone, logo FROM companies WHERE id = ?`).get(companyId) as
+  const row = db.prepare(`SELECT id, name, currency, country, timezone, logo FROM companies WHERE id = ?`).get(companyId) as
     | Company
     | undefined;
   if (!row) throw new Error("That company no longer exists.");
@@ -79,7 +84,7 @@ function displayName(db: Db, company: Company): { name: string; oneLiner: string
 
 /** The sections a data room or a handbook can hold: the company's, not the founder's own. */
 function offeredSections(): { id: BrainSectionId; label: string }[] {
-  return BRAIN_SECTION_LIST.filter((section) => !isPersonalSection(section.id)).map(({ id, label }) => ({ id, label }));
+  return BRAIN_SECTION_LIST.map(({ id, label }) => ({ id, label }));
 }
 
 type DocumentRow = {
@@ -122,7 +127,6 @@ export function roomChoices(db: Db, companyId: string, now: Date = new Date()): 
       written: documents.filter((row) => row.category === category && !row.file).length,
     })),
     extras: {
-      people: rows(`SELECT COUNT(*) AS n FROM people WHERE company_id = ? AND kind != 'candidate'`),
       products: rows(`SELECT COUNT(*) AS n FROM products WHERE company_id = ?`),
       metrics: rows(`SELECT COUNT(*) AS n FROM metrics WHERE company_id = ?`),
       filings: (db.prepare(`SELECT COUNT(*) AS n FROM obligations WHERE company_id = ? AND is_active = 1 AND (ends_on IS NULL OR ends_on >= ?)`).get(companyId, today) as { n: number }).n,
@@ -136,7 +140,7 @@ type Chosen = { section: { id: BrainSectionId; label: string }; pages: Page[] }[
 
 /** The live pages of the ticked sections, in the rail's order. Unknown and personal sections are ignored. */
 function chosenPages(db: Db, companyId: string, sections: readonly string[]): Chosen {
-  const wanted = new Set(sections.filter((id) => isSection(id) && !isPersonalSection(id)));
+  const wanted = new Set(sections.filter((id) => isSection(id)));
   const pages = pagesOf(db, companyId).filter((page) => page.is_archived === 0 && wanted.has(page.section));
   return offeredSections()
     .filter((section) => wanted.has(section.id))
@@ -145,27 +149,27 @@ function chosenPages(db: Db, companyId: string, sections: readonly string[]): Ch
 }
 
 /** A page's fields as words, in the template's order: dates spelled, money in the currency, secrets masked unless asked. */
-function factsOf(page: { template: string; stored: StoredFields }, currency: string, secrets: boolean) {
+function factsOf(page: { template: string; stored: StoredFields }, moneyOf: (value: number) => string, secrets: boolean) {
   const facts: { label: string; value: string }[] = [];
   for (const field of templateOf(page.template).fields) {
     const raw = page.stored[field.key];
     const value = describeValue(field.kind, raw, field.options, secrets);
     if (value === null) continue;
     if (field.kind === "date" && typeof raw === "string") facts.push({ label: field.label, value: spellDay(raw) });
-    else if (field.kind === "money" && typeof raw === "number") facts.push({ label: field.label, value: money(raw, currency) });
+    else if (field.kind === "money" && typeof raw === "number") facts.push({ label: field.label, value: moneyOf(raw) });
     else facts.push({ label: field.label, value });
   }
   return facts;
 }
 
-function pageBody(page: Page, currency: string, secrets: boolean, resolve: LinkResolver, heading: string): string {
+function pageBody(page: Page, moneyOf: (value: number) => string, secrets: boolean, resolve: LinkResolver, heading: string): string {
   const template = templateOf(page.template);
   return [
     heading,
     `<p class="meta">${escapeHtml(template.name)} · updated ${escapeHtml(spellDay(page.updated_at.slice(0, 10)))}${
       page.updated_by ? ` by ${escapeHtml(page.updated_by)}` : ""
     }</p>`,
-    factsHtml(factsOf(page, currency, secrets)),
+    factsHtml(factsOf(page, moneyOf, secrets)),
     page.body.trim() ? markdownHtml(page.body, resolve) : "",
   ].join("\n");
 }
@@ -191,31 +195,13 @@ function extrasHtml(db: Db, company: Company, extras: ReadonlySet<RoomExtra>, fo
   const out: { id: RoomExtra; title: string; html: string }[] = [];
   const day = (value: string | null) => (value ? spellDay(value) : "");
 
-  if (extras.has("people")) {
-    const people = buildPeople(db, company.id, now).people.filter((person) => person.kind !== "candidate");
-    if (people.length > 0) {
-      // A handbook is read by the team: who does what, never what anybody holds.
-      const head = forHandbook ? ["Name", "Role", "Kind", "Since", "Looks after"] : ["Name", "Role", "Kind", "Since", "Equity", "Looks after"];
-      const rows = people.map((person) => {
-        const base = [person.name, person.role ?? "", PERSON_KIND_LABEL[person.kind], day(person.startsOn)];
-        const vested = person.vesting ? Math.round(person.vesting.vested * 100) / 100 : null;
-        const equity =
-          person.equity !== null
-            ? `${person.equity}%${vested !== null && vested < person.equity ? `, ${vested}% vested` : ""}`
-            : "";
-        return forHandbook ? [...base, person.owns ?? ""] : [...base, equity, person.owns ?? ""];
-      });
-      out.push({ id: "people", title: forHandbook ? "Who is who" : ROOM_EXTRA_LABEL.people, html: tableHtml(head, rows) });
-    }
-  }
-
   if (extras.has("products")) {
     const catalogue = buildCatalogue(db, company.id, now);
     if (catalogue.products.length > 0) {
       const head = forHandbook ? ["Product", "One is", "Price now"] : ["Product", "Status", "One is", "Price now", "Brought in"];
       const rows = catalogue.products.map((product) => {
         const price = product.current
-          ? `${money(product.current.amount, company.currency)} ${describeRecurrence(product.current.recurrence)}`
+          ? `${moneyFor(company)(product.current.amount)} ${describeRecurrence(product.current.recurrence)}`
           : "";
         return forHandbook
           ? [product.name, product.unit ?? "", price]
@@ -225,7 +211,7 @@ function extrasHtml(db: Db, company: Company, extras: ReadonlySet<RoomExtra>, fo
               product.unit ?? "",
               price,
               product.sales.invoices > 0
-                ? `${money(product.sales.value, company.currency)} on ${product.sales.invoices} ${product.sales.invoices === 1 ? "invoice" : "invoices"}`
+                ? `${moneyFor(company)(product.sales.value)} on ${product.sales.invoices} ${product.sales.invoices === 1 ? "invoice" : "invoices"}`
                 : "",
             ];
       });
@@ -240,9 +226,9 @@ function extrasHtml(db: Db, company: Company, extras: ReadonlySet<RoomExtra>, fo
       const label = (month: string) => spellDay(`${month}-01`).replace(/^1 /, "");
       const show = (kind: string, value: number | null, unit: string | null) => {
         if (value === null) return "";
-        if (kind === "money") return money(value, company.currency);
+        if (kind === "money") return moneyFor(company)(value);
         if (kind === "percent") return `${value}%`;
-        return `${value.toLocaleString("en-GB")}${unit ? ` ${unit}` : ""}`;
+        return `${value.toLocaleString()}${unit ? ` ${unit}` : ""}`;
       };
       const rows = overview.metrics.map((metric) => [
         metric.name,
@@ -344,7 +330,7 @@ export function dataRoomContents(db: Db, companyId: string, raw: unknown, store:
       const back = posix.relative(posix.dirname(path), "index.html");
       const body = [
         `<a class="back" href="${escapeHtml(href(back))}">← ${escapeHtml(name)} data room</a>`,
-        pageBody(page, company.currency, input.secrets, resolverFrom(path), `<h1>${escapeHtml(page.title)}</h1>`),
+        pageBody(page, moneyFor(company), input.secrets, resolverFrom(path), `<h1>${escapeHtml(page.title)}</h1>`),
       ].join("\n");
       files.push({ name: path, text: documentHtml(`${page.title} · ${name}`, body) });
     }
@@ -449,7 +435,7 @@ export function handbookHtml(db: Db, companyId: string, raw: unknown, now: Date 
   const extras = new Set(input.extras.filter((extra) => HANDBOOK_EXTRAS.includes(extra)));
   const tables = extrasHtml(db, company, extras, true, now);
   if (chosen.length === 0 && tables.length === 0) {
-    throw new Error("Tick a section with pages in it, or the people or the products, to make a handbook of.");
+    throw new Error("Tick a section with pages in it, or the products, to make a handbook of.");
   }
 
   const included = new Set(chosen.flatMap((entry) => entry.pages.map((page) => page.id)));
@@ -470,7 +456,7 @@ export function handbookHtml(db: Db, companyId: string, raw: unknown, now: Date 
     chapters.push(`<section class="chapter" id="${anchor}"><h1>${escapeHtml(section.label)}</h1>`);
     for (const page of pages) {
       chapters.push(
-        `<article class="page" id="page-${escapeHtml(page.id)}">${pageBody(page, company.currency, input.secrets, resolve, `<h2>${escapeHtml(page.title)}</h2>`)}</article>`,
+        `<article class="page" id="page-${escapeHtml(page.id)}">${pageBody(page, moneyFor(company), input.secrets, resolve, `<h2>${escapeHtml(page.title)}</h2>`)}</article>`,
       );
     }
     chapters.push("</section>");

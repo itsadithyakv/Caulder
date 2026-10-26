@@ -1,12 +1,12 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { MetricPoint } from "@shared/metrics";
+import { dateFormatter } from "@/lib/format";
 
-const monthFormat = new Intl.DateTimeFormat(undefined, { month: "short", year: "numeric" });
 
 /** "2026-08" as "Aug 2026". */
 export function monthLabel(month: string): string {
   const [year, number] = month.split("-").map(Number);
-  return monthFormat.format(new Date(year ?? 1970, (number ?? 1) - 1, 1));
+  return dateFormatter({ month: "short", year: "numeric" }).format(new Date(year ?? 1970, (number ?? 1) - 1, 1));
 }
 
 /**

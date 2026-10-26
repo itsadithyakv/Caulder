@@ -44,7 +44,9 @@ async function installScript() {
       followUp: { status: string; sentAt: null; error: null } | null;
     };
     const fake = {
-      version: 3,
+      // The script this build ships (shared/script.ts): anything older is asked to update.
+      // An older one is its own test, further down.
+      version: 8,
       calls: [] as unknown[],
       jobs: new Map<string, Job>(),
       replied: new Set<string>(),
@@ -160,7 +162,8 @@ test("without the script, a contact's email opens the mail app and says why", as
   await page.getByRole("button", { name: "Add contact" }).click();
   await expect(page.getByRole("heading", { name: "Oakridge" })).toBeVisible();
 
-  await expect(page.getByText(/Connect Google in Settings.*opens your own mail app/)).toBeVisible();
+  // Not connected is offered once, on Today; here it only says what Write one does.
+  await expect(page.getByText("Write one opens your own mail app.")).toBeVisible();
   await page.getByRole("button", { name: "Write one" }).click();
   await expect(page.getByRole("button", { name: "Open in your mail app" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Send", exact: true })).toHaveCount(0);
@@ -281,9 +284,14 @@ test("an older script is explained on Settings, and a contact falls back to the 
   await app.evaluate(() => {
     ((globalThis as Record<string, unknown>)["fakeScript"] as { version: number }).version = 1;
   });
+  // Caulder asks the script what it is when it connects and when told to look again: told to, as a person would.
+  await page.evaluate(async () => {
+    const c = (await window.caulder.companies.list()).activeCompanyId as string;
+    await window.caulder.google.refresh(c);
+  });
 
   await goTo(page, "Settings");
-  await expect(page.getByText(/Your script is version 1\. Version 3 sends email/)).toBeVisible();
+  await expect(page.getByText(/Your script is version 1\. Version \d+ sends email/)).toBeVisible();
   await expect(page.getByRole("button", { name: "Copy the new script" })).toBeVisible();
   await expect(page.getByText(/Deploy › Manage deployments/)).toBeVisible();
 

@@ -110,6 +110,16 @@
   /* The three-pixel halo a focused field or a hovered primary button wears. */
   --accent-halo: color-mix(in srgb, var(--accent) 22%, transparent);
 
+  /* The inks an invoice can be printed in (shared/invoicelook.ts, INVOICE_INKS):
+   * the paper's colours, shown as swatches in Settings. The same in dark mode,
+   * because the paper does not change. Keep the two lists in step. */
+  --doc-ink-ink: #1a1f2b;
+  --doc-ink-blue: #1f4e8c;
+  --doc-ink-teal: #0f6b6b;
+  --doc-ink-green: #2f6b2f;
+  --doc-ink-plum: #5b2a6e;
+  --doc-ink-rust: #9a3d12;
+
   /* The funnel.
    *
    * Columns are neutral. The stage is carried by the line along the top of a
@@ -126,8 +136,8 @@
   --stage-4: var(--bg-subtle);
   --stage-5: var(--bg-subtle);
   --stage-6: var(--bg-subtle);
-  --stage-won: color-mix(in srgb, var(--ok) 6%, var(--bg-subtle));
-  --stage-lost: color-mix(in srgb, var(--danger) 5%, var(--bg-subtle));
+  --stage-won: color-mix(in srgb, var(--ok) 3%, var(--bg-subtle));
+  --stage-lost: color-mix(in srgb, var(--danger) 3%, var(--bg-subtle));
 
   --stage-1-edge: color-mix(in srgb, var(--accent) 30%, var(--surface));
   --stage-2-edge: color-mix(in srgb, var(--accent) 45%, var(--surface));
@@ -150,43 +160,25 @@
   --block-focus: color-mix(in srgb, var(--accent) 14%, var(--surface));
   --block-meeting: color-mix(in srgb, var(--info) 16%, var(--surface));
   --block-admin: color-mix(in srgb, var(--ink) 8%, var(--surface));
-  --block-break: color-mix(in srgb, var(--ok) 14%, var(--surface));
-  --block-personal: color-mix(in srgb, var(--warn) 14%, var(--surface));
+  --block-away: color-mix(in srgb, var(--ok) 14%, var(--surface));
+  --block-call: color-mix(in srgb, var(--warn) 14%, var(--surface));
   --block-unsorted: color-mix(in srgb, var(--ink) 6%, var(--surface));
 
   --block-focus-edge: var(--accent);
   --block-meeting-edge: var(--info);
   --block-admin-edge: var(--ink-3);
-  --block-break-edge: var(--ok);
-  --block-personal-edge: var(--warn);
-
-  /* Areas of life, on a task: a dot beside a plain label, so four in a list
-   * stay quiet.
-   *
-   * Checked with the dataviz validator, all pairs, on both faces' surfaces -
-   * any two areas can sit next to each other, so every pair has to separate,
-   * not just neighbours. Company is a fixed hue: a dot that changed with the
-   * workspace could never be checked against the other three.
-   *
-   * The colour-blind separations sit in the band that is legal only with a
-   * second channel. The word beside every dot is that channel, and it is not
-   * optional: never show an area dot without its label. */
-  --area-college: #166fd0;
-  --area-company: #d44724;
-  --area-personal: #90338b;
-  --area-health: #32874b;
+  --block-away-edge: var(--ok);
+  --block-call-edge: var(--warn);
 
   /* The Map's dots, one per kind of thing (design-language.md, The Map).
-   * Checked like the area colours: every pair 15 apart in OKLab, 3:1 on
+   * Checked the way a set of categories is: every pair 15 apart in OKLab, 3:1 on
    * every surface - see map.test.ts. Never the accent, which moves. */
   --map-page: #397ad1;
   --map-contact: #0f726f;
   --map-product: #578c1a;
-  --map-person: #80449f;
   --map-document: #89570a;
   --map-decision: #c14d65;
   /* The founder's own pages: gray, the one step clear of all six hues (16 apart, 3.1:1). */
-  --map-own: #8e9398;
   --block-unsorted-edge: var(--ink-3);
 
   /* Semantic. Never derived from --accent. Each clears 4.5:1 as text on
@@ -207,6 +199,22 @@
   --border-strong: #c1c7c6;
   --border-input: #889397;  /* 3.3:1, the non-text floor */
   --soft-line: #eef2f0;
+  /* The notebook's margin, between the sidebar and the page. See the face. */
+  --margin-rule: #e9aaa1;
+  /* The sketchbook: the grain of the paper, sticky notes, kraft, tape and a
+   * highlighter. Decoration, which is why none of it is a status colour, and
+   * text on every note is measured: ink-3 holds 4.6:1 or better on each. */
+  --paper-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260'%3E%3Cfilter id='g' x='0' y='0'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.24 0 0 0 0 0.16 0 0 0 0 0.08 0.13 0 0 0 -0.03'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  --note-yellow: #fbefb4;
+  --note-blue: #dcebf3;
+  --note-green: #e0eed6;
+  --note-pink: #f8dcd6;
+  --kraft: #e9dcc3;
+  --tape: rgba(222, 208, 170, 0.62);
+  --highlight: rgba(250, 210, 90, 0.42);
+  --index-card: #fffdf8;
+  /* The page's ruled lines, faint enough to be felt more than seen. */
+  --rule-line: rgba(96, 140, 190, 0.11);
 
   /* Elevation. Soft and short: a card sits a hair off the page, a menu
    * clearly above it. */
@@ -230,6 +238,23 @@
   --radius-lg: 12px;
   --radius-xl: 16px;
   --radius-pill: 999px;
+  /* Drawn, not machined: corners that are not quite the same, as a pen
+   * makes them. The large one is for buttons, the small one for fields
+   * and highlights, the blob for a hand-drawn circle. */
+  --radius-hand: 255px 15px 225px 15px / 15px 225px 15px 255px;
+  --radius-hand-sm: 9px 3px 10px 4px / 4px 10px 3px 9px;
+  --radius-blob: 52% 48% 55% 45% / 47% 55% 45% 53%;
+  /* How far apart the page's ruled lines are. */
+  --rule-gap: 32px;
+
+  /* The doodles, as masks - black is only how opaque, and the colour comes
+   * from whatever token the element paints itself with. A rule drawn
+   * across a section, the margin's double line, a scribbled underline and
+   * a strip of tape with torn ends. */
+  --doodle-rule: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='6' viewBox='0 0 320 6'%3E%3Cpath d='M0 3.2 C 28 2 52 4.4 88 3.1 S 150 1.9 188 3.5 S 262 4.3 320 3.2' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
+  --doodle-margin: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='320' viewBox='0 0 8 320'%3E%3Cpath d='M2 0 C 2.9 42 1.1 86 2.1 128 S 2.9 212 1.7 256 S 1.5 296 2 320' fill='none' stroke='black' stroke-width='1.2'/%3E%3Cpath d='M5.8 0 C 5 54 6.6 96 5.6 150 S 5.1 232 6.2 270 S 5.6 304 5.8 320' fill='none' stroke='black' stroke-width='1.2'/%3E%3C/svg%3E");
+  --doodle-scribble: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='10' viewBox='0 0 200 10' preserveAspectRatio='none'%3E%3Cpath d='M3 5.5 C 40 3 90 7.5 140 4.6 S 185 4 197 5' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'/%3E%3Cpath d='M14 8 C 60 6.4 120 8.6 186 7' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
+  --doodle-tape: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='24' viewBox='0 0 100 24' preserveAspectRatio='none'%3E%3Cpath d='M3 0 L97 0 L100 4 L97 8 L100 12 L97 16 L100 20 L97 24 L3 24 L0 20 L3 16 L0 12 L3 8 L0 4 Z'/%3E%3C/svg%3E");
 
   /* Overridden per face; see the two faces at the foot of this file. */
   --face-edge: transparent;
@@ -310,8 +335,8 @@
 
     --ok: #3fbf85;
     --ok-soft: rgba(63, 191, 133, 0.14);
-    --stage-won: color-mix(in srgb, var(--ok) 8%, var(--bg-subtle));
-    --stage-lost: color-mix(in srgb, var(--danger) 7%, var(--bg-subtle));
+    --stage-won: color-mix(in srgb, var(--ok) 4%, var(--bg-subtle));
+    --stage-lost: color-mix(in srgb, var(--danger) 4%, var(--bg-subtle));
 
     --stage-1-edge: color-mix(in srgb, var(--accent) 35%, var(--surface));
     --stage-2-edge: color-mix(in srgb, var(--accent) 50%, var(--surface));
@@ -326,27 +351,21 @@
     --block-focus: color-mix(in srgb, var(--accent) 22%, var(--surface));
     --block-meeting: color-mix(in srgb, var(--info) 24%, var(--surface));
     --block-admin: color-mix(in srgb, var(--ink) 12%, var(--surface));
-    --block-break: color-mix(in srgb, var(--ok) 22%, var(--surface));
-    --block-personal: color-mix(in srgb, var(--warn) 22%, var(--surface));
+    --block-away: color-mix(in srgb, var(--ok) 22%, var(--surface));
+    --block-call: color-mix(in srgb, var(--warn) 22%, var(--surface));
     --block-unsorted: color-mix(in srgb, var(--ink) 9%, var(--surface));
 
     --block-focus-edge: var(--accent);
     --block-meeting-edge: var(--info);
     --block-admin-edge: var(--ink-3);
-    --block-break-edge: var(--ok);
-    --block-personal-edge: var(--warn);
+    --block-away-edge: var(--ok);
+    --block-call-edge: var(--warn);
 
-    --area-college: #027bee;
-    --area-company: #ae5f1f;
-    --area-personal: #c656bf;
-    --area-health: #0bae51;
     --map-page: #889dfc;
     --map-contact: #0cd4f5;
     --map-product: #44bf83;
-    --map-person: #f29be5;
     --map-document: #cfc148;
     --map-decision: #e4886f;
-    --map-own: #6a6f74;
     --block-unsorted-edge: var(--ink-3);
 
     --warn: #e0a64a;
@@ -360,6 +379,17 @@
     --border-strong: #3d4f58;
     --border-input: #5c6c75;
     --soft-line: #1a3140;
+    --margin-rule: #7d4842;
+    --paper-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260'%3E%3Cfilter id='g' x='0' y='0'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.96 0 0 0 0 0.9 0 0 0 0 0.82 0.12 0 0 0 -0.03'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+    --note-yellow: #312c1b;
+    --note-blue: #1e2a32;
+    --note-green: #242c1b;
+    --note-pink: #33231f;
+    --kraft: #2e251a;
+    --tape: rgba(240, 228, 196, 0.16);
+    --highlight: rgba(224, 166, 74, 0.24);
+    --index-card: #26211b;
+    --rule-line: rgba(140, 180, 225, 0.05);
 
     --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
     --shadow-sm: 0 4px 10px -4px rgba(0, 0, 0, 0.45);
@@ -404,8 +434,8 @@
 
   --ok: #3fbf85;
   --ok-soft: rgba(63, 191, 133, 0.14);
-  --stage-won: color-mix(in srgb, var(--ok) 8%, var(--bg-subtle));
-  --stage-lost: color-mix(in srgb, var(--danger) 7%, var(--bg-subtle));
+  --stage-won: color-mix(in srgb, var(--ok) 4%, var(--bg-subtle));
+  --stage-lost: color-mix(in srgb, var(--danger) 4%, var(--bg-subtle));
 
   --stage-1-edge: color-mix(in srgb, var(--accent) 35%, var(--surface));
   --stage-2-edge: color-mix(in srgb, var(--accent) 50%, var(--surface));
@@ -420,27 +450,21 @@
   --block-focus: color-mix(in srgb, var(--accent) 22%, var(--surface));
   --block-meeting: color-mix(in srgb, var(--info) 24%, var(--surface));
   --block-admin: color-mix(in srgb, var(--ink) 12%, var(--surface));
-  --block-break: color-mix(in srgb, var(--ok) 22%, var(--surface));
-  --block-personal: color-mix(in srgb, var(--warn) 22%, var(--surface));
+  --block-away: color-mix(in srgb, var(--ok) 22%, var(--surface));
+  --block-call: color-mix(in srgb, var(--warn) 22%, var(--surface));
   --block-unsorted: color-mix(in srgb, var(--ink) 9%, var(--surface));
 
   --block-focus-edge: var(--accent);
   --block-meeting-edge: var(--info);
   --block-admin-edge: var(--ink-3);
-  --block-break-edge: var(--ok);
-  --block-personal-edge: var(--warn);
+  --block-away-edge: var(--ok);
+  --block-call-edge: var(--warn);
 
-  --area-college: #027bee;
-  --area-company: #ae5f1f;
-  --area-personal: #c656bf;
-  --area-health: #0bae51;
   --map-page: #889dfc;
   --map-contact: #0cd4f5;
   --map-product: #44bf83;
-  --map-person: #f29be5;
   --map-document: #cfc148;
   --map-decision: #e4886f;
-  --map-own: #6a6f74;
   --block-unsorted-edge: var(--ink-3);
 
   --warn: #e0a64a;
@@ -454,6 +478,17 @@
   --border-strong: #3d4f58;
   --border-input: #5c6c75;
   --soft-line: #1a3140;
+  --margin-rule: #7d4842;
+  --paper-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260'%3E%3Cfilter id='g' x='0' y='0'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.96 0 0 0 0 0.9 0 0 0 0 0.82 0.12 0 0 0 -0.03'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  --note-yellow: #312c1b;
+  --note-blue: #1e2a32;
+  --note-green: #242c1b;
+  --note-pink: #33231f;
+  --kraft: #2e251a;
+  --tape: rgba(240, 228, 196, 0.16);
+  --highlight: rgba(224, 166, 74, 0.24);
+  --index-card: #26211b;
+  --rule-line: rgba(140, 180, 225, 0.05);
 
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-sm: 0 4px 10px -4px rgba(0, 0, 0, 0.45);
@@ -547,77 +582,99 @@
 }
 
 /* ---------------------------------------------------------------------------
- * The face the app wears
+ * The face the app wears: the notebook
  *
- * Coffee: a coffee ground and espresso ink in light, an espresso ground and
- * cream ink in dark, and rounder corners, with the coffee accent. It began
- * as the face of a personal workspace and is now the app's, whichever
- * company is chosen - set on <html> in index.html, so it is there from the
- * first paint. The attribute keeps its old name; the base values above are
- * what it overrides.
+ * An off-white page, faintly ruled (sketch.css draws the ruling), with
+ * sections as sheets a shade whiter laid on it (`.card` in primitives.css),
+ * so text never sits on a line. The sidebar is the margin, set off by the
+ * notebook's double rule in faint rose (`--margin-rule`) - the one line in
+ * the app drawn for its look rather than its meaning, and never a status
+ * colour. Espresso ink and the coffee accent; dark mode is the same
+ * notebook by lamplight.
+ *
+ * Set on <html> in index.html, so it is there from the first paint. It
+ * replaced the coffee face (a cafe-au-lait ground with rounded cards) on 14
+ * October 2026.
  *
  * Declared in all three places like every other colour in this file - base,
  * the prefers-color-scheme block, and the explicit attribute - with every ink
  * checked against every surface it sits on:
  *
- *   light  ink 12.8:1  ink-2 8.7:1  ink-3 5.8:1 on --surface
- *   dark   ink 14.2:1  ink-2 9.3:1  ink-3 5.5:1 on --surface
+ *   light  ink 17.1:1  ink-2 9.9:1  ink-3 6.2:1 on --surface (a sheet),
+ *          ink-3 5.8:1 on --bg (the page), 5.5:1 sunken
+ *   dark   ink-3 5.9:1 on --surface, 6.3:1 on --bg
  * ------------------------------------------------------------------------- */
-
-:root[data-face="personal"] {
-  --radius-xs: 6px;
-  --radius-sm: 10px;
-  --radius-md: 14px;
-  --radius-lg: 18px;
-  --radius-xl: 24px;
-
-  --bg: #efe6da;
-  --bg-subtle: #e6d9c8;
-  --surface: #f7f1e9;
-  --surface-sunken: #ede3d6;
-  --surface-hover: #efe5d8;
-  --hover: rgba(38, 23, 14, 0.06);
-
-  --ink: #26170e;
-  --ink-2: #4a3325;
-  --ink-3: #5e4230;
-
-  --border: rgba(38, 23, 14, 0.13);
-  --border-strong: rgba(38, 23, 14, 0.22);
-  --border-input: rgba(38, 23, 14, 0.42);
-  --soft-line: rgba(38, 23, 14, 0.08);
-
-  --face-edge: rgba(38, 23, 14, 0.1);
+:root[data-face="notebook"] {
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+  --bg: #f8f5ee;
+  --bg-subtle: #f8f5ee;
+  --surface: #fffdf9;
+  --surface-sunken: #f3eee5;
+  --surface-hover: #f1ebe1;
+  --hover: rgba(60, 40, 20, 0.05);
+  --ink: #1f1914;
+  --ink-2: #4a4038;
+  --ink-3: #695e53;
+  --border: #e6dfd3;
+  --border-strong: #d0c6b6;
+  --border-input: #8c7f6f;
+  --soft-line: #eee8de;
+  --margin-rule: #e9aaa1;
+  /* The sketchbook: the grain of the paper, sticky notes, kraft, tape and a
+   * highlighter. Decoration, which is why none of it is a status colour, and
+   * text on every note is measured: ink-3 holds 4.6:1 or better on each. */
+  --paper-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260'%3E%3Cfilter id='g' x='0' y='0'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.24 0 0 0 0 0.16 0 0 0 0 0.08 0.13 0 0 0 -0.03'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  --note-yellow: #fbefb4;
+  --note-blue: #dcebf3;
+  --note-green: #e0eed6;
+  --note-pink: #f8dcd6;
+  --kraft: #e9dcc3;
+  --tape: rgba(222, 208, 170, 0.62);
+  --highlight: rgba(250, 210, 90, 0.42);
+  --index-card: #fffdf8;
+  /* The page's ruled lines, faint enough to be felt more than seen. */
+  --rule-line: rgba(96, 140, 190, 0.11);
+  --face-edge: transparent;
   --face-wash: transparent;
-
-  --shadow-xs: 0 1px 2px rgba(60, 36, 18, 0.06);
-  --shadow-sm: 0 4px 10px -4px rgba(60, 36, 18, 0.14);
-  --shadow-md: 0 8px 20px -8px rgba(60, 36, 18, 0.18);
-  --shadow-lg: 0 16px 32px -12px rgba(60, 36, 18, 0.22);
+  --shadow-xs: 0 1px 2px rgba(60, 36, 18, 0.05);
+  --shadow-sm: 0 4px 10px -4px rgba(60, 36, 18, 0.12);
+  --shadow-md: 0 8px 20px -8px rgba(60, 36, 18, 0.16);
+  --shadow-lg: 0 16px 32px -12px rgba(60, 36, 18, 0.2);
   --shadow-inset-sm: 0 0 transparent;
   --shadow-inset-md: 0 0 transparent;
-  --shadow-float: 0 12px 32px -8px rgba(60, 36, 18, 0.26);
+  --shadow-float: 0 12px 32px -8px rgba(60, 36, 18, 0.24), 0 2px 6px rgba(60, 36, 18, 0.06);
 }
-
 @media (prefers-color-scheme: dark) {
-  :root[data-face="personal"]:not([data-theme="light"]) {
-    --bg: #1b130e;
-    --bg-subtle: #20170f;
-    --surface: #261b14;
-    --surface-sunken: #1f1610;
-    --surface-hover: #30231a;
-    --hover: rgba(244, 234, 223, 0.07);
-
-    --ink: #f4eadf;
-    --ink-2: #d2bda8;
-    --ink-3: #a88f78;
-
-    --border: rgba(244, 234, 223, 0.1);
-    --border-strong: rgba(244, 234, 223, 0.18);
-    --border-input: rgba(244, 234, 223, 0.32);
-    --soft-line: rgba(244, 234, 223, 0.07);
-    --face-edge: rgba(244, 234, 223, 0.07);
-
+  :root[data-face="notebook"]:not([data-theme="light"]) {
+    --bg: #1a1612;
+    --bg-subtle: #1a1612;
+    --surface: #211c17;
+    --surface-sunken: #231e19;
+    --surface-hover: #2a241e;
+    --hover: rgba(242, 233, 222, 0.06);
+    --ink: #f2e9de;
+    --ink-2: #d0c1b0;
+    --ink-3: #a69684;
+    --border: #322b24;
+    --border-strong: #463d34;
+    --border-input: #7a6d5e;
+    --soft-line: #27211b;
+    --margin-rule: #7d4842;
+    --paper-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260'%3E%3Cfilter id='g' x='0' y='0'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.96 0 0 0 0 0.9 0 0 0 0 0.82 0.12 0 0 0 -0.03'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+    --note-yellow: #312c1b;
+    --note-blue: #1e2a32;
+    --note-green: #242c1b;
+    --note-pink: #33231f;
+    --kraft: #2e251a;
+    --tape: rgba(240, 228, 196, 0.16);
+    --highlight: rgba(224, 166, 74, 0.24);
+    --index-card: #26211b;
+    --rule-line: rgba(140, 180, 225, 0.05);
+    --face-edge: transparent;
     --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
     --shadow-sm: 0 4px 10px -4px rgba(0, 0, 0, 0.45);
     --shadow-md: 0 8px 20px -8px rgba(0, 0, 0, 0.5);
@@ -627,25 +684,32 @@
     --shadow-float: 0 12px 32px -8px rgba(0, 0, 0, 0.62);
   }
 }
-
-:root[data-face="personal"][data-theme="dark"] {
-  --bg: #1b130e;
-  --bg-subtle: #20170f;
-  --surface: #261b14;
-  --surface-sunken: #1f1610;
-  --surface-hover: #30231a;
-  --hover: rgba(244, 234, 223, 0.07);
-
-  --ink: #f4eadf;
-  --ink-2: #d2bda8;
-  --ink-3: #a88f78;
-
-  --border: rgba(244, 234, 223, 0.1);
-  --border-strong: rgba(244, 234, 223, 0.18);
-  --border-input: rgba(244, 234, 223, 0.32);
-  --soft-line: rgba(244, 234, 223, 0.07);
-  --face-edge: rgba(244, 234, 223, 0.07);
-
+:root[data-face="notebook"][data-theme="dark"] {
+  --bg: #1a1612;
+  --bg-subtle: #1a1612;
+  --surface: #211c17;
+  --surface-sunken: #231e19;
+  --surface-hover: #2a241e;
+  --hover: rgba(242, 233, 222, 0.06);
+  --ink: #f2e9de;
+  --ink-2: #d0c1b0;
+  --ink-3: #a69684;
+  --border: #322b24;
+  --border-strong: #463d34;
+  --border-input: #7a6d5e;
+  --soft-line: #27211b;
+  --margin-rule: #7d4842;
+  --paper-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260'%3E%3Cfilter id='g' x='0' y='0'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.96 0 0 0 0 0.9 0 0 0 0 0.82 0.12 0 0 0 -0.03'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  --note-yellow: #312c1b;
+  --note-blue: #1e2a32;
+  --note-green: #242c1b;
+  --note-pink: #33231f;
+  --kraft: #2e251a;
+  --tape: rgba(240, 228, 196, 0.16);
+  --highlight: rgba(224, 166, 74, 0.24);
+  --index-card: #26211b;
+  --rule-line: rgba(140, 180, 225, 0.05);
+  --face-edge: transparent;
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-sm: 0 4px 10px -4px rgba(0, 0, 0, 0.45);
   --shadow-md: 0 8px 20px -8px rgba(0, 0, 0, 0.5);
@@ -654,4 +718,3 @@
   --shadow-inset-md: 0 0 transparent;
   --shadow-float: 0 12px 32px -8px rgba(0, 0, 0, 0.62);
 }
-

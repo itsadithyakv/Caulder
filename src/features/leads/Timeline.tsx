@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  AtSign,
   CalendarClock,
   CheckCircle2,
   FileText,
@@ -8,6 +9,7 @@ import {
   MailWarning,
   MailX,
   MessageCircle,
+  MessagesSquare,
   MoveRight,
   Pencil,
   Phone,
@@ -19,7 +21,6 @@ import {
 } from "lucide-react";
 import {
   ACTIVITY_LABEL,
-  LOGGABLE_KINDS,
   type Activity,
   type ActivityKind,
   type LoggableKind,
@@ -32,6 +33,8 @@ const ICON: Record<ActivityKind, LucideIcon> = {
   call: Phone,
   meeting: CalendarClock,
   whatsapp: MessageCircle,
+  linkedin: MessagesSquare,
+  instagram: AtSign,
   stage_change: MoveRight,
   field_change: Pencil,
   email_queued: Mail,
@@ -43,6 +46,7 @@ const ICON: Record<ActivityKind, LucideIcon> = {
   task_done: CheckCircle2,
   imported: Upload,
   import_undone: Undo2,
+  replied: Reply,
 };
 
 const LOG_LABEL: Record<LoggableKind, string> = {
@@ -50,6 +54,26 @@ const LOG_LABEL: Record<LoggableKind, string> = {
   call: "Call",
   meeting: "Meeting",
   whatsapp: "WhatsApp",
+  linkedin: "LinkedIn",
+  instagram: "Instagram",
+  // Where Caulder cannot see a reply - WhatsApp, LinkedIn, the phone - it is said here.
+  replied: "They answered",
+};
+
+/** Three things to log, not seven: a note, a conversation, a message - and which, under the last two. */
+const GROUPS: readonly { id: string; label: string; kinds: readonly LoggableKind[] }[] = [
+  { id: "note", label: "Note", kinds: ["note"] },
+  { id: "spoke", label: "Call or meeting", kinds: ["call", "meeting"] },
+  { id: "message", label: "Message", kinds: ["whatsapp", "linkedin", "instagram", "replied"] },
+];
+
+const CHANNEL_LABEL: Partial<Record<LoggableKind, string>> = {
+  call: "Call",
+  meeting: "Meeting",
+  whatsapp: "On WhatsApp",
+  linkedin: "On LinkedIn",
+  instagram: "On Instagram",
+  replied: "Their reply",
 };
 
 /**
@@ -86,19 +110,38 @@ export function Timeline({
     <div className="timeline">
       <div className="timeline__compose">
         <div className="tabs tabs--line" role="tablist" aria-label="What happened">
-          {LOGGABLE_KINDS.map((option) => (
+          {GROUPS.map((group) => (
             <button
-              key={option}
+              key={group.id}
               type="button"
               role="tab"
               className="tab"
-              aria-selected={kind === option}
-              onClick={() => setKind(option)}
+              aria-selected={group.kinds.includes(kind)}
+              onClick={() => !group.kinds.includes(kind) && setKind(group.kinds[0] ?? "note")}
             >
-              {LOG_LABEL[option]}
+              {group.label}
             </button>
           ))}
         </div>
+        {(() => {
+          const group = GROUPS.find((each) => each.kinds.includes(kind));
+          if (!group || group.kinds.length < 2) return null;
+          return (
+            <div className="chips timeline__channel" role="group" aria-label="Which">
+              {group.kinds.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  className={`chip${kind === option ? " chip--on" : ""}`}
+                  aria-pressed={kind === option}
+                  onClick={() => setKind(option)}
+                >
+                  {CHANNEL_LABEL[option] ?? LOG_LABEL[option]}
+                </button>
+              ))}
+            </div>
+          );
+        })()}
 
         <textarea
           className="textarea timeline__input"
@@ -109,7 +152,9 @@ export function Timeline({
               ? "What was said, and what happens next"
               : kind === "meeting"
                 ? "Who was there, and what was agreed"
-                : "Anything worth remembering"
+                : kind === "replied"
+                  ? "What they said"
+                  : "Anything worth remembering"
           }
           maxLength={4000}
           disabled={busy}
@@ -125,11 +170,7 @@ export function Timeline({
         />
 
         <div className="timeline__composeFoot">
-          <span className="card__hint">
-            {kind === "note"
-              ? "A note does not count as contact."
-              : "Logging this updates when you last spoke to them."}
-          </span>
+          <span className="card__hint">{kind === "note" ? "" : "Updates when you last spoke to them."}</span>
           <button
             type="button"
             className="btn btn--primary btn--sm"

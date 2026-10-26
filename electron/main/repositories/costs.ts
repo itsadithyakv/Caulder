@@ -83,8 +83,9 @@ export function deleteBalance(db: Db, companyId: string, id: string): void {
 
 /**
  * Spending and takings for each of the given months ("YYYY-MM"), in order.
- * Spending leaves out what paid a running cost, which the running costs
- * already count.
+ * Spending leaves out what paid a running cost that comes round - monthly,
+ * quarterly or yearly, which the running costs already count - and keeps
+ * what paid a one-off, which nothing else counts.
  */
 export function monthTotals(
   db: Db,
@@ -96,7 +97,10 @@ export function monthTotals(
   const spentRows = db
     .prepare(
       `SELECT substr(spent_on, 1, 7) AS month, SUM(amount) AS total FROM spend
-        WHERE company_id = ? AND cost_page_id IS NULL AND spent_on >= ?
+        WHERE company_id = ? AND spent_on >= ?
+          AND (cost_page_id IS NULL OR NOT EXISTS (
+                SELECT 1 FROM brain_pages p WHERE p.id = spend.cost_page_id
+                   AND (p.template = 'domain' OR json_extract(p.fields, '$.cycle') IN ('monthly', 'quarterly', 'yearly'))))
         GROUP BY month`,
     )
     .all(companyId, from) as { month: string; total: number }[];
@@ -125,7 +129,7 @@ export function recordCostPaid(
   now: Date,
 ): void {
   db.prepare(
-    `INSERT INTO spend (id, company_id, spent_on, amount, what, campaign_id, cost_page_id, created_at)
-     VALUES (?, ?, ?, ?, ?, NULL, ?, ?)`,
+    `INSERT INTO spend (id, company_id, spent_on, amount, what, cost_page_id, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
   ).run(randomUUID(), companyId, day, cost.amount, cost.title, cost.pageId, now.toISOString());
 }

@@ -319,3 +319,45 @@ describe("a database from a newer build", () => {
     db.close();
   });
 });
+
+describe("migration 53 gives a working day its blocks", () => {
+  function upTo(db: Database.Database, version: number) {
+    const from = currentVersion(db);
+    for (const migration of MIGRATIONS.filter((m) => m.version > from && m.version <= version)) {
+      db.exec(migration.sql);
+      db.pragma(`user_version = ${migration.version}`);
+    }
+  }
+
+  it("makes Away of a student's four kinds, on blocks and on repeats, and leaves the rest", () => {
+    const db = new Database(":memory:");
+    upTo(db, 52);
+    const now = "2026-10-11T10:00:00.000Z";
+    db.prepare(
+      `INSERT INTO companies (id, name, accent, timezone, is_archived, created_at, updated_at)
+       VALUES ('c1', 'Studio', 'blue', 'Asia/Kolkata', 0, ?, ?)`,
+    ).run(now, now);
+    const block = db.prepare(
+      `INSERT INTO blocks (id, company_id, day, starts_at, minutes, title, kind, created_at, updated_at)
+       VALUES (?, 'c1', '2026-10-12', '09:00', 60, ?, ?, ?, ?)`,
+    );
+    for (const kind of ["class", "study", "break", "personal", "focus", "meeting", "admin", "site visit", null]) {
+      block.run(`b-${kind}`, `A ${kind} hour`, kind, now, now);
+    }
+    db.prepare(
+      `INSERT INTO block_series (id, company_id, title, kind, starts_at, minutes, weekdays, from_day, until_day, created_at)
+       VALUES ('s1', 'c1', 'Databases lecture', 'class', '10:00', 60, '2,4', '2026-08-01', '2026-12-01', ?)`,
+    ).run(now);
+    db.prepare(`INSERT INTO leads (id, company_id, name, created_at, updated_at) VALUES ('l1', 'c1', 'Oakridge', ?, ?)`).run(now, now);
+
+    migrate(db);
+
+    const kinds = (db.prepare(`SELECT kind FROM blocks ORDER BY rowid`).all() as { kind: string | null }[]).map((row) => row.kind);
+    expect(kinds).toEqual(["away", "away", "away", "away", "focus", "meeting", "admin", "site visit", null]);
+    // What it is called is untouched: the title still says what the hour was.
+    expect(db.prepare(`SELECT title, kind FROM block_series WHERE id = 's1'`).get()).toEqual({ title: "Databases lecture", kind: "away" });
+    // And a contact has somewhere to say what its person is there.
+    expect(db.prepare(`SELECT contact_role FROM leads WHERE id = 'l1'`).get()).toEqual({ contact_role: null });
+    db.close();
+  });
+});

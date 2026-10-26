@@ -43,7 +43,7 @@ describe("derived metrics", () => {
     setInvoiceStatus(db, company.id, invoice.id, "sent");
     addPayment(db, company.id, invoice.id, { amount: 20000, paidOn: "2026-08-25", note: null });
     addPayment(db, company.id, invoice.id, { amount: 10000, paidOn: "2026-09-02", note: null });
-    addSpend(db, company.id, { spentOn: "2026-09-03", amount: 4000, what: "Ads", campaignId: null });
+    addSpend(db, company.id, { spentOn: "2026-09-03", amount: 4000, what: "Ads" });
     // A draft is not money.
     saveInvoice(db, company.id, null, {
       leadId: school.id,

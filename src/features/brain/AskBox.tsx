@@ -1,18 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { MessageCircleQuestion, RotateCcw, Sparkles } from "lucide-react";
-import { linkAnswer, serviceOf, type AskAnswer, type AskState, type AskTurn } from "@shared/ask";
+import { linkAnswer, serviceOf, type AskAnswer, type AskPreview, type AskState, type AskTurn } from "@shared/ask";
+import { sayParts, tokensIn } from "@shared/relevant";
 import type { LinkedName } from "@shared/links";
 import { Card } from "@/components/Card";
 import { ErrorLine } from "@/components/ErrorLine";
 import { messageOf } from "@/lib/errors";
 import { Markdown } from "./Markdown";
+import { numberText } from "@/lib/format";
 
 type Exchange = { question: string; answer: AskAnswer | null; error: string | null };
 
 const EXAMPLES = [
   "Which deals should I chase this week?",
   "How long does the money last?",
-  "What do schools object to on calls?",
+  "What do customers object to on calls?",
 ];
 
 /**
@@ -21,23 +23,27 @@ const EXAMPLES = [
  * A conversation for as long as the page is open: each question goes with the
  * ones before it, so "and the ones in Mysuru?" means something. Answers link
  * to the pages and contacts they drew on, and say what was sent.
+ *
+ * What goes with a question is what it needs (shared/relevant.ts), and is
+ * said under the box before it is sent. An answer that needed more can be
+ * asked for again with the whole company.
  */
 export function AskBox({
   companyId,
   onOpenPage,
-  onOpenContact,
-  onGoToSettings,
+  onOpenContact,
 }: {
   companyId: string;
   onOpenPage: (pageId: string) => void;
-  onOpenContact: (leadId: string) => void;
-  onGoToSettings: () => void;
+  onOpenContact: (leadId: string) => void;
 }) {
   const [state, setState] = useState<AskState | null>(null);
   const [question, setQuestion] = useState("");
   const [exchanges, setExchanges] = useState<Exchange[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** What would go with the question as typed, worked out on this machine. Keyed by the question it is for. */
+  const [preview, setPreview] = useState<{ key: string; what: AskPreview } | null>(null);
 
   useEffect(() => {
     window.caulder.ask
@@ -46,22 +52,42 @@ export function AskBox({
       .catch((cause: unknown) => setError(messageOf(cause)));
   }, []);
 
-  async function ask(text: string) {
+  const history: AskTurn[] = useMemo(
+    () =>
+      exchanges.flatMap((exchange) =>
+        exchange.answer
+          ? [
+              { role: "user" as const, text: exchange.question },
+              { role: "assistant" as const, text: exchange.answer.text },
+            ]
+          : [],
+      ),
+    [exchanges],
+  );
+
+  // Said before it is sent: once the typing pauses, what this question would take with it.
+  const typed = question.trim();
+  const connected = state?.connected === true;
+  useEffect(() => {
+    if (!connected || typed.length < 4) return;
+    const timer = setTimeout(() => {
+      window.caulder.ask.preview(companyId, { question: typed, history: history.slice(-20) }).then(
+        (what) => setPreview({ key: typed, what }),
+        () => undefined,
+      );
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [connected, typed, companyId, history]);
+  const going = preview && preview.key === typed ? preview.what : null;
+
+  async function ask(text: string, whole = false) {
     const asked = text.trim();
     if (asked.length === 0 || busy) return;
-    const history: AskTurn[] = exchanges.flatMap((exchange) =>
-      exchange.answer
-        ? [
-            { role: "user" as const, text: exchange.question },
-            { role: "assistant" as const, text: exchange.answer.text },
-          ]
-        : [],
-    );
     setBusy(true);
     setQuestion("");
     setExchanges((current) => [...current, { question: asked, answer: null, error: null }]);
     try {
-      const answer = await window.caulder.ask.question(companyId, { question: asked, history: history.slice(-20) });
+      const answer = await window.caulder.ask.question(companyId, { question: asked, history: history.slice(-20), whole });
       setExchanges((current) => current.map((exchange, at) => (at === current.length - 1 ? { ...exchange, answer } : exchange)));
     } catch (cause) {
       const message = messageOf(cause);
@@ -75,21 +101,8 @@ export function AskBox({
 
   if (!state) return <ErrorLine>{error}</ErrorLine>;
 
-  if (!state.connected) {
-    // One line until an AI is connected: the offer, and the way to take it up.
-    return (
-      <section className="card askoff">
-        <Sparkles size={16} className="askoff__icon" aria-hidden />
-        <p className="askoff__text">
-          Ask anything about the company - deals to chase, how long the money lasts - once an AI is connected. Gemini is
-          free.
-        </p>
-        <button type="button" className="btn btn--sm" onClick={onGoToSettings}>
-          Connect an AI in Settings
-        </button>
-      </section>
-    );
-  }
+  // Nothing connected: nothing here. Connecting one is offered once, in Finish setting up on Today, and in Settings.
+  if (!state.connected) return null;
 
   const model =
     state.models.find((option) => option.id === state.model)?.label ??
@@ -119,12 +132,17 @@ export function AskBox({
                 {exchange.question}
               </p>
               {exchange.answer ? (
-                <Answer answer={exchange.answer} onOpenPage={onOpenPage} onOpenContact={onOpenContact} />
+                <Answer
+                  answer={exchange.answer}
+                  onOpenPage={onOpenPage}
+                  onOpenContact={onOpenContact}
+                  onAskWhole={busy ? null : () => void ask(exchange.question, true)}
+                />
               ) : exchange.error ? (
                 <ErrorLine>{exchange.error}</ErrorLine>
               ) : (
                 <p className="ask__thinking" role="status">
-                  {model} is reading the company…
+                  {model} is reading…
                 </p>
               )}
             </li>
@@ -160,6 +178,12 @@ export function AskBox({
         </button>
       </form>
 
+      {going && (
+        <p className="card__hint ask__going" role="status">
+          Sending: {sayParts(going.parts)} - about {numberText(tokensIn(going.characters))} tokens.
+        </p>
+      )}
+
       {exchanges.length === 0 && (
         <div className="chips ask__examples">
           {EXAMPLES.map((example) => (
@@ -177,10 +201,13 @@ function Answer({
   answer,
   onOpenPage,
   onOpenContact,
+  onAskWhole,
 }: {
   answer: AskAnswer;
   onOpenPage: (pageId: string) => void;
   onOpenContact: (leadId: string) => void;
+  /** Ask the same again with the whole company. Null while something is being asked. */
+  onAskWhole: (() => void) | null;
 }) {
   const source = useMemo(() => linkAnswer(answer.text, answer.references), [answer]);
   const links = useMemo(() => {
@@ -203,15 +230,25 @@ function Answer({
         <summary>What was sent</summary>
         <p>
           To {answer.service} ({answer.model}): the question, the conversation before it, and{" "}
-          {sent.documents.length} documents (
-          {sent.documents.join(", ")}) - {sent.characters.toLocaleString()} characters, numbers masked.{" "}
-          {sent.leftOut > 0
-            ? `${sent.contacts} contacts in full; ${sent.leftOut} left out to fit, chosen by the question.`
-            : `All ${sent.contacts} contacts.`}{" "}
-          {answer.usage.input.toLocaleString()} tokens in
-          {answer.usage.cached > 0 ? ` (${answer.usage.cached.toLocaleString()} from the cache)` : ""},{" "}
-          {answer.usage.output.toLocaleString()} out.
+          {sayParts(sent.parts, 12)} - {numberText(sent.characters)} characters, numbers masked.{" "}
+          {sent.whole
+            ? sent.leftOut > 0
+              ? `${sent.contacts} contacts in full; ${sent.leftOut} left out to fit, chosen by the question.`
+              : `All ${sent.contacts} contacts.`
+            : sent.contacts === 0
+              ? "No contact's details."
+              : `${sent.contacts} of ${sent.contacts + sent.leftOut} contacts, the ones the question is about.`}{" "}
+          {numberText(answer.usage.input)} tokens in
+          {answer.usage.cached > 0 ? ` (${numberText(answer.usage.cached)} from the cache)` : ""},{" "}
+          {numberText(answer.usage.output)} out.
         </p>
+        {!sent.whole && onAskWhole && (
+          <p>
+            <button type="button" className="linkbtn" onClick={onAskWhole}>
+              Ask again with the whole company
+            </button>
+          </p>
+        )}
       </details>
     </div>
   );

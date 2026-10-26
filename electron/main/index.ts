@@ -1,36 +1,61 @@
+import { startUpdates } from "./updates";
 import { app, BrowserWindow, dialog, nativeTheme } from "electron";
 import { join } from "node:path";
 import { openDatabase, closeDatabase, databasePath } from "./db/connection";
 import { migrate } from "./db/migrations";
+import { ensureHome } from "./services/yourhome";
+import { forgetPeopleLinks } from "./services/brain";
 import { backupOnLaunch } from "./db/backup";
 import {
   firstTimeInTray,
   keepsInTray,
   registerIpc,
   savedCaptureShortcut,
+  savedWidget,
 } from "./ipc";
+import { hideWidget, onWidgetMove, setWidgetOpener, showWidget } from "./widget";
+import { openedAtLogin, startupFirstTime } from "./startup";
+import { setSetting } from "./repositories/settings";
+import { getDatabase } from "./db/connection";
+import { startUnderstanding, stopUnderstanding } from "./services/understand";
+import { closeModel, modelHere, readLines } from "./understand/host";
 import { heldShortcut, setCaptureShortcut } from "./capture";
 import { shortcutToClaim } from "./popup";
 import { createTray, destroyTray, hasTray, trayNotice } from "./tray";
 import { claimIdentity, registerIdentity } from "./identity";
 import { guardContents } from "./links";
 import { logProblem } from "./log";
+import { useStoreHome } from "./store-home";
+
+// A Store copy keeps its data in its package's own folder, which Explorer can
+// see; this has to come before anything touches the data folder, the
+// single-instance lock below included. See store-home.ts.
+useStoreHome();
 
 // Before anything can notify: a notification is signed with this ID, and
 // without it Windows signs Caulder's reminders "electron.app.Electron".
 claimIdentity();
 import { startNotifications, stopNotifications } from "./services/notify";
 import { startReminders, stopReminders } from "./services/remind";
+import { startNudges, stopNudges } from "./services/nudges";
 import {
-  startBrainSync,
   startMailWatch,
+  startSheetSync,
   startSyncing,
-  stopBrainSync,
   stopMailWatch,
+  stopSheetSync,
   stopSyncing,
 } from "./services/scheduler";
 
 const isDev = !app.isPackaged;
+
+/**
+ * Drawn without the graphics card. Caulder is text, lists and a few charts:
+ * measured on 25 October 2026, the GPU process held 127 MB of its own to
+ * draw them, and every screen settled as fast or faster without it - 185 MB
+ * in all rather than 262. Launched with --gpu, it uses the card again.
+ */
+if (!process.argv.includes("--gpu")) app.disableHardwareAcceleration();
 
 /**
  * Caulder holds one SQLite file. A second instance writing the same file is a
@@ -91,6 +116,12 @@ function showMain(): void {
   }
 }
 
+/** The window a clicked notification opens - made first when Caulder started in the tray. */
+function windowForNotice(): BrowserWindow | null {
+  if (!mainWindow) createWindow();
+  return mainWindow;
+}
+
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     // The size it restores to when un-maximised. It opens maximised.
@@ -133,6 +164,7 @@ function createWindow(): void {
   //
   // Maximised rather than sized to the display, so the title bar and the
   // window controls stay where they belong and one click restores it.
+
   mainWindow.once("ready-to-show", () => {
     mainWindow?.maximize();
     // showInactive when something else is driving. A test run launches and
@@ -203,6 +235,21 @@ function startDatabase(): void {
   if (result.applied.length > 0) {
     logProblem("database", `Migrated ${result.from} -> ${result.to}: ${result.applied.join(", ")}`);
   }
+  // The calendar's own workspace, once (services/yourhome.ts). After the
+  // backup above, like a migration; a failure is said and the app goes on
+  // exactly as it did, with the first company holding the calendar.
+  try {
+    ensureHome(db);
+  } catch (error) {
+    logProblem("database", `Could not make the calendar its own workspace: ${String(error)}`);
+  }
+  // What migration 52 could not do in SQL: a link to somebody on the team, put
+  // back to their words. Nothing to do on any start but the first after it.
+  try {
+    forgetPeopleLinks(db);
+  } catch (error) {
+    logProblem("database", `Could not tidy links to people out of the pages: ${String(error)}`);
+  }
 }
 
 // Opening Caulder again - from the Start menu, say - while it waits in the
@@ -234,34 +281,65 @@ void app.whenReady().then(() => {
   }
 
   registerIpc(() => mainWindow);
-  createWindow();
+  startupFirstTime(getDatabase());
+  // Opened by Windows at sign-in: into the tray, not over whatever is on
+  // screen - the key, the widget and the reminders work without a window, and
+  // the tray or a notification makes it when it is wanted.
+  if (!(openedAtLogin() && keepsInTray())) createWindow();
 
   // The icon by the clock. Before the key, so the menu can show the key it
   // ends up with.
-  createTray({ open: showMain, quit: () => app.quit() });
+  createTray({
+    open: showMain,
+    quit: () => app.quit(),
+    // Changed from the tray, as from Settings: remembered as decided, so the first launch never turns it back on.
+    decided: () => setSetting(getDatabase(), "startupSet", "1"),
+  });
+  // The widget clicked: the app, on Today - the place everything on it comes from.
+  setWidgetOpener(() => {
+    showMain();
+    mainWindow?.webContents.send("nav:go", "today");
+  });
 
-  // The quick-add key: Ctrl+Alt+A unless somebody chose another, or none. A
+  // A newer release, looked for a little after starting and every few hours;
+  // the installed app only.
+  startUpdates();
+
+  // The quick-add key: Ctrl+Q unless somebody chose another, or none. A
   // refusal is not shown here - another application may have claimed the
   // combination since last launch, and a dialog before the window has even
   // appeared is the wrong moment. Settings and the tray say what it got.
   setCaptureShortcut(shortcutToClaim(savedCaptureShortcut()));
 
+  // The desk widget, back where it was left - and only if it was ever asked
+  // for. Dragging the pill is remembered as it happens rather than on the way
+  // out: a widget on a machine that loses power should still come back where
+  // you put it.
+  onWidgetMove((spot) => setSetting(getDatabase(), "widgetSpot", JSON.stringify(spot)));
+  const desk = savedWidget();
+  if (desk.on) showWidget(desk.level, desk.spot);
+
   // Checked on a timer rather than scheduled, because the machine sleeps and
   // a scheduled 9am fires at noon on a laptop that was shut. The check itself
   // is one count per company and is a no-op unless it is switched on.
-  startNotifications(() => mainWindow);
+  startNotifications(windowForNotice);
 
   // And the one that knocks before a block starts. A finer tick than the
   // digest above, because ten to nine has to mean ten to nine; it reads
   // nothing at all for a workspace that has not switched reminders on.
-  startReminders(() => mainWindow);
+  startReminders(windowForNotice);
+  startNudges(windowForNotice);
 
   // Off unless it has been switched on, and quiet for the first few seconds
   // either way - the window has just opened and nobody wants a network call
   // competing with it.
   startSyncing();
   startMailWatch();
-  startBrainSync();
+  startSheetSync();
+
+  // Reading for meaning, on this machine (PLAN.md, part five): on unless
+  // switched off, quiet for the first seconds, and nothing waits on it.
+  startUnderstanding(getDatabase, readLines, modelHere);
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -277,9 +355,12 @@ app.on("before-quit", () => {
   quitting = true;
   stopNotifications();
   stopReminders();
+  stopNudges();
   stopSyncing();
   stopMailWatch();
-  stopBrainSync();
+  stopSheetSync();
+  stopUnderstanding();
+  closeModel();
 });
 
 // WAL leaves a sidecar file; closing cleanly checkpoints it back into the
@@ -288,5 +369,9 @@ app.on("will-quit", () => {
   // Left behind, a tray icon lingers in the notification area until the
   // pointer passes over it and Windows notices the process has gone.
   destroyTray();
+  // Explicitly, and before the database closes: a widget pinned to the
+  // wallpaper is a child of the desktop, and a child of the desktop does not
+  // close cleanly on its own.
+  hideWidget();
   closeDatabase();
 });

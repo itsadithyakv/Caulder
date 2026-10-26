@@ -34,6 +34,13 @@ const WINDOWS: Record<string, { attribute: string; load: () => Promise<ReactNode
       return <Capture />;
     },
   },
+  "#widget": {
+    attribute: "widget",
+    load: async () => {
+      const { Widget } = await import("./features/widget/Widget");
+      return <Widget />;
+    },
+  },
 };
 
 const kind = WINDOWS[window.location.hash];

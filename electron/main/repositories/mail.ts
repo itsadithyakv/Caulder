@@ -9,6 +9,7 @@ import {
   type EmailStatus,
   type FollowUpStatus,
   type RemoteEmail,
+  type TemplateStats,
 } from "@shared/mail";
 import { writeActivity } from "./leads";
 
@@ -83,6 +84,12 @@ function progressOf(row: EmailRow): EmailProgress {
 
 type NewEmail = {
   id: string;
+  /** The account it went from; null for the Google script. */
+  accountId?: string | null;
+  /** The template it was started from, when it was. */
+  templateId?: string | null;
+  /** The Message-ID it went out with, when Caulder sent it itself. */
+  messageId?: string | null;
   companyId: string;
   leadId: string;
   to: string;
@@ -105,11 +112,14 @@ export function recordEmail(db: Db, email: NewEmail, remote: RemoteEmail, now: D
   const stamp = now.toISOString();
   db.transaction(() => {
     db.prepare(
-      `INSERT INTO emails (id, company_id, lead_id, to_email, subject, body, send_at, status,
-                           follow_up_days, follow_up_body, follow_up_status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'scheduled', ?, ?, ?, ?, ?)`,
+      `INSERT INTO emails (id, account_id, template_id, message_id, company_id, lead_id, to_email, subject, body, send_at, status,
+                           follow_up_days, follow_up_body, follow_up_status, forgotten, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'scheduled', ?, ?, ?, ?, ?, ?)`,
     ).run(
       email.id,
+      email.accountId ?? null,
+      email.templateId ?? null,
+      email.messageId ?? null,
       email.companyId,
       email.leadId,
       email.to,
@@ -119,6 +129,8 @@ export function recordEmail(db: Db, email: NewEmail, remote: RemoteEmail, now: D
       email.followUpDays,
       email.followUpBody,
       email.followUpDays === null ? null : "waiting",
+      // The script never had one from another account, so there is nothing for it to forget.
+      email.accountId ? 1 : 0,
       stamp,
       stamp,
     );
@@ -239,10 +251,10 @@ export function findEmail(db: Db, id: string): EmailRecord | null {
 /** How many ids go to the script in one call, so a call never grows without end. */
 const BATCH = 200;
 
-/** Messages something can still happen to, least recently heard about first. */
+/** Messages something can still happen to, least recently heard about first. Only the script's: it is who is asked. */
 export function watchedEmailIds(db: Db): string[] {
   const rows = db
-    .prepare(`SELECT id FROM emails WHERE settled = 0 ORDER BY updated_at LIMIT ?`)
+    .prepare(`SELECT id FROM emails WHERE settled = 0 AND account_id IS NULL ORDER BY updated_at LIMIT ?`)
     .all(BATCH) as { id: string }[];
   return rows.map((row) => row.id);
 }
@@ -250,7 +262,7 @@ export function watchedEmailIds(db: Db): string[] {
 /** Settled messages the script has not yet been told it can forget. */
 export function forgettableEmailIds(db: Db): string[] {
   const rows = db
-    .prepare(`SELECT id FROM emails WHERE settled = 1 AND forgotten = 0 LIMIT ?`)
+    .prepare(`SELECT id FROM emails WHERE settled = 1 AND forgotten = 0 AND account_id IS NULL LIMIT ?`)
     .all(BATCH) as { id: string }[];
   return rows.map((row) => row.id);
 }
@@ -265,9 +277,101 @@ export function markForgotten(db: Db, ids: string[]): void {
 /** Whether there is anything to ask the script about. */
 export function hasEmailWork(db: Db): boolean {
   return (
-    db.prepare(`SELECT 1 FROM emails WHERE settled = 0 OR forgotten = 0 LIMIT 1`).get() !==
+    db.prepare(`SELECT 1 FROM emails WHERE account_id IS NULL AND (settled = 0 OR forgotten = 0) LIMIT 1`).get() !==
     undefined
   );
+}
+
+/** Messages from another account that are due to go, oldest first. */
+export function dueAccountEmails(db: Db, nowIso: string): { id: string; accountId: string; to: string; subject: string; body: string }[] {
+  return db
+    .prepare(
+      `SELECT id, account_id AS accountId, to_email AS "to", subject, body FROM emails
+        WHERE account_id IS NOT NULL AND status = 'scheduled' AND send_at IS NOT NULL AND send_at <= ?
+          AND NOT EXISTS (SELECT 1 FROM leads WHERE leads.id = emails.lead_id AND leads.do_not_contact = 1)
+        ORDER BY send_at LIMIT 50`,
+    )
+    .all(nowIso) as { id: string; accountId: string; to: string; subject: string; body: string }[];
+}
+
+/**
+ * Mail still waiting to go to somebody now marked do not contact: a message
+ * not yet sent, or a follow-up still held. The flag is checked when a message
+ * is written, but it can be set afterwards - and then what was scheduled
+ * before it has to be stopped, not merely left unsent.
+ *
+ * `own` narrows it to mail Caulder sends itself, which can be stopped without
+ * asking the script.
+ */
+export function heldForBarred(db: Db, options: { leadId?: string; own?: boolean } = {}): string[] {
+  const rows = db
+    .prepare(
+      `SELECT e.id FROM emails e JOIN leads l ON l.id = e.lead_id
+        WHERE l.do_not_contact = 1
+          AND (e.status = 'scheduled' OR e.follow_up_status = 'waiting')
+          AND (@leadId IS NULL OR e.lead_id = @leadId)
+          AND (@own = 0 OR e.account_id IS NOT NULL)
+        ORDER BY e.created_at`,
+    )
+    .all({ leadId: options.leadId ?? null, own: options.own ? 1 : 0 }) as { id: string }[];
+  return rows.map((row) => row.id);
+}
+
+/**
+ * The script never had it, so it has nothing to forget or to report: an
+ * account's message is kept out of what the script is asked about. Whether a
+ * reply is still looked for is `watchedAccountEmails`, by when it went.
+ */
+export function settleAccountEmail(db: Db, id: string): void {
+  db.prepare(`UPDATE emails SET settled = 1, forgotten = 1 WHERE id = ? AND account_id IS NOT NULL AND status <> 'scheduled'`).run(id);
+}
+
+/** The Message-ID a message went out with, kept once it has gone. */
+export function keepMessageId(db: Db, id: string, messageId: string): void {
+  db.prepare(`UPDATE emails SET message_id = ? WHERE id = ?`).run(messageId, id);
+}
+
+/** What went from one account and may yet be answered: sent, not replied, since a moment. */
+export function watchedAccountEmails(
+  db: Db,
+  accountId: string,
+  since: string,
+): { id: string; messageId: string | null; to: string; sentAt: string; followUpWaiting: boolean }[] {
+  const rows = db
+    .prepare(
+      `SELECT id, message_id, to_email, sent_at, follow_up_status FROM emails
+        WHERE account_id = ? AND status = 'sent' AND sent_at IS NOT NULL AND sent_at >= ?
+        ORDER BY sent_at`,
+    )
+    .all(accountId, since) as { id: string; message_id: string | null; to_email: string; sent_at: string; follow_up_status: string | null }[];
+  return rows.map((row) => ({
+    id: row.id,
+    messageId: row.message_id,
+    to: row.to_email,
+    sentAt: row.sent_at,
+    followUpWaiting: row.follow_up_status === "waiting",
+  }));
+}
+
+/**
+ * Follow-ups Caulder sends itself that have come due: the message went from
+ * an account, nobody has been seen to answer, and the days are up. Not to
+ * anybody marked do not contact.
+ */
+export function dueAccountFollowUps(
+  db: Db,
+  nowIso: string,
+): { id: string; accountId: string; to: string; subject: string; body: string; messageId: string | null }[] {
+  return db
+    .prepare(
+      `SELECT id, account_id AS accountId, to_email AS "to", subject, follow_up_body AS body, message_id AS messageId FROM emails
+        WHERE account_id IS NOT NULL AND status = 'sent' AND follow_up_status = 'waiting'
+          AND follow_up_body IS NOT NULL AND sent_at IS NOT NULL
+          AND datetime(sent_at, '+' || follow_up_days || ' days') <= datetime(?)
+          AND NOT EXISTS (SELECT 1 FROM leads WHERE leads.id = emails.lead_id AND leads.do_not_contact = 1)
+        ORDER BY sent_at LIMIT 50`,
+    )
+    .all(nowIso) as { id: string; accountId: string; to: string; subject: string; body: string; messageId: string | null }[];
 }
 
 /** Replies since a moment, newest first, for Today. */
@@ -295,4 +399,25 @@ export function listRecentReplies(db: Db, companyId: string, since: string): Ema
     subject: row.subject,
     repliedAt: row.replied_at,
   }));
+}
+
+/**
+ * How each of a company's templates has done. Only messages that went: one
+ * still scheduled, cancelled or refused has told nobody anything. A reply can
+ * only be seen on what went through the Google script, or from an account
+ * whose inbox is read, so those are counted apart and are what an answer is
+ * a share of.
+ */
+export function templateStats(db: Db, companyId: string): TemplateStats[] {
+  return db
+    .prepare(
+      `SELECT template_id AS templateId,
+              COUNT(*) AS sent,
+              SUM(CASE WHEN account_id IS NULL OR account_id IN (SELECT id FROM mail_accounts WHERE imap_host IS NOT NULL) THEN 1 ELSE 0 END) AS watched,
+              SUM(CASE WHEN status = 'replied' THEN 1 ELSE 0 END) AS replied
+         FROM emails
+        WHERE company_id = ? AND template_id IS NOT NULL AND status IN ('sent', 'replied')
+        GROUP BY template_id`,
+    )
+    .all(companyId) as TemplateStats[];
 }

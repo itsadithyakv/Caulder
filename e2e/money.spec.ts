@@ -111,8 +111,47 @@ test("a sent invoice past its due date is on Today, above the tasks", async () =
   await expect(page.getByText("1 invoice is overdue")).toBeVisible();
   await expect(page.locator(".coldrow", { hasText: "INV-0002" })).toContainText("20,000");
 
+  // Chased from the row it is on: a reminder, written for it, read before it goes.
+  await page.locator(".renewrow", { hasText: "INV-0002" }).getByRole("button", { name: "Send a reminder" }).click();
+  const reminder = page.getByRole("dialog", { name: "A reminder about INV-0002" });
+  await expect(reminder.getByLabel("Subject")).toHaveValue(/^Reminder: invoice INV-0002 from /);
+  await expect(reminder.getByLabel("Message")).toHaveValue(/Invoice INV-0002 for .*20,000.* was due on .*days ago\./);
+  await expect(reminder).toContainText("To Oakridge International School");
+  await reminder.getByRole("button", { name: "Cancel" }).click();
+  await expect(reminder).toHaveCount(0);
+
   await goTo(page, "Money");
-  await expect(page.locator(".money__row", { hasText: "INV-0002" }).first()).toContainText("Overdue");
+  const late = page.locator(".money__row", { hasText: "INV-0002" });
+  await expect(late.first()).toContainText("Overdue");
+  await expect(late.first().getByRole("button", { name: "Send a reminder" })).toBeVisible();
+  // What is owed, by how late it is.
+  const owed = page.getByLabel("What is owed, by age");
+  await expect(owed).toContainText("Owed");
+  await expect(owed).toContainText("over 30 days late");
+
+  // A retainer: said on the invoice, and the next one is drafted when it falls due - a draft, never sent.
+  await late.last().locator(".money__main").click();
+  await choose(page, "Repeats", "Every month");
+  await expect(page.getByText("never sent by itself")).toBeVisible();
+  await page.getByRole("button", { name: "Save changes" }).click();
+  // This one was due to be written again months ago, so the next is drafted at once.
+  await expect(page.locator(".money__row", { hasText: "INV-0003" })).toContainText("Every month");
+  await app.close();
+
+  const again = await openApp();
+  await expect(again.getByText("1 retainer invoice is drafted, to look at and send")).toBeVisible();
+  await goTo(again, "Money");
+  const drafted = again.locator(".money__row", { hasText: "INV-0003" });
+  await expect(drafted).toContainText("Draft");
+  await expect(drafted).toContainText("Every month");
+  await expect(drafted).toContainText("20,000");
+  // The saying moved on to the draft: the one it was made from no longer repeats.
+  await expect(again.locator(".money__row", { hasText: "INV-0002" }).last()).not.toContainText("Every month");
+  // Deleting the draft ends the run: nothing is drafted in its place.
+  await drafted.getByRole("button", { name: "Delete INV-0003" }).click();
+  await expect(drafted).toHaveCount(0);
+  await goTo(again, "Today");
+  await expect(again.getByText(/retainer invoice/)).toHaveCount(0);
 });
 
 test("a quote for a contact with two deals says which deal, and keeps it", async () => {
@@ -193,9 +232,9 @@ test("a product is priced, picked onto an invoice, and shows what it brought in"
 
   // The brain's checklist sends the first product to the catalogue on Money.
   await goTo(page, "Brain");
-  // The list folds to the next few; the whole twelve are under All 12.
-  await page.getByRole("button", { name: "All 12" }).click();
-  await page.getByRole("button", { name: /The first product and its price/ }).click();
+  // The list folds to the next few; the whole ten are under All 10.
+  await page.getByRole("button", { name: "All 10" }).click();
+  await page.getByRole("button", { name: /^What you sell, and what it costs/ }).click();
   await expect(page.getByRole("tab", { name: "Products" })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByText("Nothing in the catalogue yet")).toBeVisible();
 
@@ -241,4 +280,47 @@ test("a product is priced, picked onto an invoice, and shows what it brought in"
   await expect(page.getByRole("list", { name: "What it was charged at" })).toContainText("Oakridge International School");
   await expect(page.getByRole("list", { name: "Who bought it" })).toContainText("1 sold");
   await expect(page.locator(".money__figure", { hasText: "Margin" })).toContainText("8,000");
+});
+
+test("an invoice paid in two parts says what is still owed, and a payment can be taken back", async () => {
+  const page = await openApp();
+  await goTo(page, "Money");
+  await page.getByRole("button", { name: "New invoice" }).click();
+  await choose(page, "Contact", "Oakridge International School");
+  await page.getByLabel("Line 1 description").fill("Training day");
+  await page.getByLabel("Line 1 unit price").fill("30000");
+  await page.getByRole("button", { name: "Save invoice" }).click();
+  const row = page.locator(".money__row", { hasText: "INV-0004" });
+  await row.getByRole("button", { name: "Mark sent" }).click();
+  await expect(row).toContainText("Sent");
+
+  // A deposit. The amount starts at everything owed, and is changed.
+  await row.getByRole("button", { name: "Record a payment" }).click();
+  const dialog = page.getByRole("dialog", { name: "Payments on INV-0004" });
+  await expect(dialog.getByLabel("Amount")).toHaveValue("30000");
+  await dialog.getByLabel("Amount").fill("10000");
+  await dialog.getByLabel("Note").fill("Deposit");
+  await dialog.getByRole("button", { name: "Record the payment" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(row).toContainText("Sent");
+  await expect(row).toContainText(/10,000 in, .*20,000 owed/);
+
+  // The rest, offered as what is left.
+  await row.getByRole("button", { name: "Record a payment" }).click();
+  await expect(dialog.getByRole("list", { name: "Payments" })).toContainText("Deposit");
+  await expect(dialog.getByLabel("Amount")).toHaveValue("20000");
+  await dialog.getByRole("button", { name: "Record the payment" }).click();
+  await expect(row).toContainText("Paid");
+
+  // Recorded by mistake: removed after being asked, and the invoice reopens.
+  await row.getByRole("button", { name: "Payments", exact: true }).click();
+  const payments = dialog.getByRole("list", { name: "Payments" });
+  await expect(payments.getByRole("listitem")).toHaveCount(2);
+  await payments.getByRole("button", { name: /^Remove the payment of .*20,000/ }).click();
+  await payments.getByRole("button", { name: "Remove", exact: true }).click();
+  await expect(payments.getByRole("listitem")).toHaveCount(1);
+  await expect(dialog).toContainText("20,000 still owed");
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(row).toContainText("Sent");
+  await expect(row).toContainText(/20,000 owed/);
 });

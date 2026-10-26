@@ -36,18 +36,16 @@ export const PRIORITY_SHORT: Record<Priority, string> = {
 /**
  * What each kind of block is, unless told otherwise.
  *
- * So that nobody sets a priority twice a day. A lecture and a client meeting
- * are things you turn up to; a break is what gives way when something lands on
- * it. Anything unlisted is "should", which is the safe middle.
+ * So that nobody sets a priority twice a day. A client meeting and a call
+ * are things you turn up to; an hour away is what gives way when something
+ * lands on it. Anything unlisted is "should", which is the safe middle.
  */
 const BY_KIND: Record<string, Priority> = {
   meeting: "must",
-  class: "must",
-  study: "should",
+  call: "must",
   focus: "should",
   admin: "should",
-  personal: "should",
-  break: "spare",
+  away: "spare",
 };
 
 export function priorityOf(kind: string | null, explicit: string | null): Priority {

@@ -2,20 +2,31 @@ import { useCallback, useEffect, useState } from "react";
 import { CheckSquare, FolderInput, Pin, PinOff, Search, Trash2 } from "lucide-react";
 import { BRAIN_SECTION_LIST, sectionOf, type BrainPage, type BrainSectionId } from "@shared/brain";
 import { Select } from "@/components/Select";
+import { Card } from "@/components/Card";
 import type { Note } from "@shared/domain";
 import { useWorkspace } from "@/lib/workspace";
 import { relativeDay } from "@/lib/format";
 import { taskInput } from "@shared/domain";
 import { today as todayIn } from "@shared/dates";
 import { messageOf } from "@/lib/errors";
+import { notesLines } from "./lines";
 
 /**
- * Everything caught, in one place.
+ * The notes at the foot of Today: what was caught and not yet filed.
  *
- * The screen is the second half of the feature; the first half is the global
- * key that writes without opening anything. What matters here is that a note
- * can be found again - a capture box with no search is a drawer.
+ * There is no box to write in here. The quick line on Today already keeps a
+ * note - "note:" says so outright, and a line it cannot place becomes one -
+ * and the capture key does it from any app. A second box a screen below the
+ * first was two ways to do one thing, and the lower one was the one nobody
+ * needed. What is left is the other half: finding a note again and moving it
+ * on, to a task or into the brain.
+ *
+ * With nothing caught it draws nothing at all. An empty card with a joke in
+ * it is still a card the eye has to step over on the way to the work.
  */
+
+/** Past this many, a search box earns its place; below it, the list is the search. */
+const SEARCH_FROM = 6;
 
 export function NotesScreen({
   onTasksChanged,
@@ -30,10 +41,11 @@ export function NotesScreen({
 
   const [notes, setNotes] = useState<Note[]>([]);
   const [search, setSearch] = useState("");
-  const [draft, setDraft] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
   const [body, setBody] = useState("");
   const [error, setError] = useState<string | null>(null);
+  /** What it says when a search finds nothing: a different line each time Notes is opened. */
+  const [lines] = useState(notesLines);
   /** The last note made into a task, for as long as Undo is offered. */
   const [madeTask, setMadeTask] = useState<{ taskId: string; body: string; pinned: boolean } | null>(
     null,
@@ -147,195 +159,165 @@ export function NotesScreen({
     onTasksChanged?.();
   }
 
-  async function write() {
-    const text = draft.trim();
-    if (text.length === 0) return;
-    setDraft("");
-    await act(() => window.caulder.notes.create(companyId!, text));
-  }
+  // Nothing caught and nothing being looked for: no card. An Undo still on
+  // offer keeps it, so the last note moved on can be put back.
+  const searching = search.length > 0;
+  if (notes.length === 0 && !searching && !madeTask && !filed && !error) return null;
 
   return (
-    <div className="notes">
-      {error && (
-        <p className="field__error" role="alert">
-          {error}
-        </p>
-      )}
-
-      <section className="card">
-        <textarea
-          className="input notes__write"
-          rows={3}
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          placeholder="Anything. It does not have to be about a contact."
-          onKeyDown={(event) => {
-            // Ctrl+Enter saves, the same as the capture window, so the habit
-            // learned in one works in the other.
-            if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
-              event.preventDefault();
-              void write();
-            }
-          }}
-        />
-        <div className="notes__writeFoot">
-          <span className="card__hint">Ctrl + Enter saves it.</span>
-          <button
-            type="button"
-            className="btn btn--sm btn--primary"
-            onClick={() => void write()}
-            disabled={draft.trim().length === 0}
-          >
-            Keep it
-          </button>
-        </div>
-      </section>
-
-      <div className="notes__search">
-        <Search size={16} className="notes__searchIcon" aria-hidden />
-        <input
-          className="input notes__searchInput"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search everything you have written"
-          aria-label="Search notes"
-        />
-      </div>
-
-      {madeTask && (
-        <div className="hintbar" role="status">
-          <p className="hintbar__text">Made it a task for today.</p>
-          <button type="button" className="btn btn--sm" onClick={() => void undoTask()}>
-            Undo
-          </button>
-        </div>
-      )}
-
-      {filed && (
-        <div className="hintbar" role="status">
-          <p className="hintbar__text">
-            Filed in {sectionOf(filed.page.section).label} as &ldquo;{filed.page.title}&rdquo;.
+    <Card title="Notes" hint={<>Kept to file later. To add one, start a line above with <kbd>note:</kbd></>}>
+      <div className="notes">
+        {error && (
+          <p className="field__error" role="alert">
+            {error}
           </p>
-          {onOpenPage && (
-            <button type="button" className="btn btn--sm" onClick={() => onOpenPage(filed.page.id)}>
-              Open it
+        )}
+
+        {/* Once the search is in use it stays, whatever it narrows the list to. */}
+        {(searching || notes.length >= SEARCH_FROM) && (
+          <div className="notes__search">
+            <Search size={16} className="notes__searchIcon" aria-hidden />
+            <input
+              className="input notes__searchInput"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search your notes"
+              aria-label="Search notes"
+            />
+          </div>
+        )}
+
+        {madeTask && (
+          <div className="hintbar" role="status">
+            <p className="hintbar__text">Made it a task for today.</p>
+            <button type="button" className="btn btn--sm" onClick={() => void undoTask()}>
+              Undo
             </button>
-          )}
-          <button type="button" className="btn btn--sm" onClick={() => void undoFile()}>
-            Undo
-          </button>
-        </div>
-      )}
+          </div>
+        )}
 
-      {notes.length === 0 ? (
-        <div className="empty">
-          <p className="empty__title">
-            {search.length > 0 ? "Nothing matches that" : "Nothing caught yet"}
-          </p>
-          <p className="empty__body">
-            {search.length > 0
-              ? "Try a shorter word."
-              : "Press the quick-add key from any app, or click the tray icon, to write one without opening Caulder."}
-          </p>
-        </div>
-      ) : (
-        <ul className="notelist">
-          {notes.map((note) => (
-            <li key={note.id} className={`note${note.isPinned ? " note--pinned" : ""}`}>
-              {editing === note.id ? (
-                <textarea
-                  className="input"
-                  rows={4}
-                  value={body}
-                  autoFocus
-                  onChange={(event) => setBody(event.target.value)}
-                  onBlur={() => {
-                    setEditing(null);
-                    if (body.trim().length > 0 && body !== note.body) {
-                      void act(() => window.caulder.notes.update(note.id, body, companyId));
-                    }
-                  }}
-                />
-              ) : (
-                <button
-                  type="button"
-                  className="note__body"
-                  onClick={() => {
-                    setEditing(note.id);
-                    setBody(note.body);
-                  }}
-                >
-                  {note.body}
-                </button>
-              )}
+        {filed && (
+          <div className="hintbar" role="status">
+            <p className="hintbar__text">
+              Filed in {sectionOf(filed.page.section).label} as &ldquo;{filed.page.title}&rdquo;.
+            </p>
+            {onOpenPage && (
+              <button type="button" className="btn btn--sm" onClick={() => onOpenPage(filed.page.id)}>
+                Open it
+              </button>
+            )}
+            <button type="button" className="btn btn--sm" onClick={() => void undoFile()}>
+              Undo
+            </button>
+          </div>
+        )}
 
-              <div className="note__foot">
-                <span className="note__when">{relativeDay(note.createdAt)}</span>
-                <button
-                  type="button"
-                  className="btn btn--sm btn--ghost"
-                  aria-label={`Make a task of "${note.body.slice(0, 40)}"`}
-                  title="Make it a task"
-                  // The one conversion worth having: a task is the thing that
-                  // reaches Google Tasks, and therefore the phone. A note that
-                  // can only ever be re-read is a diary.
-                  onClick={() => void makeTask(note)}
-                >
-                  <CheckSquare size={14} aria-hidden />
-                </button>
-                <button
-                  type="button"
-                  className="btn btn--sm btn--ghost"
-                  aria-label={`File "${note.body.slice(0, 40)}" in the brain`}
-                  title="File it in the brain"
-                  aria-expanded={filing === note.id}
-                  onClick={() => setFiling((current) => (current === note.id ? null : note.id))}
-                >
-                  <FolderInput size={14} aria-hidden />
-                </button>
-                <button
-                  type="button"
-                  className="btn btn--sm btn--ghost"
-                  aria-label={note.isPinned ? "Unpin this note" : "Pin this note"}
-                  onClick={() =>
-                    void act(() =>
-                      window.caulder.notes.pin(note.id, !note.isPinned, companyId),
-                    )
-                  }
-                >
-                  {note.isPinned ? <PinOff size={14} aria-hidden /> : <Pin size={14} aria-hidden />}
-                </button>
-                <button
-                  type="button"
-                  className="btn btn--sm btn--ghost btn--danger"
-                  aria-label="Delete this note"
-                  onClick={() => void act(() => window.caulder.notes.remove(note.id, companyId))}
-                >
-                  <Trash2 size={14} aria-hidden />
-                </button>
-              </div>
-
-              {filing === note.id && (
-                <div className="note__file">
-                  <Select
-                    aria-label="File it in"
-                    value={fileTo}
-                    onChange={setFileTo}
-                    compact
-                    options={BRAIN_SECTION_LIST.map((section) => ({ value: section.id, label: section.label }))}
+        {notes.length === 0 ? (
+          searching && (
+            <p className="card__hint">
+              {lines.noMatch} Try a shorter word.
+            </p>
+          )
+        ) : (
+          <ul className="notelist">
+            {notes.map((note) => (
+              <li key={note.id} className={`note${note.isPinned ? " note--pinned" : ""}`}>
+                {editing === note.id ? (
+                  <textarea
+                    className="input"
+                    rows={4}
+                    value={body}
+                    aria-label="Edit this note"
+                    autoFocus
+                    onChange={(event) => setBody(event.target.value)}
+                    onBlur={() => {
+                      setEditing(null);
+                      if (body.trim().length > 0 && body !== note.body) {
+                        void act(() => window.caulder.notes.update(note.id, body, companyId));
+                      }
+                    }}
                   />
-                  <button type="button" className="btn btn--sm btn--primary" onClick={() => void fileNote(note)}>
-                    File it
+                ) : (
+                  <button
+                    type="button"
+                    className="note__body"
+                    onClick={() => {
+                      setEditing(note.id);
+                      setBody(note.body);
+                    }}
+                  >
+                    {note.body}
                   </button>
-                  <button type="button" className="btn btn--sm btn--ghost" onClick={() => setFiling(null)}>
-                    Cancel
+                )}
+
+                <div className="note__foot">
+                  <span className="note__when">{relativeDay(note.createdAt)}</span>
+                  <button
+                    type="button"
+                    className="btn btn--sm btn--ghost"
+                    aria-label={`Make a task of "${note.body.slice(0, 40)}"`}
+                    title="Make it a task"
+                    // The one conversion worth having: a task is the thing that
+                    // reaches Google Tasks, and therefore the phone. A note that
+                    // can only ever be re-read is a diary.
+                    onClick={() => void makeTask(note)}
+                  >
+                    <CheckSquare size={14} aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn--sm btn--ghost"
+                    aria-label={`File "${note.body.slice(0, 40)}" in the brain`}
+                    title="File it in the brain"
+                    aria-expanded={filing === note.id}
+                    onClick={() => setFiling((current) => (current === note.id ? null : note.id))}
+                  >
+                    <FolderInput size={14} aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn--sm btn--ghost"
+                    aria-label={note.isPinned ? "Unpin this note" : "Pin this note"}
+                    onClick={() =>
+                      void act(() =>
+                        window.caulder.notes.pin(note.id, !note.isPinned, companyId),
+                      )
+                    }
+                  >
+                    {note.isPinned ? <PinOff size={14} aria-hidden /> : <Pin size={14} aria-hidden />}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn--sm btn--ghost btn--danger"
+                    aria-label="Delete this note"
+                    onClick={() => void act(() => window.caulder.notes.remove(note.id, companyId))}
+                  >
+                    <Trash2 size={14} aria-hidden />
                   </button>
                 </div>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+
+                {filing === note.id && (
+                  <div className="note__file">
+                    <Select
+                      aria-label="File it in"
+                      value={fileTo}
+                      onChange={setFileTo}
+                      compact
+                      options={BRAIN_SECTION_LIST.map((section) => ({ value: section.id, label: section.label }))}
+                    />
+                    <button type="button" className="btn btn--sm btn--primary" onClick={() => void fileNote(note)}>
+                      File it
+                    </button>
+                    <button type="button" className="btn btn--sm btn--ghost" onClick={() => setFiling(null)}>
+                      Cancel
+                    </button>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </Card>
   );
 }

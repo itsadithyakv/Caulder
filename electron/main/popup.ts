@@ -1,4 +1,4 @@
-import { DEFAULT_CAPTURE_SHORTCUT } from "@shared/domain";
+import { DEFAULT_CAPTURE_SHORTCUT, sayShortcut } from "@shared/domain";
 
 /**
  * The decisions behind the tray and the quick window, with no Electron in
@@ -55,26 +55,30 @@ export function nearTray(anchor: Rect, area: Rect, size: Size, gap = 8): Rect | 
   return place(area.x + gap, clampY(cy - size.height / 2));
 }
 
-type TrayAction = "task" | "note" | "open" | "quit";
-type TrayItem = { label: string; action: TrayAction; accelerator?: string } | { separator: true };
+type TrayAction = "task" | "note" | "open" | "quit" | "startup" | "startup-apps";
+type TrayItem = { label: string; action: TrayAction; accelerator?: string; checked?: boolean } | { separator: true };
 
 /**
  * The tray's menu. The key is shown beside the thing it does, so the menu is
  * also where you find out the key exists.
  */
-export function trayItems(shortcut: string | null): TrayItem[] {
+export function trayItems(shortcut: string | null, startup: { on: boolean; store: boolean } | null = null): TrayItem[] {
   return [
     { label: "Add a task", action: "task", ...(shortcut ? { accelerator: shortcut } : {}) },
     { label: "Write a note", action: "note" },
     { separator: true },
     { label: "Open Caulder", action: "open" },
+    // Asked for from the desktop, so offered here as well as in Settings. A Store copy's is Windows' to change.
+    ...(startup
+      ? [startup.store ? { label: "Startup apps…", action: "startup-apps" as const } : { label: "Open when Windows starts", action: "startup" as const, checked: startup.on }]
+      : []),
     { label: "Quit Caulder", action: "quit" },
   ];
 }
 
 /** What hovering the icon says. */
 export function trayTooltip(shortcut: string | null): string {
-  return shortcut ? `Caulder - ${shortcut} adds a task from anywhere` : "Caulder";
+  return shortcut ? `Caulder - ${sayShortcut(shortcut)} adds a task from anywhere` : "Caulder";
 }
 
 /**

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { invoiceHtml, type InvoiceDocument } from "./invoice-html";
 
 const base: InvoiceDocument = {
-  from: { name: "Unifloe", address: null, gstin: null, email: null, phone: null, payTo: [] },
+  from: { name: "Unifloe", address: null, gstin: null, taxLabel: "GSTIN", email: null, phone: null, payTo: [] },
   number: "INV-0007",
   issuedOn: "2026-09-17",
   dueOn: "2026-09-30",
@@ -22,6 +22,7 @@ describe("the invoice page", () => {
         name: "Unifloe LLP",
         address: "12 MG Road\nBengaluru 560001",
         gstin: "29ABCDE1234F1Z5",
+        taxLabel: "GSTIN",
         email: "hello@unifloe.in",
         phone: "+91 98450 00000",
         payTo: [],
@@ -55,5 +56,24 @@ describe("the invoice page", () => {
     expect(html).not.toContain("<b>bold");
     expect(html).toContain("&lt;script&gt;x&lt;/script&gt;");
     expect(html).toContain("A &amp; &quot;B&quot;");
+  });
+});
+
+describe("how it looks (part fourteen)", () => {
+  const look = { layout: "classic" as const, ink: "#1f4e8c", logo: null, footer: null };
+
+  it("prints in the company's ink, with a banner or tighter rows when chosen", () => {
+    expect(invoiceHtml({ ...base, look })).toContain("color: #1f4e8c");
+    expect(invoiceHtml({ ...base, look: { ...look, layout: "band" } })).toContain("background: #1f4e8c");
+    expect(invoiceHtml({ ...base, look: { ...look, layout: "compact" } })).toContain("font-size: 11.5px");
+    // Anything but a colour never reaches the style sheet.
+    expect(invoiceHtml({ ...base, look: { ...look, ink: "red; } body { display: none" } })).not.toContain("display: none");
+  });
+
+  it("carries a logo only as an image inside the page, and a closing line escaped", () => {
+    const png = "data:image/png;base64,iVBORw0KGgo=";
+    expect(invoiceHtml({ ...base, look: { ...look, logo: png } })).toContain(`<img class="logo" src="${png}"`);
+    expect(invoiceHtml({ ...base, look: { ...look, logo: "file:///C:/secret.png" } })).not.toContain("<img");
+    expect(invoiceHtml({ ...base, look: { ...look, footer: "Thanks <3" } })).toContain('<div class="footer">Thanks &lt;3</div>');
   });
 });

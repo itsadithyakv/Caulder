@@ -6,7 +6,7 @@
  *     [[Pricing|page:3f0c…]]      [[Oakridge School|contact:9a1e…]]
  *
  * and, since phase 16, to a product, a person or a document the same way:
- * `product:`, `person:`, `document:`.
+ * `product:`, `document:`.
  *
  * The id is what the link means, so renaming the page or the contact never
  * breaks it; the label is only what was written, kept so the text still reads
@@ -16,7 +16,7 @@
 
 import type { MapKind } from "./map";
 
-export const LINK_KINDS = ["page", "contact", "product", "person", "document"] as const;
+export const LINK_KINDS = ["page", "contact", "product", "document"] as const;
 export type LinkKind = (typeof LINK_KINDS)[number];
 
 export function isLinkKind(value: unknown): value is LinkKind {
@@ -37,7 +37,18 @@ const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 
 /** A fresh pattern each time: a shared /g regex keeps its position between calls. */
 function tokens(): RegExp {
-  return new RegExp(`\\[\\[([^\\]|\\n]{1,160})\\|(page|contact|product|person|document):(${UUID})\\]\\]`, "g");
+  return new RegExp(`\\[\\[([^\\]|\\n]{1,160})\\|(page|contact|product|document):(${UUID})\\]\\]`, "g");
+}
+
+/**
+ * A page's text with its links to people put back to their words.
+ *
+ * People and hiring went on 11 October 2026 (migration 52), and a link to
+ * somebody on the team would otherwise be left in a page as its brackets.
+ * Run once over the pages that have one (`services/brain.ts`).
+ */
+export function withoutPeopleLinks(text: string): string {
+  return text.replace(new RegExp(`\\[\\[([^\\]|\\n]{1,160})\\|person:${UUID}\\]\\]`, "g"), (_whole, label: string) => label.trim());
 }
 
 export function parseLinks(text: string): ParsedLink[] {
@@ -77,6 +88,95 @@ export function linkToken(label: string, ref: LinkRef): string {
   return `[[${safe}|${ref.kind}:${ref.id}]]`;
 }
 
+/**
+ * Links begun and never finished: `[[` and some words, never picked from the
+ * list - Enter pressed before it opened, or after it closed. They are shown
+ * as their words, marked as not linked yet, rather than as brackets; in the
+ * editor a click on one opens the list again to finish it.
+ *
+ * `[[Words]]` is all of Words. `[[Words` with nothing closing it is the words
+ * up to the end of the line or the first stop, as typed as the list's query.
+ */
+export function unfinishedLinks(text: string): { start: number; end: number; words: string }[] {
+  const out: { start: number; end: number; words: string }[] = [];
+  const done = parseLinks(text);
+  let from = 0;
+  for (;;) {
+    const at = text.indexOf("[[", from);
+    if (at === -1) break;
+    const inside = done.find((link) => link.start <= at && at < link.end);
+    if (inside) {
+      from = inside.end;
+      continue;
+    }
+    const rest = text.slice(at + 2);
+    const closed = /^([^[\]\n|]{1,60})\]\]/.exec(rest);
+    const open = /^[^[\]\n|.,;:!?]{1,40}/.exec(rest);
+    const words = (closed?.[1] ?? open?.[0] ?? "").trimEnd();
+    if (!words.trim()) {
+      from = at + 2;
+      continue;
+    }
+    const end = closed ? at + 2 + closed[0].length : at + 2 + words.length;
+    out.push({ start: at, end, words: words.trim() });
+    from = end;
+  }
+  return out;
+}
+
+/** A line with nothing on it but links, the way the Map writes them: `[[A|page:…]] · [[B|contact:…]]`. */
+function linksOnly(line: string): boolean {
+  return parseLinks(line).length > 0 && line.replace(tokens(), "").replace(/[\s·]+/g, "") === "";
+}
+
+const same = (link: LinkRef, ref: LinkRef) => link.kind === ref.kind && link.id === ref.id;
+
+/**
+ * The text with a link to `ref` added, for a link made on the Map rather than
+ * typed. It goes on the page's last line when that line is only links, and on
+ * a line of its own at the foot otherwise - so links made by dragging gather
+ * in one place, and read as text like any other. Unchanged when the page
+ * already links there.
+ */
+export function withLink(text: string, label: string, ref: LinkRef): string {
+  if (parseLinks(text).some((link) => same(link, ref))) return text;
+  const token = linkToken(label, ref);
+  const kept = text.replace(/\s+$/, "");
+  if (kept === "") return token;
+  const lines = kept.split("\n");
+  const last = lines[lines.length - 1] ?? "";
+  if (!linksOnly(last)) return `${kept}\n\n${token}`;
+  lines[lines.length - 1] = `${last} · ${token}`;
+  return lines.join("\n");
+}
+
+/**
+ * The text with every link to `ref` taken out. On a line of links the link
+ * goes, with the dot beside it, and an emptied line goes too; inside a
+ * sentence the words stay and only the link goes, so nothing written stops
+ * reading.
+ */
+export function withoutLink(text: string, ref: LinkRef): string {
+  let dropped = false;
+  const lines = text.split("\n").flatMap((line) => {
+    const links = parseLinks(line);
+    if (!links.some((link) => same(link, ref))) return [line];
+    if (linksOnly(line)) {
+      const rest = links.filter((link) => !same(link, ref)).map((link) => line.slice(link.start, link.end));
+      if (rest.length > 0) return [rest.join(" · ")];
+      dropped = true;
+      return [];
+    }
+    return [
+      line.replace(tokens(), (whole, label: string, kind: string, id: string) =>
+        kind === ref.kind && id === ref.id ? label : whole,
+      ),
+    ];
+  });
+  const out = lines.join("\n");
+  return dropped ? out.replace(/\n{3,}/g, "\n\n").replace(/\s+$/, "") : out;
+}
+
 /** The text with every link's label brought up to date, for editing. */
 export function refreshLabels(text: string, names: Readonly<Record<string, string>>): string {
   return text.replace(tokens(), (whole, label: string, kind: string, id: string) => {
@@ -88,17 +188,4 @@ export function refreshLabels(text: string, names: Readonly<Record<string, strin
 /** The text with links reduced to their words, for excerpts and exports. */
 export function linkLabelsOnly(text: string, names: Readonly<Record<string, string>> = {}): string {
   return text.replace(tokens(), (_whole, label: string, kind: string, id: string) => names[`${kind}:${id}`] ?? label);
-}
-
-/**
- * Where `[[` is being typed: the text after it up to the caret, when the caret
- * is still inside an unfinished link. Null otherwise.
- */
-export function openLinkQuery(text: string, caret: number): { start: number; query: string } | null {
-  const before = text.slice(0, caret);
-  const start = before.lastIndexOf("[[");
-  if (start === -1) return null;
-  const query = before.slice(start + 2);
-  if (/[\]\n|]/.test(query) || query.length > 60) return null;
-  return { start, query };
 }

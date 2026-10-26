@@ -15,6 +15,7 @@ import {
   type SheetData,
 } from "./import";
 import { leadInput, type Company } from "@shared/domain";
+import { contactSheet } from "@shared/gcontacts";
 import type { Resolution } from "@shared/import";
 
 /**
@@ -68,6 +69,78 @@ describe("guessMapping", () => {
     const mapping = guessMapping(["Name", "Phone", "Phone"]);
     expect(mapping[1]).toBe("Phone");
     expect(mapping[2]).toBeNull();
+  });
+});
+
+describe("Google Contacts, through the same wizard", () => {
+  // The whole reason contactSheet heads its rows with Caulder's own column
+  // names. If this ever fails, somebody importing their address book has a
+  // mapping step to correct by hand for no reason.
+  it("maps itself, with nothing left for the user to correct", () => {
+    const { headers } = contactSheet([
+      {
+        names: [{ displayName: "Asha Rao" }],
+        organizations: [{ name: "TRIO World School" }],
+        emailAddresses: [{ value: "asha@trio.edu" }],
+      },
+    ]);
+
+    const mapping = guessMapping(headers);
+    expect(Object.values(mapping).filter((column) => column === null)).toEqual([]);
+    headers.forEach((header, index) => expect(mapping[index]).toBe(header));
+  });
+
+  // And the rows survive the trip: a pull goes through previewImport exactly
+  // as a spreadsheet does, including the duplicate check against people who
+  // are already here. Importing your address book twice must not double it.
+  it("previews as a spreadsheet does, and sees a contact already here", () => {
+    const people = [
+      {
+        names: [{ displayName: "Asha Rao" }],
+        organizations: [{ name: "TRIO World School" }],
+        phoneNumbers: [{ value: "9480004094" }],
+      },
+      { names: [{ displayName: "Ravi Kumar" }], phoneNumbers: [{ value: "9141924141" }] },
+    ];
+    const { headers, rows } = contactSheet(people);
+
+    const first = preview(sheet(headers, rows));
+    expect(first.rows.map((row) => row.status)).toEqual(["valid", "valid"]);
+    // The school is the lead; Asha is the person on it.
+    expect(first.rows[0]?.values).toMatchObject({
+      name: "TRIO World School",
+      contactPerson: "Asha Rao",
+      source: "Google Contacts",
+    });
+    commitImport(db, first.jobId, {});
+
+    // Pulled again - which is what happens when somebody imports their
+    // address book a second time. Anybody with a number is caught by the
+    // phone rule, which is almost everybody in a real address book.
+    const again = preview(sheet(headers, rows));
+    expect(again.rows[0]?.status).toBe("duplicate");
+  });
+
+  /**
+   * The gap, written down rather than discovered.
+   *
+   * Duplicate detection needs a name *and* something else to agree - an
+   * email, a number, or a city - because no contact detail identifies a lead
+   * on its own (one email sat against seven schools in the real file). A
+   * contact who is only a name has nothing to agree on, so importing the
+   * address book twice adds them twice.
+   *
+   * This is the importer's rule rather than anything about Google, and it
+   * applies just as much to a pasted list of bare names. Left alone on
+   * purpose: loosening it to name-only would start merging people who happen
+   * to share one.
+   */
+  it("cannot tell two contacts apart when a name is all either of them has", () => {
+    const { headers, rows } = contactSheet([{ names: [{ displayName: "Ravi Kumar" }] }]);
+    const first = preview(sheet(headers, rows));
+    commitImport(db, first.jobId, {});
+
+    expect(preview(sheet(headers, rows)).rows[0]?.status).toBe("valid");
   });
 });
 

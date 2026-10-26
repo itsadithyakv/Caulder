@@ -16,27 +16,21 @@ import { useWorkspace } from "@/lib/workspace";
  * saved, since the steps are the page's own lines.
  */
 /** When a step without a date of its own falls due, and where its task goes. */
-function whenHint(section: BrainSectionId, template: string): string {
+function whenHint(section: BrainSectionId): string {
   const who = "@Asha says who, (by 2026-10-02) or (day 3) says when; ";
   if (section === "meetings") return `${who}otherwise a week after the meeting.`;
-  if (template === "exam") return "(by 2026-10-02) or (day 3) says when; otherwise the day before the exam. They go on Today as College.";
-  if (template === "class-notes") return "(by 2026-10-02) or (day 3) says when; otherwise a week after the class. They go on Today as College.";
-  if (section === "studies") return "(by 2026-10-02) or (day 3) says when; otherwise a week from today. They go on Today as College.";
-  if (section === "hobbies") return "(by 2026-10-02) or (day 3) says when; otherwise a week from today. They go on Today as Personal.";
-  return "(by 2026-10-02) or (day 3) says when; otherwise a week from today, in the goal's area.";
+  return `${who}otherwise a week from today.`;
 }
 
 export function PageTasks({
   pageId,
   revision,
   section,
-  template,
   onChanged,
 }: {
   pageId: string;
   revision: number;
   section: BrainSectionId;
-  template: string;
   onChanged: () => void;
 }) {
   const { activeCompany } = useWorkspace();
@@ -121,7 +115,7 @@ export function PageTasks({
     <Card
       icon={<ListChecks size={15} aria-hidden />}
       title="As tasks"
-      hint={whenHint(section, template)}
+      hint={whenHint(section)}
       actions={
         waiting > 0 && (
           <button type="button" className="btn btn--sm btn--primary" disabled={busy} onClick={() => void make()}>

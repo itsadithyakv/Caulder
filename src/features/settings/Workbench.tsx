@@ -14,6 +14,7 @@ import { messageOf } from "@/lib/errors";
 import { Card } from "@/components/Card";
 import { Explain } from "@/components/Explain";
 import { ErrorLine } from "@/components/ErrorLine";
+import { NudgeRows } from "./NudgeRows";
 
 /**
  * The parts of Settings that turn Caulder from a record into a workbench:
@@ -115,7 +116,7 @@ export function FieldsCard() {
             className="input"
             value={name}
             onChange={(event) => setName(event.target.value)}
-            placeholder="Board"
+            placeholder="Plan"
             maxLength={60}
           />
         </div>
@@ -142,7 +143,7 @@ export function FieldsCard() {
               className="input"
               value={choices}
               onChange={(event) => setChoices(event.target.value)}
-              placeholder="CBSE, ICSE, State, IB"
+              placeholder="Free, Starter, Pro"
             />
           </div>
         )}
@@ -170,17 +171,29 @@ export function FieldsCard() {
   );
 }
 
-/** Two reminders, both off until asked for, and the one built-in follow-up. */
+/**
+ * Two reminders, both off until asked for, the one built-in follow-up, and
+ * how long a contact may be quiet before Today says so.
+ */
 export function RemindersCard() {
   const { activeCompany, refresh } = useWorkspace();
   const [notify, setNotify] = useState(false);
   const [busy, setBusy] = useState(false);
   const [followUp, setFollowUp] = useState("");
   const [followUpError, setFollowUpError] = useState<string | null>(null);
+  // What is in the box, and what is stored: the label says the stored one, so
+  // it reads as settled while the box is being typed in.
+  const [quiet, setQuiet] = useState("");
+  const [quietSaved, setQuietSaved] = useState<number | null>(null);
+  const [quietError, setQuietError] = useState<string | null>(null);
 
   useEffect(() => {
     void window.caulder.window.notifications().then(setNotify);
     void window.caulder.outreach.followUpDays().then((days) => setFollowUp(String(days)));
+    void window.caulder.today.coldAfterDays().then((days) => {
+      setQuiet(String(days));
+      setQuietSaved(days);
+    });
   }, []);
 
   async function saveFollowUp() {
@@ -190,6 +203,20 @@ export function RemindersCard() {
       setFollowUp(String(saved));
     } catch (cause) {
       setFollowUpError(messageOf(cause));
+    }
+  }
+
+  async function saveQuiet() {
+    setQuietError(null);
+    try {
+      // A blank box goes over as "not a number", so main refuses it with its
+      // own sentence rather than Number("") quietly making it zero.
+      const days = quiet.trim() === "" ? Number.NaN : Number(quiet);
+      const saved = await window.caulder.today.setColdAfterDays(days);
+      setQuiet(String(saved));
+      setQuietSaved(saved);
+    } catch (cause) {
+      setQuietError(messageOf(cause));
     }
   }
 
@@ -210,7 +237,7 @@ export function RemindersCard() {
   }
 
   return (
-    <Card title="Reminders" hint="Both off unless you switch them on.">
+    <Card title="Reminders" hint="Each off unless you switch it on - except what you tell the line to remind you about.">
       <div className="checkline">
         <button
           type="button"
@@ -225,8 +252,7 @@ export function RemindersCard() {
         <span className="checkline__text">
           <span className="checkline__title">Tell me when something is overdue</span>
           <span className="card__hint">
-            One desktop notification a day, never before nine in the morning, and
-            only when there is something.
+            One notification a day, after nine.
           </span>
         </span>
       </div>
@@ -264,8 +290,7 @@ export function RemindersCard() {
                   }))}
                 />
                 <span className="field__hint">
-                  For every block in {activeCompany.name}. A single one can ask
-                  for its own notice, or none at all, on the block itself.
+                  For every block in {activeCompany.name}. 
                 </span>
               </label>
             )}
@@ -276,8 +301,7 @@ export function RemindersCard() {
       <label className="field remindlead">
         <span className="field__label">Follow up after a deal moves</span>
         <span className="card__hint">
-          When a deal moves into a stage with nothing planned, add a follow-up due
-          in this many days. Zero means never.
+          Days to a follow-up when a deal moves. 0 is off.
         </span>
         <input
           className="input"
@@ -289,6 +313,28 @@ export function RemindersCard() {
         />
         <ErrorLine>{followUpError}</ErrorLine>
       </label>
+
+      <label className="field remindlead">
+        <span className="field__label">
+          {quietSaved === null
+            ? "Going quiet"
+            : `Going quiet after ${quietSaved} days without contact`}
+        </span>
+        <span className="card__hint">
+          Days without contact before Going quiet, 3 to 90.
+        </span>
+        <input
+          className="input"
+          inputMode="numeric"
+          value={quiet}
+          onChange={(event) => setQuiet(event.target.value)}
+          onBlur={() => void saveQuiet()}
+          aria-label="Days without contact before going quiet"
+        />
+        <ErrorLine>{quietError}</ErrorLine>
+      </label>
+
+      <NudgeRows />
 
       <Explain label="What it stays quiet about">
         <p>

@@ -2,6 +2,8 @@ import { Menu, nativeImage, nativeTheme, Tray, type MenuItemConstructorOptions }
 import { heldShortcut, onShortcutChange, openCapture, toggleCapture } from "./capture";
 import { markFile } from "./identity";
 import { trayItems, trayTooltip } from "./popup";
+import { app } from "electron";
+import { openStartupApps, setStartup, startupState } from "./startup";
 
 /**
  * Caulder's icon by the clock.
@@ -15,20 +17,31 @@ import { trayItems, trayTooltip } from "./popup";
  */
 
 let tray: Tray | null = null;
+/** Builds the menu again: after the startup setting changes, from here or from Settings. */
+let rebuild: (() => void) | null = null;
+
+export function refreshTray(): void {
+  rebuild?.();
+}
 
 /** Windows turned dark or light: the tray follows, so the cauldron stays visible. */
 const followTheme = () => tray?.setImage(nativeImage.createFromPath(markFile("tray")));
 
-export function createTray(actions: { open: () => void; quit: () => void }): void {
+export function createTray(actions: { open: () => void; quit: () => void; decided: () => void }): void {
   if (tray) return;
   // tray.png and its @Nx siblings, which Electron picks between by the
   // screen's scale - or tray-light.png and its, on a dark taskbar.
   tray = new Tray(nativeImage.createFromPath(markFile("tray")));
   nativeTheme.on("updated", followTheme);
 
-  const run = (action: "task" | "note" | "open" | "quit") => {
+  const run = (action: "task" | "note" | "open" | "quit" | "startup" | "startup-apps") => {
     if (action === "open") actions.open();
     else if (action === "quit") actions.quit();
+    else if (action === "startup") {
+      actions.decided();
+      setStartup(!startupState().on);
+      refresh();
+    } else if (action === "startup-apps") void openStartupApps();
     else openCapture({ mode: action, anchor: tray?.getBounds() });
   };
 
@@ -36,11 +49,14 @@ export function createTray(actions: { open: () => void; quit: () => void }): voi
     if (!tray) return;
     const shortcut = heldShortcut();
     tray.setToolTip(trayTooltip(shortcut));
-    const template: MenuItemConstructorOptions[] = trayItems(shortcut).map((item) =>
+    // Only an installed copy can be opened at sign-in: a build run from the project offers nothing.
+    const startup = app.isPackaged ? startupState() : null;
+    const template: MenuItemConstructorOptions[] = trayItems(shortcut, startup).map((item) =>
       "separator" in item
         ? { type: "separator" }
         : {
             label: item.label,
+            ...(item.checked !== undefined ? { type: "checkbox" as const, checked: item.checked } : {}),
             // Shown, not registered: the key is already global, and a menu
             // accelerator would only fight it for the same combination.
             ...(item.accelerator ? { accelerator: item.accelerator, registerAccelerator: false } : {}),
@@ -55,6 +71,7 @@ export function createTray(actions: { open: () => void; quit: () => void }): voi
   });
 
   onShortcutChange(refresh);
+  rebuild = refresh;
   refresh();
 
   // The one thing a test cannot reach any other way is the icon itself: there

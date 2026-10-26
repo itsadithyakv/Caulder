@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Columns3 } from "lucide-react";
+import { Columns3, Scale } from "lucide-react";
 import {
   LOSS_REASONS,
   LOSS_REASON_LABEL,
@@ -8,6 +8,7 @@ import {
 } from "@shared/domain";
 import { useWorkspace } from "@/lib/workspace";
 import { BoardCardView } from "./BoardCard";
+import { dealTotals } from "./totals";
 import { formatValue } from "@/lib/format";
 import { messageOf } from "@/lib/errors";
 
@@ -28,6 +29,7 @@ export function PipelineScreen({
 }) {
   const { activeCompany } = useWorkspace();
   const companyId = activeCompany?.id ?? null;
+  const currency = activeCompany?.currency;
 
   const [board, setBoard] = useState<Board | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -95,6 +97,8 @@ export function PipelineScreen({
   // working ones: leads left there by a deleted stage still need moving.
   const working = board.columns.filter((column) => column.kind === "open");
   const closed = board.columns.filter((column) => column.kind !== "open");
+  const totals = dealTotals(board.columns);
+  const money = (value: number) => formatValue(value, currency);
 
   return (
     <div className="pipeline">
@@ -121,6 +125,33 @@ export function PipelineScreen({
         </div>
       )}
 
+      {/* The one line in place of a forecast. Two closed deals cannot carry a
+          win rate, so the weight is where a deal stands in the funnel, and
+          the line says so rather than passing it off as a prediction. */}
+      {!empty && (
+        <div
+          className="hintbar"
+          role="status"
+          aria-label="Open deals"
+          title="Each open deal counts for a share of its value that grows along the funnel: the first open stage least, the last most. Won and lost are not counted."
+        >
+          <Scale size={16} className="hintbar__icon" aria-hidden />
+          <p className="hintbar__text">
+            {totals.count === 0 ? (
+              "Nothing open: every deal is won or lost."
+            ) : (
+              <>
+                <strong>
+                  {totals.count} open {totals.count === 1 ? "deal" : "deals"}
+                </strong>{" "}
+                worth <strong>{money(totals.value)}</strong>, or <strong>{money(totals.weighted)}</strong>{" "}
+                weighted by stage.
+              </>
+            )}
+          </p>
+        </div>
+      )}
+
       {/* Won and Lost come out of the board.
           
           They are not further along the funnel - they are out of it, in two
@@ -133,6 +164,7 @@ export function PipelineScreen({
           <Column
             key={column.stageId ?? "unstaged"}
             column={column}
+            money={money}
             depth={index + 1}
             stages={stages}
             busy={busy}
@@ -168,6 +200,7 @@ export function PipelineScreen({
             <Column
               key={column.stageId ?? "closed"}
               column={column}
+              money={money}
               depth={column.kind === "won" ? "won" : "lost"}
               stages={stages}
               busy={busy}
@@ -191,6 +224,7 @@ export function PipelineScreen({
 
 function Column({
   column,
+  money,
   depth,
   stages,
   busy,
@@ -203,6 +237,8 @@ function Column({
   onDragOver,
 }: {
   column: BoardColumn;
+  /** A sum in the company's currency, the way Money writes it. */
+  money: (value: number) => string;
   /**
    * How far along the funnel, which is what the colour ramp keys off. A number
    * for a working column, or which way it left the funnel for the other two.
@@ -249,7 +285,7 @@ function Column({
         <span className="column__count">{column.total}</span>
       </header>
 
-      {column.value > 0 && <p className="column__value">{formatValue(column.value)}</p>}
+      {column.value > 0 && <p className="column__value">{money(column.value)}</p>}
 
       <ul className="column__cards">
         {column.cards.map((card) => (
@@ -259,6 +295,8 @@ function Column({
             stageId={column.stageId}
             stages={stages}
             busy={busy}
+            money={money}
+            closed={depth === "won" || depth === "lost"}
             onOpen={() => onOpenLead(card.leadId)}
             onMove={(stageId) => onMove(card.id, stageId)}
             onDragStart={() => onDragStart(card.id)}
@@ -311,17 +349,13 @@ function LossReason({
   return (
     <div className="scrim anim-in" onClick={onClose} role="presentation">
       <div
-        className="card lossask anim-modal"
+        className="card card--float lossask anim-modal"
         role="dialog"
         aria-modal="true"
         aria-label={`Why was ${name} lost?`}
         onClick={(event) => event.stopPropagation()}
       >
         <h2 className="card__title">Why was {name} lost?</h2>
-        <p className="card__hint">
-          The forecast can already tell you how often you lose. This is the only
-          thing that can tell you why.
-        </p>
 
         <div className="lossask__options">
           {LOSS_REASONS.filter((reason) => reason !== "other").map((reason) => (

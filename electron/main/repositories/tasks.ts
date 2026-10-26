@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { Db } from "../db/connection";
-import type { Task, TaskInput, TaskKind, TaskStatus } from "@shared/domain";
+import { blockInput, type Task, type TaskInput, type TaskKind, type TaskRepeat, type TaskStatus } from "@shared/domain";
+import { nextDue } from "@shared/repeat";
+import { createBlock } from "./blocks";
 import { rememberDeleted } from "./google";
 import { writeActivity } from "./leads";
 
@@ -13,15 +15,16 @@ type TaskRow = {
   company_id: string;
   lead_id: string | null;
   lead_name: string | null;
+  lead_do_not_contact: number | null;
   page_id: string | null;
   page_title: string | null;
   title: string;
   kind: string;
-  area: string | null;
   priority: string | null;
   status: string;
   due_on: string;
   notes: string | null;
+  repeats: string | null;
   completed_at: string | null;
   created_at: string;
   updated_at: string;
@@ -33,15 +36,16 @@ function toTask(row: TaskRow): Task {
     companyId: row.company_id,
     leadId: row.lead_id,
     leadName: row.lead_name,
+    leadDoNotContact: row.lead_do_not_contact === 1,
     pageId: row.page_id,
     pageTitle: row.page_title,
     title: row.title,
     kind: row.kind as TaskKind,
-    area: row.area,
     priority: row.priority,
     status: row.status as TaskStatus,
     dueOn: row.due_on,
     notes: row.notes,
+    repeats: (row.repeats as TaskRepeat | null) ?? null,
     completedAt: row.completed_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -54,7 +58,7 @@ function toTask(row: TaskRow): Task {
  * comes too, so a playbook's step can say which playbook.
  */
 const SELECT = `
-  SELECT t.*, l.name AS lead_name, p.title AS page_title
+  SELECT t.*, l.name AS lead_name, l.do_not_contact AS lead_do_not_contact, p.title AS page_title
   FROM tasks t
   LEFT JOIN leads l ON l.id = t.lead_id
   LEFT JOIN brain_pages p ON p.id = t.page_id
@@ -83,24 +87,26 @@ export function listTasksForLead(db: Db, leadId: string): Task[] {
   return rows.map(toTask);
 }
 
-export function createTask(db: Db, companyId: string, input: TaskInput): Task {
+/** `onDay` is the day of the month a run was set on, carried from one to the next; new, it is the due day's. */
+export function createTask(db: Db, companyId: string, input: TaskInput, onDay?: number): Task {
   const now = new Date().toISOString();
   const id = randomUUID();
 
   db.transaction(() => {
     db.prepare(
       `INSERT INTO tasks (
-         id, company_id, lead_id, title, kind, area, priority, status, due_on, notes,
-         completed_at, created_at, updated_at
-       ) VALUES (@id, @companyId, @leadId, @title, @kind, @area, @priority, 'open', @dueOn,
-                 @notes, NULL, @now, @now)`,
+         id, company_id, lead_id, title, kind, priority, status, due_on, notes,
+         repeats, repeat_day, completed_at, created_at, updated_at
+       ) VALUES (@id, @companyId, @leadId, @title, @kind, @priority, 'open', @dueOn,
+                 @notes, @repeats, @repeatDay, NULL, @now, @now)`,
     ).run({
       ...input,
-      area: input.area ?? null,
       // Accepted by the schema since migration 12 and never written until
       // now, so every task anybody marked as having to happen was saved as
       // though nobody had said.
       priority: input.priority ?? null,
+      repeats: input.repeats ?? null,
+      repeatDay: input.repeats ? (onDay ?? Number(input.dueOn.slice(8, 10))) : null,
       id,
       companyId,
       now,
@@ -118,12 +124,17 @@ export function updateTask(db: Db, id: string, input: TaskInput): Task {
 
   db.prepare(
     `UPDATE tasks SET is_dirty = 1, lead_id = @leadId, title = @title, kind = @kind,
-       area = @area, priority = @priority, due_on = @dueOn, notes = @notes, updated_at = @now
+       priority = @priority, due_on = @dueOn, notes = @notes, repeats = @repeats,
+       repeat_day = CASE WHEN @repeats IS NULL THEN NULL WHEN @dueOn = due_on AND repeat_day IS NOT NULL THEN repeat_day
+                         ELSE CAST(substr(@dueOn, 9, 2) AS INTEGER) END,
+       updated_at = @now
      WHERE id = @id`,
   ).run({
     ...input,
-    area: input.area ?? null,
     priority: input.priority ?? null,
+    // Left as it was unless the form said: a form that does not show the
+    // repeat must not stop it.
+    repeats: input.repeats === undefined ? before.repeats : input.repeats,
     id,
     now: new Date().toISOString(),
   });
@@ -162,6 +173,8 @@ export function completeTask(db: Db, id: string): Task {
         occurredAt: now,
       });
     }
+
+    if (task.repeats) comeBack(db, task);
   })();
 
   const done = findTask(db, id);
@@ -169,9 +182,75 @@ export function completeTask(db: Db, id: string): Task {
   return done;
 }
 
+/**
+ * The next one of a task that comes back (PLAN.md, part twelve, phase 47):
+ * due a fortnight, a month or a year after this one was due, the same in
+ * every other way - and at the same hour, when this one had an hour set
+ * aside. Never a second open one: ticked, reopened and ticked again makes the
+ * next one once.
+ */
+export function comeBack(db: Db, task: Task): void {
+  if (!task.repeats) return;
+  const onDay = (db.prepare(`SELECT repeat_day FROM tasks WHERE id = ?`).get(task.id) as { repeat_day: number | null } | undefined)?.repeat_day ?? null;
+  const due = nextDue(task.dueOn, task.repeats, onDay);
+  // The same contact's, too: two clients' "Send invoice" on the 1st are two runs.
+  const already = db
+    .prepare(`SELECT 1 FROM tasks WHERE company_id = ? AND status = 'open' AND title = ? AND repeats = ? AND due_on = ? AND lead_id IS ?`)
+    .get(task.companyId, task.title, task.repeats, due, task.leadId);
+  if (already) return;
+
+  const next = createTask(db, task.companyId, {
+    title: task.title,
+    kind: task.kind,
+    priority: (task.priority as TaskInput["priority"]) ?? null,
+    dueOn: due,
+    leadId: task.leadId,
+    notes: task.notes,
+    repeats: task.repeats,
+  }, onDay ?? undefined);
+
+  const hour = db
+    .prepare(`SELECT starts_at, minutes, kind, priority, remind_minutes FROM blocks WHERE task_id = ? ORDER BY day ASC LIMIT 1`)
+    .get(task.id) as { starts_at: string; minutes: number; kind: string | null; priority: string | null; remind_minutes: number | null } | undefined;
+  if (hour) {
+    createBlock(
+      db,
+      task.companyId,
+      blockInput.parse({
+        day: due,
+        startsAt: hour.starts_at,
+        minutes: hour.minutes,
+        title: task.title,
+        kind: hour.kind,
+        notes: null,
+        taskId: next.id,
+        priority: hour.priority,
+        remindMinutes: hour.remind_minutes,
+        repeat: null,
+      }),
+    );
+  }
+}
+
 /** Undoes a completion. The timeline entry stays: it did happen. */
 export function reopenTask(db: Db, id: string): Task {
   const now = new Date().toISOString();
+  const before = findTask(db, id);
+  // A task that came back when it was ticked: the next one goes again, so Undo
+  // does not leave two open (logic pass, 23 October 2026). Only the one this
+  // tick made - open, on the next day, made since it was ticked - and its hour.
+  if (before?.repeats && before.status === "done" && before.completedAt) {
+    const onDay = (db.prepare(`SELECT repeat_day FROM tasks WHERE id = ?`).get(id) as { repeat_day: number | null } | undefined)?.repeat_day ?? null;
+    const next = db
+      .prepare(
+        `SELECT id FROM tasks WHERE company_id = ? AND status = 'open' AND title = ? AND repeats = ? AND due_on = ? AND lead_id IS ? AND created_at >= ?`,
+      )
+      .get(before.companyId, before.title, before.repeats, nextDue(before.dueOn, before.repeats, onDay), before.leadId, before.completedAt) as { id: string } | undefined;
+    if (next) {
+      db.prepare(`DELETE FROM blocks WHERE task_id = ?`).run(next.id);
+      db.prepare(`DELETE FROM tasks WHERE id = ?`).run(next.id);
+    }
+  }
   const result = db
     .prepare(
       `UPDATE tasks SET is_dirty = 1, status = 'open', completed_at = NULL, updated_at = ? WHERE id = ?`,

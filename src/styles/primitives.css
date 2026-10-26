@@ -15,30 +15,12 @@
 
 /* ---- Surfaces --------------------------------------------------------- */
 
-.nm-raised {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-}
-
-.nm-sunken {
-  background: var(--surface-sunken);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-}
-
 /* The frame a data table sits in: ONE bordered container, not N boxed rows. */
 .nm-well {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   overflow: hidden;
-}
-
-.nm-flat {
-  background: var(--surface);
-  border: 1px solid var(--soft-line);
-  border-radius: var(--radius-md);
 }
 
 .nm-float {
@@ -48,14 +30,26 @@
   box-shadow: var(--shadow-float);
 }
 
-/* ---- Card ------------------------------------------------------------- */
+/* ---- Card ---------------------------------------------------------------
+ * A sheet laid on the page: a shade whiter than the ruled paper under it,
+ * with a hairline edge, so its text never sits on a line and the ruling
+ * shows in the gaps between sheets. What floats above the page - a dialog,
+ * the palette, the tour - adds a shadow, `.card--float`.
+ * ------------------------------------------------------------------------- */
 
 .card {
+  padding: var(--space-5);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-xs);
+}
+
+.card--float {
   padding: var(--space-5);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-float);
 }
 
 .card--tight { padding: var(--space-4); }
@@ -596,10 +590,12 @@
 
 .tab:hover { color: var(--ink); }
 
-/* Selected. Three spellings, one rule: tablists say aria-selected, toggle
- * groups say aria-pressed, and the weekday pickers use the modifier. */
+/* Selected. Four spellings, one rule: tablists say aria-selected, toggle
+ * groups say aria-pressed, radio groups aria-checked, and the weekday
+ * pickers use the modifier. */
 .tab[aria-selected="true"],
 .tab[aria-pressed="true"],
+.tab[role="radio"][aria-checked="true"],
 .tab--on {
   background: var(--surface);
   color: var(--ink);
@@ -883,4 +879,64 @@
 .menu__hint {
   color: var(--ink-3);
   font-size: var(--text-xs);
+}
+
+/* A name in a sentence that opens something: underlined like a link, a button underneath. */
+/* The rules the company keeps on a subject, beside the thing they are about. */
+.rulesaside {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-hover);
+  font-size: var(--text-sm);
+}
+
+.rulesaside__title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0;
+  font-weight: 600;
+}
+
+.rulesaside__from,
+.rulesaside__more {
+  margin: 0;
+  color: var(--ink-3);
+  font-weight: 400;
+}
+
+.rulesaside__rules {
+  margin: var(--space-1) 0 0;
+  padding-left: var(--space-4);
+  color: var(--ink-2);
+}
+
+.linkbtn {
+  display: inline;
+  padding: 0;
+  background: none;
+  color: var(--accent-strong);
+  border: none;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+/* The rest of a long list (src/lib/showing.tsx), under it. */
+.showmore {
+  display: block;
+  margin: var(--space-3) auto 0;
+  font-size: var(--text-sm);
+}
+
+.linkbtn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-radius: 2px;
 }

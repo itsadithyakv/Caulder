@@ -180,6 +180,12 @@ function Inlines({ items }: { items: Inline[] }) {
             );
           case "brainlink":
             return <BrainLink key={index} target={item.target} id={item.id} label={item.label} />;
+          case "unlinked":
+            return (
+              <span key={index} className="brainlink--unlinked" title="Not linked yet: edit the page and click it to choose what it links to">
+                {item.text}
+              </span>
+            );
           case "link":
             return (
               // Opened by the system browser: main hands out only web links.
@@ -197,7 +203,7 @@ function textOf(items: Inline[]): string {
   return plainText(
     items
       .map((item) =>
-        item.kind === "text" || item.kind === "code"
+        item.kind === "text" || item.kind === "code" || item.kind === "unlinked"
           ? item.text
           : item.kind === "brainlink"
             ? item.label

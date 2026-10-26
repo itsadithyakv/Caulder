@@ -20,7 +20,7 @@ process restarts on its own changes.
 | | |
 | --- | --- |
 | `npm run dev` | Development, with hot reload |
-| `npm run build` | Compile main, preload and renderer into `out/` |
+| `npm run build` | Compile main, preload and renderer into `out/`, then write the licences of what they ship (`out/notices/`) |
 | `npm start` | Run the built output without packaging |
 | `npm run verify` | **The gate.** Typecheck, lint, test, dead-code — in that order |
 | `npm test` | Unit tests once |
@@ -33,6 +33,118 @@ process restarts on its own changes.
 three TypeScript projects: `node` (main + shared), `web` (renderer + shared),
 and `e2e` — which has its own project because `page.evaluate` bodies run in the
 browser and need DOM types that the main process has no business with.
+
+## Releasing, and updates
+
+```bash
+set GH_TOKEN=<a GitHub token that can publish releases>
+npm run release
+```
+
+Builds the installer and publishes it to the repository's Releases page as a
+draft release, with its blockmap and `latest.yml`; publish the draft to make
+it the newest. The installed app looks there (electron-updater) thirty seconds
+after it starts and every six hours, downloads a newer version quietly and
+puts it in when Caulder is next quit - or at once, from *Restart to update* in
+Settings or the bar that appears when one is ready. Nothing is looked for in
+development or under the tests. A private repository would need a token in
+every copy, so releases belong in a public one.
+
+**The installer is not code-signed yet.** Windows SmartScreen shows *Windows
+protected your PC* until it is, and updates still work unsigned. Signing
+needs a certificate or Microsoft's Trusted Signing, set up in
+`electron-builder.yml` under `win`.
+
+## Free, and the privacy page
+
+Caulder is free (PLAN.md, part six). Three things have to be true before a
+copy is handed to anybody:
+
+- **The ways to help are live.** `SUPPORT` in `shared/support.ts` holds the
+  GitHub Sponsors link, the UPI ID and the privacy URL. Sponsors works only
+  once the GitHub profile is enrolled; the UPI ID is empty until one is
+  chosen, and hidden while it is (better a `name@bank` ID than a phone
+  number, since everybody sees it).
+- **The privacy page is published.** `docs/privacy.md` goes out through
+  GitHub Pages (Settings → Pages → the `general` branch, `/docs`, switched on
+  26 October 2026; move it to `main` once `general` is merged there), at
+  `https://itsadithyakv.github.io/Caulder/privacy.html`. The Store asks for
+  that URL. It must say the same as the code: anything that sends something
+  new changes it in the same commit.
+- **The licences ship.** `npm run build` writes them; `smoke:packaged`
+  fails a package without them.
+
+## The Microsoft Store
+
+```bash
+npm run package:store
+```
+
+Builds `release/Caulder-<version>-x64.msix` for Partner Center, with the
+identity Partner Center reserved (`appx` in `electron-builder.yml`: name
+`AdithyaKV.Caulder`, publisher `CN=30ED0224-8255-4781-8ACD-EE3EF146115F`,
+PaperKite). It is **unsigned on purpose**: the Store signs a package itself
+once it passes certification, so no certificate is needed to publish.
+electron-builder's own copies of makeappx and makepri no longer start on
+current Windows 11, so `scripts/package-store.mjs` points it at the newest
+Windows SDK installed (the SDK is free). The tiles come from
+`scripts/logo.py`, like every other copy of the logo.
+
+To submit: Partner Center → the app → a new submission → Packages → upload
+the .msix. Each submission needs a higher version than the last, so bump
+`package.json` first.
+
+To try the package on this computer before submitting it, it has to be
+installed, and Windows installs only a signed package - or, with Developer
+Mode on (Settings → System → For developers), an unpacked one:
+
+```powershell
+& "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\makeappx.exe" unpack /p release\Caulder-1.0.0-x64.msix /d $env:TEMP\caulder-appx /o
+Add-AppxPackage -Register $env:TEMP\caulder-appx\AppxManifest.xml
+# and to take it off again:
+Get-AppxPackage AdithyaKV.Caulder | Remove-AppxPackage
+```
+
+Once it is installed that way, try what only a Store copy can get wrong:
+that it opens, that Settings > Your data shows the LocalState folder, that
+understanding reads (Settings > This computer > Understanding counts up),
+the quick key from another app, the tray icon, the desk widget, the journal
+lock, and a backup to a folder you choose.
+
+Then the **Windows App Certification Kit**, which is what the Store runs
+first. It needs an administrator's PowerShell and takes the screen for a few
+minutes while it starts and stops the app:
+
+```powershell
+$full = (Get-AppxPackage AdithyaKV.Caulder).PackageFullName
+& "C:\Program Files (x86)\Windows Kits\10\App Certification Kit\appcert.exe" reset
+& "C:\Program Files (x86)\Windows Kits\10\App Certification Kit\appcert.exe" test -packagefullname $full -reportoutputpath $env:TEMP\caulder-wack.xml
+```
+
+The report says PASS or names what failed. What goes into Partner Center
+beside the package - the description, the features, the screenshots, the
+answers to its questions - is in [store-listing.md](store-listing.md).
+
+**A Store copy is a little different, on purpose:**
+
+- **It looks for no updates of its own.** The Store keeps it current, and a
+  Store app cannot rewrite its install folder. Electron's
+  `process.windowsStore` says which copy is running; Settings says *Updates
+  come from the Microsoft Store*. The channels never cross: a Store copy
+  never takes a GitHub release.
+- **Its data is in the package's own folder**,
+  `%LOCALAPPDATA%\Packages\AdithyaKV.Caulder_dhc63ph4798te\LocalState`,
+  not `%APPDATA%\Caulder`. Windows gives a Store app a private view of
+  AppData that only the app sees, so Explorer - opened from Settings on the
+  backups or the log - would find those folders empty. LocalState is real for
+  everybody. See `electron/main/store-home.ts`.
+- **The first time it starts on a computer that had the desktop Caulder**, it
+  brings that copy's data across once: the database read whole through SQLite,
+  the attached files, and the backup folder. The desktop copy's files are left
+  as they were.
+- **Uninstalling it removes its data**, as Windows does for every Store app.
+  Settings says so beside *Another copy, somewhere else*, which is the way
+  around it.
 
 ## Building an installer
 
@@ -100,6 +212,22 @@ is safe without one.
 The launch backup **never throws**: losing access to your leads is worse than
 one missing copy. The on-demand one fails loudly, because you pressed a button
 and silence would be worse.
+
+**Another copy, somewhere else** (Settings → Your data): a folder the person
+chooses - one OneDrive, Google Drive or Dropbox keeps elsewhere - gets a copy
+of every backup too, launch and on demand, with the ten newest kept there.
+Where it is lives in `backup-folder.json` beside the database, because the
+launch backup runs before the database is opened. A folder that cannot be
+written to - a drive not plugged in - never stops a backup; the on-demand one
+says why it was not copied.
+
+## Reporting a problem
+
+Settings → Your data → *Report a problem* shows the whole report before it
+goes anywhere: the version, Windows, and the last sixty lines of
+`logs/caulder.log` with emails, phone numbers and the Windows account name
+taken out. *Copy it*, or *Open it as an issue on GitHub* with it filled in,
+to send or not. Nothing is sent by Caulder itself.
 
 ## Restore
 

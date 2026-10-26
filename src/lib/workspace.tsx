@@ -9,7 +9,9 @@ import {
 } from "react";
 import type { Workspace } from "@shared/ipc";
 import type { AccentId, Company, CompanyInput } from "@shared/domain";
+import { localeFor } from "@shared/countries";
 import { messageOf } from "./errors";
+import { setRegion } from "./format";
 
 /**
  * Holds the companies and which one is open.
@@ -44,6 +46,8 @@ type WorkspaceContext = {
   rename: (id: string, name: string) => Promise<void>;
   setAccent: (id: string, accent: AccentId) => Promise<void>;
   setCurrency: (id: string, currency: string) => Promise<void>;
+  setCountry: (id: string, country: string) => Promise<void>;
+  setTimezone: (id: string, timezone: string) => Promise<void>;
   archive: (id: string) => Promise<void>;
   /** Ends a workspace and everything in it. Archiving only hides one. */
   remove: (id: string) => Promise<void>;
@@ -121,6 +125,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     [state, activeCompany],
   );
 
+  // Money and dates read the way they do where the company is (phase 24):
+  // the chosen company's country, else your own. Set here, during the
+  // draw and before any screen formats, so the first frame is already right.
+  setRegion(localeFor(activeCompany?.country ?? home?.country));
+
   // The app wears one face whichever company is chosen: coffee, set on the
   // page itself (index.html) so it is there before the first paint. A
   // company's own colour is its mark in the sidebar, not the whole window -
@@ -146,6 +155,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       },
       setCurrency: async (id, currency) => {
         await apply(() => window.caulder.companies.setCurrency(id, currency));
+      },
+      setCountry: async (id, country) => {
+        await apply(() => window.caulder.companies.setCountry(id, country));
+      },
+      setTimezone: async (id, timezone) => {
+        await apply(() => window.caulder.companies.setTimezone(id, timezone));
       },
       archive: async (id) => {
         await apply(() => window.caulder.companies.archive(id));

@@ -30,22 +30,34 @@ export function isDay(value: unknown): value is Day {
  * store without reassembling parts by hand.
  */
 export function today(timezone: string, now: Date = new Date()): Day {
-  try {
-    return new Intl.DateTimeFormat("en-CA", {
-      timeZone: timezone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).format(now);
-  } catch {
-    // An unknown timezone must not stop the app telling you what is due. The
-    // machine's own day is a better answer than an error.
-    return new Intl.DateTimeFormat("en-CA", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).format(now);
+  return formatter(DAY_FORMATS, "en-CA", timezone, { year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+}
+
+/**
+ * Formatters, one per timezone, made once.
+ *
+ * Making an Intl.DateTimeFormat costs about as much as formatting a thousand
+ * dates with one, and `dayOf` is called once per history row: Today and the
+ * week's review made six thousand of them each for a company with three
+ * thousand contacts - a quarter of a second, every read. An unknown timezone
+ * falls back to the machine's, as it always did, and is cached as that.
+ */
+const DAY_FORMATS = new Map<string, Intl.DateTimeFormat>();
+const TIME_FORMATS = new Map<string, Intl.DateTimeFormat>();
+
+function formatter(cache: Map<string, Intl.DateTimeFormat>, locale: string, timezone: string, options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  let made = cache.get(timezone);
+  if (!made) {
+    try {
+      made = new Intl.DateTimeFormat(locale, { ...options, timeZone: timezone });
+    } catch {
+      // An unknown timezone must not stop the app telling you what is due. The
+      // machine's own day is a better answer than an error.
+      made = new Intl.DateTimeFormat(locale, options);
+    }
+    cache.set(timezone, made);
   }
+  return made;
 }
 
 /**
@@ -167,16 +179,7 @@ export function isTime(value: unknown): value is Time {
  * than throwing - being an hour out is recoverable, a blank day plan is not.
  */
 export function timeNow(timezone: string, now: Date = new Date()): Time {
-  const options: Intl.DateTimeFormatOptions = {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  };
-  try {
-    return new Intl.DateTimeFormat("en-GB", { ...options, timeZone: timezone }).format(now);
-  } catch {
-    return new Intl.DateTimeFormat("en-GB", options).format(now);
-  }
+  return formatter(TIME_FORMATS, "en-GB", timezone, { hour: "2-digit", minute: "2-digit", hour12: false }).format(now);
 }
 
 /** Minutes since midnight. Returns 0 for anything unparseable. */
@@ -230,7 +233,7 @@ export function overlaps(
  * How a due date reads to a person. "Today" and "Tomorrow" are what the eye
  * looks for; past that, a count is easier to judge than a date.
  */
-export function describeDue(due: Day, todayDay: Day): string {
+export function describeDue(due: Day, todayDay: Day, locale?: string): string {
   const delta = daysBetween(todayDay, due);
 
   if (delta === 0) return "Today";
@@ -239,9 +242,12 @@ export function describeDue(due: Day, todayDay: Day): string {
   if (delta < 0) return `${Math.abs(delta)} days ago`;
   if (delta < 7) return `In ${delta} days`;
 
-  return new Intl.DateTimeFormat(undefined, {
+  // Midnight UTC, written in UTC: in the Americas the local clock would make
+  // it the evening before (phase 24).
+  return new Intl.DateTimeFormat(locale, {
     day: "numeric",
     month: "short",
+    timeZone: "UTC",
     ...(due.slice(0, 4) === todayDay.slice(0, 4) ? {} : { year: "numeric" }),
   }).format(new Date(`${due}T00:00:00Z`));
 }

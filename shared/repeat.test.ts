@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { occurrencesOf, checkRepeat, describeRepeat, MAX_OCCURRENCES } from "./repeat";
+import { occurrencesOf, checkRepeat, describeRepeat, MAX_OCCURRENCES, nextDue } from "./repeat";
 import { weekdayOf } from "./dates";
 
 /**
@@ -106,5 +106,29 @@ describe("how it reads back", () => {
     expect(
       describeRepeat({ weekdays: [5, 1], from: "2026-09-07", until: "2026-12-01" }),
     ).toContain("Mon, Fri");
+  });
+});
+
+describe("every other week, and a task that comes back (part twelve, phase 47)", () => {
+  it("lays out every other week, counted from the week it starts in", () => {
+    // Wednesdays from 2026-10-14: the 14th, the 28th, the 11th of November.
+    expect(occurrencesOf({ weekdays: [3], from: "2026-10-14", until: "2026-11-12", every: 2 })).toEqual([
+      "2026-10-14",
+      "2026-10-28",
+      "2026-11-11",
+    ]);
+    // Starting on a Thursday, Monday and Thursday every other week: the first week counts from its Monday.
+    expect(occurrencesOf({ weekdays: [1, 4], from: "2026-10-15", until: "2026-10-31", every: 2 })).toEqual(["2026-10-15", "2026-10-26", "2026-10-29"]);
+  });
+
+  it("says so", () => {
+    expect(describeRepeat({ weekdays: [3], from: "2026-10-14", until: "2026-12-31", every: 2 })).toBe("Every other Wed until 2026-12-31");
+  });
+
+  it("is due a fortnight, a month or a year on - the last day of a shorter month", () => {
+    expect(nextDue("2026-10-14", "fortnightly")).toBe("2026-10-28");
+    expect(nextDue("2026-10-01", "monthly")).toBe("2026-11-01");
+    expect(nextDue("2026-01-31", "monthly")).toBe("2026-02-28");
+    expect(nextDue("2028-02-29", "yearly")).toBe("2029-02-28");
   });
 });

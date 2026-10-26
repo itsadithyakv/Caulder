@@ -64,8 +64,7 @@ export function StageEditor({ companyId }: { companyId: string }) {
     <section className="card">
       <h2 className="card__title">Pipeline stages</h2>
       <p className="card__hint">
-        The columns on the board, in order. Won and Lost are treated as closed:
-        contacts in them are left out of the going-quiet list.
+        The board&rsquo;s columns, in order.
       </p>
 
       {error && (

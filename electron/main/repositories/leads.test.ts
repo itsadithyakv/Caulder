@@ -13,6 +13,7 @@ import {
   setLeadStage,
   setStageForMany,
   updateLead,
+  writeActivity,
 } from "./leads";
 import { completeTask, createTask } from "./tasks";
 import { shiftDay, today as todayIn } from "@shared/dates";
@@ -664,5 +665,54 @@ describe("the next step on a row", () => {
     const rows = listLeads(db, { companyId: company.id, sort: "name", direction: "asc" });
     expect(rows[0]?.nextTaskTitle).toBe("Call A");
     expect(rows[1]?.nextTaskTitle).toBeNull();
+  });
+});
+
+describe("listLeads, by who has been written to and who answered", () => {
+  const NOW = new Date("2026-10-16T09:00:00Z"); // a Friday
+  const ago = (days: number) => new Date(NOW.getTime() - days * 24 * 60 * 60 * 1000).toISOString();
+  const names = (reached: "never" | "waiting" | "answered") =>
+    listLeads(db, { companyId: company.id, reached, sort: "name" }, NOW).map((lead) => lead.name);
+
+  function contact(name: string, history: [kind: Parameters<typeof writeActivity>[1]["kind"], daysAgo: number][]) {
+    const lead = createLead(db, company.id, input({ name }));
+    for (const [kind, daysAgo] of history) {
+      writeActivity(db, { companyId: company.id, leadId: lead.id, kind, body: "x", occurredAt: ago(daysAgo) });
+    }
+    return lead;
+  }
+
+  beforeEach(() => {
+    contact("Never written to", []);
+    contact("Rung, never written to", [["call", 2]]);
+    contact("Written on Monday, silent", [["email_sent", 4]]);
+    contact("Written yesterday", [["whatsapp", 1]]);
+    contact("Replied by mail", [["email_sent", 4], ["email_replied", 3]]);
+    contact("Said to have answered", [["linkedin", 5], ["replied", 2]]);
+    contact("Answered once, silent since", [["email_sent", 20], ["email_replied", 19], ["instagram", 6]]);
+    contact("Noted, not answered", [["email_sent", 4], ["note", 1]]);
+  });
+
+  it("never: nobody has written to them - a call is not a message", () => {
+    expect(names("never")).toEqual(["Never written to", "Rung, never written to"]);
+  });
+
+  it("waiting: written to three days ago or more, and nothing back since the last message", () => {
+    expect(names("waiting")).toEqual(["Answered once, silent since", "Noted, not answered", "Written on Monday, silent"]);
+  });
+
+  it("answered: a reply, or their having answered said by hand, since the last message", () => {
+    expect(names("answered")).toEqual(["Replied by mail", "Said to have answered"]);
+  });
+
+  it("leaves somebody written to yesterday in none of the three: it is too soon to call it silence", () => {
+    for (const each of ["never", "waiting", "answered"] as const) expect(names(each)).not.toContain("Written yesterday");
+  });
+
+  it("combines with the other filters", () => {
+    const stage = stages[1] as PipelineStage;
+    const silent = listLeads(db, { companyId: company.id, reached: "waiting" }, NOW).find((lead) => lead.name === "Written on Monday, silent");
+    setLeadStage(db, silent?.id ?? "", stage.id);
+    expect(listLeads(db, { companyId: company.id, reached: "waiting", stageId: stage.id }, NOW).map((lead) => lead.name)).toEqual(["Written on Monday, silent"]);
   });
 });

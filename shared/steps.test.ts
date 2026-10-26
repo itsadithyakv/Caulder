@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dueOfStep, matchesOwner, pageSteps } from "./steps";
+import { dueOfStep, pageSteps } from "./steps";
 
 describe("steps in a page", () => {
   it("read who, when and the step itself off each - [ ] line, in either order", () => {
@@ -31,9 +31,4 @@ describe("steps in a page", () => {
     expect(dueOfStep({ day: null, by: "2026-01-01" }, "2026-09-18", "2026-09-18")).toBe("2026-09-18");
   });
 
-  it("match an owner by first name or the whole name run together", () => {
-    expect(matchesOwner("Asha Rao", "asha")).toBe(true);
-    expect(matchesOwner("Asha Rao", "AshaRao")).toBe(true);
-    expect(matchesOwner("Asha Rao", "rao")).toBe(false);
-  });
 });

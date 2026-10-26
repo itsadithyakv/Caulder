@@ -1,18 +1,34 @@
+import { checkForUpdates, installUpdate, updateState } from "../updates";
+import { isStoreCopy } from "../store-home";
+import { openIssue, problemReport } from "../problem";
+import { openLicences } from "../licences";
+import { answerSupportAsk, supportState } from "../services/support";
 import { app, BrowserWindow, clipboard, ipcMain } from "electron";
 import type { IpcMainEvent, IpcMainInvokeEvent } from "electron";
+import { isCurrency } from "@shared/countries";
 import { CHANNELS, type Workspace } from "@shared/ipc";
 import { assertId, handle } from "./handle";
+import { type WidgetLevel, widgetLevel, widgetSpot, widgetWanted } from "@shared/widget";
+import { openStartupApps, setStartup, startupState } from "../startup";
+import { refreshTray } from "../tray";
+import { clientBilling, companyBilling, invoiceLook, setClientBilling, setCompanyBilling, setInvoiceLook, setTaxRules, taxRules } from "../repositories/billing";
+import { invoiceLookInput } from "@shared/invoicelook";
+import { billHours, hoursToBill, setBlockFor } from "../repositories/hours";
+import { writeAccountantPack } from "../services/accountant";
+import { buildHealth } from "../services/health";
+import { ACCOUNTANT_PERIODS, type AccountantPeriod } from "@shared/accountant";
+import { clientBillingInput, companyBillingInput } from "@shared/billing";
+import { dragWidget, fitWidget, hideWidget, openFromWidget, setWidgetLevel, showWidget, widgetState } from "../widget";
+import { z } from "zod";
 import { registerBrainHandlers } from "./brain";
 import { registerDealHandlers } from "./deals";
 import { registerCallHandlers } from "./calls";
 import { registerAskHandlers, registerCostHandlers } from "./costs";
 import { registerProductHandlers } from "./products";
 import { registerDeadlineHandlers } from "./deadlines";
-import { registerPeopleHandlers } from "./people";
 import { registerMetricHandlers } from "./metrics";
-import { registerShareHandlers } from "./share";
+import { registerMeHandlers, registerSheetHandlers } from "./me";
 import { registerRoomHandlers } from "./dataroom";
-import { registerLifeHandlers } from "./life";
 import {
   ACCENT_IDS,
   GOAL_PERIODS,
@@ -22,10 +38,8 @@ import {
   type Relationship,
   activityInput,
   companyInput,
-  CURRENCIES,
   taskInput,
   type QuickInput,
-  areaWordInput,
   stageInput,
   leadInput,
   blockInput,
@@ -35,13 +49,13 @@ import {
   type LeadSort,
   type GoogleState,
 } from "@shared/domain";
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, join } from "node:path";
 import { existsSync, mkdirSync } from "node:fs";
 import { dialog } from "electron";
 import { MAX_BYTES, type ColumnMapping, type Resolution } from "@shared/import";
 import { isDay, isTime } from "@shared/dates";
-import { buildToday } from "../services/today";
+import { buildToday, coldAfterDaysInput, readColdAfterDays, setColdAfterDays } from "../services/today";
 import { buildDay, buildWeek } from "../services/day";
 import {
   createBlock,
@@ -53,7 +67,6 @@ import {
   updateBlock,
   updateSeries,
 } from "../repositories/blocks";
-import { createTerm, deleteTerm, listTerms } from "../repositories/terms";
 import {
   createNote,
   deleteNote,
@@ -71,42 +84,65 @@ import {
   saveConnection,
 } from "../services/credentials";
 import { quickAdd } from "../services/quickadd";
-import { addAreaWord, listAreaWords, removeAreaWord } from "../repositories/words";
+import { addLesson, listLessons, removeLesson } from "../repositories/lessons";
+import { nudgeSettings, setNudgeSettings, testNotification } from "../services/nudges";
+import { examplesFor, leaveLoose, looseEnds, memoriesByMeaning, readEverythingAgain, relatedTo, setUnderstanding, understandState, understandingOn } from "../services/understand";
+import { moveMemories, takeBackSaidAgain } from "../services/memories";
+import { modelHere, readLines, stopModel } from "../understand/host";
+import { answerQuestion, cancelTask, lineContext, moveTask, renameTask, restoreTask } from "../services/lines";
+import { ensureHome } from "../services/yourhome";
+import { REACHED, type Reached } from "@shared/reached";
+import { addMailAccount, listMailAccounts, removeMailAccount, setDefaultMailAccount, setReplyReading } from "../services/mailaccounts";
+import { mailAccountInput } from "@shared/mailaccounts";
+import { answerGuess, forgetGuess, keepAsTyped, learnedFrom, recordSeen, tuneState } from "../repositories/tune";
+import { forgetName, keepName, listNames } from "../repositories/linenames";
+import { addFact, listAway, listFacts, removeFact } from "../repositories/facts";
+import { markWeekThing, setWeekThings, thisWeeksThings, weekReview } from "../services/week";
+import { weekThingsInput } from "@shared/week";
+import { backupToDrive, driveBackups, saveLeadToGoogle } from "../services/gmore";
+import { answerInput, keepInput, nameInput, seenInput } from "@shared/tune";
 import {
   followUpDays,
   logEmailSent,
   openMail,
+  openProfile,
   openWhatsApp,
   setFollowUpDays,
 } from "../services/outreach";
+import { PROFILE_KINDS } from "@shared/profiles";
 import {
   acceptQuote,
   addPayment,
   addSpend as addSpendEntry,
   buildMoney,
+  draftRepeats,
   deleteInvoice,
   deletePayment,
   deleteQuote,
   deleteSpend as deleteSpendEntry,
   markPaid,
+  paidFrom,
   moneyForLead,
   saveInvoice,
   saveQuote,
   setInvoiceStatus,
   setQuoteStatus,
 } from "../repositories/money";
-import { writeInvoicePdf } from "../services/invoice";
+import { imageType, invoiceLogoPath, writeInvoicePdf, writeInvoiceSample, writeQuotePdf } from "../services/invoice";
 import {
   INVOICE_STATUSES,
   QUOTE_STATUSES,
   invoiceInput,
   paymentInput,
+  factInput,
+  paidFromInput,
   quoteInput,
   spendEntryInput,
 } from "@shared/domain";
 import { buildBoard } from "../services/pipeline";
 import { exportEverything } from "../services/export";
-import { backupNow, listBackups, restoreBackup } from "../db/backup";
+import { backupNow, mirrorFolder, setMirrorFolder, listBackups, restoreBackup } from "../db/backup";
+import { syncedFolders } from "../db/synced";
 import { backupsDir, closeDatabase, databasePath, openDatabase } from "../db/connection";
 import { shell } from "electron";
 import { logProblem, logsDir } from "../log";
@@ -117,9 +153,10 @@ import {
   rememberScript,
   scriptInfo,
   sendEmail,
+  stopBarredMail,
   syncEmails,
 } from "../services/mail";
-import { listEmailsForLead } from "../repositories/mail";
+import { listEmailsForLead, templateStats } from "../repositories/mail";
 import { checkScriptUrl, normaliseScriptKey } from "@shared/script";
 import {
   createTemplate,
@@ -138,6 +175,7 @@ import {
 } from "../repositories/stages";
 import {
   completeTask,
+  countOverdue,
   createTask,
   deleteTask,
   listTasksForLead,
@@ -156,6 +194,7 @@ import {
   undoImport,
 } from "../services/import";
 import { findDemoBatch, seedDemo } from "../services/demo";
+import { pullGoogleContacts } from "../services/gcontacts";
 import {
   createField,
   deleteField,
@@ -189,6 +228,8 @@ import {
   setCompanyAccent,
   homeCompanyId,
   withHome,
+  setCompanyCountry,
+  setCompanyTimezone,
 } from "../repositories/companies";
 import { getSetting, resolveActiveCompanyId, setSetting } from "../repositories/settings";
 
@@ -236,6 +277,19 @@ export function savedCaptureShortcut(): string | null {
 /** Whether closing the main window leaves Caulder in the tray. Yes unless said. */
 export function keepsInTray(): boolean {
   return getSetting(getDatabase(), "keepInTray") !== "0";
+}
+
+/**
+ * What the desk widget was doing when Caulder last closed: whether it was
+ * there at all, where in the stack, and where on the screen.
+ */
+export function savedWidget(): { on: boolean; level: WidgetLevel; spot: { x: number; y: number } | null } {
+  const db = getDatabase();
+  return {
+    on: widgetWanted(getSetting(db, "widgetOpen")),
+    level: widgetLevel(getSetting(db, "widgetLevel")),
+    spot: widgetSpot(getSetting(db, "widgetSpot")),
+  };
 }
 
 /**
@@ -306,6 +360,37 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
 
   handle(CHANNELS.appVersion, () => app.getVersion());
 
+  // The tour shows once. A test run never sees it unless it asks: every
+  // window the suite opens is a first run, and a spotlight over each would
+  // stand in front of every click.
+  handle(CHANNELS.appStartup, () => startupState());
+
+  handle(CHANNELS.appSetStartup, (_event, on: unknown) => {
+    // Remembered as decided, so the first launch never turns it back on.
+    setSetting(getDatabase(), "startupSet", "1");
+    const state = setStartup(on === true);
+    refreshTray();
+    return state;
+  });
+
+  handle(CHANNELS.appStartupApps, () => openStartupApps());
+
+  handle(CHANNELS.appTour, () => {
+    const underTest = process.env["CAULDER_BACKGROUND"] === "1" && process.env["CAULDER_TOUR"] !== "1";
+    return !underTest && getSetting(getDatabase(), "tourDone") !== "1";
+  });
+  handle(CHANNELS.appTourDone, () => {
+    setSetting(getDatabase(), "tourDone", "1");
+  });
+  handle(CHANNELS.appProblemReport, () => problemReport());
+  handle(CHANNELS.appOpenIssue, (_event, text: unknown) => openIssue(text));
+  handle(CHANNELS.appSupport, () => supportState(getDatabase(), new Date()));
+  handle(CHANNELS.appSupportAnswer, (_event, answer: unknown) => answerSupportAsk(getDatabase(), answer, new Date()));
+  handle(CHANNELS.appLicences, () => openLicences());
+  handle(CHANNELS.updatesState, () => updateState());
+  handle(CHANNELS.updatesCheck, () => checkForUpdates());
+  handle(CHANNELS.updatesInstall, () => installUpdate());
+
   // A screen that failed to draw reports here, so the log has its stack.
   ipcMain.on(CHANNELS.appReportError, (_event, detail: unknown) => {
     if (typeof detail === "string") logProblem("screen", detail.slice(0, 8000));
@@ -319,6 +404,8 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
   handle(CHANNELS.companiesCreate, (_event, raw: unknown) => {
     const input = companyInput.parse(raw);
     const created = createCompany(getDatabase(), input);
+    // The first real company is when your own things get a home apart from it.
+    ensureHome(getDatabase());
     // A newly created company becomes the one you are looking at. Creating a
     // workspace and staying in the old one is never what was meant.
     setSetting(getDatabase(), "activeCompanyId", created.id);
@@ -377,9 +464,15 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     createLead(getDatabase(), assertId(companyId, "company id"), leadInput.parse(raw)),
   );
 
-  handle(CHANNELS.leadsUpdate, (_event, id: unknown, raw: unknown) =>
-    updateLead(getDatabase(), assertId(id, "lead id"), leadInput.parse(raw)),
-  );
+  handle(CHANNELS.leadsUpdate, (_event, id: unknown, raw: unknown) => {
+    const db = getDatabase();
+    const lead = updateLead(db, assertId(id, "lead id"), leadInput.parse(raw));
+    // Marked do not contact: what was scheduled before goes nowhere. Not
+    // awaited - the edit is saved whatever the script says, and a script out
+    // of reach is asked again on the next mail pass.
+    if (lead.doNotContact) void stopBarredMail(db, { leadId: lead.id });
+    return lead;
+  });
 
   handle(CHANNELS.leadsDelete, (_event, id: unknown) => {
     deleteLead(getDatabase(), assertId(id, "lead id"));
@@ -418,16 +511,15 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
   registerMoneyHandlers();
   registerBrainHandlers();
   registerRoomHandlers();
-  registerLifeHandlers();
   registerDealHandlers();
   registerCallHandlers();
   registerCostHandlers();
   registerAskHandlers();
   registerProductHandlers();
   registerDeadlineHandlers();
-  registerPeopleHandlers();
   registerMetricHandlers();
-  registerShareHandlers();
+  registerMeHandlers();
+  registerSheetHandlers();
   registerDataHandlers(getWindow);
 }
 
@@ -445,7 +537,12 @@ function registerMoneyHandlers() {
   const company = (raw: unknown) => assertId(raw, "company id");
   const overview = (companyId: string) => buildMoney(getDatabase(), companyId);
 
-  handle(CHANNELS.moneyGet, (_event, companyId: unknown) => overview(company(companyId)));
+  handle(CHANNELS.moneyGet, (_event, companyId: unknown) => {
+    const id = company(companyId);
+    // A retainer's next invoice is drafted when it falls due to be written - as a draft, and never sent.
+    draftRepeats(getDatabase(), id, companyDay(id));
+    return overview(id);
+  });
 
   handle(CHANNELS.moneyForLead, (_event, leadId: unknown) =>
     moneyForLead(getDatabase(), assertId(leadId, "lead id")),
@@ -507,6 +604,9 @@ function registerMoneyHandlers() {
   handle(CHANNELS.invoicePdf, (_event, companyId: unknown, id: unknown) =>
     writeInvoicePdf(getDatabase(), company(companyId), assertId(id, "invoice id")),
   );
+  handle(CHANNELS.quotePdf, (_event, companyId: unknown, id: unknown) =>
+    writeQuotePdf(getDatabase(), company(companyId), assertId(id, "quote id")),
+  );
 
   handle(CHANNELS.invoiceDelete, (_event, companyId: unknown, id: unknown) => {
     const companyId_ = company(companyId);
@@ -546,10 +646,41 @@ function registerDataHandlers(getWindow: () => BrowserWindow | null) {
 
   handle(CHANNELS.dataBackupNow, () => backupNow());
 
+  handle(CHANNELS.dataMirror, () => mirrorFolder());
+  handle(CHANNELS.dataChooseMirror, async () => {
+    const picked = await dialog.showOpenDialog({
+      title: "Where should backups also go?",
+      buttonLabel: "Copy backups here",
+      properties: ["openDirectory", "createDirectory"],
+    });
+    const folder = picked.canceled ? null : (picked.filePaths[0] ?? null);
+    if (!folder) return null;
+    setMirrorFolder(folder);
+    // One there now, so the folder is proven rather than hoped for.
+    const taken = backupNow();
+    if (taken.mirrored?.error) throw new Error(`Caulder could not copy a backup there: ${taken.mirrored.error}`);
+    return folder;
+  });
+  // A folder another service keeps in step, named by the window and found here (phase 24).
+  handle(CHANNELS.dataSynced, () => syncedFolders());
+  handle(CHANNELS.dataUseSynced, (_event, id: unknown) => {
+    const chosen = syncedFolders().find((each) => each.id === id);
+    if (!chosen) throw new Error("That folder is not on this computer any more.");
+    setMirrorFolder(chosen.folder);
+    const taken = backupNow();
+    if (taken.mirrored?.error) throw new Error(`Caulder could not copy a backup there: ${taken.mirrored.error}`);
+    return chosen.folder;
+  });
+  handle(CHANNELS.dataStopMirror, () => {
+    setMirrorFolder(null);
+    return null;
+  });
+
   handle(CHANNELS.dataPaths, () => ({
     database: databasePath(),
     backups: backupsDir(),
     logs: logsDir(),
+    store: isStoreCopy(),
   }));
 
   // A name, not a path: `openPath` runs a program as readily as it opens a
@@ -710,47 +841,6 @@ function registerPersonalHandlers() {
       return buildDay(getDatabase(), withHome(getDatabase(), assertId(companyId, "company id")), day);
     },
   );
-
-  handle(
-    CHANNELS.blocksSetHabit,
-    (_event, seriesId: unknown, isHabit: unknown, companyId: unknown, day: unknown) => {
-      if (!isDay(day)) throw new Error("That is not a day.");
-      getDatabase()
-        .prepare(`UPDATE block_series SET is_habit = ? WHERE id = ?`)
-        .run(isHabit === true ? 1 : 0, assertId(seriesId, "series id"));
-      return buildDay(getDatabase(), withHome(getDatabase(), assertId(companyId, "company id")), day);
-    },
-  );
-
-  /* ---- Terms ---- */
-
-  handle(CHANNELS.termsList, (_event, companyId: unknown) =>
-    listTerms(getDatabase(), assertId(companyId, "company id")),
-  );
-
-  handle(CHANNELS.termsCreate, (_event, companyId: unknown, raw: unknown) => {
-    const id = assertId(companyId, "company id");
-    const input = raw as { name?: unknown; fromDay?: unknown; untilDay?: unknown };
-    if (typeof input.name !== "string" || input.name.trim().length === 0) {
-      throw new Error("Give the term a name.");
-    }
-    if (!isDay(input.fromDay) || !isDay(input.untilDay)) {
-      throw new Error("A term needs a first and a last day.");
-    }
-    if (input.untilDay < input.fromDay) throw new Error("It ends before it starts.");
-
-    createTerm(getDatabase(), id, {
-      name: input.name.trim().slice(0, 80),
-      fromDay: input.fromDay,
-      untilDay: input.untilDay,
-    });
-    return listTerms(getDatabase(), id);
-  });
-
-  handle(CHANNELS.termsDelete, (_event, id: unknown, companyId: unknown) => {
-    deleteTerm(getDatabase(), assertId(id, "term id"));
-    return listTerms(getDatabase(), assertId(companyId, "company id"));
-  });
 
   /* ---- Notes ---- */
 
@@ -939,6 +1029,38 @@ function registerPersonalHandlers() {
     setSetting(getDatabase(), "keepInTray", on === false ? "0" : "1");
   });
 
+  /* ---- The desk widget ---- */
+
+  handle(CHANNELS.widgetGet, () => widgetState());
+
+  handle(CHANNELS.widgetShow, (_event, on: unknown) => {
+    const wanted = on === true;
+    const saved = savedWidget();
+    setSetting(getDatabase(), "widgetOpen", wanted ? "1" : "0");
+    if (wanted) showWidget(saved.level, saved.spot);
+    else hideWidget();
+    return widgetState();
+  });
+
+  handle(CHANNELS.widgetFit, (_event, height: unknown) => {
+    if (typeof height === "number") fitWidget(height);
+  });
+
+  handle(CHANNELS.widgetDrag, (_event, phase: unknown) =>
+    phase === "start" || phase === "move" || phase === "end" ? dragWidget(phase) : false,
+  );
+
+  handle(CHANNELS.widgetOpenApp, () => openFromWidget());
+
+  handle(CHANNELS.widgetLevel, (_event, level: unknown) => {
+    const wanted = widgetLevel(typeof level === "string" ? level : null);
+    setSetting(getDatabase(), "widgetLevel", wanted);
+    setWidgetLevel(wanted);
+    // Read back rather than assumed: the desktop level is the one that can be
+    // asked for and refused, and the card has to be able to say so.
+    return widgetState();
+  });
+
   handle(CHANNELS.captureSet, (_event, accelerator: unknown) => {
     const wanted = typeof accelerator === "string" ? accelerator.trim() : "";
     const outcome = setCaptureShortcut(wanted);
@@ -966,6 +1088,10 @@ function registerPersonalHandlers() {
 }
 
 function registerTemplateHandlers() {
+  handle(CHANNELS.templatesStats, (_event, companyId: unknown) =>
+    templateStats(getDatabase(), assertId(companyId, "company id")),
+  );
+
   handle(CHANNELS.templatesList, (_event, companyId: unknown) =>
     listTemplates(getDatabase(), assertId(companyId, "company id")),
   );
@@ -985,6 +1111,12 @@ function registerTemplateHandlers() {
   handle(CHANNELS.templatesDelete, (_event, id: unknown) =>
     deleteTemplate(getDatabase(), assertId(id, "template id")),
   );
+
+  handle(CHANNELS.googleSaveContact, (_event, leadId: unknown) =>
+    saveLeadToGoogle(getDatabase(), assertId(leadId, "contact id")),
+  );
+  handle(CHANNELS.googleBackup, () => backupToDrive());
+  handle(CHANNELS.googleBackups, () => driveBackups());
 
   handle(CHANNELS.googleCopyScript, async () => {
     clipboard.writeText(await readFile(scriptPath(), "utf8"));
@@ -1145,17 +1277,43 @@ function registerTaskHandlers() {
     },
   );
 
-  handle(CHANNELS.todayGet, (_event, companyId: unknown) =>
-    buildToday(getDatabase(), withHome(getDatabase(), assertId(companyId, "company id"))),
+  handle(CHANNELS.todayGet, (_event, companyId: unknown) => {
+    const id = assertId(companyId, "company id");
+    // So that the retainer drafted this morning is on Today this morning.
+    draftRepeats(getDatabase(), id, companyDay(id));
+    return buildToday(getDatabase(), withHome(getDatabase(), id));
+  });
+
+  handle(CHANNELS.todayOverdue, (_event, companyId: unknown) => {
+    const id = assertId(companyId, "company id");
+    // Building the whole of Today on every change of screen, for this one number, was most of the cost of moving around a large company.
+    const day = companyDay(id);
+    return withHome(getDatabase(), id).reduce((sum, each) => sum + countOverdue(getDatabase(), each, day), 0);
+  });
+
+  handle(CHANNELS.todayColdAfterDays, () => readColdAfterDays(getDatabase()));
+
+  // Parsed as it arrives rather than coerced with Number(), so a string or a
+  // blank is refused with the schema's sentence instead of becoming zero days.
+  handle(CHANNELS.todaySetColdAfterDays, (_event, days: unknown) =>
+    setColdAfterDays(getDatabase(), coldAfterDaysInput.parse(days)),
   );
 
   handle(CHANNELS.companiesSetCurrency, (_event, companyId: unknown, raw: unknown) => {
     // An unknown code is refused rather than stored: the whole value of the
     // field is that a total is a total of one thing.
-    if (!(CURRENCIES as readonly string[]).includes(String(raw))) {
-      throw new Error("That is not a currency Caulder knows about.");
-    }
-    setCompanyCurrency(getDatabase(), assertId(companyId, "company id"), String(raw));
+    if (!isCurrency(raw)) throw new Error("That is not a currency Caulder knows about.");
+    setCompanyCurrency(getDatabase(), assertId(companyId, "company id"), raw);
+    return workspace();
+  });
+
+  handle(CHANNELS.companiesSetCountry, (_event, companyId: unknown, raw: unknown) => {
+    setCompanyCountry(getDatabase(), assertId(companyId, "company id"), String(raw));
+    return workspace();
+  });
+
+  handle(CHANNELS.companiesSetTimezone, (_event, companyId: unknown, raw: unknown) => {
+    setCompanyTimezone(getDatabase(), assertId(companyId, "company id"), String(raw));
     return workspace();
   });
 
@@ -1172,6 +1330,15 @@ function registerTaskHandlers() {
   handle(CHANNELS.outreachSetFollowUpDays, (_event, days: unknown) =>
     setFollowUpDays(getDatabase(), Number(days)),
   );
+
+  handle(CHANNELS.outreachProfile, (_event, leadId: unknown, kind: unknown, message: unknown) => {
+    openProfile(
+      getDatabase(),
+      assertId(leadId, "contact id"),
+      z.enum(PROFILE_KINDS, "Choose LinkedIn or Instagram.").parse(kind),
+      typeof message === "string" ? message.slice(0, 2000) : "",
+    );
+  });
 
   handle(CHANNELS.outreachWhatsApp, (_event, leadId: unknown, message: unknown) => {
     openWhatsApp(
@@ -1199,19 +1366,243 @@ function registerTaskHandlers() {
     ),
   );
 
-  handle(CHANNELS.wordsList, () => listAreaWords(getDatabase()));
+  handle(CHANNELS.linesContext, (_event, companyId: unknown, today: unknown) =>
+    lineContext(getDatabase(), assertId(companyId, "company id"), today),
+  );
+  handle(CHANNELS.linesMove, alsoNudge((_event, id: unknown, to: unknown) => moveTask(getDatabase(), assertId(id, "task id"), to)));
+  handle(CHANNELS.linesCancel, alsoNudge((_event, id: unknown) => cancelTask(getDatabase(), assertId(id, "task id"))));
+  handle(
+    CHANNELS.linesRestore,
+    alsoNudge((_event, companyId: unknown, snapshot: unknown) => restoreTask(getDatabase(), assertId(companyId, "company id"), snapshot)),
+  );
+  handle(CHANNELS.linesRename, alsoNudge((_event, id: unknown, title: unknown) => renameTask(getDatabase(), assertId(id, "task id"), title)));
+  handle(CHANNELS.linesAnswer, async (_event, companyId: unknown, asked: unknown) => {
+    const db = getDatabase();
+    const id = assertId(companyId, "company id");
+    // Recall is answered by meaning as well as words, when understanding is on (phase 21).
+    const about = typeof asked === "object" && asked !== null && (asked as { ask?: unknown }).ask === "recall" ? (asked as { about?: unknown }).about : null;
+    const meant =
+      typeof about === "string" && understandingOn(db) && modelHere()
+        ? await memoriesByMeaning(db, readLines, id, about).catch(() => [])
+        : [];
+    return answerQuestion(db, id, asked, meant);
+  });
+  handle(CHANNELS.nudgesGet, () => nudgeSettings(getDatabase()));
+  handle(CHANNELS.nudgesSet, (_event, raw: unknown) => setNudgeSettings(getDatabase(), raw));
+  handle(CHANNELS.nudgesTest, () => testNotification(() => BrowserWindow.getAllWindows().find((w) => !w.isDestroyed() && w.webContents.getURL().indexOf("#") === -1) ?? null));
 
-  handle(CHANNELS.wordsAdd, (_event, raw: unknown) => {
-    const parsed = areaWordInput.safeParse(raw);
-    // The schema's own sentence, not zod's: "Keep it under 40 characters"
-    // is an answer, "String must contain at most 40 character(s)" is not.
-    if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "That word will not do.");
-    return addAreaWord(getDatabase(), parsed.data);
+  // Understanding, on this machine: the switch, and how far it has read.
+  handle(CHANNELS.understandState, () => understandState(getDatabase(), modelHere()));
+  handle(CHANNELS.understandSet, (_event, on: unknown) => {
+    if (typeof on !== "boolean") throw new Error("Say on or off.");
+    const db = getDatabase();
+    setUnderstanding(db, on);
+    if (!on) stopModel();
+    return understandState(db, modelHere());
+  });
+  handle(CHANNELS.understandRead, async (_event, companyId: unknown, text: unknown) => {
+    const db = getDatabase();
+    if (!understandingOn(db) || !modelHere()) return [];
+    if (typeof text !== "string" || text.trim().length === 0 || text.length > 500) return [];
+    return examplesFor(db, readLines, withHome(db, assertId(companyId, "company id")), text.trim());
+  });
+  handle(CHANNELS.understandRelated, (_event, pageId: unknown) => {
+    const db = getDatabase();
+    return understandingOn(db) ? relatedTo(db, assertId(pageId, "page id")) : [];
+  });
+  handle(CHANNELS.understandLoose, async (_event, companyId: unknown) => {
+    const db = getDatabase();
+    return understandingOn(db) && modelHere() ? looseEnds(db, readLines, assertId(companyId, "company id")) : [];
+  });
+  handle(CHANNELS.understandGather, (_event, move: unknown) => moveMemories(getDatabase(), move, new Date()));
+  handle(CHANNELS.understandLeave, (_event, lines: unknown) => leaveLoose(getDatabase(), lines));
+  handle(CHANNELS.understandNotTheSame, (_event, memory: unknown) => takeBackSaidAgain(getDatabase(), memory));
+  handle(CHANNELS.understandAgain, () => {
+    const db = getDatabase();
+    readEverythingAgain(db);
+    return understandState(db, modelHere());
   });
 
-  handle(CHANNELS.wordsRemove, (_event, id: unknown) =>
-    removeAreaWord(getDatabase(), assertId(id, "word id")),
+  handle(CHANNELS.lessonsList, () => listLessons(getDatabase()));
+  // Learning must never be why keeping a line fails, so a lesson that does not parse is simply not learnt.
+  handle(CHANNELS.lessonsAdd, (_event, raw: unknown) => {
+    try {
+      return addLesson(getDatabase(), raw);
+    } catch {
+      return listLessons(getDatabase());
+    }
+  });
+  handle(CHANNELS.lessonsRemove, (_event, id: unknown) => removeLesson(getDatabase(), assertId(id, "lesson id")));
+
+  handle(CHANNELS.mailAccountsList, () => listMailAccounts(getDatabase()));
+  handle(CHANNELS.mailAccountsAdd, async (_event, raw: unknown) => {
+    const parsed = mailAccountInput.safeParse(raw);
+    if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "That account will not do.");
+    return addMailAccount(getDatabase(), parsed.data);
+  });
+  handle(CHANNELS.mailAccountsRemove, (_event, id: unknown) => removeMailAccount(getDatabase(), assertId(id, "account id")));
+  handle(CHANNELS.mailAccountsDefault, (_event, id: unknown) => setDefaultMailAccount(getDatabase(), assertId(id, "account id")));
+  handle(CHANNELS.mailAccountsReplies, (_event, id: unknown, on: unknown) =>
+    setReplyReading(getDatabase(), assertId(id, "account id"), on === true),
   );
+
+  handle(CHANNELS.tuneGet, () => tuneState(getDatabase()));
+  handle(CHANNELS.tuneLearned, () => learnedFrom(getDatabase()));
+
+  // Counting what a line had in it must never be why adding one fails, so
+  // anything that does not parse is simply not counted.
+  handle(CHANNELS.tuneSeen, (_event, raw: unknown) => {
+    const parsed = seenInput.safeParse(raw);
+    if (parsed.success) recordSeen(getDatabase(), parsed.data);
+  });
+
+  handle(CHANNELS.tuneKeep, (_event, raw: unknown) => {
+    const parsed = keepInput.safeParse(raw);
+    if (!parsed.success) throw new Error("That word cannot be kept as it is.");
+    return keepAsTyped(getDatabase(), parsed.data);
+  });
+
+  handle(CHANNELS.tuneAnswer, (_event, raw: unknown) => {
+    const parsed = answerInput.safeParse(raw);
+    if (!parsed.success) throw new Error("That is not an answer to the question.");
+    return answerGuess(getDatabase(), parsed.data);
+  });
+
+  handle(CHANNELS.tuneForget, (_event, id: unknown) => forgetGuess(getDatabase(), assertId(id, "guess id")));
+
+  handle(CHANNELS.tuneNames, (_event, companyId: unknown) => listNames(getDatabase(), assertId(companyId, "company id")));
+
+  // The week, and its three things (part eight, phase 35).
+  handle(CHANNELS.weekReview, (_event, companyId: unknown, day: unknown) => {
+    if (typeof day !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new Error("That is not a day.");
+    return weekReview(getDatabase(), assertId(companyId, "company id"), day);
+  });
+  handle(CHANNELS.weekThings, (_event, companyId: unknown) => thisWeeksThings(getDatabase(), assertId(companyId, "company id")));
+  handle(CHANNELS.weekThingsSet, (_event, companyId: unknown, raw: unknown) => {
+    const parsed = weekThingsInput.safeParse(raw);
+    if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Those are not three things for a week.");
+    return setWeekThings(getDatabase(), assertId(companyId, "company id"), parsed.data);
+  });
+  handle(CHANNELS.weekThingDone, (_event, id: unknown, done: unknown) => markWeekThing(getDatabase(), assertId(id, "thing id"), done === true));
+
+  // What stays true about a contact, and money in from one (part twelve, phase 49).
+  handle(CHANNELS.factsList, (_event, leadId: unknown) => listFacts(getDatabase(), assertId(leadId, "contact id")));
+  handle(CHANNELS.factsAdd, (_event, companyId: unknown, raw: unknown) => {
+    const parsed = factInput.safeParse(raw);
+    if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "That is not something true about a contact.");
+    return addFact(getDatabase(), assertId(companyId, "company id"), parsed.data);
+  });
+  handle(CHANNELS.factsRemove, (_event, id: unknown) => removeFact(getDatabase(), assertId(id, "fact id")));
+  handle(CHANNELS.factsAway, (_event, companyId: unknown, today: unknown) => {
+    if (typeof today !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(today)) throw new Error("That is not a day.");
+    return listAway(getDatabase(), assertId(companyId, "company id"), today);
+  });
+  handle(CHANNELS.moneyHealth, (_event, companyId: unknown) => buildHealth(getDatabase(), assertId(companyId, "company id")));
+
+  /* ---- The accountant's pack (part thirteen, phase 56) ---- */
+  handle(CHANNELS.moneyAccountantPack, async (_event, companyId: unknown, period: unknown) => {
+    const id = assertId(companyId, "company id");
+    if (!(ACCOUNTANT_PERIODS as readonly unknown[]).includes(period)) throw new Error("That is not a period.");
+    const picked = await dialog.showOpenDialog({
+      title: "Where should the accountant's pack go?",
+      buttonLabel: "Write it here",
+      properties: ["openDirectory", "createDirectory"],
+    });
+    const parent = picked.canceled ? null : (picked.filePaths[0] ?? null);
+    if (!parent) return null;
+    const pack = await writeAccountantPack(getDatabase(), id, period as AccountantPeriod, companyDay(id), parent);
+    void shell.openPath(pack.folder);
+    return pack;
+  });
+
+  /* ---- Hours billed (part thirteen, phase 57) ---- */
+  handle(CHANNELS.hoursSetFor, (_event, blockId: unknown, raw: unknown) => {
+    const input = raw as { leadId?: unknown; billable?: unknown } | null;
+    const leadId = input?.leadId === null || input?.leadId === undefined ? null : assertId(input.leadId, "contact id");
+    setBlockFor(getDatabase(), assertId(blockId, "block id"), { leadId, billable: input?.billable === true });
+  });
+  handle(CHANNELS.hoursToBill, (_event, companyId: unknown, leadId: unknown) => {
+    const id = assertId(companyId, "company id");
+    return hoursToBill(getDatabase(), id, assertId(leadId, "contact id"), companyDay(id));
+  });
+  handle(CHANNELS.hoursBill, (_event, companyId: unknown, leadId: unknown) => {
+    const id = assertId(companyId, "company id");
+    return billHours(getDatabase(), id, assertId(leadId, "contact id"), companyDay(id));
+  });
+
+  /* ---- Billing: tax, terms and an hourly rate (part thirteen) ---- */
+  handle(CHANNELS.billingCompany, (_event, companyId: unknown) => companyBilling(getDatabase(), assertId(companyId, "company id")));
+  handle(CHANNELS.billingSetCompany, (_event, companyId: unknown, raw: unknown) =>
+    setCompanyBilling(getDatabase(), assertId(companyId, "company id"), companyBillingInput.parse(raw)),
+  );
+  handle(CHANNELS.billingClient, (_event, companyId: unknown, leadId: unknown) => {
+    const lead = assertId(leadId, "contact id");
+    if (!getDatabase().prepare(`SELECT 1 FROM leads WHERE id = ? AND company_id = ?`).get(lead, assertId(companyId, "company id"))) {
+      throw new Error("That contact is not in this company.");
+    }
+    return clientBilling(getDatabase(), lead);
+  });
+  handle(CHANNELS.billingSetClient, (_event, companyId: unknown, leadId: unknown, raw: unknown) =>
+    setClientBilling(getDatabase(), assertId(companyId, "company id"), assertId(leadId, "contact id"), clientBillingInput.parse(raw)),
+  );
+  handle(CHANNELS.billingTaxRules, (_event, companyId: unknown) => taxRules(getDatabase(), assertId(companyId, "company id")));
+  handle(CHANNELS.billingSetTaxRules, (_event, companyId: unknown, raw: unknown) => setTaxRules(getDatabase(), assertId(companyId, "company id"), raw));
+
+  /* ---- How invoices look, and where their copies go (part fourteen) ---- */
+  handle(CHANNELS.billingInvoiceLook, (_event, companyId: unknown) => invoiceLook(getDatabase(), assertId(companyId, "company id")));
+  handle(CHANNELS.billingSetInvoiceLook, (_event, companyId: unknown, raw: unknown) => {
+    const id = assertId(companyId, "company id");
+    const next = invoiceLookInput.parse(raw);
+    // The window can clear the folder but never name one: a path to write into is only ever chosen in the dialog.
+    const kept = invoiceLook(getDatabase(), id).folder;
+    return setInvoiceLook(getDatabase(), id, { ...next, folder: next.folder === null ? null : kept });
+  });
+  handle(CHANNELS.billingInvoiceLogo, async (_event, companyId: unknown, remove: unknown) => {
+    const id = assertId(companyId, "company id");
+    const look = invoiceLook(getDatabase(), id);
+    if (remove === true) {
+      await rm(invoiceLogoPath(id), { force: true });
+      return setInvoiceLook(getDatabase(), id, { ...look, logo: false });
+    }
+    const picked = await dialog.showOpenDialog({
+      title: "Choose the logo for your invoices",
+      filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg"] }],
+      properties: ["openFile"],
+    });
+    const path = picked.canceled ? null : (picked.filePaths[0] ?? null);
+    if (!path) return null;
+    const bytes = await readFile(path);
+    if (bytes.length > 2 * 1024 * 1024) throw new Error("That image is over 2 MB. A logo prints well far smaller.");
+    if (!imageType(bytes)) throw new Error("That is not a PNG or a JPEG.");
+    await mkdir(dirname(invoiceLogoPath(id)), { recursive: true });
+    await writeFile(invoiceLogoPath(id), bytes);
+    return setInvoiceLook(getDatabase(), id, { ...look, logo: true });
+  });
+  handle(CHANNELS.billingInvoiceFolder, async (_event, companyId: unknown) => {
+    const id = assertId(companyId, "company id");
+    const picked = await dialog.showOpenDialog({
+      title: "Where should copies of your invoices go?",
+      buttonLabel: "Keep them here",
+      properties: ["openDirectory", "createDirectory"],
+    });
+    const folder = picked.canceled ? null : (picked.filePaths[0] ?? null);
+    if (!folder) return null;
+    return setInvoiceLook(getDatabase(), id, { ...invoiceLook(getDatabase(), id), folder });
+  });
+  handle(CHANNELS.billingInvoiceSample, async (_event, companyId: unknown) => {
+    await writeInvoiceSample(getDatabase(), assertId(companyId, "company id"), app.getPath("temp"));
+  });
+  handle(CHANNELS.moneyPaidFrom, (_event, companyId: unknown, raw: unknown) => {
+    const parsed = paidFromInput.safeParse(raw);
+    if (!parsed.success) throw new Error("That is not money in from a contact.");
+    return paidFrom(getDatabase(), assertId(companyId, "company id"), parsed.data);
+  });
+  handle(CHANNELS.tuneNameKeep, (_event, companyId: unknown, raw: unknown) => {
+    const parsed = nameInput.safeParse(raw);
+    if (!parsed.success) throw new Error("That is not a word and a contact.");
+    return keepName(getDatabase(), assertId(companyId, "company id"), parsed.data);
+  });
+  handle(CHANNELS.tuneNameForget, (_event, id: unknown) => forgetName(getDatabase(), assertId(id, "name id")));
 
   handle(
     CHANNELS.tasksUpdate,
@@ -1271,6 +1662,8 @@ function registerImportHandlers() {
     return registerFile("Pasted list", "csv", await readPasted(raw));
   });
 
+  handle(CHANNELS.importGoogle, () => pullGoogleContacts());
+
   handle(
     CHANNELS.importPreview,
     (_event, companyId: unknown, fileId: unknown, mapping: unknown) =>
@@ -1284,13 +1677,8 @@ function registerImportHandlers() {
 
   handle(
     CHANNELS.importCommit,
-    (_event, jobId: unknown, resolutions: unknown, campaignId: unknown) =>
-      commitImport(
-        getDatabase(),
-        assertId(jobId, "job id"),
-        (resolutions ?? {}) as Record<number, Resolution>,
-        typeof campaignId === "string" && campaignId.length > 0 ? campaignId : null,
-      ),
+    (_event, jobId: unknown, resolutions: unknown) =>
+      commitImport(getDatabase(), assertId(jobId, "job id"), (resolutions ?? {}) as Record<number, Resolution>),
   );
 
   handle(CHANNELS.importBatches, (_event, companyId: unknown) =>
@@ -1338,6 +1726,10 @@ function parseQuery(raw: unknown): LeadQuery {
     (RELATIONSHIPS as readonly string[]).includes(source["relationship"])
   ) {
     query.relationship = source["relationship"] as Relationship;
+  }
+
+  if (typeof source["reached"] === "string" && (REACHED as readonly string[]).includes(source["reached"])) {
+    query.reached = source["reached"] as Reached;
   }
 
   if (

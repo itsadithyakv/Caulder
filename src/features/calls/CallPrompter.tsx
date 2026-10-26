@@ -464,7 +464,7 @@ export function CallPrompter({
                   <div className="tones anim-spring">
                     <p className="tones__lead">
                       {context.scripts.length === 0
-                        ? "No call script yet. Start from one of these and make it yours in Brain, under Playbooks."
+                        ? "No call script yet. Start from one of these and make it yours in Brain, under How we work."
                         : "Start another script from a tone."}
                     </p>
                     <div className="tones__grid">

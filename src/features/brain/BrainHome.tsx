@@ -1,8 +1,17 @@
 import { useEffect, useState, type CSSProperties } from "react";
-import { Check, ChevronDown, ChevronUp, Circle, Waypoints } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, ChevronUp, Circle, Waypoints } from "lucide-react";
 import { AskBox } from "./AskBox";
+import { BriefCard } from "./Proposals";
+import { ContextCard } from "./ContextCard";
 import type { MapGraph, MapNode } from "@shared/map";
-import { templateOf, type BrainHome as Home, type BrainSectionId, type ChecklistItem } from "@shared/brain";
+import {
+  CHECKLIST_STEPS,
+  CHECKLIST_STEP_LABEL,
+  templateOf,
+  type BrainHome as Home,
+  type BrainSectionId,
+  type ChecklistItem,
+} from "@shared/brain";
 import { Card } from "@/components/Card";
 import { PageList } from "./SectionView";
 import { MapCanvas } from "./MapCanvas";
@@ -23,8 +32,8 @@ export function BrainHome({
   onOpenMap,
   onOpenSection,
   onCreate,
-  onGoToSettings,
   onGoToProducts,
+  onChanged,
 }: {
   companyId: string;
   home: Home;
@@ -34,9 +43,10 @@ export function BrainHome({
   onOpenMap: () => void;
   onOpenSection: (section: BrainSectionId, focus?: string) => void;
   onCreate: (section: BrainSectionId, template: string) => void;
-  onGoToSettings: () => void;
   /** The catalogue, which is a tab on Money rather than a page here. */
   onGoToProducts: () => void;
+  /** Something was written from here: what is listed may be stale. */
+  onChanged: () => void;
 }) {
   const { company } = home;
   const openRef = useOpenRef();
@@ -76,17 +86,22 @@ export function BrainHome({
           </p>
         </header>
 
-        <AskBox companyId={companyId} onOpenPage={onOpenPage} onOpenContact={onOpenContact} onGoToSettings={onGoToSettings} />
+        <AskBox companyId={companyId} onOpenPage={onOpenPage} onOpenContact={onOpenContact} />
+
+        {/* What is written first: this is the brain, not a form about it. */}
+        {pages.length > 0 && (
+          <Card title={home.pinned.length > 0 ? "Pinned and recent" : "Recently written"}>
+            <PageList pages={pages} onOpen={onOpenPage} label="Pinned and recent pages" showSection />
+          </Card>
+        )}
+
+        {/* What goes with every question, under the box that asks them. */}
+        <BriefCard companyId={companyId} version={version} onOpenPage={onOpenPage} onChanged={onChanged} />
 
         <Checklist items={home.checklist} onOpen={open} />
 
-        <Card title={home.pinned.length > 0 ? "Pinned and recent" : "Recently written"}>
-          {pages.length > 0 ? (
-            <PageList pages={pages} onOpen={onOpenPage} label="Pinned and recent pages" showSection />
-          ) : (
-            <p className="card__hint">Nothing written yet. The list above is a good place to start.</p>
-          )}
-        </Card>
+        {/* Last: it is for taking what is written somewhere else, so it comes after what is written. */}
+        <ContextCard companyId={companyId} />
       </div>
 
       <div className="brainhome__side">
@@ -132,6 +147,9 @@ function SmallMap({
     };
   }, [companyId, version]);
 
+  // Nothing linked yet: no card of instructions in its place. The rail has the map, and a page says how to link.
+  if (!graph || graph.links.length === 0) return null;
+
   return (
     <Card
       title="The map"
@@ -143,37 +161,34 @@ function SmallMap({
         </button>
       }
     >
-      {graph && graph.links.length > 0 ? (
-        <MapCanvas
-          graph={graph}
-          height={320}
-          label={`A small map of the company: ${graph.nodes.length} dots and ${graph.links.length} links.`}
-          onOpen={onOpen}
-        />
-      ) : (
-        <p className="card__hint">
-          Every page is a dot and every link a line. Type [[ in a page to link it to another page, a contact, a product
-          or a person.
-        </p>
-      )}
+      <MapCanvas
+        graph={graph}
+        height={320}
+        label={`A small map of the company: ${graph.nodes.length} dots and ${graph.links.length} links.`}
+        onOpen={onOpen}
+      />
     </Card>
   );
 }
 
-/** How many of the list show before "Show all". */
-const FIRST_FEW = 4;
-
 /**
- * The twelve things worth writing down first, folded to the next few not
- * written yet. Gone once they all are: a finished list is not worth a card.
+ * Twelve answers that set the company up, a step at a time.
+ *
+ * It used to be a list of field names - "Entity type and incorporation date" -
+ * that said neither what was being asked nor why anybody should answer. Now
+ * each is a question, with what Caulder does with the answer under it.
+ * Folded until asked for: the brain's first page shows what is written, and
+ * offers the questions in a line rather than standing in front of it as a
+ * form. Gone once they are all answered.
  */
 function Checklist({ items, onOpen }: { items: ChecklistItem[]; onOpen: (item: ChecklistItem) => void }) {
   const [all, setAll] = useState(false);
   const done = items.filter((item) => item.done).length;
   if (done === items.length) return null;
 
-  const left = items.filter((item) => !item.done);
-  const shown = all ? items : left.slice(0, FIRST_FEW);
+  const steps = CHECKLIST_STEPS.map((step) => ({ step, items: items.filter((item) => item.step === step) }));
+  const shown = all ? steps : [];
+  const left = items.length - done;
 
   return (
     <section className="card checklist" aria-labelledby="checklist-title">
@@ -181,42 +196,61 @@ function Checklist({ items, onOpen }: { items: ChecklistItem[]; onOpen: (item: C
         <Ring done={done} all={items.length} />
         <div className="checklist__words">
           <h2 className="card__title" id="checklist-title">
-            Write these down first
+            {done === 0 ? "Tell Caulder about the company" : "Keep going"}
           </h2>
           <p className="card__hint">
-            {left.length === 1 ? "One left." : `${left.length} left, about fifteen minutes all told.`} Each opens the page it
-            fills.
+            {left === 1 ? "One question left." : `${left} short questions left.`}
           </p>
         </div>
       </div>
-      <ul className="checklist__items">
-        {shown.map((item) => (
-          <li key={item.id}>
-            <button
-              type="button"
-              className={`checklist__item${item.done ? " checklist__item--done" : ""}`}
-              aria-label={`${item.label}, ${item.done ? "written" : "not written yet"}${
-                item.progress && !item.done ? `, ${item.progress}` : ""
-              }`}
-              onClick={() => onOpen(item)}
-            >
-              {item.done ? (
-                <Check size={16} className="checklist__mark checklist__mark--done anim-spring-pop" aria-hidden />
-              ) : (
-                <Circle size={16} className="checklist__mark" aria-hidden />
-              )}
-              <span className="checklist__label">{item.label}</span>
-              {item.progress && !item.done && <span className="checklist__progress">{item.progress}</span>}
-            </button>
-          </li>
-        ))}
-      </ul>
-      {left.length > FIRST_FEW || done > 0 ? (
-        <button type="button" className="btn btn--sm btn--ghost checklist__more" aria-expanded={all} onClick={() => setAll((open) => !open)}>
-          {all ? <ChevronUp size={14} aria-hidden /> : <ChevronDown size={14} aria-hidden />}
-          {all ? "Just what is left" : `All ${items.length}`}
-        </button>
-      ) : null}
+
+      {shown.map(({ step, items: inStep }) => {
+        const answered = items.filter((item) => item.step === step && item.done).length;
+        const of = items.filter((item) => item.step === step).length;
+        return (
+          <div key={step} className="checklist__step">
+            <h3 className="checklist__stepName">
+              {CHECKLIST_STEP_LABEL[step]}
+              <span className="checklist__stepCount">
+                {answered} of {of}
+              </span>
+            </h3>
+            <ul className="checklist__items">
+              {inStep.map((item) => (
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    className={`checklist__item${item.done ? " checklist__item--done" : ""}`}
+                    aria-label={`${item.label}, ${item.done ? "written" : "not written yet"}${
+                      item.progress && !item.done ? `, ${item.progress}` : ""
+                    }`}
+                    onClick={() => onOpen(item)}
+                  >
+                    {item.done ? (
+                      <Check size={16} className="checklist__mark checklist__mark--done anim-spring-pop" aria-hidden />
+                    ) : (
+                      <Circle size={16} className="checklist__mark" aria-hidden />
+                    )}
+                    <span className="checklist__text">
+                      <span className="checklist__label">
+                        {item.label}
+                        {item.progress && !item.done && <span className="checklist__progress">{item.progress}</span>}
+                      </span>
+                      {!item.done && <span className="checklist__why">{item.why}</span>}
+                    </span>
+                    {!item.done && <ArrowRight size={15} className="checklist__go" aria-hidden />}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })}
+
+      <button type="button" className="btn btn--sm btn--ghost checklist__more" aria-expanded={all} onClick={() => setAll((open) => !open)}>
+        {all ? <ChevronUp size={14} aria-hidden /> : <ChevronDown size={14} aria-hidden />}
+        {all ? "Fold them away" : `All ${items.length}`}
+      </button>
     </section>
   );
 }

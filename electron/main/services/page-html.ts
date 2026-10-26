@@ -45,6 +45,8 @@ function inlineHtml(inline: readonly Inline[], resolve: LinkResolver): string {
           return /^https?:\/\//i.test(part.href)
             ? `<a href="${escapeHtml(part.href)}">${inlineHtml(part.children, resolve)}</a>`
             : inlineHtml(part.children, resolve);
+        case "unlinked":
+          return escapeHtml(part.text);
         case "brainlink": {
           const target = resolve(part.target, part.id, part.label);
           return target.href

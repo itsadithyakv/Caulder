@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Lead, LeadListRow, LeadQuery, LeadSort, Relationship, SortDirection } from "@shared/domain";
+import type { Reached } from "@shared/reached";
 import { messageOf } from "@/lib/errors";
 
 /**
@@ -16,6 +17,8 @@ export type Filters = {
   stageId: string | undefined | null;
   /** undefined means everybody. */
   relationship: Relationship | undefined;
+  /** undefined means whether or not they have been written to. */
+  reached: Reached | undefined;
   sort: LeadSort;
   direction: SortDirection;
 };
@@ -24,6 +27,7 @@ export const EMPTY_FILTERS: Filters = {
   search: "",
   stageId: undefined,
   relationship: undefined,
+  reached: undefined,
   sort: "recent",
   direction: "desc",
 };
@@ -55,6 +59,7 @@ export function useLeads(companyId: string | null, filters: Filters) {
     if (filters.search.trim()) query.search = filters.search;
     if (filters.stageId !== undefined) query.stageId = filters.stageId;
     if (filters.relationship) query.relationship = filters.relationship;
+    if (filters.reached) query.reached = filters.reached;
 
     window.caulder.leads
       .list(query)
@@ -69,7 +74,7 @@ export function useLeads(companyId: string | null, filters: Filters) {
         setError(messageOf(cause));
         setLoading(false);
       });
-  }, [companyId, filters.search, filters.stageId, filters.relationship, filters.sort, filters.direction]);
+  }, [companyId, filters.search, filters.stageId, filters.relationship, filters.reached, filters.sort, filters.direction]);
 
   useEffect(reload, [reload]);
 

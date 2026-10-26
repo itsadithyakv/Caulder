@@ -1,16 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { QuickAdd } from "@/features/today/QuickAdd";
 import { messageOf } from "@/lib/errors";
+import { taskExample } from "@shared/voice";
+import { sayOnce } from "@/features/today/said";
 
 /**
- * The quick window - opened from the tray icon or with Ctrl+Alt+A.
+ * The quick window - opened from the tray icon or with Ctrl+Q.
  *
  * One box, over whatever you were doing, gone again in a second. It has no
  * workspace switcher and almost no controls on purpose: every element here is
  * one more thing between a thought and it being written down.
  *
- * Two modes. **Task** is the thing you have to remember to do - "datascience
- * assignment at 4pm today" - read the same way Today's quick-add line reads
+ * Two modes. **Task** is the thing you have to remember to do - "send the
+ * proposal at 4pm today" - read the same way Today's quick-add line reads
  * it, and asking the same questions when something is missing. **Note** is the
  * thought you do not want to lose. The tray opens it on Task; the key opens
  * whichever was used last; Ctrl+T and Ctrl+N switch. A task typed without
@@ -23,7 +25,8 @@ import { messageOf } from "@/lib/errors";
 type Mode = "note" | "task";
 const MODE_KEY = "caulder.capture.mode";
 
-type Workspace = { id: string; timezone: string; personal: boolean };
+/** The company chosen. */
+type Workspace = { id: string; timezone: string };
 
 export function Capture() {
   // Task unless a note was the last thing written here: the tray and the key
@@ -60,9 +63,7 @@ export function Capture() {
       const { companies, activeCompanyId } = await window.caulder.companies.list();
       const active = companies.find((company) => company.id === activeCompanyId);
       setWorkspace(
-        active
-          ? { id: active.id, timezone: active.timezone, personal: active.kind === "personal" }
-          : null,
+        active ? { id: active.id, timezone: active.timezone } : null,
       );
       // The look is the app's own, set on the page (index.html): this window
       // wears the same coffee as the main one without being told.
@@ -142,7 +143,7 @@ export function Capture() {
   }
 
   return (
-    <div className="capture">
+    <div className={`capture${mode === "task" ? " capture--task" : ""}`}>
       <div className="capture__modes" role="radiogroup" aria-label="What this is">
         {(["task", "note"] as const).map((option) => (
           <button
@@ -190,10 +191,11 @@ export function Capture() {
         <QuickAdd
           companyId={workspace.id}
           timezone={workspace.timezone}
-          personal={workspace.personal}
           focusNonce={nonce}
-          placeholder="Datascience assignment at 4pm today"
-          hint="“tmrw 4pm”, “fri for 2h”, “gym every mon 6am”, “not urgent”. Enter adds it · Ctrl+N for a note · Esc closes."
+          // A different example each time the window is opened: it shows what
+          // the line reads by being it, which a sentence of hints under it never did.
+          placeholder={sayOnce("task-example", String(nonce), taskExample).says}
+          hint=""
           // Long enough to read "Added", then out of the way of whatever you
           // were doing - which is the whole point of this window.
           onAdded={() => {
