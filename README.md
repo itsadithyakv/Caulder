@@ -10,11 +10,19 @@ your time, and what the company knows.
   several and write to all of them, each by name. Today says who you reached
   and who is still waiting to hear from you.
 - **Deals and money.** A board by stage, quotes, invoices, payments, spend,
-  running costs and runway.
+  running costs and runway. Tax for about eighty countries - GST as CGST and
+  SGST or IGST, VAT with the reverse charge - or none for a business not
+  registered, every rate and word yours to change when the law does.
+  Invoices in your own look and numbering, with your logo, emailed with their
+  PDF; TDS recorded on a payment; a pack for your accountant; Health, with
+  the year's turnover against the line where registering is needed.
+- **What renews.** Domains, tools and running costs, with the account each was
+  bought with, told a month ahead and on the day.
 - **Your time.** Today, a calendar with the whole day in it, tasks and notes.
 - **One line for any of it.** "call Priya tomorrow 4pm", "Priya wants the
-  invoice by the 5th", "figma 1,200", "our GST number is …" - it says where
-  each will go before it goes there.
+  invoice by the 5th", "figma 1,200", "my domain expires on the 27th next
+  year", "I use Resend with studio@gmail.com" - it says where each will go
+  before it goes there.
 - **The company's brain.** Pages, memories, a map of how they link, filing
   deadlines, documents, people, metrics, a data room, and your own AI asked
   from what is written down.
@@ -24,7 +32,11 @@ account, works offline. Google - calendar, tasks, Gmail, and your contacts as
 a spreadsheet you can edit on your phone - goes through a script that runs in
 your own account, if you want it. Ask uses whichever AI you connect, if you
 connect one. Nothing personal lives here: Caulder is the company's
-([PLAN.md](PLAN.md), part seven).
+([PLAN.md](PLAN.md), part seven). What leaves the computer, and when, is on
+the [privacy page](https://itsadithyakv.github.io/Caulder/privacy.html).
+
+It is for Windows: an installer from the repository's Releases, or the
+Microsoft Store.
 
 ## Running it
 
@@ -34,7 +46,9 @@ npm run dev
 ```
 
 `npm install` rebuilds `better-sqlite3` against Electron's Node ABI afterwards.
-`npm run dev` opens the window with hot reload.
+`npm run dev` opens the window with hot reload. The model that reads the line
+for meaning is not in git: `npm run fetch-model` puts it in `resources/model`.
+Without it the app runs without understanding, and a package ships without it.
 
 | Command | What it does |
 | --- | --- |
@@ -43,7 +57,10 @@ npm run dev
 | `npm start` | Runs the built app |
 | `npm run verify` | **The gate**: typecheck, lint, test, dead-code. Four steps, in order. |
 | `npm run test:e2e` | Builds, then drives the real window with Playwright |
+| `npm run fetch-model` | Downloads the model, checked by SHA-256, into `resources/model` |
 | `npm run package` | Produces a Windows installer in `release/` |
+| `npm run package:store` | Produces the unsigned `.msix` the Microsoft Store signs |
+| `npm run release` | Builds the installer and publishes it to GitHub Releases, where the installed app looks for updates |
 | `npm run smoke:packaged` | Drives the packaged binary on a clean profile |
 
 `test:e2e` is deliberately outside `verify`, so that gate stays the four steps
@@ -61,7 +78,9 @@ electron/preload/   the contextBridge surface, and the only thing the UI can cal
 src/                the renderer: shell, features, primitives, styles
 shared/             types and schemas imported by BOTH sides, so they cannot drift
 assets/             the logo, as supplied; everything else derives from it
-resources/          fonts, the app icon, and the Apps Script file to paste into Google
+resources/          fonts, the app icon, the Store tiles, and the Apps Script file to paste into Google
+docs/               the privacy page, published with GitHub Pages
+branding/           logos and Store images, made by scripts/branding.py
 reference/          what this app is and how it works
 e2e/                Playwright suites, one per area
 scripts/            standalone checks run by hand
